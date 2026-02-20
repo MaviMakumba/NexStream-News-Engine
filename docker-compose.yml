@@ -1,0 +1,26 @@
+services:
+  # 1. Ana Veritabanımız: PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: nexstream_db
+    restart: always
+    environment:
+      POSTGRES_USER: niko_user
+      POSTGRES_PASSWORD: secure_password_123
+      POSTGRES_DB: nexstream_news
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. Veritabanı Yönetim Arayüzü: Adminer (Hafif ve hızlı)
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
