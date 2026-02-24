@@ -7,6 +7,10 @@ services:
     container_name: nexstream_engine
     depends_on:
       - db  # Veritabanı açılmadan ben açılmam
+    # YENİ KOMUT: Uvicorn sunucusunu başlatıyoruz
+    # --host 0.0.0.0: Dışarıdan gelen isteklere cevap ver
+    # --reload: Kod değişirse sunucuyu yeniden başlat (Geliştirme modu)
+    command: uvicorn src.adapters.api.controller:app --host 0.0.0.0 --port 8000 --reload
     environment:
       # DİKKAT: .env dosyasındaki 127.0.0.1 ayarını burada eziyoruz.
       # Konteynır içinden veritabanına "db" ismiyle ulaşılır.
@@ -16,6 +20,8 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
+    ports:
+      - "8000:8000"  # Bilgisayarının 8000 portunu konteynırın 8000'ine bağla  
     volumes:
       # Canlı Güncelleme (Hot Reload):
       # Bilgisayarındaki kod değişirse, konteynırın içindeki de değişsin.
