@@ -50,5 +50,50 @@ services:
     depends_on:
       - db
 
+  # 4. KAFKA KOORDİNATÖRÜ (Zookeeper)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: nexstream_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  # 5. MESAJ KUYRUĞU (Kafka Broker)
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: nexstream_kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # Kafka'nın dış dünya ve iç dünya ile nasıl konuşacağı ayarı (Biraz karmaşıktır ama standarttır)
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      
+  # 6. ARKA PLAN İŞÇİSİ (Consumer)
+  worker:
+    build: . # App ile aynı imajı kullanır (Tekrar build etmez, hızlıdır)
+    container_name: nexstream_worker
+    depends_on:
+      - kafka
+      - db
+    # KRİTİK NOKTA: App servisi "uvicorn" çalıştırırken, bu servis "consumer" çalıştırır.
+    command: python -m src.adapters.messaging.kafka_consumer
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+    volumes:
+      - .:/app
+
 volumes:
   postgres_data:

@@ -1,35 +1,64 @@
 from fastapi import FastAPI, HTTPException
-from src.adapters.repositories.news_repository import NewsRepository
-from src.application.services.news_service import NewsService
-from src.adapters.scrapers.bbc_scraper import BBCRssScraper
+import json
+import asyncio
+from aiokafka import AIOKafkaProducer
 
-# 1. Uygulama Nesnesi (The App)
+# 1. Uygulama Ayarları
 app = FastAPI(
-    title="NexStream News Engine API",
-    description="Haber motorunu yöneten REST API servisi.",
-    version="1.0.0"
+    title="NexStream News Engine API (Event-Driven)",
+    description="Kafka tabanlı, asenkron haber motoru servisi.",
+    version="2.0.0"
 )
 
-# 2. Bağımlılıkları Hazırla (Dependency Injection)
-# Not: Gerçek projelerde bu kısım "Dependency Injection Container" ile yapılır
-# ama şimdilik manuel yapıyoruz.
-repo = NewsRepository()
-service = NewsService(repo)
-bbc_scraper = BBCRssScraper()
+# Global değişken: Kafka Producer nesnesi
+producer = None
+
+@app.on_event("startup")
+async def startup_event():
+    """Uygulama açılırken Kafka bağlantısını kurar."""
+    global producer
+    # Docker içinden Kafka'ya ulaşmak için 'kafka:29092' adresini kullanıyoruz.
+    producer = AIOKafkaProducer(bootstrap_servers='kafka:29092')
+    await producer.start()
+    print("✅ Kafka Producer bağlantısı kuruldu.")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Uygulama kapanırken bağlantıyı temizler."""
+    global producer
+    if producer:
+        await producer.stop()
+        print("🛑 Kafka Producer bağlantısı kapatıldı.")
 
 @app.get("/")
 def health_check():
-    """Sistemin ayakta olup olmadığını kontrol eder."""
-    return {"status": "active", "system": "NexStream News Engine"}
+    return {"status": "active", "mode": "Event-Driven Producer"}
 
 @app.post("/news/update-bbc")
-def trigger_bbc_update():
+async def trigger_bbc_update_async():
     """
-    BBC Haberlerini manuel olarak tetikler ve günceller.
+    Bu endpoint artık işi YAPMAZ.
+    Sadece Kafka'ya 'Git işi yap' diye bir mesaj bırakır ve döner.
     """
     try:
-        # Servisi çağırıp işi yaptırıyoruz
-        service.update_news_from_source(bbc_scraper)
-        return {"message": "BBC haber güncellemesi başarıyla tamamlandı."}
+        # Mesaj içeriği (Emir)
+        event_data = {
+            "source": "BBC Technology",
+            "action": "scrape",
+            "timestamp": "now" # Gerçek projede datetime.now() kullanılır
+        }
+        
+        # Mesajı JSON formatına çevirip byte olarak hazırlıyoruz
+        message_bytes = json.dumps(event_data).encode("utf-8")
+        
+        # Kafka'ya fırlat! (Konu başlığı: 'news_updates')
+        await producer.send_and_wait("news_updates", message_bytes)
+        
+        return {
+            "message": "İstek alındı ve kuyruğa atıldı.",
+            "status": "QUEUED",
+            "details": event_data
+        }
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Kafka Hatası: {str(e)}")
