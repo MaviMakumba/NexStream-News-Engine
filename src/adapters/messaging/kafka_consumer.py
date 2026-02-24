@@ -19,7 +19,18 @@ async def consume():
         group_id="news_workers_group" # Aynı işi yapan işçi grubu
     )
     
-    await consumer.start()
+    # --- RETRY MEKANİZMASI BAŞLANGICI ---
+    print("⏳ Kafka'ya bağlanmaya çalışılıyor...")
+    while True:
+        try:
+            await consumer.start()
+            print("✅ Kafka Bağlantısı Başarılı!")
+            break # Bağlandıysak döngüden çık
+        except Exception as e:
+            print(f"⚠️ Kafka henüz hazır değil, 5 saniye sonra tekrar denenecek... ({e})")
+            await asyncio.sleep(5)
+    # --- RETRY MEKANİZMASI BİTİŞİ ---
+
     print("👷‍♂️ Kafka Worker (İşçi) işbaşı yaptı! Mesaj bekleniyor...")
 
     try:
