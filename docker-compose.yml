@@ -1,19 +1,41 @@
+version: '3.8'
+
 services:
-  # 1. Ana Veritabanımız: PostgreSQL
+  # 1. PYTHON UYGULAMAMIZ (Yeni Eklenen Kısım)
+  app:
+    build: .  # Dockerfile'ı olduğu dizinden (buradan) inşa et
+    container_name: nexstream_engine
+    depends_on:
+      - db  # Veritabanı açılmadan ben açılmam
+    environment:
+      # DİKKAT: .env dosyasındaki 127.0.0.1 ayarını burada eziyoruz.
+      # Konteynır içinden veritabanına "db" ismiyle ulaşılır.
+      - DB_HOST=db
+      - DB_PORT=5432 # İçeride port 5432'dir (Dışarıdaki 5433 değil!)
+      # Diğer şifreleri .env dosyasından otomatik okur
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+    volumes:
+      # Canlı Güncelleme (Hot Reload):
+      # Bilgisayarındaki kod değişirse, konteynırın içindeki de değişsin.
+      - .:/app
+
+  # 2. VERİTABANI (PostgreSQL)
   db:
     image: postgres:15-alpine
     container_name: nexstream_db
     restart: always
     environment:
-      POSTGRES_USER: niko_user
-      POSTGRES_PASSWORD: secure_password_123
-      POSTGRES_DB: nexstream_news
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
-      - "5433:5432"
+      - "${DB_PORT}:5432" # 5433:5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  # 2. Veritabanı Yönetim Arayüzü: Adminer (Hafif ve hızlı)
+  # 3. YÖNETİM PANELİ (Adminer)
   adminer:
     image: adminer
     restart: always
