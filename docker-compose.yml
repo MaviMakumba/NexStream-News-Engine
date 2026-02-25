@@ -8,7 +8,8 @@ services:
     # YENİ KOMUT: Uvicorn sunucusunu başlatıyoruz
     # --host 0.0.0.0: Dışarıdan gelen isteklere cevap ver
     # --reload: Kod değişirse sunucuyu yeniden başlat (Geliştirme modu)
-    command: uvicorn src.adapters.api.controller:app --host 0.0.0.0 --port 8000 --reload
+    # Yeni komutumuz bu: src klasöründeki main.py içindeki 'app' nesnesini çalıştır.
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       # DİKKAT: .env dosyasındaki 127.0.0.1 ayarını burada eziyoruz.
       # Konteynır içinden veritabanına "db" ismiyle ulaşılır.

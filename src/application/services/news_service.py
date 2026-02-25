@@ -42,3 +42,9 @@ class NewsService:
                 saved_count += 1
                 
         print(f"--- İŞLEM BİTTİ: {saved_count} haber analiz edildi ve kaydedildi. ---\n")
+    
+    def list_news(self, limit: int = 10, sentiment_filter: str = None):
+        """
+        Depodan haberleri ister ve listeler.
+        """
+        return self.repository.get_latest_news(limit, sentiment_filter)    

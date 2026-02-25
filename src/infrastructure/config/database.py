@@ -17,3 +17,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Base: ORM modellerimizin miras alacağı ana sınıf. Tablolar bu sınıf üzerinden türetilecek.
 Base = declarative_base()
+
+# --- İŞTE EKSİK OLAN SİHİRLİ FONKSİYON BU ---
+def get_db():
+    """
+    Her istek (request) geldiğinde yeni bir veritabanı oturumu açar,
+    iş bitince kapatır.
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

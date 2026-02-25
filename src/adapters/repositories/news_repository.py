@@ -1,48 +1,43 @@
 from sqlalchemy.orm import Session
-from src.adapters.repositories.orm_models import NewsORM
-from src.infrastructure.config.database import SessionLocal
+from src.domain.models.news import NewsORM
 
 class NewsRepository:
-    def __init__(self):
-        # Her depo işleminin kendi veritabanı oturumu olur
-        self.db: Session = SessionLocal()
+    # --- DÜZELTME BURADA ---
+    # Artık dışarıdan gelen (Router'dan gelen) db oturumunu kabul ediyor.
+    def __init__(self, db: Session):
+        self.db = db
 
-    def save_article(self, article_data: dict) -> bool:
+    def save_article(self, article_data: dict):
         """
-        Haberi veritabanına kaydeder.
-        Eğer haberin linki (url) zaten varsa kaydetmez (Duplicate Prevention).
+        Haberi veritabanına kaydeder veya günceller.
         """
-        try:
-            # 1. Kontrol Et: Bu linkte bir haber zaten var mı?
-            existing_news = self.db.query(NewsORM).filter(NewsORM.url == article_data["url"]).first()
-            
-            if existing_news:
-                # Haber zaten var, pas geçiyoruz
-                print(f"⚠️ Zaten kayıtlı: {article_data['title'][:30]}...")
-                return False
+        # Önce bu URL var mı diye bak (Tekrarı önle)
+        existing_news = self.db.query(NewsORM).filter(NewsORM.url == article_data["url"]).first()
+        
+        if existing_news:
+            return existing_news
 
-            # 2. Yoksa Yeni Kayıt Oluştur (Mapping: Dict -> ORM Nesnesi)
-            new_news = NewsORM(
-                title=article_data["title"],
-                content=article_data["content"],
-                source=article_data["source"],
-                url=article_data["url"],
-                # YENİ ALANLAR:
-                summary=article_data.get("summary", ""),
-                sentiment_score=article_data.get("sentiment_score", 0.0),
-                sentiment_label=article_data.get("sentiment_label", "Neutral")
-            )
+        news = NewsORM(
+            title=article_data["title"],
+            source=article_data["source"],
+            url=article_data["url"],
+            summary=article_data.get("summary"),             # AI Özeti
+            sentiment_label=article_data.get("sentiment_label"), # AI Etiketi
+            sentiment_score=article_data.get("sentiment_score")  # AI Skoru
+        )
+        self.db.add(news)
+        self.db.commit()
+        self.db.refresh(news)
+        return news
+
+    def get_latest_news(self, limit: int = 10, sentiment: str = None):
+        """
+        Son eklenen haberleri getirir. İstenirse duygu durumuna göre filtreler.
+        """
+        query = self.db.query(NewsORM)
+        
+        # Eğer filtre varsa (Örn: Sadece 'Positive' olanlar)
+        if sentiment:
+            query = query.filter(NewsORM.sentiment_label.ilike(f"%{sentiment}%"))
             
-            # 3. Veritabanına Gönder ve Onayla (Commit)
-            self.db.add(new_news)
-            self.db.commit()
-            print(f"💾 Kaydedildi: {article_data['title'][:30]}...")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Veritabanı Hatası: {e}")
-            self.db.rollback() # Hata olursa işlemi geri al
-            return False
-            
-    def close(self):
-        self.db.close()
+        return query.order_by(NewsORM.id.desc()).limit(limit).all()
