@@ -26,7 +26,11 @@ class NewsRepository:
                 title=article_data["title"],
                 content=article_data["content"],
                 source=article_data["source"],
-                url=article_data["url"]
+                url=article_data["url"],
+                # YENİ ALANLAR:
+                summary=article_data.get("summary", ""),
+                sentiment_score=article_data.get("sentiment_score", 0.0),
+                sentiment_label=article_data.get("sentiment_label", "Neutral")
             )
             
             # 3. Veritabanına Gönder ve Onayla (Commit)

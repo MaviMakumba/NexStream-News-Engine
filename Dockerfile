@@ -13,7 +13,8 @@ ENV PYTHONUNBUFFERED=1
 # Önce sadece requirements.txt'yi kopyalıyoruz (Docker Cache mantığı).
 COPY requirements.txt .
 # --no-cache-dir: İndirilen dosyaları kurulumdan sonra siler, yer kaplamaz.
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    python -m textblob.download_corpora
 
 # 5. Kodların Kopyalanması:
 # Bilgisayarındaki tüm kodları konteynırın içine atıyoruz.
