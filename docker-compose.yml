@@ -6,6 +6,8 @@ services:
     depends_on:
       db:
         condition: service_healthy  # ✅ DB gerçekten hazır olsun
+      kafka:
+        condition: service_healthy  # ✅ Kafka gerçekten hazır olsun  
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       - DB_HOST=db
@@ -54,13 +56,15 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+      # Whitelist satırını silebilirsin, işe yaramıyor zaten :)
     ports:
       - "2181:2181"
-    healthcheck:  # ✅ Eklendi
-      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+    healthcheck:  # ✅ İŞTE SİHİRLİ DOKUNUŞ BURADA
+      test: ["CMD-SHELL", "echo srvr | nc localhost 2181 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 10s
 
   # 5. MESAJ KUYRUĞU (Kafka)
   kafka:
