@@ -1,29 +1,21 @@
 services:
-  # 1. PYTHON UYGULAMAMIZ (Yeni Eklenen Kısım)
+  # 1. PYTHON UYGULAMAMIZ
   app:
-    build: .  # Dockerfile'ı olduğu dizinden (buradan) inşa et
+    build: .
     container_name: nexstream_engine
     depends_on:
-      - db  # Veritabanı açılmadan ben açılmam
-    # YENİ KOMUT: Uvicorn sunucusunu başlatıyoruz
-    # --host 0.0.0.0: Dışarıdan gelen isteklere cevap ver
-    # --reload: Kod değişirse sunucuyu yeniden başlat (Geliştirme modu)
-    # Yeni komutumuz bu: src klasöründeki main.py içindeki 'app' nesnesini çalıştır.
+      db:
+        condition: service_healthy  # ✅ DB gerçekten hazır olsun
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
-      # DİKKAT: .env dosyasındaki 127.0.0.1 ayarını burada eziyoruz.
-      # Konteynır içinden veritabanına "db" ismiyle ulaşılır.
       - DB_HOST=db
-      - DB_PORT=5432 # İçeride port 5432'dir (Dışarıdaki 5433 değil!)
-      # Diğer şifreleri .env dosyasından otomatik okur
+      - DB_PORT=5432
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
     ports:
-      - "8000:8000"  # Bilgisayarının 8000 portunu konteynırın 8000'ine bağla  
+      - "8000:8000"
     volumes:
-      # Canlı Güncelleme (Hot Reload):
-      # Bilgisayarındaki kod değişirse, konteynırın içindeki de değişsin.
       - .:/app
 
   # 2. VERİTABANI (PostgreSQL)
@@ -36,9 +28,14 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - "${DB_PORT}:5432" # 5433:5432
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:  # ✅ Gerçekten hazır mı diye kontrol et
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   # 3. YÖNETİM PANELİ (Adminer)
   adminer:
@@ -47,7 +44,8 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   # 4. KAFKA KOORDİNATÖRÜ (Zookeeper)
   zookeeper:
@@ -58,32 +56,44 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    healthcheck:  # ✅ Eklendi
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
-  # 5. MESAJ KUYRUĞU (Kafka Broker)
+  # 5. MESAJ KUYRUĞU (Kafka)
   kafka:
     image: confluentinc/cp-kafka:7.4.0
     container_name: nexstream_kafka
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy  # ✅ Zookeeper hazır olmadan başlama
     ports:
       - "9092:9092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # Kafka'nın dış dünya ve iç dünya ile nasıl konuşacağı ayarı (Biraz karmaşıktır ama standarttır)
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:  # ✅ Eklendi
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s  # Kafka'nın ayağa kalkması için süre tanı
 
   # 6. ARKA PLAN İŞÇİSİ (Consumer)
   worker:
-    build: . # App ile aynı imajı kullanır (Tekrar build etmez, hızlıdır)
+    build: .
     container_name: nexstream_worker
     depends_on:
-      - kafka
-      - db
-    # KRİTİK NOKTA: App servisi "uvicorn" çalıştırırken, bu servis "consumer" çalıştırır.
+      kafka:
+        condition: service_healthy  # ✅ Kafka hazır olmadan başlama
+      db:
+        condition: service_healthy  # ✅ DB hazır olmadan başlama
     command: python -m src.adapters.messaging.kafka_consumer
     environment:
       - DB_HOST=db
@@ -91,6 +101,7 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092  # ✅ EKSİKTİ, eklendi
     volumes:
       - .:/app
 
@@ -99,10 +110,12 @@ services:
     build: .
     container_name: nexstream_scheduler
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy  # ✅ Kafka hazır olmadan başlama
     command: python src/adapters/scheduling/scheduler_service.py
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - SCRAPE_SOURCES=BBC Technology  # ✅ Kaynak listesi env'den geliyor
     volumes:
       - .:/app
 
