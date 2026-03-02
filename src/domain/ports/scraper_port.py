@@ -1,25 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict
+from typing import List
+from src.domain.models.article import Article
 
 class NewsScraperPort(ABC):
-    """
-    Bu sınıf bir 'Sözleşme'dir (Interface).
-    Sisteme eklenecek her haber robotu bu sınıfı miras almak ZORUNDADIR.
-    Böylece sistemimiz 'BBC mi? Twitter mı?' diye sormaz, sadece 'Haber Getir' der.
-    """
-    
+
     @abstractmethod
-    def fetch_news(self) -> List[Dict]:
+    def fetch_news(self) -> List[Article]:
         """
-        Geriye mutlaka şu formatta bir liste dönmelidir:
-        [
-            {
-                'title': 'Haber Başlığı',
-                'content': 'Haberin kısa özeti...',
-                'source': 'Kaynak Adı',
-                'url': 'Haberin Linki'
-            },
-            ...
-        ]
+        Geriye Article listesi döner.
+        Her scraper bu sözleşmeye uymak zorundadır.
         """
         pass
