@@ -1,0 +1,28 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# Environment (güvenlik)
+.env
+.env.*
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Test çıktıları
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Docker'ın kendisi
+Dockerfile
+docker-compose.yml
+docker-compose.*.yml
