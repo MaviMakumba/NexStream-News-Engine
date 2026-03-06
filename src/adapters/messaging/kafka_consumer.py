@@ -3,7 +3,7 @@ import json
 from aiokafka import AIOKafkaConsumer
 from src.infrastructure.config.database import SessionLocal
 from src.adapters.repositories.news_repository import NewsRepository
-from src.adapters.analysis.textblob_analyzer import TextBlobAnalyzer
+from src.adapters.analysis.gemini_analyzer import GeminiAnalyzer
 from src.adapters.scrapers.bbc_scraper import BBCRssScraper
 from src.application.services.news_service import NewsService
 
@@ -52,7 +52,7 @@ def _process(scraper):
     db = SessionLocal()
     try:
         repo = NewsRepository(db)
-        analyzer = TextBlobAnalyzer()
+        analyzer = GeminiAnalyzer()
         service = NewsService(repository=repo, analyzer=analyzer)
         service.update_news_from_source(scraper)
     finally:

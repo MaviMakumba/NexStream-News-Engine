@@ -11,7 +11,7 @@ router = APIRouter(prefix="/news", tags=["News"])
 @router.post("/scrape")
 async def trigger_scrape(
     request: ScrapeCommand,
-    publisher: MessagePublisherPort = Depends(get_message_publisher) # 💥 KAFKA YOK, PORT VAR!
+    publisher: MessagePublisherPort = Depends(get_message_publisher) 
 ):
     """
     Sözleşme üzerinden (Port) emir yayınlar. Gerçek Event-Driven.

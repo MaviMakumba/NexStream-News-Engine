@@ -10,3 +10,4 @@ lxml==6.0.2
 aiokafka==0.13.0
 apscheduler==3.11.2
 textblob==0.19.0
+google-genai==1.66.0
