@@ -19,9 +19,9 @@ class BBCRssScraper(NewsScraperPort):
 
             soup = BeautifulSoup(response.content, features="xml")
             items = soup.find_all("item")
-            print(f"✅ {len(items)} haber bulundu. İlk 5 alınıyor.")
+            print(f"✅ {len(items)} haber bulundu. İlk {min(25, len(items))} alınıyor.")
 
-            for item in items[:5]:
+            for item in items[:25]:  # İlk 25 haberle sınırla
                 title = item.find("title").text if item.find("title") else "Başlıksız"
                 content = item.find("description").text if item.find("description") else ""
                 url = item.find("link").text if item.find("link") else ""

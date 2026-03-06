@@ -1,6 +1,9 @@
 import os
+import json
+import time
 from google import genai
 from src.domain.ports.analysis_port import AnalysisPort
+
 
 class GeminiAnalyzer(AnalysisPort):
 
@@ -28,33 +31,35 @@ Response format:
   "summary": "one sentence summary in English"
 }}"""
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=prompt
-            )
-            raw = response.text.strip()
+        for attempt in range(3):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    contents=prompt
+                )
+                raw = response.text.strip()
+                if raw.startswith("```"):
+                    raw = raw.split("```")[1]
+                    if raw.startswith("json"):
+                        raw = raw[4:]
+                    raw = raw.strip()
 
-            # Markdown code block varsa temizle
-            if raw.startswith("```"):
-                raw = raw.split("```")[1]
-                if raw.startswith("json"):
-                    raw = raw[4:]
-                raw = raw.strip()
+                result = json.loads(raw)
+                return {
+                    "sentiment_score": float(result.get("sentiment_score", 0.0)),
+                    "sentiment_label": result.get("sentiment_label", "Neutral"),
+                    "summary": result.get("summary", text[:100]),
+                }
 
-            import json
-            result = json.loads(raw)
-
-            return {
-                "sentiment_score": float(result.get("sentiment_score", 0.0)),
-                "sentiment_label": result.get("sentiment_label", "Neutral"),
-                "summary": result.get("summary", text[:100]),
-            }
-
-        except Exception as e:
-            print(f"❌ Gemini analiz hatası: {e}")
-            return {
-                "sentiment_score": 0.0,
-                "sentiment_label": "Neutral",
-                "summary": text[:100]
-            }
+            except Exception as e:
+                if "429" in str(e) and attempt < 2:
+                    wait = (attempt + 1) * 10
+                    print(f"⏳ Rate limit, {wait}s bekleniyor...")
+                    time.sleep(wait)
+                else:
+                    print(f"❌ Gemini analiz hatası: {e}")
+                    return {
+                        "sentiment_score": 0.0,
+                        "sentiment_label": "Neutral",
+                        "summary": text[:100]
+                    }

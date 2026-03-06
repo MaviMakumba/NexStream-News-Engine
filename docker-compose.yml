@@ -18,6 +18,7 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     ports:
       - "8000:8000"
+      
     volumes:
       - .:/app
 
@@ -124,6 +125,21 @@ services:
       - SCRAPE_SOURCES=BBC Technology  # ✅ Kaynak listesi env'den geliyor
     volumes:
       - .:/app
+
+    # 8. GÖSTERGE PANELİ (Streamlit Dashboard)
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: streamlit run dashboard/app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE=http://app:8000
+    depends_on:
+      - app
+    volumes:
+      - .:/app       
 
 volumes:
   postgres_data:
