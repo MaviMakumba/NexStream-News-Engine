@@ -4,8 +4,9 @@ from src.infrastructure.config.database import Base
 
 class NewsORM(Base):
     __tablename__ = "news_articles"
+    __table_args__ = {'extend_existing': True}
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     title = Column(String(255), nullable=False)
     content = Column(Text, nullable=False)
     source = Column(String(50), nullable=False)
