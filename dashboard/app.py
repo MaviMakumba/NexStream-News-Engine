@@ -110,7 +110,7 @@ with col_source:
 with col_btns:
     btn1, btn2 = st.columns(2)
     with btn1:
-        if st.button("⚡ Scrape", use_container_width=True):
+        if st.button("⚡ Scrape", width='stretch'):
             with st.spinner(""):
                 ok, resp = trigger_scrape(selected_source)
                 # ⚡ Scrape butonunda artık API'ye POST isteği atılıyor. API, mesajı Kafka'ya yayınlayacak ve worker'lar bu mesajı alıp haberleri çekecekler.
@@ -122,7 +122,7 @@ with col_btns:
             else:
                 st.error(f"✗ {resp.get('message', 'Failed')}")
     with btn2:
-        if st.button("↺ Refresh", use_container_width=True):
+        if st.button("↺ Refresh", width='stretch'):
             st.cache_data.clear()
             st.rerun()
 
@@ -334,7 +334,7 @@ with col1:
         legend=dict(font=dict(family="DM Mono", size=10, color=t["text2"]),
             bgcolor="rgba(0,0,0,0)", orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
     )
-    st.plotly_chart(fig_pie, use_container_width=True)
+    st.plotly_chart(fig_pie, width='stretch')
 
 with col2:
     st.markdown('<div class="section-title">Sentiment Score Timeline</div>', unsafe_allow_html=True)
@@ -362,7 +362,7 @@ with col2:
         legend=dict(font=dict(family="DM Mono", size=10, color=t["text2"]), bgcolor="rgba(0,0,0,0)"),
         hovermode="x unified",
     )
-    st.plotly_chart(fig_line, use_container_width=True)
+    st.plotly_chart(fig_line, width='stretch')
 
 st.markdown('<div class="section-title">Score Distribution</div>', unsafe_allow_html=True)
 bins = pd.cut(df["sentiment_score"], bins=[-1.0, -0.6, -0.2, 0.2, 0.6, 1.0],
@@ -380,7 +380,7 @@ fig_bar.update_layout(
     xaxis=dict(showgrid=False, zeroline=False, tickfont=dict(family="DM Mono", size=10, color=t["text2"])),
     yaxis=dict(showgrid=True, gridcolor=t["grid"], zeroline=False, tickfont=dict(family="DM Mono", size=9, color=t["text3"])),
 )
-st.plotly_chart(fig_bar, use_container_width=True)
+st.plotly_chart(fig_bar, width='stretch')
 
 # ── NEWS LIST ─────────────────────────────────────────────────────────────────
 st.markdown('<div class="section-title">Latest Articles</div>', unsafe_allow_html=True)
