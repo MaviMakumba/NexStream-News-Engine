@@ -4,11 +4,20 @@ from aiokafka import AIOKafkaConsumer
 from src.infrastructure.config.database import SessionLocal
 from src.adapters.repositories.news_repository import NewsRepository
 from src.adapters.analysis.groq_analyzer import GroqAnalyzer
-from src.adapters.scrapers.bbc_scraper import BBCRssScraper
+from src.adapters.scrapers.rss_scrapers import (
+    BBCTechnologyScraper, BBCSportScraper,
+    TRTHaberScraper, BBCTurkishScraper,
+    HurriyetScraper, HurriyetSporScraper,
+)
 from src.application.services.news_service import NewsService
 
 SCRAPER_MAP = {
-    "BBC Technology": BBCRssScraper(),
+    "BBC Technology":  BBCTechnologyScraper(),
+    "TRT Haber":       TRTHaberScraper(),
+    "BBC Türkçe":      BBCTurkishScraper(),
+    "Hürriyet":        HurriyetScraper(),
+    "BBC Sport":       BBCSportScraper(),
+    "Hürriyet Spor":   HurriyetSporScraper(),
 }
 
 def _process(scraper):

@@ -105,7 +105,14 @@ with col_sort:
     sort_by = st.selectbox("Sort", ["Newest First", "Highest Score", "Lowest Score"], label_visibility="collapsed")
 
 with col_source:
-    selected_source = st.selectbox("Source", ["BBC Technology"], label_visibility="collapsed")
+    selected_source = st.selectbox("Source", [
+    "BBC Technology",
+    "BBC Sport",
+    "TRT Haber",
+    "BBC Türkçe",
+    "Hürriyet",
+    "Hürriyet Spor",
+], label_visibility="collapsed")
 
 with col_btns:
     btn1, btn2 = st.columns(2)
