@@ -26,7 +26,11 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://nexstream:nexstream@localhost:5432/nexstream_db
+      DB_USER: nexstream
+      DB_PASSWORD: nexstream
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: nexstream_db
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
     steps:
