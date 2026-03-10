@@ -5,9 +5,11 @@ services:
     container_name: nexstream_engine
     depends_on:
       db:
-        condition: service_healthy  # ✅ DB gerçekten hazır olsun
+        condition: service_healthy
       kafka:
-        condition: service_healthy  # ✅ Kafka gerçekten hazır olsun  
+        condition: service_healthy
+      chromadb:
+        condition: service_started
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       - DB_HOST=db
@@ -16,9 +18,10 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
       - GROQ_API_KEY=${GROQ_API_KEY}
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
     ports:
       - "8000:8000"
-      
     volumes:
       - .:/app
 
@@ -35,7 +38,7 @@ services:
       - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    healthcheck:  # ✅ Gerçekten hazır mı diye kontrol et
+    healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
@@ -58,10 +61,9 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-      # Whitelist satırını silebilirsin, işe yaramıyor zaten :)
     ports:
       - "2181:2181"
-    healthcheck:  # ✅ İŞTE SİHİRLİ DOKUNUŞ BURADA
+    healthcheck:
       test: ["CMD-SHELL", "echo srvr | nc localhost 2181 || exit 1"]
       interval: 10s
       timeout: 5s
@@ -74,7 +76,7 @@ services:
     container_name: nexstream_kafka
     depends_on:
       zookeeper:
-        condition: service_healthy  # ✅ Zookeeper hazır olmadan başlama
+        condition: service_healthy
     ports:
       - "9092:9092"
     environment:
@@ -84,12 +86,12 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    healthcheck:  # ✅ Eklendi
+    healthcheck:
       test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
       interval: 10s
       timeout: 10s
       retries: 15
-      start_period: 30s  # Kafka'nın ayağa kalkması için süre tanı
+      start_period: 30s
 
   # 6. ARKA PLAN İŞÇİSİ (Consumer)
   worker:
@@ -97,9 +99,11 @@ services:
     container_name: nexstream_worker
     depends_on:
       kafka:
-        condition: service_healthy  # ✅ Kafka hazır olmadan başlama
+        condition: service_healthy
       db:
-        condition: service_healthy  # ✅ DB hazır olmadan başlama
+        condition: service_healthy
+      chromadb:
+        condition: service_started
     command: python -m src.adapters.messaging.kafka_consumer
     environment:
       - DB_HOST=db
@@ -108,7 +112,9 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
       - GROQ_API_KEY=${GROQ_API_KEY}
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092  # ✅ EKSİKTİ, eklendi
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
     volumes:
       - .:/app
 
@@ -118,15 +124,15 @@ services:
     container_name: nexstream_scheduler
     depends_on:
       kafka:
-        condition: service_healthy  # ✅ Kafka hazır olmadan başlama
+        condition: service_healthy
     command: python src/adapters/scheduling/scheduler_service.py
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCRAPE_SOURCES=BBC Technology  # ✅ Kaynak listesi env'den geliyor
+      - SCRAPE_SOURCES=BBC Technology
     volumes:
       - .:/app
 
-    # 8. GÖSTERGE PANELİ (Streamlit Dashboard)
+  # 8. GÖSTERGE PANELİ (Streamlit Dashboard)
   dashboard:
     build:
       context: .
@@ -139,7 +145,20 @@ services:
     depends_on:
       - app
     volumes:
-      - .:/app       
+      - .:/app
+
+  # 9. VEKTÖR VERİTABANI (ChromaDB)
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: nexstream_chromadb
+    ports:
+      - "8001:8000"   # host:container — dışarıdan 8001, içeride 8000
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
 
 volumes:
   postgres_data:
+  chroma_data:

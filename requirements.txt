@@ -13,3 +13,5 @@ google-genai==1.66.0
 streamlit==1.55.0
 plotly==6.6.0
 pytest==8.3.5
+chromadb==0.5.23
+sentence-transformers==3.3.1
