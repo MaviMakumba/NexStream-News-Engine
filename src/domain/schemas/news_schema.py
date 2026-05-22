@@ -9,6 +9,8 @@ class ScrapeCommand(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     n_results: int = Field(default=10, ge=1, le=50)
+    source: Optional[str] = None
+    sentiment: Optional[str] = None
 
 
 class SearchResult(BaseModel):

@@ -4,7 +4,7 @@ from typing import List, Optional
 from src.domain.schemas.news_schema import NewsResponse, ScrapeCommand, SearchRequest, SearchResult
 from src.domain.ports.messaging_port import MessagePublisherPort
 from src.application.services.news_service import NewsService
-from src.dependencies import get_news_service, get_message_publisher, get_search_repository
+from src.dependencies import get_news_service, get_message_publisher
 
 router = APIRouter(prefix="/news", tags=["News"])
 
@@ -36,9 +36,9 @@ def get_news(
 @router.post("/search", response_model=List[SearchResult])
 def search_news(
     request: SearchRequest,
-    search_repo=Depends(get_search_repository),
+    service: NewsService = Depends(get_news_service),
 ):
-    return search_repo.search(request.query, request.n_results)
+    return service.hybrid_search(request.query, request.n_results, request.source, request.sentiment)
 
 
 @router.post("/reindex")

@@ -1,3 +1,5 @@
+import re
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from src.domain.ports.news_repository_port import NewsRepositoryPort
@@ -65,4 +67,29 @@ class NewsRepository(NewsRepositoryPort):
 
     def get_all_articles(self) -> List[Article]:
         rows = self.db.query(NewsORM).all()
+        return [self._to_domain(row) for row in rows]
+
+    def keyword_search(self, query: str, limit: int = 10, source: Optional[str] = None, sentiment: Optional[str] = None) -> List[Article]:
+        words = [w for w in re.findall(r"\w+", query.lower()) if len(w) >= 2]
+        if not words:
+            return []
+
+        # Her kelime için title/content/summary'de ilike — kelimelerden EN AZ BİRİ eşleşmeli (OR).
+        # Birden çok eşleşen makaleyi sıralamak service katmanının işi (_keyword_relevance).
+        word_conditions = [
+            or_(
+                NewsORM.title.ilike(f"%{w}%"),
+                NewsORM.content.ilike(f"%{w}%"),
+                NewsORM.summary.ilike(f"%{w}%"),
+            )
+            for w in words
+        ]
+        q = self.db.query(NewsORM).filter(or_(*word_conditions))
+
+        if source:
+            q = q.filter(NewsORM.source == source)
+        if sentiment:
+            q = q.filter(NewsORM.sentiment_label.ilike(f"%{sentiment}%"))
+
+        rows = q.order_by(NewsORM.created_at.desc()).limit(limit).all()
         return [self._to_domain(row) for row in rows]
