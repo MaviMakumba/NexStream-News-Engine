@@ -93,7 +93,7 @@ def test_search_returns_results():
     results = repo.search("yapay zeka", n_results=2)
     assert len(results) == 2
     assert results[0]["id"] == "1"
-    assert results[0]["score"] == round(1 - 0.1, 4)
+    assert results[0]["score"] == round(1 / (1 + 0.1), 4)
     assert results[1]["source"] == "TRT"
 
 
@@ -121,3 +121,42 @@ def test_search_score_calculation():
     }
     results = repo.search("mükemmel eşleşme")
     assert results[0]["score"] == 1.0
+
+
+# ── filter / where ────────────────────────────────────────────────────────────
+
+def test_search_no_filter_passes_none_where():
+    repo, _ = make_repo()
+    repo._mock_collection.query.return_value = {"ids": [[]], "metadatas": [[]], "distances": [[]]}
+    repo.search("sorgu")
+    call_kwargs = repo._mock_collection.query.call_args[1]
+    assert call_kwargs["where"] is None
+
+
+def test_search_source_filter_builds_where():
+    repo, _ = make_repo()
+    repo._mock_collection.query.return_value = {"ids": [[]], "metadatas": [[]], "distances": [[]]}
+    repo.search("sorgu", source="BBC Technology")
+    call_kwargs = repo._mock_collection.query.call_args[1]
+    assert call_kwargs["where"] == {"source": {"$eq": "BBC Technology"}}
+
+
+def test_search_sentiment_filter_builds_where():
+    repo, _ = make_repo()
+    repo._mock_collection.query.return_value = {"ids": [[]], "metadatas": [[]], "distances": [[]]}
+    repo.search("sorgu", sentiment="Positive")
+    call_kwargs = repo._mock_collection.query.call_args[1]
+    assert call_kwargs["where"] == {"sentiment_label": {"$eq": "Positive"}}
+
+
+def test_search_both_filters_builds_and_where():
+    repo, _ = make_repo()
+    repo._mock_collection.query.return_value = {"ids": [[]], "metadatas": [[]], "distances": [[]]}
+    repo.search("sorgu", source="BBC Technology", sentiment="Positive")
+    call_kwargs = repo._mock_collection.query.call_args[1]
+    assert call_kwargs["where"] == {
+        "$and": [
+            {"source": {"$eq": "BBC Technology"}},
+            {"sentiment_label": {"$eq": "Positive"}},
+        ]
+    }
