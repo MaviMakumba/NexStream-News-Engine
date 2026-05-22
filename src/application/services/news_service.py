@@ -56,19 +56,32 @@ class NewsService:
             logger.error(f"Keyword arama hatası: {e}")
             keyword_articles = []
 
-        seen_ids = {r["id"] for r in semantic_results}
-        for article in keyword_articles:
-            if str(article.id) not in seen_ids:
-                semantic_results.append({
-                    "id": str(article.id),
+        keyword_ids = {str(a.id): a for a in keyword_articles}
+
+        merged = []
+        semantic_ids = set()
+        for result in semantic_results:
+            if result["id"] in keyword_ids:
+                # Hem semantic hem keyword — skoru yükselt
+                result = dict(result)
+                result["score"] = min(round(result["score"] + 0.15, 4), 1.0)
+            merged.append(result)
+            semantic_ids.add(result["id"])
+
+        # Sadece keyword'de bulunanlar — tam metin eşleşmesi, iyi skor ver
+        for art_id, article in keyword_ids.items():
+            if art_id not in semantic_ids:
+                merged.append({
+                    "id": art_id,
                     "title": article.title,
                     "summary": article.summary or "",
                     "source": article.source,
                     "url": article.url,
-                    "score": 0.0,
+                    "score": 0.75,
                 })
 
-        return semantic_results[:n_results]
+        merged.sort(key=lambda x: x["score"], reverse=True)
+        return merged[:n_results]
 
     def reindex_all(self) -> dict:
         if not self.search_repository:

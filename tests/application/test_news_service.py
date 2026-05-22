@@ -104,7 +104,7 @@ def test_hybrid_search_merges_keyword_only_results():
 
     assert len(results) == 2
     assert results[1]["id"] == "2"
-    assert results[1]["score"] == 0.0
+    assert results[1]["score"] == 0.75
 
 
 def test_hybrid_search_deduplicates_overlapping_results():
@@ -132,6 +132,39 @@ def test_hybrid_search_falls_back_to_keyword_when_no_search_repo():
 
     assert len(results) == 1
     assert results[0]["id"] == "5"
+    assert results[0]["score"] == 0.75
+
+
+def test_hybrid_search_boosts_result_found_in_both():
+    service, mock_repo, mock_search = make_service_with_search()
+    mock_search.search.return_value = [
+        {"id": "1", "title": "Real Madrid haberi", "summary": "", "source": "BBC", "url": "u", "score": 0.6}
+    ]
+    boosted_article = make_article()
+    boosted_article.id = 1
+    mock_repo.keyword_search.return_value = [boosted_article]
+
+    results = service.hybrid_search("real madrid")
+
+    assert results[0]["id"] == "1"
+    assert results[0]["score"] == round(0.6 + 0.15, 4)
+
+
+def test_hybrid_search_keyword_only_ranks_above_low_semantic():
+    """Tam metin eşleşmesi (0.75) düşük semantik skorun önüne geçmeli."""
+    service, mock_repo, mock_search = make_service_with_search()
+    mock_search.search.return_value = [
+        {"id": "99", "title": "Alakasız haber", "summary": "", "source": "X", "url": "u", "score": 0.3}
+    ]
+    exact_article = make_article("https://bbc.com/real-madrid")
+    exact_article.id = 7
+    exact_article.title = "Real Madrid yıldızla yollarını ayırdı"
+    mock_repo.keyword_search.return_value = [exact_article]
+
+    results = service.hybrid_search("real madrid", n_results=2)
+
+    assert results[0]["id"] == "7"   # keyword eşleşmesi (0.75) önde
+    assert results[1]["id"] == "99"  # düşük semantic (0.30) arkada
 
 
 def test_hybrid_search_passes_filters_to_both():
