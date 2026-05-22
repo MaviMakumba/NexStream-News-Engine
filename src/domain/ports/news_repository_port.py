@@ -20,3 +20,7 @@ class NewsRepositoryPort(ABC):
     @abstractmethod
     def get_all_articles(self) -> List[Article]:
         pass
+
+    @abstractmethod
+    def keyword_search(self, query: str, limit: int = 10, source: Optional[str] = None, sentiment: Optional[str] = None) -> List[Article]:
+        pass

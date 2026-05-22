@@ -41,12 +41,14 @@ class ChromaSearchRepository:
             logger.error(f"ChromaDB index hatası: {e}")
             return False
 
-    def search(self, query: str, n_results: int = 10) -> list[dict]:
+    def search(self, query: str, n_results: int = 10, source: str = None, sentiment: str = None) -> list[dict]:
         try:
             embedding = self.embedder.embed_text(query)
+            where = self._build_where(source, sentiment)
             results = self.collection.query(
                 query_embeddings=[embedding],
                 n_results=n_results,
+                where=where,
             )
             items = []
             for i, doc_id in enumerate(results["ids"][0]):
@@ -64,3 +66,16 @@ class ChromaSearchRepository:
         except Exception as e:
             logger.error(f"ChromaDB arama hatası: {e}")
             return []
+
+    @staticmethod
+    def _build_where(source: str = None, sentiment: str = None) -> dict | None:
+        conditions = []
+        if source:
+            conditions.append({"source": {"$eq": source}})
+        if sentiment:
+            conditions.append({"sentiment_label": {"$eq": sentiment}})
+        if len(conditions) == 0:
+            return None
+        if len(conditions) == 1:
+            return conditions[0]
+        return {"$and": conditions}
