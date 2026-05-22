@@ -1,11 +1,23 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 
-# 1. EMİR ŞEMASI (Request / Command)
-# İleride Kafka'ya gönderirken veya API'den alırken bu standardı kullanacağız.
 class ScrapeCommand(BaseModel):
     source: str
+
+
+class SearchRequest(BaseModel):
+    query: str
+    n_results: int = Field(default=10, ge=1, le=50)
+
+
+class SearchResult(BaseModel):
+    id: str
+    title: str
+    summary: str
+    source: str
+    url: str
+    score: float
 
 # 2. YANIT ŞEMASI (Response)
 # API'den kullanıcıya (veya Frontend'e) dönecek olan veri formatı.
