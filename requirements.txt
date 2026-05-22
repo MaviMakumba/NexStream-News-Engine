@@ -9,9 +9,8 @@ beautifulsoup4==4.14.3
 lxml==6.0.2
 aiokafka==0.13.0
 apscheduler==3.11.2
-google-genai==1.66.0
 streamlit==1.55.0
 plotly==6.6.0
-pytest==8.3.5
-chromadb==0.5.23
+pytest==9.0.2
+chromadb==1.5.5
 sentence-transformers==3.3.1
