@@ -96,19 +96,28 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Test sayısı:** 40 test, hepsi yeşil
+- **Test sayısı:** 73 test, hepsi yeşil
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
-- **Branch:** `feature/semantic-search` (main'e PR açılacak)
-- **Versiyon:** v1.1.0 — Semantic Search tamamlandı
+- **Branch:** main (tüm özellikler merge edildi)
+- **Versiyon:** v1.2.0-dev — Hybrid Search tamamlandı
 
 ---
 
-## SIRADAKI GÖREV: v1.2.0
+## SIRADAKI GÖREV: v1.2.0 (devam)
 
-### Öncelik 1 — Arama Kalitesi
-- **Hybrid Search:** Semantik skor + PostgreSQL keyword arama birleştirilecek
-- **Filtreli Arama:** Kaynak ve duygu filtresiyle `/news/search`
-- ChromaDB metadata'ya `created_at` ekleyerek tarih bazlı filtreleme
+### ✅ Tamamlanan — Hybrid Search
+- `POST /news/search` artık ChromaDB (semantic) + PostgreSQL (keyword) birleşik çalışıyor
+- Query tokenize ediliyor; her kelime ayrı ILIKE ile aranıyor
+- Coverage-based skor: başlık×0.9, özet×0.7, içerik×0.5
+- Birleşik skor: `max(sem, kw) + 0.10 bonus` (her ikisinde varsa)
+- Aday havuzu: `max(n_results×3, 20)` — sıralama daha geniş kümeden yapılıyor
+- Normalize edilmiş embedding (`normalize_embeddings=True`) + `1/(1+distance)` formülü
+
+**⚠️ Deploy sonrası yapılacak:**
+```powershell
+docker-compose up --build   # embedder kodu değişti
+# Sonra: POST /news/reindex  # ChromaDB'yi normalize edilmiş vektörlerle yeniden index et
+```
 
 ### Öncelik 2 — Yeni Haber Kaynakları
 - Sabah, CNN Türk RSS feed'leri
