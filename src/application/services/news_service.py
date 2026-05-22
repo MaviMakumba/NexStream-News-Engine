@@ -68,7 +68,7 @@ class NewsService:
             merged.append(result)
             semantic_ids.add(result["id"])
 
-        # Sadece keyword'de bulunanlar — tam metin eşleşmesi, iyi skor ver
+        # Sadece keyword'de bulunanlar — eşleşme yerine göre dinamik skor
         for art_id, article in keyword_ids.items():
             if art_id not in semantic_ids:
                 merged.append({
@@ -77,11 +77,20 @@ class NewsService:
                     "summary": article.summary or "",
                     "source": article.source,
                     "url": article.url,
-                    "score": 0.75,
+                    "score": self._keyword_score(article, query),
                 })
 
         merged.sort(key=lambda x: x["score"], reverse=True)
         return merged[:n_results]
+
+    @staticmethod
+    def _keyword_score(article: Article, query: str) -> float:
+        q = query.lower()
+        if q in article.title.lower():
+            return 0.90
+        if article.summary and q in article.summary.lower():
+            return 0.75
+        return 0.60
 
     def reindex_all(self) -> dict:
         if not self.search_repository:

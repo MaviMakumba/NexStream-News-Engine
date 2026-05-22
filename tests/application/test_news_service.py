@@ -93,18 +93,23 @@ def test_hybrid_search_returns_semantic_results():
 def test_hybrid_search_merges_keyword_only_results():
     service, mock_repo, mock_search = make_service_with_search()
     mock_search.search.return_value = [
-        {"id": "1", "title": "Semantic", "summary": "", "source": "BBC", "url": "u1", "score": 0.8}
+        {"id": "1", "title": "Semantic", "summary": "", "source": "BBC", "url": "u1", "score": 0.5}
     ]
     keyword_article = make_article("https://bbc.com/keyword")
     keyword_article.id = 2
-    keyword_article.summary = "Keyword özeti"
+    keyword_article.title = "Keyword haberi özeli"
+    keyword_article.summary = "keyword özeti"
     mock_repo.keyword_search.return_value = [keyword_article]
 
-    results = service.hybrid_search("test")
+    results = service.hybrid_search("keyword")
 
+    result_ids = {r["id"] for r in results}
     assert len(results) == 2
-    assert results[1]["id"] == "2"
-    assert results[1]["score"] == 0.75
+    assert "1" in result_ids
+    assert "2" in result_ids
+    # "keyword" başlıkta geçiyor → skor 0.90 > semantic 0.50 → keyword result önde
+    assert results[0]["id"] == "2"
+    assert results[0]["score"] == 0.90
 
 
 def test_hybrid_search_deduplicates_overlapping_results():
@@ -126,13 +131,14 @@ def test_hybrid_search_falls_back_to_keyword_when_no_search_repo():
     service.search_repository = None
     keyword_article = make_article()
     keyword_article.id = 5
+    keyword_article.title = "Fallback haberi burada"
     mock_repo.keyword_search.return_value = [keyword_article]
 
     results = service.hybrid_search("fallback")
 
     assert len(results) == 1
     assert results[0]["id"] == "5"
-    assert results[0]["score"] == 0.75
+    assert results[0]["score"] == 0.90  # "fallback" başlıkta → 0.90
 
 
 def test_hybrid_search_boosts_result_found_in_both():
@@ -151,7 +157,7 @@ def test_hybrid_search_boosts_result_found_in_both():
 
 
 def test_hybrid_search_keyword_only_ranks_above_low_semantic():
-    """Tam metin eşleşmesi (0.75) düşük semantik skorun önüne geçmeli."""
+    """Başlık eşleşmesi (0.90) düşük semantik skorun önüne geçmeli."""
     service, mock_repo, mock_search = make_service_with_search()
     mock_search.search.return_value = [
         {"id": "99", "title": "Alakasız haber", "summary": "", "source": "X", "url": "u", "score": 0.3}
@@ -163,7 +169,8 @@ def test_hybrid_search_keyword_only_ranks_above_low_semantic():
 
     results = service.hybrid_search("real madrid", n_results=2)
 
-    assert results[0]["id"] == "7"   # keyword eşleşmesi (0.75) önde
+    assert results[0]["id"] == "7"   # başlık eşleşmesi (0.90) önde
+    assert results[0]["score"] == 0.90
     assert results[1]["id"] == "99"  # düşük semantic (0.30) arkada
 
 

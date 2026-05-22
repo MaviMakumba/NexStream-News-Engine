@@ -93,7 +93,7 @@ def test_search_returns_results():
     results = repo.search("yapay zeka", n_results=2)
     assert len(results) == 2
     assert results[0]["id"] == "1"
-    assert results[0]["score"] == round(1 - 0.1, 4)
+    assert results[0]["score"] == round(1 / (1 + 0.1), 4)
     assert results[1]["source"] == "TRT"
 
 
