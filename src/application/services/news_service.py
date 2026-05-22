@@ -42,6 +42,34 @@ class NewsService:
     def list_news(self, limit: int = 10, sentiment: Optional[str] = None) -> List[Article]:
         return self.repository.get_latest_news(limit, sentiment)
 
+    def hybrid_search(self, query: str, n_results: int = 10, source: str = None, sentiment: str = None) -> list[dict]:
+        semantic_results = []
+        if self.search_repository:
+            try:
+                semantic_results = self.search_repository.search(query, n_results, source, sentiment)
+            except Exception as e:
+                logger.error(f"Semantik arama hatası: {e}")
+
+        try:
+            keyword_articles = self.repository.keyword_search(query, n_results, source, sentiment)
+        except Exception as e:
+            logger.error(f"Keyword arama hatası: {e}")
+            keyword_articles = []
+
+        seen_ids = {r["id"] for r in semantic_results}
+        for article in keyword_articles:
+            if str(article.id) not in seen_ids:
+                semantic_results.append({
+                    "id": str(article.id),
+                    "title": article.title,
+                    "summary": article.summary or "",
+                    "source": article.source,
+                    "url": article.url,
+                    "score": 0.0,
+                })
+
+        return semantic_results[:n_results]
+
     def reindex_all(self) -> dict:
         if not self.search_repository:
             return {"indexed": 0, "error": "ChromaDB bağlı değil"}

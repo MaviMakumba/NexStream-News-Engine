@@ -65,3 +65,81 @@ def test_list_news_passes_filters():
     service.list_news(limit=5, sentiment="Positive")
 
     mock_repo.get_latest_news.assert_called_once_with(5, "Positive")
+
+
+# ── hybrid_search ─────────────────────────────────────────────────────────────
+
+def make_service_with_search():
+    service, mock_repo, mock_analyzer = make_service()
+    mock_search = MagicMock()
+    service.search_repository = mock_search
+    return service, mock_repo, mock_search
+
+
+def test_hybrid_search_returns_semantic_results():
+    service, mock_repo, mock_search = make_service_with_search()
+    mock_search.search.return_value = [
+        {"id": "1", "title": "Semantic Haber", "summary": "s", "source": "BBC", "url": "u", "score": 0.9}
+    ]
+    mock_repo.keyword_search.return_value = []
+
+    results = service.hybrid_search("yapay zeka", n_results=5)
+
+    assert len(results) == 1
+    assert results[0]["score"] == 0.9
+    mock_search.search.assert_called_once_with("yapay zeka", 5, None, None)
+
+
+def test_hybrid_search_merges_keyword_only_results():
+    service, mock_repo, mock_search = make_service_with_search()
+    mock_search.search.return_value = [
+        {"id": "1", "title": "Semantic", "summary": "", "source": "BBC", "url": "u1", "score": 0.8}
+    ]
+    keyword_article = make_article("https://bbc.com/keyword")
+    keyword_article.id = 2
+    keyword_article.summary = "Keyword özeti"
+    mock_repo.keyword_search.return_value = [keyword_article]
+
+    results = service.hybrid_search("test")
+
+    assert len(results) == 2
+    assert results[1]["id"] == "2"
+    assert results[1]["score"] == 0.0
+
+
+def test_hybrid_search_deduplicates_overlapping_results():
+    service, mock_repo, mock_search = make_service_with_search()
+    mock_search.search.return_value = [
+        {"id": "1", "title": "Ortak Haber", "summary": "", "source": "BBC", "url": "u", "score": 0.7}
+    ]
+    overlap_article = make_article()
+    overlap_article.id = 1
+    mock_repo.keyword_search.return_value = [overlap_article]
+
+    results = service.hybrid_search("test")
+
+    assert len(results) == 1
+
+
+def test_hybrid_search_falls_back_to_keyword_when_no_search_repo():
+    service, mock_repo, _ = make_service()
+    service.search_repository = None
+    keyword_article = make_article()
+    keyword_article.id = 5
+    mock_repo.keyword_search.return_value = [keyword_article]
+
+    results = service.hybrid_search("fallback")
+
+    assert len(results) == 1
+    assert results[0]["id"] == "5"
+
+
+def test_hybrid_search_passes_filters_to_both():
+    service, mock_repo, mock_search = make_service_with_search()
+    mock_search.search.return_value = []
+    mock_repo.keyword_search.return_value = []
+
+    service.hybrid_search("filtreli", n_results=3, source="TRT Haber", sentiment="Positive")
+
+    mock_search.search.assert_called_once_with("filtreli", 3, "TRT Haber", "Positive")
+    mock_repo.keyword_search.assert_called_once_with("filtreli", 3, "TRT Haber", "Positive")

@@ -1,3 +1,4 @@
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from src.domain.ports.news_repository_port import NewsRepositoryPort
@@ -65,4 +66,19 @@ class NewsRepository(NewsRepositoryPort):
 
     def get_all_articles(self) -> List[Article]:
         rows = self.db.query(NewsORM).all()
+        return [self._to_domain(row) for row in rows]
+
+    def keyword_search(self, query: str, limit: int = 10, source: Optional[str] = None, sentiment: Optional[str] = None) -> List[Article]:
+        q = self.db.query(NewsORM).filter(
+            or_(
+                NewsORM.title.ilike(f"%{query}%"),
+                NewsORM.content.ilike(f"%{query}%"),
+                NewsORM.summary.ilike(f"%{query}%"),
+            )
+        )
+        if source:
+            q = q.filter(NewsORM.source == source)
+        if sentiment:
+            q = q.filter(NewsORM.sentiment_label.ilike(f"%{sentiment}%"))
+        rows = q.order_by(NewsORM.created_at.desc()).limit(limit).all()
         return [self._to_domain(row) for row in rows]
