@@ -39,3 +39,8 @@ def search_news(
     search_repo=Depends(get_search_repository),
 ):
     return search_repo.search(request.query, request.n_results)
+
+
+@router.post("/reindex")
+def reindex_all(service: NewsService = Depends(get_news_service)):
+    return service.reindex_all()

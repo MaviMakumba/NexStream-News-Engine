@@ -16,3 +16,7 @@ class NewsRepositoryPort(ABC):
     @abstractmethod
     def article_exists(self, url: str) -> bool:
         pass
+
+    @abstractmethod
+    def get_all_articles(self) -> List[Article]:
+        pass

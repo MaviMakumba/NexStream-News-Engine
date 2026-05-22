@@ -41,3 +41,19 @@ class NewsService:
 
     def list_news(self, limit: int = 10, sentiment: Optional[str] = None) -> List[Article]:
         return self.repository.get_latest_news(limit, sentiment)
+
+    def reindex_all(self) -> dict:
+        if not self.search_repository:
+            return {"indexed": 0, "error": "ChromaDB bağlı değil"}
+        articles = self.repository.get_all_articles()
+        indexed, failed = 0, 0
+        for article in articles:
+            try:
+                if self.search_repository.index_article(article):
+                    indexed += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                logger.error(f"Reindex hatası (id={article.id}): {e}")
+                failed += 1
+        return {"total": len(articles), "indexed": indexed, "failed": failed}
