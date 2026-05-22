@@ -1,14 +1,19 @@
+import logging
 from src.domain.ports.news_repository_port import NewsRepositoryPort
 from src.domain.ports.analysis_port import AnalysisPort
 from src.domain.ports.scraper_port import NewsScraperPort
 from src.domain.models.article import Article
 from typing import List, Optional
 
+logger = logging.getLogger(__name__)
+
+
 class NewsService:
 
-    def __init__(self, repository: NewsRepositoryPort, analyzer: AnalysisPort):
+    def __init__(self, repository: NewsRepositoryPort, analyzer: AnalysisPort, search_repository=None):
         self.repository = repository
         self.analyzer = analyzer
+        self.search_repository = search_repository
 
     def update_news_from_source(self, scraper: NewsScraperPort):
         print(f"--- GÜNCELLEME: {scraper.__class__.__name__} ---")
@@ -23,10 +28,32 @@ class NewsService:
             article.sentiment_score = result["sentiment_score"]
             article.sentiment_label = result["sentiment_label"]
 
-            if self.repository.save_article(article):
+            saved = self.repository.save_article(article)
+            if saved:
                 saved_count += 1
+                if self.search_repository and article.id:
+                    try:
+                        self.search_repository.index_article(article)
+                    except Exception as e:
+                        logger.error(f"ChromaDB index hatası (PostgreSQL etkilenmedi): {e}")
 
         print(f"--- BİTTİ: {saved_count}/{len(articles)} haber kaydedildi ---")
 
     def list_news(self, limit: int = 10, sentiment: Optional[str] = None) -> List[Article]:
         return self.repository.get_latest_news(limit, sentiment)
+
+    def reindex_all(self) -> dict:
+        if not self.search_repository:
+            return {"indexed": 0, "error": "ChromaDB bağlı değil"}
+        articles = self.repository.get_all_articles()
+        indexed, failed = 0, 0
+        for article in articles:
+            try:
+                if self.search_repository.index_article(article):
+                    indexed += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                logger.error(f"Reindex hatası (id={article.id}): {e}")
+                failed += 1
+        return {"total": len(articles), "indexed": indexed, "failed": failed}
