@@ -64,6 +64,72 @@ def trigger_scrape(source):
     except Exception as e:
         return False, {"message": str(e)}
 
+def semantic_search(query: str, n_results: int = 10):
+    try:
+        r = requests.post(f"{API_BASE}/news/search", json={"query": query, "n_results": n_results}, timeout=10)
+        r.raise_for_status()
+        return r.json(), None
+    except requests.exceptions.ConnectionError:
+        return [], "API'ye bağlanılamadı."
+    except Exception as e:
+        return [], str(e)
+
+def trigger_reindex():
+    try:
+        r = requests.post(f"{API_BASE}/news/reindex", timeout=60)
+        r.raise_for_status()
+        return True, r.json()
+    except Exception as e:
+        return False, {"error": str(e)}
+
+# ── DİL ───────────────────────────────────────────────────────────────────────
+LANGS = {
+    "TR": {
+        "title": "Haber Motoru",
+        "theme": "Tema", "sentiment": "Duygu", "limit": "Limit",
+        "sort": "Sıralama", "source": "Kaynak",
+        "scrape": "Çek", "refresh": "Yenile", "auto": "Otomatik",
+        "sort_new": "En Yeni", "sort_high": "En Yüksek Skor", "sort_low": "En Düşük Skor",
+        "sent_all": "Hepsi",
+        "search_ph": "Anlamsal arama… (örn. 'yapay zeka gelişmeleri')",
+        "search_btn": "Ara", "reindex_btn": "Yeniden İndeksle",
+        "reindex_ok": "İndeksleme tamamlandı",
+        "reindex_err": "İndeksleme hatası",
+        "no_results": "Sonuç bulunamadı. Önce 'Yeniden İndeksle' butonuna bas.",
+        "results_title": "Arama Sonuçları",
+        "kpi_total": "Toplam Haber", "kpi_pos": "Pozitif", "kpi_neg": "Negatif", "kpi_avg": "Ort. Skor",
+        "kpi_sub_total": "mevcut görünümde", "kpi_sub_score": "duygu indeksi",
+        "chart_pie": "Duygu Dağılımı", "chart_line": "Duygu Skoru Zaman Çizelgesi",
+        "chart_bar": "Skor Dağılımı", "section_latest": "Son Haberler",
+        "no_articles": "Haber bulunamadı. Çek butonuna bas.",
+        "api_err": "API'ye bağlanılamadı.",
+        "live": "CANLI", "articles": "haber",
+        "score": "SKOR", "match": "EŞLEŞME",
+    },
+    "EN": {
+        "title": "News Engine",
+        "theme": "Theme", "sentiment": "Sentiment", "limit": "Limit",
+        "sort": "Sort", "source": "Source",
+        "scrape": "Scrape", "refresh": "Refresh", "auto": "Auto",
+        "sort_new": "Newest First", "sort_high": "Highest Score", "sort_low": "Lowest Score",
+        "sent_all": "All",
+        "search_ph": "Semantic search… (e.g. 'AI developments')",
+        "search_btn": "Search", "reindex_btn": "Reindex",
+        "reindex_ok": "Reindex complete",
+        "reindex_err": "Reindex error",
+        "no_results": "No results found. Try clicking 'Reindex' first.",
+        "results_title": "Search Results",
+        "kpi_total": "Total Articles", "kpi_pos": "Positive", "kpi_neg": "Negative", "kpi_avg": "Avg Score",
+        "kpi_sub_total": "in current view", "kpi_sub_score": "sentiment index",
+        "chart_pie": "Sentiment Distribution", "chart_line": "Sentiment Score Timeline",
+        "chart_bar": "Score Distribution", "section_latest": "Latest Articles",
+        "no_articles": "No articles found. Click Scrape to fetch news.",
+        "api_err": "Cannot connect to API.",
+        "live": "LIVE", "articles": "articles",
+        "score": "SCORE", "match": "MATCH",
+    },
+}
+
 def score_class(score):
     if score is None: return "neu"
     if score > 0.1:   return "pos"
@@ -77,8 +143,11 @@ def format_date(dt_str):
     except:
         return dt_str
 
+# ── DİL SEÇİMİ ────────────────────────────────────────────────────────────────
+lang_key = st.session_state.get("lang", "TR")
+
 # ── TOP CONTROLS ──────────────────────────────────────────────────────────────
-col_logo, col_theme, col_sentiment, col_limit, col_sort, col_source, col_btns, col_auto = st.columns([3, 1.5, 1.5, 1.5, 1.5, 1.5, 2, 1.5])
+col_logo, col_lang, col_theme, col_sentiment, col_limit, col_sort, col_source, col_btns, col_auto = st.columns([2.5, 1, 1.5, 1.5, 1.2, 1.5, 1.5, 2.5, 1.2])
 
 with col_logo:
     st.markdown("""
@@ -86,55 +155,62 @@ with col_logo:
         <div style='font-family:Syne,sans-serif;font-weight:800;font-size:1.4rem;letter-spacing:-0.03em'>
             Nex<span style='color:var(--accent)'>Stream</span>
         </div>
-        <div style='font-size:0.55rem;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase'>
-            News Engine
-        </div>
     </div>
     """, unsafe_allow_html=True)
 
+with col_lang:
+    selected_lang = st.selectbox("lang", ["TR", "EN"], index=0 if lang_key == "TR" else 1, label_visibility="collapsed")
+    st.session_state["lang"] = selected_lang
+    L = LANGS[selected_lang]
+
 with col_theme:
-    theme_name = st.selectbox("Theme", list(THEMES.keys()), label_visibility="collapsed")
+    theme_name = st.selectbox(L["theme"], list(THEMES.keys()), label_visibility="collapsed")
 
 with col_sentiment:
-    sentiment_filter = st.selectbox("Sentiment", ["All", "Positive", "Negative", "Neutral"], label_visibility="collapsed")
+    sent_opts = [L["sent_all"], "Positive", "Negative", "Neutral"]
+    sentiment_filter = st.selectbox(L["sentiment"], sent_opts, label_visibility="collapsed")
 
 with col_limit:
-    limit = st.selectbox("Limit", [10, 25, 50, 100], index=2, label_visibility="collapsed")
+    limit = st.selectbox(L["limit"], [10, 25, 50, 100], index=2, label_visibility="collapsed")
 
 with col_sort:
-    sort_by = st.selectbox("Sort", ["Newest First", "Highest Score", "Lowest Score"], label_visibility="collapsed")
+    sort_opts = [L["sort_new"], L["sort_high"], L["sort_low"]]
+    sort_by = st.selectbox(L["sort"], sort_opts, label_visibility="collapsed")
 
 with col_source:
-    selected_source = st.selectbox("Source", [
-    "BBC Technology",
-    "BBC Sport",
-    "TRT Haber",
-    "BBC Türkçe",
-    "Hürriyet",
-    "Hürriyet Spor",
-], label_visibility="collapsed")
+    selected_source = st.selectbox(L["source"], [
+        "BBC Technology", "BBC Sport", "TRT Haber",
+        "BBC Türkçe", "Hürriyet", "Hürriyet Spor",
+    ], label_visibility="collapsed")
 
 with col_btns:
-    btn1, btn2 = st.columns(2)
+    btn1, btn2, btn3 = st.columns(3)
     with btn1:
-        if st.button("⚡ Scrape", width='stretch'):
+        if st.button(f"⚡ {L['scrape']}", width="stretch"):
             with st.spinner(""):
                 ok, resp = trigger_scrape(selected_source)
-                # ⚡ Scrape butonunda artık API'ye POST isteği atılıyor. API, mesajı Kafka'ya yayınlayacak ve worker'lar bu mesajı alıp haberleri çekecekler.
             if ok:
-                st.success(f"✓ Scrape triggered")
+                st.success(f"✓ {L['scrape']}")
                 st.cache_data.clear()
                 time.sleep(1)
                 st.rerun()
             else:
                 st.error(f"✗ {resp.get('message', 'Failed')}")
     with btn2:
-        if st.button("↺ Refresh", width='stretch'):
+        if st.button(f"↺ {L['refresh']}", width="stretch"):
             st.cache_data.clear()
             st.rerun()
+    with btn3:
+        if st.button(f"⟳ {L['reindex_btn']}", width="stretch"):
+            with st.spinner(""):
+                ok, result = trigger_reindex()
+            if ok:
+                st.success(f"✓ {L['reindex_ok']}: {result.get('indexed', 0)}/{result.get('total', 0)}")
+            else:
+                st.error(f"✗ {L['reindex_err']}")
 
 with col_auto:
-    auto_refresh = st.toggle("Auto", value=False)
+    auto_refresh = st.toggle(L["auto"], value=False)
 
 t = THEMES[theme_name]
 
@@ -251,24 +327,70 @@ html, body, [class*="css"] {{
     background:var(--surface) !important; border:1px solid var(--border) !important;
     border-radius:8px !important; font-size:0.75rem !important;
 }}
+
+.stTextInput > div > div > input {{
+    background:var(--surface) !important; border-color:var(--border) !important;
+    color:var(--text) !important; font-family:'DM Mono',monospace !important;
+    font-size:0.72rem !important; border-radius:6px !important;
+}}
+.stTextInput > div > div > input:focus {{
+    border-color:var(--accent) !important; box-shadow:0 0 0 1px var(--accent) !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
 # ── DIVIDER ───────────────────────────────────────────────────────────────────
 st.markdown('<div class="nx-divider"></div>', unsafe_allow_html=True)
 
+# ── SEMANTIC SEARCH ───────────────────────────────────────────────────────────
+scol1, scol2, scol3 = st.columns([5, 1, 1])
+with scol1:
+    search_query = st.text_input("search", placeholder=L["search_ph"], label_visibility="collapsed")
+with scol2:
+    search_n = st.selectbox("n", [5, 10, 20], index=1, label_visibility="collapsed")
+with scol3:
+    search_btn = st.button(L["search_btn"], width="stretch")
+
+if search_query and search_btn:
+    with st.spinner(""):
+        results, err = semantic_search(search_query, search_n)
+    if err:
+        st.error(f"⚠ {err}")
+    elif not results:
+        st.info(L["no_results"])
+    else:
+        st.markdown(f'<div class="section-title">{L["results_title"]} · {len(results)}</div>', unsafe_allow_html=True)
+        for item in results:
+            score_pct = int(item["score"] * 100)
+            st.markdown(f"""
+            <div class="news-card">
+                <div class="news-score">
+                    <div class="score-val neu">{score_pct}<span style='font-size:0.7rem'>%</span></div>
+                    <div class="score-label">{L["match"]}</div>
+                </div>
+                <div style="flex:1;min-width:0;">
+                    <div class="news-title"><a href="{item['url']}" target="_blank">{item['title']}</a></div>
+                    <div class="news-summary">{item['summary']}</div>
+                    <div class="news-meta"><span>{item['source']}</span></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    st.markdown('<div class="nx-divider"></div>', unsafe_allow_html=True)
+
 # ── DATA ──────────────────────────────────────────────────────────────────────
-news, error = fetch_news(limit, sentiment_filter if sentiment_filter != "All" else None)
+sent_param = sentiment_filter if sentiment_filter not in (L["sent_all"], "All") else None
+news, error = fetch_news(limit, sent_param)
 
 now = datetime.now().strftime("%H:%M:%S")
+auto_txt = "ON" if auto_refresh else "OFF"
 st.markdown(f"""
 <div class="status-bar">
     <div class="status-dot"></div>
-    <span>LIVE</span>·
-    <span>{len(news)} articles</span>·
+    <span>{L["live"]}</span>·
+    <span>{len(news)} {L["articles"]}</span>·
     <span>{now}</span>·
     <span>{theme_name}</span>·
-    <span>Auto {'ON' if auto_refresh else 'OFF'}</span>
+    <span>{L["auto"]} {auto_txt}</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -277,7 +399,7 @@ if error:
     st.stop()
 
 if not news:
-    st.info("No articles found. Click ⚡ Scrape to fetch news.")
+    st.info(L["no_articles"])
     st.stop()
 
 df = pd.DataFrame(news)
@@ -296,24 +418,24 @@ neg_pct   = round(neg_n / total * 100) if total else 0
 st.markdown(f"""
 <div class="kpi-grid">
     <div class="kpi-card total">
-        <div class="kpi-label">Total Articles</div>
+        <div class="kpi-label">{L["kpi_total"]}</div>
         <div class="kpi-value">{total}</div>
-        <div class="kpi-sub">in current view</div>
+        <div class="kpi-sub">{L["kpi_sub_total"]}</div>
     </div>
     <div class="kpi-card pos">
-        <div class="kpi-label">Positive</div>
+        <div class="kpi-label">{L["kpi_pos"]}</div>
         <div class="kpi-value">{pos_pct}<span style='font-size:1rem;opacity:0.4'>%</span></div>
-        <div class="kpi-sub">{pos_n} articles</div>
+        <div class="kpi-sub">{pos_n} {L["articles"]}</div>
     </div>
     <div class="kpi-card neg">
-        <div class="kpi-label">Negative</div>
+        <div class="kpi-label">{L["kpi_neg"]}</div>
         <div class="kpi-value">{neg_pct}<span style='font-size:1rem;opacity:0.4'>%</span></div>
-        <div class="kpi-sub">{neg_n} articles</div>
+        <div class="kpi-sub">{neg_n} {L["articles"]}</div>
     </div>
     <div class="kpi-card neu">
-        <div class="kpi-label">Avg Score</div>
+        <div class="kpi-label">{L["kpi_avg"]}</div>
         <div class="kpi-value">{avg_score:+.2f}</div>
-        <div class="kpi-sub">sentiment index</div>
+        <div class="kpi-sub">{L["kpi_sub_score"]}</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -322,7 +444,7 @@ st.markdown(f"""
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    st.markdown('<div class="section-title">Sentiment Distribution</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-title">{L["chart_pie"]}</div>', unsafe_allow_html=True)
     pie_df = df["sentiment_label"].value_counts().reset_index()
     pie_df.columns = ["label", "count"]
     color_map = {"Positive": t["pos"], "Negative": t["neg"], "Neutral": t["neu"]}
@@ -344,7 +466,7 @@ with col1:
     st.plotly_chart(fig_pie, width='stretch')
 
 with col2:
-    st.markdown('<div class="section-title">Sentiment Score Timeline</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-title">{L["chart_line"]}</div>', unsafe_allow_html=True)
     tl = df.sort_values("created_at_dt").copy()
     tl["rolling"] = tl["sentiment_score"].rolling(3, min_periods=1).mean()
 
@@ -371,7 +493,7 @@ with col2:
     )
     st.plotly_chart(fig_line, width='stretch')
 
-st.markdown('<div class="section-title">Score Distribution</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="section-title">{L["chart_bar"]}</div>', unsafe_allow_html=True)
 bins = pd.cut(df["sentiment_score"], bins=[-1.0, -0.6, -0.2, 0.2, 0.6, 1.0],
               labels=["Very Neg", "Negative", "Neutral", "Positive", "Very Pos"])
 bin_counts = bins.value_counts().sort_index()
@@ -390,11 +512,11 @@ fig_bar.update_layout(
 st.plotly_chart(fig_bar, width='stretch')
 
 # ── NEWS LIST ─────────────────────────────────────────────────────────────────
-st.markdown('<div class="section-title">Latest Articles</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="section-title">{L["section_latest"]}</div>', unsafe_allow_html=True)
 
-if sort_by == "Newest First":
+if sort_by == L["sort_new"]:
     display_df = df.sort_values("created_at_dt", ascending=False)
-elif sort_by == "Highest Score":
+elif sort_by == L["sort_high"]:
     display_df = df.sort_values("sentiment_score", ascending=False)
 else:
     display_df = df.sort_values("sentiment_score", ascending=True)
@@ -413,7 +535,7 @@ for _, row in display_df.iterrows():
     <div class="news-card">
         <div class="news-score">
             <div class="score-val {sc}">{score:+.1f}</div>
-            <div class="score-label">SCORE</div>
+            <div class="score-label">{L["score"]}</div>
         </div>
         <div style="flex:1;min-width:0;">
             <div class="news-title"><a href="{url}" target="_blank">{title}</a></div>

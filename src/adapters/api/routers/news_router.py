@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from typing import List, Optional
 
-from src.domain.schemas.news_schema import NewsResponse, ScrapeCommand
+from src.domain.schemas.news_schema import NewsResponse, ScrapeCommand, SearchRequest, SearchResult
 from src.domain.ports.messaging_port import MessagePublisherPort
 from src.application.services.news_service import NewsService
-from src.dependencies import get_news_service, get_message_publisher
+from src.dependencies import get_news_service, get_message_publisher, get_search_repository
 
 router = APIRouter(prefix="/news", tags=["News"])
 
@@ -31,3 +31,16 @@ def get_news(
     service: NewsService = Depends(get_news_service)
 ):
     return service.list_news(limit, sentiment)
+
+
+@router.post("/search", response_model=List[SearchResult])
+def search_news(
+    request: SearchRequest,
+    search_repo=Depends(get_search_repository),
+):
+    return search_repo.search(request.query, request.n_results)
+
+
+@router.post("/reindex")
+def reindex_all(service: NewsService = Depends(get_news_service)):
+    return service.reindex_all()

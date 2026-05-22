@@ -9,6 +9,7 @@ from src.adapters.scrapers.rss_scrapers import (
     TRTHaberScraper, BBCTurkishScraper,
     HurriyetScraper, HurriyetSporScraper,
 )
+from src.adapters.search.chroma_search_repository import ChromaSearchRepository
 from src.application.services.news_service import NewsService
 
 SCRAPER_MAP = {
@@ -21,12 +22,12 @@ SCRAPER_MAP = {
 }
 
 def _process(scraper):
-    """Background thread'de çalışır, kendi session'ını açar."""
     db = SessionLocal()
     try:
         repo = NewsRepository(db)
         analyzer = GroqAnalyzer()
-        service = NewsService(repository=repo, analyzer=analyzer)
+        search_repo = ChromaSearchRepository()
+        service = NewsService(repository=repo, analyzer=analyzer, search_repository=search_repo)
         service.update_news_from_source(scraper)
     finally:
         db.close()
