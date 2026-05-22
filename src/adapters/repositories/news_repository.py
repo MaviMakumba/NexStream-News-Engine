@@ -59,6 +59,10 @@ class NewsRepository(NewsRepositoryPort):
         query = self.db.query(NewsORM)
         if sentiment_filter:
             query = query.filter(NewsORM.sentiment_label.ilike(f"%{sentiment_filter}%"))
-            
+
         rows = query.order_by(NewsORM.created_at.desc()).limit(limit).all()
+        return [self._to_domain(row) for row in rows]
+
+    def get_all_articles(self) -> List[Article]:
+        rows = self.db.query(NewsORM).all()
         return [self._to_domain(row) for row in rows]
