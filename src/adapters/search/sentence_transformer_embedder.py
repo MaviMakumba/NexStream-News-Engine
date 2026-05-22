@@ -18,7 +18,7 @@ class SentenceTransformerEmbedder(EmbeddingPort):
         self.model = _get_model()
 
     def embed_text(self, text: str) -> list[float]:
-        return self.model.encode(text).tolist()
+        return self.model.encode(text, normalize_embeddings=True).tolist()
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        return [v.tolist() for v in self.model.encode(texts)]
+        return [v.tolist() for v in self.model.encode(texts, normalize_embeddings=True)]

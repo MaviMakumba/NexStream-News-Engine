@@ -60,7 +60,7 @@ class ChromaSearchRepository:
                     "summary": meta.get("summary", ""),
                     "source": meta.get("source", ""),
                     "url": meta.get("url", ""),
-                    "score": round(1 - distance, 4),
+                    "score": round(1 / (1 + distance), 4),
                 })
             return items
         except Exception as e:
