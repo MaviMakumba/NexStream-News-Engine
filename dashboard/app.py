@@ -64,6 +64,16 @@ def trigger_scrape(source):
     except Exception as e:
         return False, {"message": str(e)}
 
+def semantic_search(query: str, n_results: int = 10):
+    try:
+        r = requests.post(f"{API_BASE}/news/search", json={"query": query, "n_results": n_results}, timeout=10)
+        r.raise_for_status()
+        return r.json(), None
+    except requests.exceptions.ConnectionError:
+        return [], "API'ye bağlanılamadı."
+    except Exception as e:
+        return [], str(e)
+
 def score_class(score):
     if score is None: return "neu"
     if score > 0.1:   return "pos"
@@ -251,11 +261,55 @@ html, body, [class*="css"] {{
     background:var(--surface) !important; border:1px solid var(--border) !important;
     border-radius:8px !important; font-size:0.75rem !important;
 }}
+
+.stTextInput > div > div > input {{
+    background:var(--surface) !important; border-color:var(--border) !important;
+    color:var(--text) !important; font-family:'DM Mono',monospace !important;
+    font-size:0.72rem !important; border-radius:6px !important;
+}}
+.stTextInput > div > div > input:focus {{
+    border-color:var(--accent) !important; box-shadow:0 0 0 1px var(--accent) !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
 # ── DIVIDER ───────────────────────────────────────────────────────────────────
 st.markdown('<div class="nx-divider"></div>', unsafe_allow_html=True)
+
+# ── SEMANTIC SEARCH ───────────────────────────────────────────────────────────
+scol1, scol2, scol3 = st.columns([5, 1, 1])
+with scol1:
+    search_query = st.text_input("search", placeholder="Semantic search… (e.g. 'yapay zeka gelişmeleri')", label_visibility="collapsed")
+with scol2:
+    search_n = st.selectbox("n", [5, 10, 20], index=1, label_visibility="collapsed")
+with scol3:
+    search_btn = st.button("Search", width="stretch")
+
+if search_query and search_btn:
+    with st.spinner("Searching…"):
+        results, err = semantic_search(search_query, search_n)
+    if err:
+        st.error(f"⚠ {err}")
+    elif not results:
+        st.info("No results found.")
+    else:
+        st.markdown(f'<div class="section-title">Search Results · {len(results)} found</div>', unsafe_allow_html=True)
+        for item in results:
+            score_pct = int(item["score"] * 100)
+            st.markdown(f"""
+            <div class="news-card">
+                <div class="news-score">
+                    <div class="score-val neu">{score_pct}<span style='font-size:0.7rem'>%</span></div>
+                    <div class="score-label">MATCH</div>
+                </div>
+                <div style="flex:1;min-width:0;">
+                    <div class="news-title"><a href="{item['url']}" target="_blank">{item['title']}</a></div>
+                    <div class="news-summary">{item['summary']}</div>
+                    <div class="news-meta"><span>{item['source']}</span></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    st.markdown('<div class="nx-divider"></div>', unsafe_allow_html=True)
 
 # ── DATA ──────────────────────────────────────────────────────────────────────
 news, error = fetch_news(limit, sentiment_filter if sentiment_filter != "All" else None)
