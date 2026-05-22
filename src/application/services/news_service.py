@@ -1,4 +1,5 @@
 import logging
+import re
 from src.domain.ports.news_repository_port import NewsRepositoryPort
 from src.domain.ports.analysis_port import AnalysisPort
 from src.domain.ports.scraper_port import NewsScraperPort
@@ -6,6 +7,13 @@ from src.domain.models.article import Article
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
+
+# Hybrid search ağırlıkları
+_FIELD_WEIGHTS = {"title": 0.9, "summary": 0.7, "content": 0.5}
+_DOUBLE_HIT_BONUS = 0.10
+_CANDIDATE_MULTIPLIER = 3
+_MIN_CANDIDATES = 20
+_MAX_CANDIDATES = 50
 
 
 class NewsService:
@@ -43,54 +51,78 @@ class NewsService:
         return self.repository.get_latest_news(limit, sentiment)
 
     def hybrid_search(self, query: str, n_results: int = 10, source: str = None, sentiment: str = None) -> list[dict]:
-        semantic_results = []
+        candidate_size = min(max(n_results * _CANDIDATE_MULTIPLIER, _MIN_CANDIDATES), _MAX_CANDIDATES)
+
+        semantic_by_id: dict = {}
         if self.search_repository:
             try:
-                semantic_results = self.search_repository.search(query, n_results, source, sentiment)
+                for r in self.search_repository.search(query, candidate_size, source, sentiment):
+                    semantic_by_id[r["id"]] = r
             except Exception as e:
                 logger.error(f"Semantik arama hatası: {e}")
 
         try:
-            keyword_articles = self.repository.keyword_search(query, n_results, source, sentiment)
+            keyword_articles = self.repository.keyword_search(query, candidate_size, source, sentiment)
         except Exception as e:
             logger.error(f"Keyword arama hatası: {e}")
             keyword_articles = []
 
-        keyword_ids = {str(a.id): a for a in keyword_articles}
+        query_terms = self._tokenize(query)
+        keyword_by_id: dict = {}
+        for article in keyword_articles:
+            relevance = self._keyword_relevance(article, query_terms)
+            if relevance > 0:
+                keyword_by_id[str(article.id)] = (relevance, article)
 
-        merged = []
-        semantic_ids = set()
-        for result in semantic_results:
-            if result["id"] in keyword_ids:
-                # Hem semantic hem keyword — skoru yükselt
-                result = dict(result)
-                result["score"] = min(round(result["score"] + 0.15, 4), 1.0)
-            merged.append(result)
-            semantic_ids.add(result["id"])
+        combined = []
+        for article_id in set(semantic_by_id) | set(keyword_by_id):
+            sem_score = semantic_by_id[article_id]["score"] if article_id in semantic_by_id else 0.0
+            kw_score = keyword_by_id[article_id][0] if article_id in keyword_by_id else 0.0
 
-        # Sadece keyword'de bulunanlar — eşleşme yerine göre dinamik skor
-        for art_id, article in keyword_ids.items():
-            if art_id not in semantic_ids:
-                merged.append({
-                    "id": art_id,
+            base = max(sem_score, kw_score)
+            bonus = _DOUBLE_HIT_BONUS if (article_id in semantic_by_id and article_id in keyword_by_id) else 0.0
+            final = min(round(base + bonus, 4), 1.0)
+
+            if article_id in semantic_by_id:
+                data = dict(semantic_by_id[article_id])
+            else:
+                article = keyword_by_id[article_id][1]
+                data = {
+                    "id": article_id,
                     "title": article.title,
                     "summary": article.summary or "",
                     "source": article.source,
                     "url": article.url,
-                    "score": self._keyword_score(article, query),
-                })
+                }
+            data["score"] = final
+            combined.append(data)
 
-        merged.sort(key=lambda x: x["score"], reverse=True)
-        return merged[:n_results]
+        combined.sort(key=lambda x: x["score"], reverse=True)
+        return combined[:n_results]
 
     @staticmethod
-    def _keyword_score(article: Article, query: str) -> float:
-        q = query.lower()
-        if q in article.title.lower():
-            return 0.90
-        if article.summary and q in article.summary.lower():
-            return 0.75
-        return 0.60
+    def _tokenize(query: str) -> List[str]:
+        return [w for w in re.findall(r"\w+", query.lower()) if len(w) >= 2]
+
+    @staticmethod
+    def _keyword_relevance(article: Article, query_terms: List[str]) -> float:
+        if not query_terms:
+            return 0.0
+
+        title = article.title.lower() if article.title else ""
+        summary = article.summary.lower() if article.summary else ""
+        content = article.content.lower() if article.content else ""
+
+        n = len(query_terms)
+        title_hits = sum(1 for t in query_terms if t in title)
+        summary_hits = sum(1 for t in query_terms if t in summary)
+        content_hits = sum(1 for t in query_terms if t in content)
+
+        title_score = (title_hits / n) * _FIELD_WEIGHTS["title"]
+        summary_score = (summary_hits / n) * _FIELD_WEIGHTS["summary"]
+        content_score = (content_hits / n) * _FIELD_WEIGHTS["content"]
+
+        return round(max(title_score, summary_score, content_score), 4)
 
     def reindex_all(self) -> dict:
         if not self.search_repository:

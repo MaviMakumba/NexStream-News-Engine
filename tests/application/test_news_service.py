@@ -87,7 +87,8 @@ def test_hybrid_search_returns_semantic_results():
 
     assert len(results) == 1
     assert results[0]["score"] == 0.9
-    mock_search.search.assert_called_once_with("yapay zeka", 5, None, None)
+    # candidate_size = max(5*3, 20) = 20
+    mock_search.search.assert_called_once_with("yapay zeka", 20, None, None)
 
 
 def test_hybrid_search_merges_keyword_only_results():
@@ -142,18 +143,21 @@ def test_hybrid_search_falls_back_to_keyword_when_no_search_repo():
 
 
 def test_hybrid_search_boosts_result_found_in_both():
+    """Hem semantic hem keyword'de bulunan article double-hit bonus alır."""
     service, mock_repo, mock_search = make_service_with_search()
     mock_search.search.return_value = [
         {"id": "1", "title": "Real Madrid haberi", "summary": "", "source": "BBC", "url": "u", "score": 0.6}
     ]
     boosted_article = make_article()
     boosted_article.id = 1
+    boosted_article.title = "Real Madrid yıldız transferi"  # 2/2 query kelimesi başlıkta
     mock_repo.keyword_search.return_value = [boosted_article]
 
     results = service.hybrid_search("real madrid")
 
     assert results[0]["id"] == "1"
-    assert results[0]["score"] == round(0.6 + 0.15, 4)
+    # max(sem=0.6, kw=0.9) + bonus=0.10 = 1.0 (cap)
+    assert results[0]["score"] == 1.0
 
 
 def test_hybrid_search_keyword_only_ranks_above_low_semantic():
@@ -181,5 +185,85 @@ def test_hybrid_search_passes_filters_to_both():
 
     service.hybrid_search("filtreli", n_results=3, source="TRT Haber", sentiment="Positive")
 
-    mock_search.search.assert_called_once_with("filtreli", 3, "TRT Haber", "Positive")
-    mock_repo.keyword_search.assert_called_once_with("filtreli", 3, "TRT Haber", "Positive")
+    # candidate_size = max(3*3, 20) = 20
+    mock_search.search.assert_called_once_with("filtreli", 20, "TRT Haber", "Positive")
+    mock_repo.keyword_search.assert_called_once_with("filtreli", 20, "TRT Haber", "Positive")
+
+
+# ── _tokenize / _keyword_relevance birim testleri ────────────────────────────
+
+def test_tokenize_lowercases_and_filters_short():
+    assert NewsService._tokenize("a I to ai yapay") == ["to", "ai", "yapay"]
+
+
+def test_tokenize_preserves_unicode():
+    assert NewsService._tokenize("Beşiktaş'a transfer") == ["beşiktaş", "transfer"]
+
+
+def test_tokenize_empty_query():
+    assert NewsService._tokenize("") == []
+    assert NewsService._tokenize("   ") == []
+
+
+def test_keyword_relevance_full_title_match():
+    article = make_article()
+    article.title = "Yapay zeka çağı"
+    article.summary = None
+    relevance = NewsService._keyword_relevance(article, ["yapay", "zeka"])
+    assert relevance == 0.9  # 2/2 × 0.9
+
+
+def test_keyword_relevance_partial_title_match():
+    article = make_article()
+    article.title = "Sadece yapay haberi"
+    article.summary = None
+    article.content = "alakasız içerik"
+    relevance = NewsService._keyword_relevance(article, ["yapay", "zeka"])
+    assert relevance == 0.45  # 1/2 × 0.9
+
+
+def test_keyword_relevance_summary_beats_partial_title():
+    article = make_article()
+    article.title = "yapay haberi"          # 1/2 × 0.9 = 0.45
+    article.summary = "yapay zeka çok güzel"  # 2/2 × 0.7 = 0.70
+    article.content = ""
+    relevance = NewsService._keyword_relevance(article, ["yapay", "zeka"])
+    assert relevance == 0.7  # max() seçer
+
+
+def test_keyword_relevance_content_only_match():
+    article = make_article()
+    article.title = "alakasız başlık"
+    article.summary = "alakasız özet"
+    article.content = "burada yapay zeka geçiyor"
+    relevance = NewsService._keyword_relevance(article, ["yapay", "zeka"])
+    assert relevance == 0.5  # 2/2 × 0.5 (content weight) = 0.5
+
+
+def test_keyword_relevance_empty_terms():
+    article = make_article()
+    assert NewsService._keyword_relevance(article, []) == 0.0
+
+
+def test_hybrid_search_ranks_by_coverage():
+    """Multi-word query'de daha çok kelime eşleşen article üstte olmalı."""
+    service, mock_repo, mock_search = make_service_with_search()
+    mock_search.search.return_value = []
+
+    art_both = make_article("https://bbc.com/1")
+    art_both.id = 1
+    art_both.title = "Real Madrid haberi"  # 2/2 başlıkta → 0.9
+
+    art_partial = make_article("https://bbc.com/2")
+    art_partial.id = 2
+    art_partial.title = "Sadece real var"  # 1/2 başlıkta → 0.45
+
+    mock_repo.keyword_search.return_value = [art_partial, art_both]  # sıra önemli değil
+
+    results = service.hybrid_search("real madrid", n_results=5)
+
+    assert len(results) == 2
+    assert results[0]["id"] == "1"
+    assert results[0]["score"] == 0.9
+    assert results[1]["id"] == "2"
+    assert results[1]["score"] == 0.45

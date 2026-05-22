@@ -87,3 +87,68 @@ def test_get_latest_news_sentiment_filter():
     results = repo.get_latest_news(limit=10, sentiment_filter="Positive")
     assert len(results) == 1
     assert results[0].sentiment_label == "Positive"
+
+
+# ── keyword_search (tokenized) ───────────────────────────────────────────────
+
+def _add(repo, url, title, content="içerik", summary="özet", sentiment="Positive"):
+    a = Article(title=title, source="BBC", url=url, content=content,
+                sentiment_label=sentiment, sentiment_score=0.5, summary=summary)
+    repo.save_article(a)
+    return a
+
+
+def test_keyword_search_returns_any_word_match():
+    """Multi-word query'de kelimelerden EN AZ BİRİ eşleşen makaleler dönmeli."""
+    db = make_session()
+    repo = NewsRepository(db)
+
+    _add(repo, "u1", "Real Madrid yıldız transferi")
+    _add(repo, "u2", "Sadece Real burada")
+    _add(repo, "u3", "Madrid şehri haberleri")
+    _add(repo, "u4", "Liverpool kazandı")
+
+    results = repo.keyword_search("real madrid", limit=10)
+    titles = {a.title for a in results}
+
+    assert "Real Madrid yıldız transferi" in titles
+    assert "Sadece Real burada" in titles
+    assert "Madrid şehri haberleri" in titles
+    assert "Liverpool kazandı" not in titles
+
+
+def test_keyword_search_empty_query_returns_empty():
+    db = make_session()
+    repo = NewsRepository(db)
+    _add(repo, "u1", "haber")
+
+    assert repo.keyword_search("", limit=10) == []
+    assert repo.keyword_search("   ", limit=10) == []
+
+
+def test_keyword_search_filters_short_tokens():
+    """Tek karakterli token'ler atlanmalı (gürültü)."""
+    db = make_session()
+    repo = NewsRepository(db)
+    _add(repo, "u1", "Yapay zeka haberi")
+    _add(repo, "u2", "I love you")
+
+    # "a" tek karakter atılır, sadece "yapay" aranır
+    results = repo.keyword_search("a yapay", limit=10)
+    titles = {a.title for a in results}
+    assert "Yapay zeka haberi" in titles
+
+
+def test_keyword_search_source_filter():
+    db = make_session()
+    repo = NewsRepository(db)
+    a1 = Article(title="haber", source="BBC", url="u1", content="x",
+                 summary="x", sentiment_label="Positive", sentiment_score=0.5)
+    a2 = Article(title="haber", source="TRT", url="u2", content="x",
+                 summary="x", sentiment_label="Positive", sentiment_score=0.5)
+    repo.save_article(a1)
+    repo.save_article(a2)
+
+    results = repo.keyword_search("haber", limit=10, source="BBC")
+    assert len(results) == 1
+    assert results[0].source == "BBC"
