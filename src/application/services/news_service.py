@@ -24,12 +24,12 @@ class NewsService:
         self.search_repository = search_repository
 
     def update_news_from_source(self, scraper: NewsScraperPort):
-        print(f"--- GÜNCELLEME: {scraper.__class__.__name__} ---")
+        logger.info("Güncelleme başladı: %s", scraper.__class__.__name__)
         articles: List[Article] = scraper.fetch_news()
         saved_count = 0
 
         for article in articles:
-            print(f"🧠 Analiz: {article.title[:40]}...")
+            logger.info("Analiz ediliyor: %s", article.title[:60])
             result = self.analyzer.analyze_text(article.content)
 
             article.summary = result["summary"]
@@ -43,9 +43,9 @@ class NewsService:
                     try:
                         self.search_repository.index_article(article)
                     except Exception as e:
-                        logger.error(f"ChromaDB index hatası (PostgreSQL etkilenmedi): {e}")
+                        logger.error("ChromaDB index hatası (PostgreSQL etkilenmedi): %s", e)
 
-        print(f"--- BİTTİ: {saved_count}/{len(articles)} haber kaydedildi ---")
+        logger.info("Güncelleme bitti: %d/%d haber kaydedildi", saved_count, len(articles))
 
     def list_news(self, limit: int = 10, sentiment: Optional[str] = None) -> List[Article]:
         return self.repository.get_latest_news(limit, sentiment)

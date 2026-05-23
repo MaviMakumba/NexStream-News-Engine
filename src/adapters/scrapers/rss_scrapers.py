@@ -1,8 +1,11 @@
+import logging
 import requests
 from bs4 import BeautifulSoup
 from typing import List
 from src.domain.ports.scraper_port import NewsScraperPort
 from src.domain.models.article import Article
+
+logger = logging.getLogger(__name__)
 
 
 class BaseRssScraper(NewsScraperPort):
@@ -12,7 +15,7 @@ class BaseRssScraper(NewsScraperPort):
     limit: int = 25
 
     def fetch_news(self) -> List[Article]:
-        print(f"📡 {self.source_name} kaynağına bağlanılıyor...")
+        logger.info("%s kaynağına bağlanılıyor...", self.source_name)
         articles = []
         try:
             r = requests.get(
@@ -22,15 +25,13 @@ class BaseRssScraper(NewsScraperPort):
             r.raise_for_status()
             soup = BeautifulSoup(r.content, "xml")
 
-            # RSS 2.0 → <item>, Atom → <entry>
             items = soup.find_all("item") or soup.find_all("entry")
-            print(f"✅ {len(items)} haber bulundu. İlk {min(self.limit, len(items))} alınıyor.")
+            logger.info("%s: %d haber bulundu, ilk %d alınıyor.", self.source_name, len(items), min(self.limit, len(items)))
 
             for item in items[:self.limit]:
                 title   = item.find("title")
                 title   = title.text.strip() if title else "Başlıksız"
 
-                # RSS: <description>, Atom: <summary> veya <content>
                 body = (
                     item.find("description")
                     or item.find("summary")
@@ -38,7 +39,6 @@ class BaseRssScraper(NewsScraperPort):
                 )
                 content = body.text.strip() if body else ""
 
-                # RSS: <link> text, Atom: <link href="...">
                 link_tag = item.find("link")
                 if link_tag:
                     url = link_tag.get("href") or link_tag.text.strip()
@@ -52,7 +52,7 @@ class BaseRssScraper(NewsScraperPort):
                     url=url,
                 ))
         except Exception as e:
-            print(f"❌ {self.source_name} hata: {e}")
+            logger.error("%s hata: %s", self.source_name, e)
         return articles
 
 

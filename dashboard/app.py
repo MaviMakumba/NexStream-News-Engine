@@ -7,6 +7,7 @@ import time
 import os
 
 API_BASE = os.getenv("API_BASE", "http://localhost:8000")
+API_KEY  = os.getenv("API_KEY", "dev-key-change-me")
 
 _SOURCES_FALLBACK = [
     "TRT Haber", "BBC Türkçe", "Hürriyet", "Hürriyet Spor",
@@ -204,7 +205,12 @@ def fetch_news(limit):
 
 def do_scrape(source):
     try:
-        r = requests.post(f"{API_BASE}/news/scrape", json={"source": source}, timeout=10)
+        r = requests.post(
+            f"{API_BASE}/news/scrape",
+            json={"source": source},
+            headers={"X-Api-Key": API_KEY},
+            timeout=10,
+        )
         return r.status_code == 200
     except Exception:
         return False
@@ -221,7 +227,11 @@ def do_search(query, n):
 
 def do_reindex():
     try:
-        r = requests.post(f"{API_BASE}/news/reindex", timeout=120)
+        r = requests.post(
+            f"{API_BASE}/news/reindex",
+            headers={"X-Api-Key": API_KEY},
+            timeout=120,
+        )
         r.raise_for_status()
         return True, r.json()
     except Exception as e:

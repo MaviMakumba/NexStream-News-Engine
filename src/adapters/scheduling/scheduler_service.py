@@ -1,47 +1,54 @@
 import asyncio
 import json
-import os
+import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiokafka import AIOKafkaProducer
+from src.infrastructure.config.settings import settings
+from src.infrastructure.logging.logger import setup_logging
 
-KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:29092')
+logger = logging.getLogger(__name__)
+
 TOPIC_NAME = "news_updates"
-SOURCES = os.getenv('SCRAPE_SOURCES', 'BBC Technology').split(',')
 
 producer: AIOKafkaProducer = None
 
+
 async def send_scrape_command():
-    for source in SOURCES:
+    sources = [s.strip() for s in settings.scrape_sources.split(",") if s.strip()]
+    for source in sources:
         try:
-            command = {"source": source.strip(), "action": "scrape"}
+            command = {"source": source, "action": "scrape"}
             await producer.send_and_wait(TOPIC_NAME, json.dumps(command).encode())
-            print(f"✅ Emir gönderildi: {source}")
+            logger.info("Scrape emri gönderildi: %s", source)
         except Exception as e:
-            print(f"❌ Gönderilemedi ({source}): {e}")
+            logger.error("Scrape emri gönderilemedi (%s): %s", source, e)
+
 
 async def main():
     global producer
-    producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS)
+    setup_logging()
+    producer = AIOKafkaProducer(bootstrap_servers=settings.kafka_bootstrap_servers)
 
     while True:
         try:
             await producer.start()
-            print("✅ Kafka Producer başladı.")
+            logger.info("Kafka Producer başladı.")
             break
         except Exception as e:
-            print(f"⚠️ Kafka hazır değil, 5sn sonra tekrar: {e}")
+            logger.warning("Kafka hazır değil, 5sn sonra tekrar: %s", e)
             await asyncio.sleep(5)
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(send_scrape_command, 'interval', minutes=10)
     scheduler.start()
-    print("⏳ Scheduler başladı (10dk aralık).")
-    await send_scrape_command()  # başlangıçta hemen çalıştır
+    logger.info("Scheduler başladı (10dk aralık).")
+    await send_scrape_command()
 
     try:
         await asyncio.Event().wait()
     finally:
         await producer.stop()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

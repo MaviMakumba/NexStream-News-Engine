@@ -2,15 +2,16 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 
+
 class ScrapeCommand(BaseModel):
-    source: str
+    source: str = Field(..., min_length=1, max_length=64)
 
 
 class SearchRequest(BaseModel):
-    query: str
+    query: str = Field(..., min_length=1, max_length=200)
     n_results: int = Field(default=10, ge=1, le=50)
-    source: Optional[str] = None
-    sentiment: Optional[str] = None
+    source: Optional[str] = Field(None, max_length=64)
+    sentiment: Optional[str] = Field(None, pattern="^(Positive|Negative|Neutral)$")
 
 
 class SearchResult(BaseModel):
@@ -21,18 +22,16 @@ class SearchResult(BaseModel):
     url: str
     score: float
 
-# 2. YANIT ŞEMASI (Response)
-# API'den kullanıcıya (veya Frontend'e) dönecek olan veri formatı.
+
 class NewsResponse(BaseModel):
     id: int
     title: str
     source: str
     url: str
-    content: Optional[str] = None  # Bilge mimarın uyarısı: Artık içeriği de gösteriyoruz
+    content: Optional[str] = None
     summary: Optional[str] = None
     sentiment_label: Optional[str] = None
     sentiment_score: Optional[float] = None
     created_at: datetime
 
-    # Pydantic v2 için doğru konfigürasyon (Eskiden class Config: from_attributes = True idi)
     model_config = {"from_attributes": True}

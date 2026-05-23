@@ -26,9 +26,10 @@ src/
 │   └── services/news_service.py   # Orchestration — port'ları bağlar, reindex_all dahil
 ├── adapters/
 │   ├── analysis/
-│   │   └── groq_analyzer.py       # Groq llama-3.3-70b-versatile
+│   │   └── groq_analyzer.py       # Groq llama-3.1-8b-instant
 │   ├── scrapers/
-│   │   └── rss_scrapers.py        # BBC Tech/Sport, TRT, BBC Türkçe, Hürriyet, Hürriyet Spor
+│   │   ├── rss_scrapers.py        # 11 TR+EN RSS kaynağı (BaseRssScraper tabanlı)
+│   │   └── registry.py            # SCRAPER_REGISTRY — tek kaynak doğruluk noktası
 │   ├── repositories/
 │   │   ├── news_orm.py            # SQLAlchemy ORM modeli
 │   │   └── news_repository.py     # PostgreSQL adapter
@@ -41,11 +42,17 @@ src/
 │   │   ├── sentence_transformer_embedder.py  # SentenceTransformerEmbedder (singleton)
 │   │   └── chroma_search_repository.py       # ChromaDB adapter — index + search
 │   └── api/
+│       ├── auth.py               # verify_api_key() dependency (v1.3+)
+│       ├── limiter.py            # slowapi Limiter singleton (v1.3+)
 │       └── routers/
 │           ├── news_router.py    # GET /news, POST /scrape, /search, /reindex, /sources
 │           └── health_router.py  # GET /health — DB + Kafka + ChromaDB durumu
 ├── infrastructure/
-│   └── config/database.py        # SQLAlchemy engine — ayrı DB_* env var kullanır
+│   ├── config/
+│   │   ├── database.py           # SQLAlchemy engine — settings üzerinden bağlantı
+│   │   └── settings.py           # Pydantic Settings — tek merkezi config (v1.3+)
+│   └── logging/
+│       └── logger.py             # setup_logging(), JSON/text formatter (v1.3+)
 ├── dependencies.py                # FastAPI DI — GroqAnalyzer, NewsRepository, ChromaSearch inject
 └── main.py                        # FastAPI app
 dashboard/
@@ -98,10 +105,10 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Test sayısı:** 97 test, hepsi yeşil
+- **Versiyon:** v1.3.0 tamamlandı — v1.4-dev sıradaki
+- **Test sayısı:** 131 test, hepsi yeşil
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
 - **Branch:** main (tüm özellikler merge edildi)
-- **Versiyon:** v1.2.0
 
 ---
 
@@ -132,11 +139,69 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 - Rate limit: `Retry-After` header kullanılıyor (sabit 10/20/30s yerine)
 - Max retry: 3 → 5
 
-## SIRADAKI GÖREV
+---
 
-- Worker log'larını dashboard'dan izleme (karmaşık, sonraya bırakıldı)
-- NTV alternatif kaynak araştır (RSS yok)
-- `pub_date` alanı: RSS `<pubDate>` → DB'ye kaydet, dashboard'da göster
+## BİLİNEN AÇIKLAR (audit sonuçları — v1.3'te giderilecek)
+
+### Kod Kalitesi
+- **24× print()** — sadece 2 dosya proper logging kullanıyor (news_service.py, chroma_search_repository.py)
+- **5 dosyada dağınık os.getenv()** — merkezi config yok: database.py, scheduler_service.py, groq_analyzer.py, chroma_search_repository.py, health_router.py
+- **N+1 query**: `news_repository.py` `article_exists()` her makale için ayrı SELECT çağırıyor
+- **Sequential scraping**: `rss_scrapers.py` requests.get() blocking — 11 kaynak için ~8-15sn
+
+### Güvenlik
+- **Exposed ports**: PostgreSQL (5433), Kafka (9092), Zookeeper (2181), ChromaDB (8001) host'a açık — internal-only olmalı
+- **Sıfır auth**: `/scrape`, `/reindex` endpoint'leri korumasız — herhangi biri tetikleyebilir
+- **DoS riski**: `SearchRequest.query` için uzunluk sınırı yok
+- **Rate limit yok**: slowapi/throttling eklenmedi
+- **CORS konfigürasyonu yok**
+
+---
+
+## SIRADAKİ GÖREVLER (v1.3 → v1.6 Yol Haritası)
+
+Detaylı plan: `C:\Users\eren8\.claude\plans\encapsulated-squishing-willow.md`
+
+Sonraki oturumu başlatmak için: **"v1.3 implementasyonuna başlayalım — plan dosyasını oku, CLAUDE.md'deki yol haritasını takip et."**
+
+### v1.3.0 — Foundation Hardening ✅ TAMAMLANDI
+1. **Pydantic Settings** — `src/infrastructure/config/settings.py` oluşturuldu, 5 dosyadaki os.getenv() kaldırıldı
+2. **Structured Logging** — `src/infrastructure/logging/logger.py` (JSON/text formatter), 24 print() → logger
+3. **Network isolation** — docker-compose.yml: db/kafka/zookeeper/chromadb port'ları kapatıldı
+4. **API Key Auth** — `src/adapters/api/auth.py`, `/scrape` ve `/reindex` → `Depends(verify_api_key)`
+5. **Rate limiting** — slowapi: search 30/dk, scrape 6/dk, news list 120/dk; `src/adapters/api/limiter.py`
+6. **Input validation** — SearchRequest.query max_length=200, ScrapeCommand validasyonu, sentiment pattern
+7. **CORS** — CORSMiddleware, `settings.cors_origins` üzerinden yapılandırılabilir
+
+Sonuç: 97 → 131 test (+34)
+
+### v1.4.0 — Performance & UX (~4-6 gün)
+1. **Async scraping** — httpx.AsyncClient + asyncio.gather → 8-15sn → ~2-4sn
+2. **Batch processing** — bulk_exists(), bulk_save(), bulk_index() (N+1 fix)
+3. **PostgreSQL indexes** — source, sentiment_label, created_at, url unique
+4. **pub_date capture** — RSS `<pubDate>` → Article.published_at → dashboard'da göster
+5. **Redis cache** (opsiyonel) — sources 1s, search 5dk, health 10sn
+
+Beklenen: ~112 → ~122 test
+
+### v1.5.0 — AI Features (~3-5 gün)
+1. **NER** — Groq prompt'a entities + topic ekle, Article model genişlet
+2. **Topic filter** — dashboard'da Technology/Sports/Economy/Politics pills
+3. **Trending engine** — `GET /news/trending?hours=6` — entity aggregate
+4. **Semantic dedup** — ChromaDB 0.92+ similarity → duplicate flag
+
+Beklenen: ~122 → ~130 test
+
+### v1.6.0 — Production Deployment (~5-7 gün)
+1. **Nginx + HTTPS** — reverse proxy, Let's Encrypt, sadece 80/443 açık
+2. **Prometheus + Grafana + Loki** — metrics, dashboard, log aggregation
+3. **Backup otomasyonu** — pg_dump + ChromaDB volume, günde 1×
+4. **docker-compose.prod.yml** — resource limits, healthcheck'ler, restart policy
+
+Beklenen: ~130 → ~135 test
+
+### Beyond v1.6 — Kasıtlı Kapsam Dışı
+JWT auth, WebSocket, NTV Playwright scraper, K8s/Helm, Qdrant migration, CQRS, Next.js rewrite — bu ölçek için fayda/maliyet uygun değil.
 
 ---
 
@@ -145,7 +210,8 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 - Port isimleri: `*Port` (AnalysisPort, EmbeddingPort)
 - Adapter isimleri: açıklayıcı (`GroqAnalyzer`, `SentenceTransformerEmbedder`)
 - Import sırası: stdlib → third party → local (src.*)
-- Tüm env var'lar `os.getenv()` ile, default değer ver
+- **v1.2 ve öncesi:** env var'lar `os.getenv()` ile okunuyor — `src/infrastructure/config/database.py`'a bak
+- **v1.3'ten itibaren:** `from src.infrastructure.config.settings import settings` kullan (Pydantic Settings)
 - Exception'ları yut, logla, fallback dön — servis çökmemeli
 - Test'lerde gerçek API çağrısı yok, her şey mock
 
@@ -186,4 +252,4 @@ docker logs nexstream_chromadb --tail 20
 - ChromaDB 1.5.5 kurulu (0.5.23 uvicorn conflict veriyordu)
 - `docker-compose down -v` sonrası ChromaDB da sıfırlanır
 - Dashboard sidebar kaldırıldı, tüm kontroller üst bar'da
-- README'deki YOUR_USERNAME henüz değiştirilmedi
+- README UTF-8 BOM'suz olarak yeniden yazıldı (önceki versiyon UTF-16 idi, GitHub'da bozuk görünüyordu)
