@@ -1,19 +1,22 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Index
 from sqlalchemy.sql import func
 from src.infrastructure.config.database import Base
 
 class NewsORM(Base):
     __tablename__ = "news_articles"
+    __table_args__ = (
+        Index("ix_news_source", "source"),
+        Index("ix_news_sentiment_label", "sentiment_label"),
+        Index("ix_news_created_at", "created_at"),
+    )
 
-    # Sütunlarımızı tanımlıyoruz
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(255), nullable=False) # Haber başlığı, boş olamaz
-    content = Column(Text, nullable=False)      # Haberin içeriği
-    source = Column(String(50), nullable=False) # Haberin kaynağı (Örn: CNN, Twitter)
-    url = Column(String, unique=True)           # Haberin linki (Aynı haberi 2 kez kaydetmemek için unique)
-    created_at = Column(DateTime(timezone=True), server_default=func.now()) # Kayıt zamanı
-    
-    # --- YENİ EKLENEN YAPAY ZEKA ALANLARI ---
-    summary = Column(Text, nullable=True)       # Haberin yapay zeka özeti
-    sentiment_score = Column(Float, nullable=True) # Duygu puanı (-1: Çok Kötü, +1: Çok İyi)
-    sentiment_label = Column(String(20), nullable=True) # Etiket (Positive, Negative, Neutral)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    source = Column(String(50), nullable=False)
+    url = Column(String, unique=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    published_at = Column(DateTime(timezone=True), nullable=True)
+    summary = Column(Text, nullable=True)
+    sentiment_score = Column(Float, nullable=True)
+    sentiment_label = Column(String(20), nullable=True)

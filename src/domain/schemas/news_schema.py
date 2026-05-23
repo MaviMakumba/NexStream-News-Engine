@@ -33,5 +33,6 @@ class NewsResponse(BaseModel):
     sentiment_label: Optional[str] = None
     sentiment_score: Optional[float] = None
     created_at: datetime
+    published_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}

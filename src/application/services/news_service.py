@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from src.domain.ports.news_repository_port import NewsRepositoryPort
@@ -23,14 +24,19 @@ class NewsService:
         self.analyzer = analyzer
         self.search_repository = search_repository
 
-    def update_news_from_source(self, scraper: NewsScraperPort):
+    async def update_news_from_source(self, scraper: NewsScraperPort):
         logger.info("Güncelleme başladı: %s", scraper.__class__.__name__)
-        articles: List[Article] = scraper.fetch_news()
-        saved_count = 0
+        articles: List[Article] = await scraper.fetch_news()
 
-        for article in articles:
-            logger.info("Analiz ediliyor: %s", article.title[:60])
-            result = self.analyzer.analyze_text(article.content)
+        # Bulk duplicate check — tek SQL sorgusu, N+1 elimine edildi
+        existing_urls = self.repository.bulk_exists([a.url for a in articles])
+        new_articles = [a for a in articles if a.url not in existing_urls]
+        logger.info("%s: %d/%d yeni haber analiz edilecek", scraper.__class__.__name__, len(new_articles), len(articles))
+
+        saved_count = 0
+        loop = asyncio.get_event_loop()
+        for article in new_articles:
+            result = await loop.run_in_executor(None, self.analyzer.analyze_text, article.content)
 
             article.summary = result["summary"]
             article.sentiment_score = result["sentiment_score"]
@@ -45,7 +51,7 @@ class NewsService:
                     except Exception as e:
                         logger.error("ChromaDB index hatası (PostgreSQL etkilenmedi): %s", e)
 
-        logger.info("Güncelleme bitti: %d/%d haber kaydedildi", saved_count, len(articles))
+        logger.info("Güncelleme bitti: %d/%d haber kaydedildi", saved_count, len(new_articles))
 
     def list_news(self, limit: int = 10, sentiment: Optional[str] = None) -> List[Article]:
         return self.repository.get_latest_news(limit, sentiment)

@@ -28,6 +28,7 @@ class NewsRepository(NewsRepositoryPort):
             summary=article.summary,
             sentiment_score=article.sentiment_score,
             sentiment_label=article.sentiment_label,
+            published_at=article.published_at,
         )
 
     def _to_domain(self, orm: NewsORM) -> Article:
@@ -41,11 +42,18 @@ class NewsRepository(NewsRepositoryPort):
             sentiment_score=orm.sentiment_score,
             sentiment_label=orm.sentiment_label,
             created_at=orm.created_at,
+            published_at=orm.published_at,
         )
 
     # --- SÖZLEŞME (PORT) METOTLARI ---
     def article_exists(self, url: str) -> bool:
         return self.db.query(NewsORM).filter(NewsORM.url == url).first() is not None
+
+    def bulk_exists(self, urls: list[str]) -> set[str]:
+        if not urls:
+            return set()
+        rows = self.db.query(NewsORM.url).filter(NewsORM.url.in_(urls)).all()
+        return {row.url for row in rows}
 
     def save_article(self, article: Article) -> bool:
         if self.article_exists(article.url):

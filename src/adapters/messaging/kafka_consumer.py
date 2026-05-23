@@ -14,14 +14,14 @@ from src.application.services.news_service import NewsService
 logger = logging.getLogger(__name__)
 
 
-def _process(scraper):
+async def _process(scraper):
     db = SessionLocal()
     try:
         repo = NewsRepository(db)
         analyzer = GroqAnalyzer()
         search_repo = ChromaSearchRepository()
         service = NewsService(repository=repo, analyzer=analyzer, search_repository=search_repo)
-        service.update_news_from_source(scraper)
+        await service.update_news_from_source(scraper)
     finally:
         db.close()
 
@@ -50,9 +50,7 @@ async def consume():
                 logger.warning("Bilinmeyen kaynak: %s", source)
                 continue
             logger.info("İşleniyor: %s", source)
-            await asyncio.get_event_loop().run_in_executor(
-                None, _process, scraper
-            )
+            asyncio.create_task(_process(scraper))
     except Exception as e:
         logger.error("Worker hatası: %s", e)
     finally:
