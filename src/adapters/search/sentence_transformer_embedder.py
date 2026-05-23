@@ -8,7 +8,7 @@ _model_instance: SentenceTransformer = None
 def _get_model() -> SentenceTransformer:
     global _model_instance
     if _model_instance is None:
-        _model_instance = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+        _model_instance = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2", device="cpu")
     return _model_instance
 
 

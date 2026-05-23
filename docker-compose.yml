@@ -128,7 +128,7 @@ services:
     command: python src/adapters/scheduling/scheduler_service.py
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCRAPE_SOURCES=BBC Technology
+      - SCRAPE_SOURCES=TRT Haber,BBC Türkçe,Hürriyet,Hürriyet Spor,Sabah,CNN Türk,Sözcü,Habertürk,HT Spor,BBC Technology,BBC Sport
     volumes:
       - .:/app
 

@@ -4,22 +4,10 @@ from aiokafka import AIOKafkaConsumer
 from src.infrastructure.config.database import SessionLocal
 from src.adapters.repositories.news_repository import NewsRepository
 from src.adapters.analysis.groq_analyzer import GroqAnalyzer
-from src.adapters.scrapers.rss_scrapers import (
-    BBCTechnologyScraper, BBCSportScraper,
-    TRTHaberScraper, BBCTurkishScraper,
-    HurriyetScraper, HurriyetSporScraper,
-)
+from src.adapters.scrapers.registry import SCRAPER_REGISTRY
 from src.adapters.search.chroma_search_repository import ChromaSearchRepository
 from src.application.services.news_service import NewsService
 
-SCRAPER_MAP = {
-    "BBC Technology":  BBCTechnologyScraper(),
-    "TRT Haber":       TRTHaberScraper(),
-    "BBC Türkçe":      BBCTurkishScraper(),
-    "Hürriyet":        HurriyetScraper(),
-    "BBC Sport":       BBCSportScraper(),
-    "Hürriyet Spor":   HurriyetSporScraper(),
-}
 
 def _process(scraper):
     db = SessionLocal()
@@ -31,6 +19,7 @@ def _process(scraper):
         service.update_news_from_source(scraper)
     finally:
         db.close()
+
 
 async def consume():
     consumer = AIOKafkaConsumer(
@@ -50,7 +39,7 @@ async def consume():
         async for msg in consumer:
             data = json.loads(msg.value)
             source = data.get("source")
-            scraper = SCRAPER_MAP.get(source)
+            scraper = SCRAPER_REGISTRY.get(source)
             if not scraper:
                 print(f"⚠️ Bilinmeyen kaynak: {source}")
                 continue
@@ -62,6 +51,7 @@ async def consume():
         print(f"❌ Worker hatası: {e}")
     finally:
         await consumer.stop()
+
 
 if __name__ == "__main__":
     asyncio.run(consume())
