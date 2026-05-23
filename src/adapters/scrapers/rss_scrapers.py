@@ -31,7 +31,7 @@ class BaseRssScraper(NewsScraperPort):
     limit: int = 25
 
     async def _fetch_content(self, url: str) -> bytes:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
             r = await client.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
             r.raise_for_status()
             return r.content
