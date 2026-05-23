@@ -131,7 +131,7 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    command: python src/adapters/scheduling/scheduler_service.py
+    command: python -m src.adapters.scheduling.scheduler_service
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SCRAPE_SOURCES=TRT Haber,BBC Türkçe,Hürriyet,Hürriyet Spor,Sabah,CNN Türk,Sözcü,Habertürk,HT Spor,BBC Technology,BBC Sport
