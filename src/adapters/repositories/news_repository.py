@@ -1,3 +1,4 @@
+import logging
 import re
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -5,6 +6,9 @@ from typing import List, Optional
 from src.domain.ports.news_repository_port import NewsRepositoryPort
 from src.domain.models.article import Article
 from src.adapters.repositories.orm_models import NewsORM
+
+logger = logging.getLogger(__name__)
+
 
 class NewsRepository(NewsRepositoryPort):
     """
@@ -54,7 +58,7 @@ class NewsRepository(NewsRepositoryPort):
             return True
         except Exception as e:
             self.db.rollback()
-            print(f"DB Kayıt Hatası: {e}")
+            logger.error("DB kayıt hatası: %s", e)
             return False
 
     def get_latest_news(self, limit: int, sentiment_filter: Optional[str] = None) -> List[Article]:

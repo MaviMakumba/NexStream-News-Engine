@@ -1,12 +1,16 @@
-import os
 import json
+import logging
 import re
 import time
 from src.domain.ports.analysis_port import AnalysisPort
+from src.infrastructure.config.settings import settings
+
+logger = logging.getLogger(__name__)
+
 
 class GroqAnalyzer(AnalysisPort):
     def __init__(self):
-        self.api_key = os.getenv("GROQ_API_KEY")
+        self.api_key = settings.groq_api_key
         self.model = "llama-3.1-8b-instant"
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
 
@@ -42,14 +46,12 @@ Respond with JSON only, no markdown, no explanation."""
 
                 if r.status_code == 429:
                     wait = int(r.headers.get("retry-after", 5))
-                    print(f"⏳ Rate limit, {wait}s bekleniyor...")
+                    logger.warning("Groq rate limit, %ds bekleniyor...", wait)
                     time.sleep(wait)
                     continue
 
                 r.raise_for_status()
                 content = r.json()["choices"][0]["message"]["content"]
-
-                # Strip markdown fences if present
                 content = re.sub(r"```json|```", "", content).strip()
                 result = json.loads(content)
 
@@ -60,10 +62,10 @@ Respond with JSON only, no markdown, no explanation."""
                 }
 
             except json.JSONDecodeError:
-                print(f"⚠️ JSON parse hatası, deneme {attempt + 1}")
+                logger.warning("Groq JSON parse hatası, deneme %d", attempt + 1)
                 continue
             except Exception as e:
-                print(f"❌ Groq analiz hatası: {e}")
+                logger.error("Groq analiz hatası: %s", e)
                 if attempt < 2:
                     time.sleep(5)
                 continue

@@ -1,0 +1,60 @@
+import os
+import pytest
+from unittest.mock import patch
+
+
+def _fresh_settings(**overrides):
+    """Yeni bir Settings örneği oluşturur, .env dosyasını atlar."""
+    from src.infrastructure.config.settings import Settings
+    with patch.dict(os.environ, overrides):
+        return Settings(_env_file=None)
+
+
+def test_settings_loads_defaults():
+    s = _fresh_settings()
+    assert s.db_host == "localhost"
+    assert s.db_port == 5432
+    assert s.chroma_host == "localhost"
+    assert s.chroma_port == 8001
+    assert s.kafka_bootstrap_servers == "kafka:29092"
+    assert s.api_key == "dev-key-change-me"
+    assert s.log_level == "INFO"
+    assert s.log_format == "json"
+    assert s.cors_origins == "*"
+
+
+def test_settings_db_env_override():
+    s = _fresh_settings(DB_HOST="mydb", DB_PORT="5433")
+    assert s.db_host == "mydb"
+    assert s.db_port == 5433
+
+
+def test_settings_api_key_override():
+    s = _fresh_settings(API_KEY="secret-key")
+    assert s.api_key == "secret-key"
+
+
+def test_settings_groq_api_key_override():
+    s = _fresh_settings(GROQ_API_KEY="gsk_testkey")
+    assert s.groq_api_key == "gsk_testkey"
+
+
+def test_settings_chroma_override():
+    s = _fresh_settings(CHROMA_HOST="chromadb", CHROMA_PORT="8000")
+    assert s.chroma_host == "chromadb"
+    assert s.chroma_port == 8000
+
+
+def test_settings_log_format_override():
+    s = _fresh_settings(LOG_FORMAT="text", LOG_LEVEL="DEBUG")
+    assert s.log_format == "text"
+    assert s.log_level == "DEBUG"
+
+
+def test_settings_scrape_sources_contains_all_11():
+    s = _fresh_settings()
+    sources = [src.strip() for src in s.scrape_sources.split(",")]
+    assert len(sources) == 11
+    assert "TRT Haber" in sources
+    assert "BBC Technology" in sources
+    assert "BBC Sport" in sources
