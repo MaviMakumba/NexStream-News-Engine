@@ -275,7 +275,7 @@ def show_detail(article):
     label   = article.get("sentiment_label", "Neutral") or "Neutral"
     score   = float(article.get("sentiment_score") or 0)
     content = article.get("content") or article.get("summary") or ""
-    created = article.get("created_at", "")
+    created = article.get("published_at") or article.get("created_at", "")
     sc      = score_cls(score)
 
     st.markdown(f"""
@@ -787,7 +787,8 @@ else:
         url     = row.get("url", "#")
         summary = (row.get("summary") or row.get("content") or "")[:180]
         source  = row.get("source", "—")
-        age     = rel_time(row.get("created_at", ""), st.session_state.lang)
+        age_dt  = row.get("published_at") or row.get("created_at", "")
+        age     = rel_time(age_dt, st.session_state.lang)
 
         col_card, col_det = st.columns([11, 1])
         with col_card:

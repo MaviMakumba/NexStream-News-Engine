@@ -1,4 +1,5 @@
-from unittest.mock import MagicMock
+import asyncio
+from unittest.mock import MagicMock, AsyncMock
 from src.application.services.news_service import NewsService
 from src.domain.models.article import Article
 
@@ -7,6 +8,7 @@ def make_article(url="https://bbc.com/test"):
 
 def make_service():
     mock_repo = MagicMock()
+    mock_repo.bulk_exists.return_value = set()
     mock_analyzer = MagicMock()
     mock_analyzer.analyze_text.return_value = {
         "sentiment_score": 0.8,
@@ -19,10 +21,10 @@ def test_update_saves_analyzed_article():
     """Haber analiz edilip kaydediliyor mu?"""
     service, mock_repo, mock_analyzer = make_service()
     mock_scraper = MagicMock()
-    mock_scraper.fetch_news.return_value = [make_article()]
+    mock_scraper.fetch_news = AsyncMock(return_value=[make_article()])
     mock_repo.save_article.return_value = True
 
-    service.update_news_from_source(mock_scraper)
+    asyncio.run(service.update_news_from_source(mock_scraper))
 
     mock_analyzer.analyze_text.assert_called_once_with("Good news today")
     mock_repo.save_article.assert_called_once()
@@ -35,14 +37,14 @@ def test_update_multiple_articles():
     """Birden fazla haber kaydediliyor mu?"""
     service, mock_repo, _ = make_service()
     mock_scraper = MagicMock()
-    mock_scraper.fetch_news.return_value = [
+    mock_scraper.fetch_news = AsyncMock(return_value=[
         make_article("https://bbc.com/1"),
         make_article("https://bbc.com/2"),
         make_article("https://bbc.com/3"),
-    ]
+    ])
     mock_repo.save_article.return_value = True
 
-    service.update_news_from_source(mock_scraper)
+    asyncio.run(service.update_news_from_source(mock_scraper))
 
     assert mock_repo.save_article.call_count == 3
 
@@ -50,9 +52,21 @@ def test_update_empty_source():
     """Scraper boş liste dönerse hata vermemeli"""
     service, mock_repo, mock_analyzer = make_service()
     mock_scraper = MagicMock()
-    mock_scraper.fetch_news.return_value = []
+    mock_scraper.fetch_news = AsyncMock(return_value=[])
 
-    service.update_news_from_source(mock_scraper)
+    asyncio.run(service.update_news_from_source(mock_scraper))
+
+    mock_analyzer.analyze_text.assert_not_called()
+    mock_repo.save_article.assert_not_called()
+
+def test_update_skips_existing_articles():
+    """bulk_exists ile zaten var olan haberler analiz edilmez."""
+    service, mock_repo, mock_analyzer = make_service()
+    mock_repo.bulk_exists.return_value = {"https://bbc.com/test"}
+    mock_scraper = MagicMock()
+    mock_scraper.fetch_news = AsyncMock(return_value=[make_article()])
+
+    asyncio.run(service.update_news_from_source(mock_scraper))
 
     mock_analyzer.analyze_text.assert_not_called()
     mock_repo.save_article.assert_not_called()

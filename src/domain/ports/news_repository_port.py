@@ -24,3 +24,7 @@ class NewsRepositoryPort(ABC):
     @abstractmethod
     def keyword_search(self, query: str, limit: int = 10, source: Optional[str] = None, sentiment: Optional[str] = None) -> List[Article]:
         pass
+
+    @abstractmethod
+    def bulk_exists(self, urls: list[str]) -> set[str]:
+        pass

@@ -1,43 +1,61 @@
 import logging
-import requests
+import httpx
 from bs4 import BeautifulSoup
-from typing import List
+from datetime import datetime
+from email.utils import parsedate_to_datetime
+from typing import List, Optional
 from src.domain.ports.scraper_port import NewsScraperPort
 from src.domain.models.article import Article
 
 logger = logging.getLogger(__name__)
 
 
+def _parse_pub_date(item) -> Optional[datetime]:
+    tag = item.find("pubDate") or item.find("published") or item.find("updated")
+    if not tag:
+        return None
+    text = tag.text.strip()
+    try:
+        return parsedate_to_datetime(text)
+    except Exception:
+        pass
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
 class BaseRssScraper(NewsScraperPort):
-    """RSS 2.0 ve Atom feed'leri destekleyen temel sınıf."""
     url: str = ""
     source_name: str = ""
     limit: int = 25
 
-    def fetch_news(self) -> List[Article]:
+    async def _fetch_content(self, url: str) -> bytes:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+            r.raise_for_status()
+            return r.content
+
+    async def fetch_news(self) -> List[Article]:
         logger.info("%s kaynağına bağlanılıyor...", self.source_name)
         articles = []
         try:
-            r = requests.get(
-                self.url, timeout=10,
-                headers={"User-Agent": "Mozilla/5.0"}
-            )
-            r.raise_for_status()
-            soup = BeautifulSoup(r.content, "xml")
+            content = await self._fetch_content(self.url)
+            soup = BeautifulSoup(content, "xml")
 
             items = soup.find_all("item") or soup.find_all("entry")
             logger.info("%s: %d haber bulundu, ilk %d alınıyor.", self.source_name, len(items), min(self.limit, len(items)))
 
             for item in items[:self.limit]:
-                title   = item.find("title")
-                title   = title.text.strip() if title else "Başlıksız"
+                title = item.find("title")
+                title = title.text.strip() if title else "Başlıksız"
 
                 body = (
                     item.find("description")
                     or item.find("summary")
                     or item.find("content")
                 )
-                content = body.text.strip() if body else ""
+                content_text = body.text.strip() if body else ""
 
                 link_tag = item.find("link")
                 if link_tag:
@@ -47,9 +65,10 @@ class BaseRssScraper(NewsScraperPort):
 
                 articles.append(Article(
                     title=title,
-                    content=content,
+                    content=content_text,
                     source=self.source_name,
                     url=url,
+                    published_at=_parse_pub_date(item),
                 ))
         except Exception as e:
             logger.error("%s hata: %s", self.source_name, e)
