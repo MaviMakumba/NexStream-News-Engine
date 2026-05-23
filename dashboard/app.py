@@ -8,7 +8,6 @@ import os
 
 API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 
-# Kaynak listesi API'den çekilir; API erişilemezse bu fallback kullanılır.
 _SOURCES_FALLBACK = [
     "TRT Haber", "BBC Türkçe", "Hürriyet", "Hürriyet Spor",
     "Sabah", "CNN Türk", "Sözcü", "Habertürk", "HT Spor",
@@ -62,6 +61,7 @@ THEMES = {
 for k, v in [
     ("theme", "Midnight"), ("limit", 50), ("auto_refresh", False),
     ("search_results", None), ("search_error", None),
+    ("search_history", []), ("pending_query", None), ("pending_n", 10),
 ]:
     if k not in st.session_state:
         st.session_state[k] = v
@@ -120,6 +120,41 @@ def score_cls(v):
     if v is None: return "neu"
     return "pos" if v > 0.1 else ("neg" if v < -0.1 else "neu")
 
+def _add_to_history(query, n, count):
+    hist = [h for h in st.session_state.search_history if h["query"] != query]
+    hist.insert(0, {"query": query, "n": n, "count": count})
+    st.session_state.search_history = hist[:8]
+
+# ── DETAIL DIALOG ─────────────────────────────────────────────────────────────
+@st.dialog("Haber Detayı", width="large")
+def show_detail(article):
+    title   = article.get("title", "—")
+    url     = article.get("url") or ""
+    source  = article.get("source", "—")
+    label   = article.get("sentiment_label", "Neutral") or "Neutral"
+    score   = float(article.get("sentiment_score") or 0)
+    content = article.get("content") or article.get("summary") or ""
+    created = article.get("created_at", "")
+    sc      = score_cls(score)
+
+    st.markdown(f"""
+<div style="margin-bottom:1.2rem">
+  <div style="font-family:'Syne',sans-serif;font-size:1.05rem;font-weight:700;
+              color:var(--text);line-height:1.5;margin-bottom:0.75rem">{title}</div>
+  <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;font-size:0.65rem">
+    <span class="nx-source">{source}</span>
+    <span class="nx-badge-inner badge-{label}">{label}</span>
+    <span class="nx-score-val {sc}" style="font-size:0.85rem">{score:+.2f}</span>
+    <span style="color:var(--text3)">{rel_time(created)}</span>
+  </div>
+</div>
+<hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0"/>
+<div style="font-size:0.78rem;color:var(--text2);line-height:1.85;white-space:pre-wrap">{content or "İçerik mevcut değil."}</div>
+""", unsafe_allow_html=True)
+
+    if url:
+        st.link_button("🔗 Habere Git", url, width="stretch")
+
 # ── CSS ───────────────────────────────────────────────────────────────────────
 t = THEMES[st.session_state.theme]
 
@@ -141,8 +176,8 @@ html,body,[class*="css"] {{
     color:var(--text);
 }}
 #MainMenu,footer,header,[data-testid="stToolbar"],
-[data-testid="stSidebar"],[data-testid="collapsedControl"],
-[data-testid="stSidebarCollapsedControl"] {{ display:none !important; }}
+[data-testid="stSidebar"],[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"] {{ display:none !important; }}
 .block-container {{ padding:1.5rem 2.5rem 2rem !important; max-width:100% !important; }}
 
 .nx-logo {{
@@ -154,13 +189,11 @@ html,body,[class*="css"] {{
     font-size:0.6rem; font-weight:400; color:var(--text3);
     font-family:'DM Mono',monospace; letter-spacing:0.04em; margin-left:0.4rem;
 }}
-
 .nx-divider {{
     height:1px;
     background:linear-gradient(90deg,var(--accent) 0%,var(--border) 40%,transparent 100%);
     margin:0.6rem 0 1rem;
 }}
-
 .nx-status {{
     display:flex; align-items:center; gap:0.5rem;
     font-size:0.6rem; color:var(--text3); margin:0.25rem 0 1.25rem;
@@ -310,12 +343,26 @@ with h3:
 st.markdown('<div class="nx-divider"></div>', unsafe_allow_html=True)
 
 # ── SEARCH ────────────────────────────────────────────────────────────────────
+
+# History chip tıklandıysa pending_query dolu gelir — aramayı burada yap
+if st.session_state.pending_query is not None:
+    _pq = st.session_state.pending_query
+    _pn = st.session_state.pending_n
+    st.session_state.pending_query = None
+    st.session_state["_search_input"] = _pq
+    with st.spinner("Aranıyor…"):
+        _res, _err = do_search(_pq, _pn)
+    st.session_state.search_results = _res
+    st.session_state.search_error   = _err
+    _add_to_history(_pq, _pn, len(_res))
+
 sc1, sc2, sc3 = st.columns([6, 1, 1])
 with sc1:
     query = st.text_input(
         "search",
         placeholder="Anlamsal arama… örn. 'yapay zeka', 'Beşiktaş maç sonucu', 'AI developments'",
         label_visibility="collapsed",
+        key="_search_input",
     )
 with sc2:
     n_res = st.selectbox("n", [5, 10, 20], index=1, label_visibility="collapsed")
@@ -327,11 +374,27 @@ if search_btn:
         with st.spinner("Aranıyor…"):
             results, err = do_search(query.strip(), n_res)
         st.session_state.search_results = results
-        st.session_state.search_error = err
+        st.session_state.search_error   = err
+        _add_to_history(query.strip(), n_res, len(results))
     else:
         st.session_state.search_results = None
-        st.session_state.search_error = None
+        st.session_state.search_error   = None
 
+# ── SEARCH HISTORY ────────────────────────────────────────────────────────────
+if st.session_state.search_history:
+    hist = st.session_state.search_history
+    n_h  = min(len(hist), 6)
+    _spacer_weight = max(1, 12 - n_h * 2)
+    hist_cols = st.columns([2] * n_h + [_spacer_weight])
+    for i, h in enumerate(hist[:n_h]):
+        with hist_cols[i]:
+            lbl = h["query"] if len(h["query"]) <= 13 else h["query"][:11] + "…"
+            if st.button(f"↺ {lbl}", key=f"hist_{i}", help=f"{h['query']} · {h['count']} sonuç"):
+                st.session_state.pending_query = h["query"]
+                st.session_state.pending_n     = h["n"]
+                st.rerun()
+
+# ── SEARCH RESULTS ────────────────────────────────────────────────────────────
 if st.session_state.search_results is not None:
     rc1, rc2 = st.columns([5, 1])
     with rc1:
@@ -349,23 +412,26 @@ if st.session_state.search_results is not None:
     elif not st.session_state.search_results:
         st.info("Sonuç bulunamadı. Ayarlar > Yeniden İndeksle butonuna bas.")
     else:
-        cards = []
-        for item in st.session_state.search_results:
-            pct = int(item["score"] * 100)
-            summary = (item.get("summary") or item.get("content", ""))[:180]
-            cards.append(f"""
-            <div class="nx-card">
-                <div class="nx-score">
-                    <div class="nx-score-val neu">{pct}<span style="font-size:0.65rem">%</span></div>
-                    <div class="nx-score-lbl">EŞLEŞME</div>
-                </div>
-                <div class="nx-body">
-                    <div class="nx-title"><a href="{item['url']}" target="_blank">{item['title']}</a></div>
-                    <div class="nx-summary">{summary}</div>
-                    <div class="nx-meta"><span class="nx-source">{item['source']}</span></div>
-                </div>
-            </div>""")
-        st.markdown("".join(cards), unsafe_allow_html=True)
+        for i, item in enumerate(st.session_state.search_results):
+            pct     = int(item["score"] * 100)
+            summary = (item.get("summary") or item.get("content") or "")[:200]
+            col_card, col_det = st.columns([11, 1])
+            with col_card:
+                st.markdown(f"""
+<div class="nx-card">
+  <div class="nx-score">
+    <div class="nx-score-val neu">{pct}<span style="font-size:0.65rem">%</span></div>
+    <div class="nx-score-lbl">EŞLEŞME</div>
+  </div>
+  <div class="nx-body">
+    <div class="nx-title"><a href="{item['url']}" target="_blank">{item['title']}</a></div>
+    <div class="nx-summary">{summary}</div>
+    <div class="nx-meta"><span class="nx-source">{item['source']}</span></div>
+  </div>
+</div>""", unsafe_allow_html=True)
+            with col_det:
+                if st.button("›", key=f"sd_{i}", help="Tam içeriği gör"):
+                    show_detail(item)
 
     st.markdown('<div class="nx-divider"></div>', unsafe_allow_html=True)
 
@@ -399,18 +465,16 @@ if df.empty:
     st.info("Haber bulunamadı. Ayarlar menüsünden 'Tüm Kaynakları Çek' butonuna bas.")
     st.stop()
 
-df["created_at_dt"] = pd.to_datetime(df["created_at"])
+df["created_at_dt"]   = pd.to_datetime(df["created_at"])
 df["sentiment_score"] = df["sentiment_score"].fillna(0)
 df["sentiment_label"] = df["sentiment_label"].fillna("Neutral")
 
-# Filtreler
 sentiment = sentiment or "Hepsi"
 if sentiment != "Hepsi":
     df = df[df["sentiment_label"] == sentiment]
 if selected_sources:
     df = df[df["source"].isin(selected_sources)]
 
-# Sıralama
 sort_by = sort_by or "Yeni"
 if sort_by == "↑ Skor":
     df = df.sort_values("sentiment_score", ascending=False)
@@ -419,16 +483,15 @@ elif sort_by == "↓ Skor":
 else:
     df = df.sort_values("created_at_dt", ascending=False)
 
-# Durum çubuğu
-now_str = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+now_str   = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
 src_count = df["source"].nunique()
 st.markdown(f"""
 <div class="nx-status">
-    <span class="nx-dot"></span>
-    <span>CANLI</span>&nbsp;·&nbsp;
-    <span>{len(df)} haber</span>&nbsp;·&nbsp;
-    <span>{src_count} kaynak</span>&nbsp;·&nbsp;
-    <span>{now_str}</span>
+  <span class="nx-dot"></span>
+  <span>CANLI</span>&nbsp;·&nbsp;
+  <span>{len(df)} haber</span>&nbsp;·&nbsp;
+  <span>{src_count} kaynak</span>&nbsp;·&nbsp;
+  <span>{now_str}</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -442,26 +505,26 @@ neg_pct   = round(neg_n / total * 100) if total else 0
 
 st.markdown(f"""
 <div class="kpi-grid">
-    <div class="kpi-card total">
-        <div class="kpi-label">Toplam Haber</div>
-        <div class="kpi-value">{total}</div>
-        <div class="kpi-sub">{src_count} aktif kaynak</div>
-    </div>
-    <div class="kpi-card pos">
-        <div class="kpi-label">Pozitif</div>
-        <div class="kpi-value">{pos_pct}<span class="kpi-unit">%</span></div>
-        <div class="kpi-sub">{pos_n} haber</div>
-    </div>
-    <div class="kpi-card neg">
-        <div class="kpi-label">Negatif</div>
-        <div class="kpi-value">{neg_pct}<span class="kpi-unit">%</span></div>
-        <div class="kpi-sub">{neg_n} haber</div>
-    </div>
-    <div class="kpi-card neu">
-        <div class="kpi-label">Ort. Duygu Skoru</div>
-        <div class="kpi-value">{avg_score:+.2f}</div>
-        <div class="kpi-sub">duygu indeksi</div>
-    </div>
+  <div class="kpi-card total">
+    <div class="kpi-label">Toplam Haber</div>
+    <div class="kpi-value">{total}</div>
+    <div class="kpi-sub">{src_count} aktif kaynak</div>
+  </div>
+  <div class="kpi-card pos">
+    <div class="kpi-label">Pozitif</div>
+    <div class="kpi-value">{pos_pct}<span class="kpi-unit">%</span></div>
+    <div class="kpi-sub">{pos_n} haber</div>
+  </div>
+  <div class="kpi-card neg">
+    <div class="kpi-label">Negatif</div>
+    <div class="kpi-value">{neg_pct}<span class="kpi-unit">%</span></div>
+    <div class="kpi-sub">{neg_n} haber</div>
+  </div>
+  <div class="kpi-card neu">
+    <div class="kpi-label">Ort. Duygu Skoru</div>
+    <div class="kpi-value">{avg_score:+.2f}</div>
+    <div class="kpi-sub">duygu indeksi</div>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -470,7 +533,7 @@ cc1, cc2 = st.columns([1, 2])
 
 with cc1:
     st.markdown('<div class="nx-section">Duygu Dağılımı</div>', unsafe_allow_html=True)
-    pie_df = df["sentiment_label"].value_counts().reset_index()
+    pie_df    = df["sentiment_label"].value_counts().reset_index()
     pie_df.columns = ["label", "count"]
     color_map = {"Positive": t["pos"], "Negative": t["neg"], "Neutral": t["neu"]}
 
@@ -499,31 +562,43 @@ with cc1:
     st.plotly_chart(fig_pie, width='stretch')
 
 with cc2:
-    st.markdown('<div class="nx-section">Kaynak Dağılımı</div>', unsafe_allow_html=True)
-    src_counts = df["source"].value_counts().sort_values(ascending=True)
-    src_sentiment = df.groupby("source")["sentiment_score"].mean()
-    bar_colors = [
-        t["pos"] if src_sentiment.get(s, 0) > 0.1
-        else (t["neg"] if src_sentiment.get(s, 0) < -0.1 else t["neu"])
-        for s in src_counts.index
-    ]
-    fig_src = go.Figure(go.Bar(
-        x=src_counts.values,
-        y=src_counts.index,
-        orientation="h",
-        marker=dict(color=bar_colors, line=dict(width=0)),
-        text=src_counts.values,
-        textposition="outside",
-        textfont=dict(family="DM Mono", size=9, color=t["text2"]),
-        hovertemplate="<b>%{y}</b><br>%{x} haber<extra></extra>",
+    st.markdown('<div class="nx-section">Kaynak Bazlı Duygu</div>', unsafe_allow_html=True)
+
+    src_sent = df.groupby(["source", "sentiment_label"]).size().unstack(fill_value=0)
+    for col in ["Positive", "Neutral", "Negative"]:
+        if col not in src_sent.columns:
+            src_sent[col] = 0
+    src_sent = src_sent.sort_values("Positive", ascending=True)
+
+    fig_src = go.Figure()
+    fig_src.add_trace(go.Bar(
+        name="Pozitif", y=src_sent.index, x=src_sent["Positive"],
+        orientation="h", marker=dict(color=t["pos"], line=dict(width=0)),
+        hovertemplate="<b>%{y}</b><br>Pozitif: %{x}<extra></extra>",
+    ))
+    fig_src.add_trace(go.Bar(
+        name="Nötr", y=src_sent.index, x=src_sent["Neutral"],
+        orientation="h", marker=dict(color=t["neu"], line=dict(width=0)),
+        hovertemplate="<b>%{y}</b><br>Nötr: %{x}<extra></extra>",
+    ))
+    fig_src.add_trace(go.Bar(
+        name="Negatif", y=src_sent.index, x=src_sent["Negative"],
+        orientation="h", marker=dict(color=t["neg"], line=dict(width=0)),
+        hovertemplate="<b>%{y}</b><br>Negatif: %{x}<extra></extra>",
     ))
     fig_src.update_layout(
+        barmode="stack",
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(t=5, b=5, l=5, r=45), height=230,
+        margin=dict(t=5, b=5, l=5, r=15), height=230,
         xaxis=dict(showgrid=True, gridcolor=t["grid"], zeroline=False,
                    tickfont=dict(family="DM Mono", size=9, color=t["text3"])),
         yaxis=dict(showgrid=False, zeroline=False,
                    tickfont=dict(family="DM Mono", size=9, color=t["text2"])),
+        legend=dict(
+            font=dict(family="DM Mono", size=9, color=t["text2"]),
+            bgcolor="rgba(0,0,0,0)", orientation="h",
+            yanchor="bottom", y=-0.3, xanchor="center", x=0.5,
+        ),
     )
     st.plotly_chart(fig_src, width='stretch')
 
@@ -533,35 +608,39 @@ st.markdown('<div class="nx-section">Son Haberler</div>', unsafe_allow_html=True
 if df.empty:
     st.info("Filtre kriterlerine uyan haber bulunamadı.")
 else:
-    cards = []
-    for _, row in df.iterrows():
+    for i, (_, row) in enumerate(df.iterrows()):
         label   = row.get("sentiment_label", "Neutral") or "Neutral"
-        score   = float(row.get("sentiment_score", 0) or 0)
+        score   = float(row.get("sentiment_score") or 0)
         sc      = score_cls(score)
         title   = row.get("title", "—")
         url     = row.get("url", "#")
-        summary = (row.get("summary") or row.get("content", ""))[:180]
+        summary = (row.get("summary") or row.get("content") or "")[:180]
         source  = row.get("source", "—")
         age     = rel_time(row.get("created_at", ""))
-        cards.append(f"""
-        <div class="nx-card">
-            <div class="nx-score">
-                <div class="nx-score-val {sc}">{score:+.1f}</div>
-                <div class="nx-score-lbl">SKOR</div>
-            </div>
-            <div class="nx-body">
-                <div class="nx-title"><a href="{url}" target="_blank">{title}</a></div>
-                <div class="nx-summary">{summary}</div>
-                <div class="nx-meta">
-                    <span class="nx-source">{source}</span>
-                    <span>{age}</span>
-                </div>
-            </div>
-            <div class="nx-badge">
-                <div class="nx-badge-inner badge-{label}">{label}</div>
-            </div>
-        </div>""")
-    st.markdown("".join(cards), unsafe_allow_html=True)
+
+        col_card, col_det = st.columns([11, 1])
+        with col_card:
+            st.markdown(f"""
+<div class="nx-card">
+  <div class="nx-score">
+    <div class="nx-score-val {sc}">{score:+.1f}</div>
+    <div class="nx-score-lbl">SKOR</div>
+  </div>
+  <div class="nx-body">
+    <div class="nx-title"><a href="{url}" target="_blank">{title}</a></div>
+    <div class="nx-summary">{summary}</div>
+    <div class="nx-meta">
+      <span class="nx-source">{source}</span>
+      <span>{age}</span>
+    </div>
+  </div>
+  <div class="nx-badge">
+    <div class="nx-badge-inner badge-{label}">{label}</div>
+  </div>
+</div>""", unsafe_allow_html=True)
+        with col_det:
+            if st.button("›", key=f"d_{i}", help="Tam içeriği gör"):
+                show_detail(row.to_dict())
 
 # ── OTOMATİK YENİLEME ────────────────────────────────────────────────────────
 if st.session_state.auto_refresh:
