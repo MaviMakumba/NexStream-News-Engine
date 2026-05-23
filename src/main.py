@@ -3,7 +3,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from src.infrastructure.config.database import engine, Base
-from src.adapters.api.routers import news_router
+from src.adapters.api.routers import news_router, health_router
 from src.adapters.messaging.kafka_publisher import KafkaPublisherAdapter
 from src.dependencies import set_message_publisher
 
@@ -37,6 +37,7 @@ app = FastAPI(
 )
 
 app.include_router(news_router.router)
+app.include_router(health_router.router)
 
 @app.get("/")
 def root():

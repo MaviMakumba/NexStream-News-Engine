@@ -14,6 +14,15 @@ _SOURCES_FALLBACK = [
     "BBC Technology", "BBC Sport",
 ]
 
+@st.cache_data(ttl=30)
+def fetch_health():
+    try:
+        r = requests.get(f"{API_BASE}/health", timeout=5)
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        return None
+
 @st.cache_data(ttl=3600)
 def fetch_sources():
     try:
@@ -218,16 +227,22 @@ def do_reindex():
     except Exception as e:
         return False, {"error": str(e)}
 
-def rel_time(dt_str):
+def rel_time(dt_str, lang="TR"):
     try:
         dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         s = int((datetime.now(timezone.utc) - dt).total_seconds())
-        if s < 60:    return f"{s}s"
-        if s < 3600:  return f"{s // 60}m"
-        if s < 86400: return f"{s // 3600}h"
-        return f"{s // 86400}d"
+        if lang == "TR":
+            if s < 60:    return f"{s}sn"
+            if s < 3600:  return f"{s // 60}dk"
+            if s < 86400: return f"{s // 3600}sa"
+            return f"{s // 86400}g"
+        else:
+            if s < 60:    return f"{s}s"
+            if s < 3600:  return f"{s // 60}m"
+            if s < 86400: return f"{s // 3600}h"
+            return f"{s // 86400}d"
     except Exception:
         return dt_str
 
@@ -261,7 +276,7 @@ def show_detail(article):
     <span class="nx-source">{source}</span>
     <span class="nx-badge-inner badge-{label}">{label}</span>
     <span class="nx-score-val {sc}" style="font-size:0.85rem">{score:+.2f}</span>
-    <span style="color:var(--text3)">{rel_time(created)}</span>
+    <span style="color:var(--text3)">{rel_time(created, st.session_state.lang)}</span>
   </div>
 </div>
 <hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0"/>
@@ -611,12 +626,32 @@ else:
 
 now_str   = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
 src_count = df["source"].nunique()
+health    = fetch_health()
+
+def _dot(status):
+    return f'<span style="color:{"#2dce89" if status=="ok" else "#f5365c"};font-size:0.7rem">●</span>'
+
+if health:
+    h_db     = _dot(health.get("db", "error"))
+    h_kafka  = _dot(health.get("kafka", "error"))
+    h_chroma = _dot(health.get("chromadb", "error"))
+    indexed  = health.get("indexed_articles", 0)
+    health_html = (
+        f'&nbsp;·&nbsp;{h_db} DB'
+        f'&nbsp;{h_kafka} Kafka'
+        f'&nbsp;{h_chroma} Chroma'
+        f'&nbsp;<span style="color:var(--text3)">({indexed:,} vektör)</span>'
+    )
+else:
+    health_html = ""
+
 st.markdown(f"""
 <div class="nx-status">
   <span class="nx-dot"></span>
   <span>{L["status_live"]}</span>&nbsp;·&nbsp;
   <span>{len(df)} {L["status_articles"]}</span>&nbsp;·&nbsp;
-  <span>{src_count} {L["status_sources"]}</span>&nbsp;·&nbsp;
+  <span>{src_count} {L["status_sources"]}</span>
+  {health_html}&nbsp;·&nbsp;
   <span>{now_str}</span>
 </div>
 """, unsafe_allow_html=True)
@@ -742,7 +777,7 @@ else:
         url     = row.get("url", "#")
         summary = (row.get("summary") or row.get("content") or "")[:180]
         source  = row.get("source", "—")
-        age     = rel_time(row.get("created_at", ""))
+        age     = rel_time(row.get("created_at", ""), st.session_state.lang)
 
         col_card, col_det = st.columns([11, 1])
         with col_card:
