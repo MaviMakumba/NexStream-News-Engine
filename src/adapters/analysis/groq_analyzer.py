@@ -7,7 +7,7 @@ from src.domain.ports.analysis_port import AnalysisPort
 class GroqAnalyzer(AnalysisPort):
     def __init__(self):
         self.api_key = os.getenv("GROQ_API_KEY")
-        self.model = "llama-3.3-70b-versatile"
+        self.model = "llama-3.1-8b-instant"
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
 
     def analyze_text(self, text: str) -> dict:
@@ -36,12 +36,12 @@ Respond with JSON only, no markdown, no explanation."""
             "temperature": 0.1,
         }
 
-        for attempt in range(3):
+        for attempt in range(5):
             try:
                 r = requests.post(self.api_url, headers=headers, json=payload, timeout=30)
 
                 if r.status_code == 429:
-                    wait = 10 * (attempt + 1)
+                    wait = int(r.headers.get("retry-after", 5))
                     print(f"⏳ Rate limit, {wait}s bekleniyor...")
                     time.sleep(wait)
                     continue
