@@ -41,7 +41,9 @@ src/
 │   │   ├── sentence_transformer_embedder.py  # SentenceTransformerEmbedder (singleton)
 │   │   └── chroma_search_repository.py       # ChromaDB adapter — index + search
 │   └── api/
-│       └── routers/news_router.py  # GET /news, POST /scrape, /search, /reindex
+│       └── routers/
+│           ├── news_router.py    # GET /news, POST /scrape, /search, /reindex, /sources
+│           └── health_router.py  # GET /health — DB + Kafka + ChromaDB durumu
 ├── infrastructure/
 │   └── config/database.py        # SQLAlchemy engine — ayrı DB_* env var kullanır
 ├── dependencies.py                # FastAPI DI — GroqAnalyzer, NewsRepository, ChromaSearch inject
@@ -80,7 +82,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## KRİTİK KARARLAR VE GEREKÇELERİ
 
-**Neden Groq?** Gemini'den taşındı. 14.400 req/gün ücretsiz, llama-3.3-70b TR+EN destekler, requests kütüphanesi yeterli (SDK yok).
+**Neden Groq?** Gemini'den taşındı. 14.400 req/gün ücretsiz, llama-3.1-8b-instant TR+EN destekler, requests kütüphanesi yeterli (SDK yok). Model: `llama-3.1-8b-instant` (70B'den düşürüldü — sentiment extraction için 8B yeterli, TPM limiti 3× daha yüksek). Rate limit: `Retry-After` header kullanılıyor.
 
 **Neden sentence-transformers?** Groq'un embedding API'si yok. `paraphrase-multilingual-MiniLM-L12-v2` modeli TR+EN destekler, tamamen local çalışır, API key gerektirmez. Kurulu versiyon: 3.3.1, torch: 2.10.0, chromadb: 1.5.5
 
@@ -96,43 +98,45 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Test sayısı:** 87 test, hepsi yeşil
+- **Test sayısı:** 97 test, hepsi yeşil
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
 - **Branch:** main (tüm özellikler merge edildi)
-- **Versiyon:** v1.2.0-dev — Hybrid Search tamamlandı
+- **Versiyon:** v1.2.0
 
 ---
 
-## SIRADAKI GÖREV: v1.2.0 (devam)
+## TAMAMLANAN ÖZELLİKLER (v1.2.0)
 
-### ✅ Tamamlanan — Hybrid Search
-- `POST /news/search` artık ChromaDB (semantic) + PostgreSQL (keyword) birleşik çalışıyor
-- Query tokenize ediliyor; her kelime ayrı ILIKE ile aranıyor
-- Coverage-based skor: başlık×0.9, özet×0.7, içerik×0.5
-- Birleşik skor: `max(sem, kw) + 0.10 bonus` (her ikisinde varsa)
-- Aday havuzu: `max(n_results×3, 20)` — sıralama daha geniş kümeden yapılıyor
-- Normalize edilmiş embedding (`normalize_embeddings=True`) + `1/(1+distance)` formülü
+### Hybrid Search
+- `POST /news/search`: ChromaDB (semantic) + PostgreSQL (keyword) birleşik
+- Coverage-based skor, normalize embedding, `1/(1+distance)` formülü
 
-**⚠️ Deploy sonrası yapılacak:**
-```powershell
-docker-compose up --build   # embedder kodu değişti
-# Sonra: POST /news/reindex  # ChromaDB'yi normalize edilmiş vektörlerle yeniden index et
-```
+### Haber Kaynakları (11 kaynak)
+- TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor
+- EN: BBC Technology, BBC Sport
+- Registry pattern: `src/adapters/scrapers/registry.py` — tek kaynak doğruluk noktası
 
-### Öncelik 2 — Yeni Haber Kaynakları
-- Sabah, CNN Türk RSS feed'leri
-- Reuters / AP (EN)
-- NTV: RSS yok, alternatif kaynak araştır
+### Dashboard
+- Arama geçmişi (son 8 sorgu, chip olarak gösterilir)
+- Detay modalı (`st.dialog`): tam içerik + URL butonu, her kartta `›` butonu
+- Stacked bar chart: kaynak bazlı Pozitif/Nötr/Negatif dağılımı
+- TR/EN dil desteği (LANGS dict, `L["key"]` sistemi)
+- Health göstergesi: status bar'da DB/Kafka/ChromaDB dot'ları + vektör sayısı
 
-### Öncelik 3 — Dashboard Geliştirmeleri
-- Arama geçmişi (session state)
-- Detay sayfası: URL açma, tam içerik gösterme
-- Kaynak bazlı sentiment karşılaştırma grafiği
+### Gözlemlenebilirlik
+- `GET /health`: DB + Kafka + ChromaDB durumu + indexed_articles sayısı
+- Dashboard status bar'da gerçek zamanlı health dot'ları
 
-### Öncelik 4 — Gözlemlenebilirlik
-- `GET /health` endpoint: DB + Kafka + ChromaDB durumu
-- ChromaDB index sayısı dashboard'da görünür
-- Worker log'larını dashboard'dan izleme
+### Groq / Model
+- Model: `llama-3.1-8b-instant` (70B → 8B, TPM 3× daha yüksek)
+- Rate limit: `Retry-After` header kullanılıyor (sabit 10/20/30s yerine)
+- Max retry: 3 → 5
+
+## SIRADAKI GÖREV
+
+- Worker log'larını dashboard'dan izleme (karmaşık, sonraya bırakıldı)
+- NTV alternatif kaynak araştır (RSS yok)
+- `pub_date` alanı: RSS `<pubDate>` → DB'ye kaydet, dashboard'da göster
 
 ---
 
