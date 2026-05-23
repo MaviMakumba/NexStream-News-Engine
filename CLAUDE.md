@@ -96,7 +96,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Test sayısı:** 73 test, hepsi yeşil
+- **Test sayısı:** 87 test, hepsi yeşil
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
 - **Branch:** main (tüm özellikler merge edildi)
 - **Versiyon:** v1.2.0-dev — Hybrid Search tamamlandı

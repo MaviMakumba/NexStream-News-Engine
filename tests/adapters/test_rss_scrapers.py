@@ -7,8 +7,14 @@ from src.adapters.scrapers.rss_scrapers import (
     BBCTurkishScraper,
     HurriyetScraper,
     HurriyetSporScraper,
+    SabahScraper,
+    CNNTurkScraper,
+    SozcuScraper,
+    HaberturkScraper,
+    HaberturkSporScraper,
     BaseRssScraper,
 )
+from src.adapters.scrapers.registry import SCRAPER_REGISTRY
 from src.domain.models.article import Article
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -30,6 +36,21 @@ SAMPLE_RSS = """<?xml version="1.0" encoding="UTF-8"?>
   </channel>
 </rss>"""
 
+SAMPLE_ATOM = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Test Atom Feed</title>
+  <entry>
+    <title>Atom Article One</title>
+    <summary>First atom article content.</summary>
+    <link href="https://example.com/atom-1"/>
+  </entry>
+  <entry>
+    <title>Atom Article Two</title>
+    <summary>Second atom article content.</summary>
+    <link href="https://example.com/atom-2"/>
+  </entry>
+</feed>"""
+
 def make_mock_response(content=SAMPLE_RSS, status_code=200):
     mock = MagicMock()
     mock.status_code = status_code
@@ -37,7 +58,7 @@ def make_mock_response(content=SAMPLE_RSS, status_code=200):
     mock.raise_for_status = MagicMock()
     return mock
 
-# ── BaseRssScraper ────────────────────────────────────────────────────────────
+# ── BaseRssScraper — RSS 2.0 ──────────────────────────────────────────────────
 
 def test_base_scraper_returns_articles():
     """BaseRssScraper RSS'i parse edip Article listesi döndürür."""
@@ -78,15 +99,32 @@ def test_base_scraper_respects_limit():
         articles = scraper.fetch_news()
     assert len(articles) == 1
 
+# ── BaseRssScraper — Atom feed desteği ───────────────────────────────────────
+
+def test_atom_feed_is_parsed():
+    """Atom formatındaki feed <entry> tag'lerinden Article üretir."""
+    scraper = CNNTurkScraper()
+    with patch("requests.get", return_value=make_mock_response(content=SAMPLE_ATOM)):
+        articles = scraper.fetch_news()
+    assert len(articles) == 2
+    assert articles[0].title == "Atom Article One"
+    assert articles[0].content == "First atom article content."
+    assert articles[0].url == "https://example.com/atom-1"
+
 # ── Her Scraper'ın source_name'i doğru ───────────────────────────────────────
 
 @pytest.mark.parametrize("scraper_class,expected_source", [
-    (BBCTechnologyScraper, "BBC Technology"),
-    (BBCSportScraper,      "BBC Sport"),
-    (TRTHaberScraper,      "TRT Haber"),
-    (BBCTurkishScraper,    "BBC Türkçe"),
-    (HurriyetScraper,      "Hürriyet"),
-    (HurriyetSporScraper,  "Hürriyet Spor"),
+    (BBCTechnologyScraper,  "BBC Technology"),
+    (BBCSportScraper,       "BBC Sport"),
+    (TRTHaberScraper,       "TRT Haber"),
+    (BBCTurkishScraper,     "BBC Türkçe"),
+    (HurriyetScraper,       "Hürriyet"),
+    (HurriyetSporScraper,   "Hürriyet Spor"),
+    (SabahScraper,          "Sabah"),
+    (CNNTurkScraper,        "CNN Türk"),
+    (SozcuScraper,          "Sözcü"),
+    (HaberturkScraper,      "Habertürk"),
+    (HaberturkSporScraper,  "HT Spor"),
 ])
 def test_each_scraper_has_correct_source_name(scraper_class, expected_source):
     """Her scraper sınıfının source_name'i doğru tanımlanmış."""
@@ -104,9 +142,30 @@ def test_each_scraper_has_correct_source_name(scraper_class, expected_source):
     BBCTurkishScraper,
     HurriyetScraper,
     HurriyetSporScraper,
+    SabahScraper,
+    CNNTurkScraper,
+    SozcuScraper,
+    HaberturkScraper,
+    HaberturkSporScraper,
 ])
 def test_each_scraper_has_url(scraper_class):
     """Her scraper sınıfının URL'i boş değil."""
     scraper = scraper_class()
     assert scraper.url != ""
     assert scraper.url.startswith("http")
+
+# ── Registry ──────────────────────────────────────────────────────────────────
+
+def test_registry_contains_all_scrapers():
+    """SCRAPER_REGISTRY tüm kayıtlı kaynakları içerir."""
+    assert len(SCRAPER_REGISTRY) == 11
+
+def test_registry_values_are_scraper_instances():
+    """Registry değerleri NewsScraperPort implementasyonlarıdır."""
+    for name, scraper in SCRAPER_REGISTRY.items():
+        assert hasattr(scraper, "fetch_news"), f"{name} fetch_news metoduna sahip değil"
+
+def test_registry_keys_match_source_names():
+    """Registry key'leri ile scraper.source_name eşleşir."""
+    for key, scraper in SCRAPER_REGISTRY.items():
+        assert scraper.source_name == key, f"Registry key '{key}' != source_name '{scraper.source_name}'"

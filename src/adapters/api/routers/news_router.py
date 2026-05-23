@@ -44,3 +44,9 @@ def search_news(
 @router.post("/reindex")
 def reindex_all(service: NewsService = Depends(get_news_service)):
     return service.reindex_all()
+
+
+@router.get("/sources")
+def get_sources():
+    from src.adapters.scrapers.registry import SCRAPER_REGISTRY
+    return list(SCRAPER_REGISTRY.keys())
