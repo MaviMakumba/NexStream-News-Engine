@@ -28,6 +28,12 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 90s
 
   # 2. VERİTABANI (PostgreSQL) — sadece internal ağda erişilebilir
   db:
@@ -144,7 +150,8 @@ services:
       - API_BASE=http://app:8000
       - API_KEY=${API_KEY:-dev-key-change-me}
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     volumes:
       - .:/app
 

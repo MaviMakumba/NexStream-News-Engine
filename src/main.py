@@ -11,7 +11,7 @@ from src.infrastructure.logging.logger import setup_logging
 from src.adapters.api.limiter import limiter
 from src.adapters.api.routers import news_router, health_router
 from src.adapters.messaging.kafka_publisher import KafkaPublisherAdapter
-from src.dependencies import set_message_publisher
+from src.dependencies import set_message_publisher, get_search_repository
 
 setup_logging()
 
@@ -22,13 +22,17 @@ kafka_adapter = KafkaPublisherAdapter(bootstrap_servers=settings.kafka_bootstrap
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import logging
+    log = logging.getLogger(__name__)
     await kafka_adapter.start()
     set_message_publisher(kafka_adapter)
-    import logging
-    logging.getLogger(__name__).info("Message Publisher (Kafka) sisteme bağlandı.")
+    log.info("Message Publisher (Kafka) sisteme bağlandı.")
+    log.info("SentenceTransformer modeli yükleniyor...")
+    get_search_repository()
+    log.info("SentenceTransformer modeli hazır.")
     yield
     await kafka_adapter.stop()
-    logging.getLogger(__name__).info("Message Publisher bağlantısı kapatıldı.")
+    log.info("Message Publisher bağlantısı kapatıldı.")
 
 
 app = FastAPI(
