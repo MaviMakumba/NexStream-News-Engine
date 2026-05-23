@@ -105,8 +105,8 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v1.3.0 tamamlandı — v1.4-dev sıradaki
-- **Test sayısı:** 131 test, hepsi yeşil
+- **Versiyon:** v1.4.0 tamamlandı — v1.5-dev sıradaki
+- **Test sayısı:** 145 test, hepsi yeşil
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
 - **Branch:** main (tüm özellikler merge edildi)
 
@@ -162,7 +162,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 Detaylı plan: `C:\Users\eren8\.claude\plans\encapsulated-squishing-willow.md`
 
-Sonraki oturumu başlatmak için: **"v1.3 implementasyonuna başlayalım — plan dosyasını oku, CLAUDE.md'deki yol haritasını takip et."**
+Sonraki oturumu başlatmak için: **"v1.5 implementasyonuna başlayalım — plan dosyasını oku, CLAUDE.md'deki yol haritasını takip et."**
 
 ### v1.3.0 — Foundation Hardening ✅ TAMAMLANDI
 1. **Pydantic Settings** — `src/infrastructure/config/settings.py` oluşturuldu, 5 dosyadaki os.getenv() kaldırıldı
@@ -175,14 +175,16 @@ Sonraki oturumu başlatmak için: **"v1.3 implementasyonuna başlayalım — pla
 
 Sonuç: 97 → 131 test (+34)
 
-### v1.4.0 — Performance & UX (~4-6 gün)
-1. **Async scraping** — httpx.AsyncClient + asyncio.gather → 8-15sn → ~2-4sn
-2. **Batch processing** — bulk_exists(), bulk_save(), bulk_index() (N+1 fix)
-3. **PostgreSQL indexes** — source, sentiment_label, created_at, url unique
-4. **pub_date capture** — RSS `<pubDate>` → Article.published_at → dashboard'da göster
-5. **Redis cache** (opsiyonel) — sources 1s, search 5dk, health 10sn
+### v1.4.0 — Performance & UX ✅ TAMAMLANDI
+1. **Async scraping** — httpx.AsyncClient + follow_redirects, `_fetch_content()` testability
+2. **Batch processing** — `bulk_exists()` tek SQL sorgusu, N+1 elimine, Groq quota tasarrufu
+3. **PostgreSQL indexes** — source, sentiment_label, created_at
+4. **pub_date capture** — RSS `<pubDate>`/`<published>` → Article.published_at → dashboard
+5. **Docker image split** — `Dockerfile.light` scheduler+dashboard (~600MB vs ~9.5GB)
+6. **App healthcheck** — SentenceTransformer startup preload, dashboard service_healthy bekliyor
+7. **Redis cache** — v1.5'e ertelendi (opsiyonel)
 
-Beklenen: ~112 → ~122 test
+Sonuç: 131 → 145 test (+14)
 
 ### v1.5.0 — AI Features (~3-5 gün)
 1. **NER** — Groq prompt'a entities + topic ekle, Article model genişlet
