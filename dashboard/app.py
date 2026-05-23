@@ -57,9 +57,124 @@ THEMES = {
     },
 }
 
+LANGS = {
+    "TR": {
+        "settings":        "⚙ Ayarlar",
+        "language":        "Dil",
+        "theme":           "Tema",
+        "data_pull":       "VERİ ÇEKME",
+        "fetch_all":       "⚡ Tüm Kaynakları Çek",
+        "fetch_single":    "Tek kaynak çek",
+        "source":          "Kaynak",
+        "fetch_btn":       "Çek",
+        "fetch_queued":    "kaynak Kafka kuyruğuna alındı — haberler 1–3 dk içinde görünür",
+        "fetch_ok":        "✓ Tamamlandı",
+        "fetch_err":       "✗ Hata",
+        "vector_index":    "VEKTÖR İNDEKS",
+        "reindex_btn":     "⟳ Yeniden İndeksle",
+        "reindex_ok":      "haber",
+        "view":            "GÖRÜNÜM",
+        "limit_label":     "Haber limiti",
+        "auto_refresh":    "Otomatik yenile (30s)",
+        "search_ph":       "Anlamsal arama… örn. 'yapay zeka', 'Beşiktaş maç sonucu'",
+        "search_btn":      "Ara",
+        "search_close":    "× Kapat",
+        "search_title":    "Arama Sonuçları",
+        "search_none":     "Sonuç bulunamadı. Ayarlar > Yeniden İndeksle butonuna bas.",
+        "search_err":      "API'ye bağlanılamadı",
+        "hist_tooltip":    "sonuç",
+        "sentiment_lbl":   "Duygu",
+        "sent_all":        "Hepsi",
+        "sources_ph":      "Tüm kaynaklar…",
+        "sort_lbl":        "Sıralama",
+        "sort_new":        "Yeni",
+        "sort_high":       "↑ Skor",
+        "sort_low":        "↓ Skor",
+        "status_live":     "CANLI",
+        "status_articles": "haber",
+        "status_sources":  "kaynak",
+        "kpi_total":       "Toplam Haber",
+        "kpi_pos":         "Pozitif",
+        "kpi_neg":         "Negatif",
+        "kpi_avg":         "Ort. Duygu Skoru",
+        "kpi_sub_total":   "aktif kaynak",
+        "kpi_sub_score":   "duygu indeksi",
+        "chart_pie":       "Duygu Dağılımı",
+        "chart_src":       "Kaynak Bazlı Duygu",
+        "legend_pos":      "Pozitif",
+        "legend_neu":      "Nötr",
+        "legend_neg":      "Negatif",
+        "section_news":    "Son Haberler",
+        "no_news":         "Haber bulunamadı. Ayarlar > 'Tüm Kaynakları Çek' butonuna bas.",
+        "no_filter":       "Filtre kriterlerine uyan haber bulunamadı.",
+        "api_err":         "API'ye bağlanılamadı",
+        "score_lbl":       "SKOR",
+        "match_lbl":       "EŞLEŞME",
+        "detail_full":     "Tam içeriği gör",
+        "detail_go":       "🔗 Habere Git",
+        "detail_empty":    "İçerik mevcut değil.",
+    },
+    "EN": {
+        "settings":        "⚙ Settings",
+        "language":        "Language",
+        "theme":           "Theme",
+        "data_pull":       "DATA PULL",
+        "fetch_all":       "⚡ Fetch All Sources",
+        "fetch_single":    "Fetch single source",
+        "source":          "Source",
+        "fetch_btn":       "Fetch",
+        "fetch_queued":    "sources queued — articles appear in 1–3 min",
+        "fetch_ok":        "✓ Done",
+        "fetch_err":       "✗ Error",
+        "vector_index":    "VECTOR INDEX",
+        "reindex_btn":     "⟳ Reindex",
+        "reindex_ok":      "articles",
+        "view":            "VIEW",
+        "limit_label":     "Article limit",
+        "auto_refresh":    "Auto refresh (30s)",
+        "search_ph":       "Semantic search… e.g. 'AI developments', 'match result'",
+        "search_btn":      "Search",
+        "search_close":    "× Close",
+        "search_title":    "Search Results",
+        "search_none":     "No results. Try Settings > Reindex first.",
+        "search_err":      "Cannot reach API",
+        "hist_tooltip":    "results",
+        "sentiment_lbl":   "Sentiment",
+        "sent_all":        "All",
+        "sources_ph":      "All sources…",
+        "sort_lbl":        "Sort",
+        "sort_new":        "New",
+        "sort_high":       "↑ Score",
+        "sort_low":        "↓ Score",
+        "status_live":     "LIVE",
+        "status_articles": "articles",
+        "status_sources":  "sources",
+        "kpi_total":       "Total Articles",
+        "kpi_pos":         "Positive",
+        "kpi_neg":         "Negative",
+        "kpi_avg":         "Avg Sentiment",
+        "kpi_sub_total":   "active sources",
+        "kpi_sub_score":   "sentiment index",
+        "chart_pie":       "Sentiment Distribution",
+        "chart_src":       "Source Sentiment",
+        "legend_pos":      "Positive",
+        "legend_neu":      "Neutral",
+        "legend_neg":      "Negative",
+        "section_news":    "Latest Articles",
+        "no_news":         "No articles. Settings > 'Fetch All Sources'.",
+        "no_filter":       "No articles match the current filters.",
+        "api_err":         "Cannot reach API",
+        "score_lbl":       "SCORE",
+        "match_lbl":       "MATCH",
+        "detail_full":     "View full content",
+        "detail_go":       "🔗 Open Article",
+        "detail_empty":    "No content available.",
+    },
+}
+
 # ── SESSION STATE ─────────────────────────────────────────────────────────────
 for k, v in [
-    ("theme", "Midnight"), ("limit", 50), ("auto_refresh", False),
+    ("theme", "Midnight"), ("lang", "TR"), ("limit", 50), ("auto_refresh", False),
     ("search_results", None), ("search_error", None),
     ("search_history", []), ("pending_query", None), ("pending_n", 10),
 ]:
@@ -109,10 +224,10 @@ def rel_time(dt_str):
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         s = int((datetime.now(timezone.utc) - dt).total_seconds())
-        if s < 60:    return f"{s}sn"
-        if s < 3600:  return f"{s // 60}dk"
-        if s < 86400: return f"{s // 3600}sa"
-        return f"{s // 86400}g"
+        if s < 60:    return f"{s}s"
+        if s < 3600:  return f"{s // 60}m"
+        if s < 86400: return f"{s // 3600}h"
+        return f"{s // 86400}d"
     except Exception:
         return dt_str
 
@@ -126,8 +241,9 @@ def _add_to_history(query, n, count):
     st.session_state.search_history = hist[:8]
 
 # ── DETAIL DIALOG ─────────────────────────────────────────────────────────────
-@st.dialog("Haber Detayı", width="large")
+@st.dialog("Haber Detayı · Article Detail", width="large")
 def show_detail(article):
+    L = LANGS[st.session_state.lang]
     title   = article.get("title", "—")
     url     = article.get("url") or ""
     source  = article.get("source", "—")
@@ -149,11 +265,11 @@ def show_detail(article):
   </div>
 </div>
 <hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0"/>
-<div style="font-size:0.78rem;color:var(--text2);line-height:1.85;white-space:pre-wrap">{content or "İçerik mevcut değil."}</div>
+<div style="font-size:0.78rem;color:var(--text2);line-height:1.85;white-space:pre-wrap">{content or L["detail_empty"]}</div>
 """, unsafe_allow_html=True)
 
     if url:
-        st.link_button("🔗 Habere Git", url, width="stretch")
+        st.link_button(L["detail_go"], url, width="stretch")
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 t = THEMES[st.session_state.theme]
@@ -292,6 +408,9 @@ html,body,[class*="css"] {{
 </style>
 """, unsafe_allow_html=True)
 
+# Dil kısayolu — her render'da güncel
+L = LANGS[st.session_state.lang]
+
 # ── HEADER ────────────────────────────────────────────────────────────────────
 h1, _, h3 = st.columns([3, 5, 2])
 
@@ -299,58 +418,62 @@ with h1:
     st.markdown('<div class="nx-logo">Nex<span>Stream</span><small>· News Engine</small></div>', unsafe_allow_html=True)
 
 with h3:
-    with st.popover("⚙ Ayarlar", width='stretch'):
-        st.selectbox("Tema", list(THEMES.keys()),
+    with st.popover(L["settings"], width='stretch'):
+        st.selectbox(L["language"], ["TR", "EN"],
+            index=0 if st.session_state.lang == "TR" else 1,
+            key="lang")
+
+        st.selectbox(L["theme"], list(THEMES.keys()),
             index=list(THEMES.keys()).index(st.session_state.theme),
             key="theme")
 
         st.divider()
-        st.caption("VERİ ÇEKME")
+        st.caption(L["data_pull"])
         _sources = fetch_sources()
-        if st.button("⚡ Tüm Kaynakları Çek", width='stretch'):
-            bar = st.progress(0, text="Başlıyor…")
+        if st.button(L["fetch_all"], width='stretch'):
+            bar = st.progress(0, text="…")
             for i, src in enumerate(_sources):
                 do_scrape(src)
                 bar.progress((i + 1) / len(_sources), text=src)
             bar.empty()
-            st.success(f"✓ {len(_sources)} kaynak Kafka kuyruğuna alındı — haberler 1–3 dk içinde görünür")
+            st.success(f"✓ {len(_sources)} {L['fetch_queued']}")
 
-        with st.expander("Tek kaynak çek"):
-            src_sel = st.selectbox("Kaynak", _sources, label_visibility="collapsed", key="src_single")
-            if st.button("Çek", key="btn_single"):
+        with st.expander(L["fetch_single"]):
+            src_sel = st.selectbox(L["source"], _sources, label_visibility="collapsed", key="src_single")
+            if st.button(L["fetch_btn"], key="btn_single"):
                 ok = do_scrape(src_sel)
                 if ok:
                     st.cache_data.clear()
-                    st.success("✓ Tamamlandı")
+                    st.success(L["fetch_ok"])
                 else:
-                    st.error("✗ Hata")
+                    st.error(L["fetch_err"])
 
         st.divider()
-        st.caption("VEKTÖR İNDEKS")
-        if st.button("⟳ Yeniden İndeksle", width='stretch'):
-            with st.spinner("İndeksleniyor…"):
+        st.caption(L["vector_index"])
+        if st.button(L["reindex_btn"], width='stretch'):
+            with st.spinner("…"):
                 ok, res = do_reindex()
             if ok:
-                st.success(f"✓ {res.get('indexed', 0)}/{res.get('total', 0)} haber")
+                st.success(f"✓ {res.get('indexed', 0)}/{res.get('total', 0)} {L['reindex_ok']}")
             else:
                 st.error(str(res))
 
         st.divider()
-        st.caption("GÖRÜNÜM")
-        st.select_slider("Haber limiti", options=[25, 50, 100, 200], key="limit")
-        st.toggle("Otomatik yenile (30s)", key="auto_refresh")
+        st.caption(L["view"])
+        st.select_slider(L["limit_label"], options=[25, 50, 100, 200], key="limit")
+        st.toggle(L["auto_refresh"], key="auto_refresh")
 
 st.markdown('<div class="nx-divider"></div>', unsafe_allow_html=True)
 
 # ── SEARCH ────────────────────────────────────────────────────────────────────
 
-# History chip tıklandıysa pending_query dolu gelir — aramayı burada yap
+# History chip tıklandıysa pending_query dolu gelir
 if st.session_state.pending_query is not None:
     _pq = st.session_state.pending_query
     _pn = st.session_state.pending_n
     st.session_state.pending_query = None
     st.session_state["_search_input"] = _pq
-    with st.spinner("Aranıyor…"):
+    with st.spinner("…"):
         _res, _err = do_search(_pq, _pn)
     st.session_state.search_results = _res
     st.session_state.search_error   = _err
@@ -360,18 +483,18 @@ sc1, sc2, sc3 = st.columns([6, 1, 1])
 with sc1:
     query = st.text_input(
         "search",
-        placeholder="Anlamsal arama… örn. 'yapay zeka', 'Beşiktaş maç sonucu', 'AI developments'",
+        placeholder=L["search_ph"],
         label_visibility="collapsed",
         key="_search_input",
     )
 with sc2:
     n_res = st.selectbox("n", [5, 10, 20], index=1, label_visibility="collapsed")
 with sc3:
-    search_btn = st.button("Ara", width='stretch')
+    search_btn = st.button(L["search_btn"], width='stretch')
 
 if search_btn:
     if query.strip():
-        with st.spinner("Aranıyor…"):
+        with st.spinner("…"):
             results, err = do_search(query.strip(), n_res)
         st.session_state.search_results = results
         st.session_state.search_error   = err
@@ -389,7 +512,8 @@ if st.session_state.search_history:
     for i, h in enumerate(hist[:n_h]):
         with hist_cols[i]:
             lbl = h["query"] if len(h["query"]) <= 13 else h["query"][:11] + "…"
-            if st.button(f"↺ {lbl}", key=f"hist_{i}", help=f"{h['query']} · {h['count']} sonuç"):
+            if st.button(f"↺ {lbl}", key=f"hist_{i}",
+                         help=f"{h['query']} · {h['count']} {L['hist_tooltip']}"):
                 st.session_state.pending_query = h["query"]
                 st.session_state.pending_n     = h["n"]
                 st.rerun()
@@ -399,18 +523,18 @@ if st.session_state.search_results is not None:
     rc1, rc2 = st.columns([5, 1])
     with rc1:
         st.markdown(
-            f'<div class="nx-section">Arama Sonuçları · {len(st.session_state.search_results)}</div>',
+            f'<div class="nx-section">{L["search_title"]} · {len(st.session_state.search_results)}</div>',
             unsafe_allow_html=True,
         )
     with rc2:
-        if st.button("× Kapat", width='stretch'):
+        if st.button(L["search_close"], width='stretch'):
             st.session_state.search_results = None
             st.rerun()
 
     if st.session_state.search_error:
         st.error(f"⚠ {st.session_state.search_error}")
     elif not st.session_state.search_results:
-        st.info("Sonuç bulunamadı. Ayarlar > Yeniden İndeksle butonuna bas.")
+        st.info(L["search_none"])
     else:
         for i, item in enumerate(st.session_state.search_results):
             pct     = int(item["score"] * 100)
@@ -421,7 +545,7 @@ if st.session_state.search_results is not None:
 <div class="nx-card">
   <div class="nx-score">
     <div class="nx-score-val neu">{pct}<span style="font-size:0.65rem">%</span></div>
-    <div class="nx-score-lbl">EŞLEŞME</div>
+    <div class="nx-score-lbl">{L["match_lbl"]}</div>
   </div>
   <div class="nx-body">
     <div class="nx-title"><a href="{item['url']}" target="_blank">{item['title']}</a></div>
@@ -430,7 +554,7 @@ if st.session_state.search_results is not None:
   </div>
 </div>""", unsafe_allow_html=True)
             with col_det:
-                if st.button("›", key=f"sd_{i}", help="Tam içeriği gör"):
+                if st.button("›", key=f"sd_{i}", help=L["detail_full"]):
                     show_detail(item)
 
     st.markdown('<div class="nx-divider"></div>', unsafe_allow_html=True)
@@ -439,46 +563,48 @@ if st.session_state.search_results is not None:
 f1, f2, f3 = st.columns([2.5, 3.5, 2])
 with f1:
     sentiment = st.pills(
-        "Duygu", ["Hepsi", "Positive", "Negative", "Neutral"],
-        default="Hepsi", label_visibility="collapsed",
+        L["sentiment_lbl"],
+        [L["sent_all"], "Positive", "Negative", "Neutral"],
+        default=L["sent_all"], label_visibility="collapsed",
     )
 with f2:
     selected_sources = st.multiselect(
-        "Kaynaklar", fetch_sources(),
-        placeholder="Tüm kaynaklar…",
+        L["sources_ph"], fetch_sources(),
+        placeholder=L["sources_ph"],
         label_visibility="collapsed",
     )
 with f3:
     sort_by = st.segmented_control(
-        "Sıralama", ["Yeni", "↑ Skor", "↓ Skor"],
-        default="Yeni", label_visibility="collapsed",
+        L["sort_lbl"],
+        [L["sort_new"], L["sort_high"], L["sort_low"]],
+        default=L["sort_new"], label_visibility="collapsed",
     )
 
 # ── VERİ ─────────────────────────────────────────────────────────────────────
 news, error = fetch_news(st.session_state.limit)
 if error:
-    st.error(f"⚠ {error}")
+    st.error(f"⚠ {L['api_err']}: {error}")
     st.stop()
 
 df = pd.DataFrame(news or [])
 if df.empty:
-    st.info("Haber bulunamadı. Ayarlar menüsünden 'Tüm Kaynakları Çek' butonuna bas.")
+    st.info(L["no_news"])
     st.stop()
 
 df["created_at_dt"]   = pd.to_datetime(df["created_at"])
 df["sentiment_score"] = df["sentiment_score"].fillna(0)
 df["sentiment_label"] = df["sentiment_label"].fillna("Neutral")
 
-sentiment = sentiment or "Hepsi"
-if sentiment != "Hepsi":
+sentiment = sentiment or L["sent_all"]
+if sentiment != L["sent_all"]:
     df = df[df["sentiment_label"] == sentiment]
 if selected_sources:
     df = df[df["source"].isin(selected_sources)]
 
-sort_by = sort_by or "Yeni"
-if sort_by == "↑ Skor":
+sort_by = sort_by or L["sort_new"]
+if sort_by == L["sort_high"]:
     df = df.sort_values("sentiment_score", ascending=False)
-elif sort_by == "↓ Skor":
+elif sort_by == L["sort_low"]:
     df = df.sort_values("sentiment_score", ascending=True)
 else:
     df = df.sort_values("created_at_dt", ascending=False)
@@ -488,9 +614,9 @@ src_count = df["source"].nunique()
 st.markdown(f"""
 <div class="nx-status">
   <span class="nx-dot"></span>
-  <span>CANLI</span>&nbsp;·&nbsp;
-  <span>{len(df)} haber</span>&nbsp;·&nbsp;
-  <span>{src_count} kaynak</span>&nbsp;·&nbsp;
+  <span>{L["status_live"]}</span>&nbsp;·&nbsp;
+  <span>{len(df)} {L["status_articles"]}</span>&nbsp;·&nbsp;
+  <span>{src_count} {L["status_sources"]}</span>&nbsp;·&nbsp;
   <span>{now_str}</span>
 </div>
 """, unsafe_allow_html=True)
@@ -506,24 +632,24 @@ neg_pct   = round(neg_n / total * 100) if total else 0
 st.markdown(f"""
 <div class="kpi-grid">
   <div class="kpi-card total">
-    <div class="kpi-label">Toplam Haber</div>
+    <div class="kpi-label">{L["kpi_total"]}</div>
     <div class="kpi-value">{total}</div>
-    <div class="kpi-sub">{src_count} aktif kaynak</div>
+    <div class="kpi-sub">{src_count} {L["kpi_sub_total"]}</div>
   </div>
   <div class="kpi-card pos">
-    <div class="kpi-label">Pozitif</div>
+    <div class="kpi-label">{L["kpi_pos"]}</div>
     <div class="kpi-value">{pos_pct}<span class="kpi-unit">%</span></div>
-    <div class="kpi-sub">{pos_n} haber</div>
+    <div class="kpi-sub">{pos_n} {L["status_articles"]}</div>
   </div>
   <div class="kpi-card neg">
-    <div class="kpi-label">Negatif</div>
+    <div class="kpi-label">{L["kpi_neg"]}</div>
     <div class="kpi-value">{neg_pct}<span class="kpi-unit">%</span></div>
-    <div class="kpi-sub">{neg_n} haber</div>
+    <div class="kpi-sub">{neg_n} {L["status_articles"]}</div>
   </div>
   <div class="kpi-card neu">
-    <div class="kpi-label">Ort. Duygu Skoru</div>
+    <div class="kpi-label">{L["kpi_avg"]}</div>
     <div class="kpi-value">{avg_score:+.2f}</div>
-    <div class="kpi-sub">duygu indeksi</div>
+    <div class="kpi-sub">{L["kpi_sub_score"]}</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -532,7 +658,7 @@ st.markdown(f"""
 cc1, cc2 = st.columns([1, 2])
 
 with cc1:
-    st.markdown('<div class="nx-section">Duygu Dağılımı</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="nx-section">{L["chart_pie"]}</div>', unsafe_allow_html=True)
     pie_df    = df["sentiment_label"].value_counts().reset_index()
     pie_df.columns = ["label", "count"]
     color_map = {"Positive": t["pos"], "Negative": t["neg"], "Neutral": t["neu"]}
@@ -562,7 +688,7 @@ with cc1:
     st.plotly_chart(fig_pie, width='stretch')
 
 with cc2:
-    st.markdown('<div class="nx-section">Kaynak Bazlı Duygu</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="nx-section">{L["chart_src"]}</div>', unsafe_allow_html=True)
 
     src_sent = df.groupby(["source", "sentiment_label"]).size().unstack(fill_value=0)
     for col in ["Positive", "Neutral", "Negative"]:
@@ -572,19 +698,19 @@ with cc2:
 
     fig_src = go.Figure()
     fig_src.add_trace(go.Bar(
-        name="Pozitif", y=src_sent.index, x=src_sent["Positive"],
+        name=L["legend_pos"], y=src_sent.index, x=src_sent["Positive"],
         orientation="h", marker=dict(color=t["pos"], line=dict(width=0)),
-        hovertemplate="<b>%{y}</b><br>Pozitif: %{x}<extra></extra>",
+        hovertemplate="<b>%{y}</b><br>" + L["legend_pos"] + ": %{x}<extra></extra>",
     ))
     fig_src.add_trace(go.Bar(
-        name="Nötr", y=src_sent.index, x=src_sent["Neutral"],
+        name=L["legend_neu"], y=src_sent.index, x=src_sent["Neutral"],
         orientation="h", marker=dict(color=t["neu"], line=dict(width=0)),
-        hovertemplate="<b>%{y}</b><br>Nötr: %{x}<extra></extra>",
+        hovertemplate="<b>%{y}</b><br>" + L["legend_neu"] + ": %{x}<extra></extra>",
     ))
     fig_src.add_trace(go.Bar(
-        name="Negatif", y=src_sent.index, x=src_sent["Negative"],
+        name=L["legend_neg"], y=src_sent.index, x=src_sent["Negative"],
         orientation="h", marker=dict(color=t["neg"], line=dict(width=0)),
-        hovertemplate="<b>%{y}</b><br>Negatif: %{x}<extra></extra>",
+        hovertemplate="<b>%{y}</b><br>" + L["legend_neg"] + ": %{x}<extra></extra>",
     ))
     fig_src.update_layout(
         barmode="stack",
@@ -603,10 +729,10 @@ with cc2:
     st.plotly_chart(fig_src, width='stretch')
 
 # ── HABERLER ──────────────────────────────────────────────────────────────────
-st.markdown('<div class="nx-section">Son Haberler</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="nx-section">{L["section_news"]}</div>', unsafe_allow_html=True)
 
 if df.empty:
-    st.info("Filtre kriterlerine uyan haber bulunamadı.")
+    st.info(L["no_filter"])
 else:
     for i, (_, row) in enumerate(df.iterrows()):
         label   = row.get("sentiment_label", "Neutral") or "Neutral"
@@ -624,7 +750,7 @@ else:
 <div class="nx-card">
   <div class="nx-score">
     <div class="nx-score-val {sc}">{score:+.1f}</div>
-    <div class="nx-score-lbl">SKOR</div>
+    <div class="nx-score-lbl">{L["score_lbl"]}</div>
   </div>
   <div class="nx-body">
     <div class="nx-title"><a href="{url}" target="_blank">{title}</a></div>
@@ -639,7 +765,7 @@ else:
   </div>
 </div>""", unsafe_allow_html=True)
         with col_det:
-            if st.button("›", key=f"d_{i}", help="Tam içeriği gör"):
+            if st.button("›", key=f"d_{i}", help=L["detail_full"]):
                 show_detail(row.to_dict())
 
 # ── OTOMATİK YENİLEME ────────────────────────────────────────────────────────
