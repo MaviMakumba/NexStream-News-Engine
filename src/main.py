@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="NexStream News Engine API",
     description="Yapay Zeka Destekli Haber Motoru",
-    version="1.3.0",
+    version="1.4.0",
     lifespan=lifespan,
 )
 
