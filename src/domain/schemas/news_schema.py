@@ -34,5 +34,20 @@ class NewsResponse(BaseModel):
     sentiment_score: Optional[float] = None
     created_at: datetime
     published_at: Optional[datetime] = None
+    entities: Optional[dict] = None
+    topic: Optional[str] = None
+    is_duplicate: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class TrendingEntity(BaseModel):
+    name: str
+    count: int
+    type: str
+    example_titles: list[str] = Field(default_factory=list)
+
+
+class TrendingResponse(BaseModel):
+    hours: int
+    entities: list[TrendingEntity]

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from typing import List, Optional
 
-from src.domain.schemas.news_schema import NewsResponse, ScrapeCommand, SearchRequest, SearchResult
+from src.domain.schemas.news_schema import NewsResponse, ScrapeCommand, SearchRequest, SearchResult, TrendingResponse
 from src.domain.ports.messaging_port import MessagePublisherPort
 from src.application.services.news_service import NewsService
 from src.dependencies import get_news_service, get_message_publisher
@@ -44,6 +44,27 @@ def search_news(
     service: NewsService = Depends(get_news_service),
 ):
     return service.hybrid_search(body.query, body.n_results, body.source, body.sentiment)
+
+
+@router.get("/trending", response_model=TrendingResponse)
+@limiter.limit("30/minute")
+def get_trending(
+    request: Request,
+    hours: int = Query(6, ge=1, le=72),
+    limit: int = Query(10, ge=1, le=30),
+    service: NewsService = Depends(get_news_service),
+):
+    return service.get_trending(hours, limit)
+
+
+@router.post("/reanalyze")
+@limiter.limit("2/minute")
+def reanalyze_all(
+    request: Request,
+    service: NewsService = Depends(get_news_service),
+    _: None = Depends(verify_api_key),
+):
+    return service.reanalyze_all()
 
 
 @router.post("/reindex")

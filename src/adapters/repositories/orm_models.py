@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, Index
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.sql import func
 from src.infrastructure.config.database import Base
 
@@ -8,6 +9,7 @@ class NewsORM(Base):
         Index("ix_news_source", "source"),
         Index("ix_news_sentiment_label", "sentiment_label"),
         Index("ix_news_created_at", "created_at"),
+        Index("ix_news_topic", "topic"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -20,3 +22,6 @@ class NewsORM(Base):
     summary = Column(Text, nullable=True)
     sentiment_score = Column(Float, nullable=True)
     sentiment_label = Column(String(20), nullable=True)
+    entities = Column(JSON, nullable=True)
+    topic = Column(String(30), nullable=True)
+    is_duplicate = Column(Boolean, nullable=False, server_default="false")

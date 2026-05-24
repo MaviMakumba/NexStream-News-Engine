@@ -22,6 +22,8 @@ async def _process(scraper):
         search_repo = ChromaSearchRepository()
         service = NewsService(repository=repo, analyzer=analyzer, search_repository=search_repo)
         await service.update_news_from_source(scraper)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, service.reanalyze_missed, 3)
     finally:
         db.close()
 

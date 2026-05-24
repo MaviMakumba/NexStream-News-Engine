@@ -2,12 +2,13 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import time
 import os
 
+_TZ_TR = timezone(timedelta(hours=3))
+
 API_BASE = os.getenv("API_BASE", "http://localhost:8000")
-API_KEY  = os.getenv("API_KEY", "dev-key-change-me")
 
 _SOURCES_FALLBACK = [
     "TRT Haber", "BBC Türkçe", "Hürriyet", "Hürriyet Spor",
@@ -43,8 +44,8 @@ st.set_page_config(
 THEMES = {
     "Midnight": {
         "bg": "#080c10", "surface": "#0d1117", "border": "#1e2d3a",
-        "border2": "#2a3f52", "text": "#c8d6e0", "text2": "#4a6070",
-        "text3": "#2a3f52", "accent": "#3b9eff",
+        "border2": "#2a3f52", "text": "#c8d6e0", "text2": "#6a7a8a",
+        "text3": "#3d5060", "accent": "#3b9eff",
         "pos": "#2dce89", "neg": "#f5365c", "neu": "#fb6340",
         "pos_bg": "#0a2e1f", "neg_bg": "#2e0a14", "neu_bg": "#1e2210",
         "grid": "#0f1820",
@@ -59,11 +60,27 @@ THEMES = {
     },
     "Obsidian": {
         "bg": "#13111c", "surface": "#1a1825", "border": "#2d2b3d",
-        "border2": "#3d3b52", "text": "#e2dff0", "text2": "#6e6a8a",
-        "text3": "#3d3b52", "accent": "#a78bfa",
+        "border2": "#3d3b52", "text": "#e2dff0", "text2": "#7e7a9a",
+        "text3": "#5a5870", "accent": "#a78bfa",
         "pos": "#34d399", "neg": "#f87171", "neu": "#fbbf24",
         "pos_bg": "#0c2017", "neg_bg": "#2d1515", "neu_bg": "#2a1f08",
         "grid": "#1a1825",
+    },
+    "Snow": {
+        "bg": "#ffffff", "surface": "#f6f8fa", "border": "#d0d7de",
+        "border2": "#b0b8c1", "text": "#1f2328", "text2": "#59636e",
+        "text3": "#8b949e", "accent": "#0969da",
+        "pos": "#1a7f37", "neg": "#cf222e", "neu": "#bf8700",
+        "pos_bg": "#dafbe1", "neg_bg": "#ffebe9", "neu_bg": "#fff8c5",
+        "grid": "#f0f3f6",
+    },
+    "Sand": {
+        "bg": "#faf7f2", "surface": "#f0ebe3", "border": "#d5cdc2",
+        "border2": "#b8ad9e", "text": "#2c2417", "text2": "#6b5d4f",
+        "text3": "#9a8b7a", "accent": "#b35900",
+        "pos": "#2d7a3a", "neg": "#c4320a", "neu": "#9a6700",
+        "pos_bg": "#e6f6e8", "neg_bg": "#fde8e3", "neu_bg": "#fef3cd",
+        "grid": "#ece5db",
     },
 }
 
@@ -72,25 +89,14 @@ LANGS = {
         "settings":        "⚙ Ayarlar",
         "language":        "Dil",
         "theme":           "Tema",
-        "data_pull":       "VERİ ÇEKME",
-        "fetch_all":       "⚡ Tüm Kaynakları Çek",
-        "fetch_single":    "Tek kaynak çek",
-        "source":          "Kaynak",
-        "fetch_btn":       "Çek",
-        "fetch_queued":    "kaynak Kafka kuyruğuna alındı — haberler 1–3 dk içinde görünür",
-        "fetch_ok":        "✓ Tamamlandı",
-        "fetch_err":       "✗ Hata",
-        "vector_index":    "VEKTÖR İNDEKS",
-        "reindex_btn":     "⟳ Yeniden İndeksle",
-        "reindex_ok":      "haber",
-        "view":            "GÖRÜNÜM",
-        "limit_label":     "Haber limiti",
-        "auto_refresh":    "Otomatik yenile (30s)",
+        "limit_label":     "Haber sayısı",
+        "refresh_lbl":     "Yenileme",
+        "refresh_off":     "Kapalı",
         "search_ph":       "Anlamsal arama… örn. 'yapay zeka', 'Beşiktaş maç sonucu'",
         "search_btn":      "Ara",
         "search_close":    "× Kapat",
         "search_title":    "Arama Sonuçları",
-        "search_none":     "Sonuç bulunamadı. Ayarlar > Yeniden İndeksle butonuna bas.",
+        "search_none":     "Sonuç bulunamadı.",
         "search_err":      "API'ye bağlanılamadı",
         "hist_tooltip":    "sonuç",
         "sentiment_lbl":   "Duygu",
@@ -115,7 +121,7 @@ LANGS = {
         "legend_neu":      "Nötr",
         "legend_neg":      "Negatif",
         "section_news":    "Son Haberler",
-        "no_news":         "Haber bulunamadı. Ayarlar > 'Tüm Kaynakları Çek' butonuna bas.",
+        "no_news":         "Henüz haber yok — haberler otomatik olarak çekilir.",
         "no_filter":       "Filtre kriterlerine uyan haber bulunamadı.",
         "api_err":         "API'ye bağlanılamadı",
         "score_lbl":       "SKOR",
@@ -123,30 +129,29 @@ LANGS = {
         "detail_full":     "Tam içeriği gör",
         "detail_go":       "🔗 Habere Git",
         "detail_empty":    "İçerik mevcut değil.",
+        "topic_lbl":       "Konu",
+        "topic_all":       "Hepsi",
+        "trending_title":  "TREND",
+        "health_vectors":  "vektör",
+        "sentiments": {"Positive": "Pozitif", "Negative": "Negatif", "Neutral": "Nötr"},
+        "topics": {
+            "Technology": "Teknoloji", "Sports": "Spor", "Economy": "Ekonomi",
+            "Politics": "Siyaset", "Health": "Sağlık", "Culture": "Kültür",
+            "World": "Dünya", "Other": "Diğer",
+        },
     },
     "EN": {
         "settings":        "⚙ Settings",
         "language":        "Language",
         "theme":           "Theme",
-        "data_pull":       "DATA PULL",
-        "fetch_all":       "⚡ Fetch All Sources",
-        "fetch_single":    "Fetch single source",
-        "source":          "Source",
-        "fetch_btn":       "Fetch",
-        "fetch_queued":    "sources queued — articles appear in 1–3 min",
-        "fetch_ok":        "✓ Done",
-        "fetch_err":       "✗ Error",
-        "vector_index":    "VECTOR INDEX",
-        "reindex_btn":     "⟳ Reindex",
-        "reindex_ok":      "articles",
-        "view":            "VIEW",
-        "limit_label":     "Article limit",
-        "auto_refresh":    "Auto refresh (30s)",
+        "limit_label":     "Articles",
+        "refresh_lbl":     "Refresh",
+        "refresh_off":     "Off",
         "search_ph":       "Semantic search… e.g. 'AI developments', 'match result'",
         "search_btn":      "Search",
         "search_close":    "× Close",
         "search_title":    "Search Results",
-        "search_none":     "No results. Try Settings > Reindex first.",
+        "search_none":     "No results found.",
         "search_err":      "Cannot reach API",
         "hist_tooltip":    "results",
         "sentiment_lbl":   "Sentiment",
@@ -171,7 +176,7 @@ LANGS = {
         "legend_neu":      "Neutral",
         "legend_neg":      "Negative",
         "section_news":    "Latest Articles",
-        "no_news":         "No articles. Settings > 'Fetch All Sources'.",
+        "no_news":         "No articles yet — articles are fetched automatically.",
         "no_filter":       "No articles match the current filters.",
         "api_err":         "Cannot reach API",
         "score_lbl":       "SCORE",
@@ -179,12 +184,22 @@ LANGS = {
         "detail_full":     "View full content",
         "detail_go":       "🔗 Open Article",
         "detail_empty":    "No content available.",
+        "topic_lbl":       "Topic",
+        "topic_all":       "All",
+        "trending_title":  "TRENDING",
+        "health_vectors":  "vectors",
+        "sentiments": {"Positive": "Positive", "Negative": "Negative", "Neutral": "Neutral"},
+        "topics": {
+            "Technology": "Technology", "Sports": "Sports", "Economy": "Economy",
+            "Politics": "Politics", "Health": "Health", "Culture": "Culture",
+            "World": "World", "Other": "Other",
+        },
     },
 }
 
 # ── SESSION STATE ─────────────────────────────────────────────────────────────
 for k, v in [
-    ("theme", "Midnight"), ("lang", "TR"), ("limit", 50), ("auto_refresh", False),
+    ("theme", "Midnight"), ("lang", "TR"), ("limit", 50), ("refresh_sec", 0),
     ("search_results", None), ("search_error", None),
     ("search_history", []), ("pending_query", None), ("pending_n", 10),
 ]:
@@ -203,18 +218,6 @@ def fetch_news(limit):
     except Exception as e:
         return [], str(e)
 
-def do_scrape(source):
-    try:
-        r = requests.post(
-            f"{API_BASE}/news/scrape",
-            json={"source": source},
-            headers={"X-Api-Key": API_KEY},
-            timeout=10,
-        )
-        return r.status_code == 200
-    except Exception:
-        return False
-
 def do_search(query, n):
     try:
         r = requests.post(f"{API_BASE}/news/search", json={"query": query, "n_results": n}, timeout=15)
@@ -225,17 +228,14 @@ def do_search(query, n):
     except Exception as e:
         return [], str(e)
 
-def do_reindex():
+@st.cache_data(ttl=300)
+def fetch_trending(hours=6, limit=8):
     try:
-        r = requests.post(
-            f"{API_BASE}/news/reindex",
-            headers={"X-Api-Key": API_KEY},
-            timeout=120,
-        )
+        r = requests.get(f"{API_BASE}/news/trending", params={"hours": hours, "limit": limit}, timeout=10)
         r.raise_for_status()
-        return True, r.json()
+        return r.json(), None
     except Exception as e:
-        return False, {"error": str(e)}
+        return None, str(e)
 
 def rel_time(dt_str, lang="TR"):
     try:
@@ -274,24 +274,47 @@ def show_detail(article):
     source  = article.get("source", "—")
     label   = article.get("sentiment_label", "Neutral") or "Neutral"
     score   = float(article.get("sentiment_score") or 0)
-    content = article.get("content") or article.get("summary") or ""
+    summary = article.get("summary") or ""
+    content = article.get("content") or ""
     created = article.get("published_at") or article.get("created_at", "")
+    topic   = article.get("topic") or ""
+    entities = article.get("entities") or {}
     sc      = score_cls(score)
+
+    label_display = L["sentiments"].get(label, label)
+    topic_display = L["topics"].get(topic, topic) if topic else ""
+    topic_html = f'<span class="nx-source" style="margin-left:0.25rem">{topic_display}</span>' if topic_display else ""
+
+    entity_chips = ""
+    for etype in ("persons", "organizations", "locations"):
+        for name in (entities.get(etype) or []):
+            entity_chips += f'<span style="display:inline-block;padding:0.1rem 0.45rem;border-radius:4px;background:var(--border);color:var(--text2);font-size:0.55rem;margin:0.15rem 0.15rem 0 0">{name}</span>'
 
     st.markdown(f"""
 <div style="margin-bottom:1.2rem">
   <div style="font-family:'Syne',sans-serif;font-size:1.05rem;font-weight:700;
               color:var(--text);line-height:1.5;margin-bottom:0.75rem">{title}</div>
   <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;font-size:0.65rem">
-    <span class="nx-source">{source}</span>
-    <span class="nx-badge-inner badge-{label}">{label}</span>
+    <span class="nx-source">{source}</span>{topic_html}
+    <span class="nx-badge-inner badge-{label}">{label_display}</span>
     <span class="nx-score-val {sc}" style="font-size:0.85rem">{score:+.2f}</span>
     <span style="color:var(--text3)">{rel_time(created, st.session_state.lang)}</span>
   </div>
+  {f'<div style="margin-top:0.6rem">{entity_chips}</div>' if entity_chips else ""}
 </div>
 <hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0"/>
-<div style="font-size:0.78rem;color:var(--text2);line-height:1.85;white-space:pre-wrap">{content or L["detail_empty"]}</div>
 """, unsafe_allow_html=True)
+
+    if summary and content:
+        st.markdown(f'<div style="font-size:0.82rem;color:var(--text);line-height:1.85;margin-bottom:0.5rem;font-weight:500">{summary}</div>', unsafe_allow_html=True)
+        with st.expander(L["detail_full"]):
+            st.markdown(f'<div style="font-size:0.75rem;color:var(--text2);line-height:1.85;white-space:pre-wrap">{content}</div>', unsafe_allow_html=True)
+    elif summary:
+        st.markdown(f'<div style="font-size:0.82rem;color:var(--text);line-height:1.85;margin-bottom:0.5rem;font-weight:500">{summary}</div>', unsafe_allow_html=True)
+    elif content:
+        st.markdown(f'<div style="font-size:0.78rem;color:var(--text2);line-height:1.85;white-space:pre-wrap">{content}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div style="font-size:0.78rem;color:var(--text2)">{L["detail_empty"]}</div>', unsafe_allow_html=True)
 
     if url:
         st.link_button(L["detail_go"], url, width="stretch")
@@ -430,11 +453,74 @@ html,body,[class*="css"] {{
     background:var(--surface) !important; border-color:var(--border) !important;
     color:var(--text) !important; font-size:0.75rem !important; border-radius:7px !important;
 }}
+[data-testid="stAppViewContainer"],
+[data-testid="stApp"],
+[data-testid="stMain"],
+.stApp, .main {{
+    background-color:var(--bg) !important;
+}}
+[data-testid="stExpander"] {{
+    background-color:var(--surface) !important;
+    border-color:var(--border) !important;
+}}
+[data-testid="stPopover"] > div {{
+    background-color:var(--surface) !important;
+    border-color:var(--border) !important;
+}}
+div[data-modal-container="true"] > div {{
+    background-color:var(--bg) !important;
+}}
+[data-baseweb="tag"] {{
+    background-color:var(--border) !important;
+    color:var(--text) !important;
+}}
+[data-baseweb="tag"] span {{
+    color:var(--text) !important;
+}}
+label, .stSelectbox label, .stMultiSelect label {{
+    color:var(--text2) !important;
+}}
+[data-testid="stMarkdownContainer"] p {{
+    color:var(--text) !important;
+}}
+div[role="tablist"] button {{
+    color:var(--text2) !important;
+}}
+div[role="tablist"] button[aria-selected="true"] {{
+    color:var(--accent) !important;
+}}
+.stSelectbox > div > div {{
+    background-color:var(--surface) !important;
+    color:var(--text) !important;
+    border-color:var(--border) !important;
+}}
+[data-baseweb="select"] > div {{
+    background-color:var(--surface) !important;
+    color:var(--text) !important;
+}}
+[data-baseweb="popover"] > div {{
+    background-color:var(--surface) !important;
+    border-color:var(--border) !important;
+}}
+[data-baseweb="menu"] {{
+    background-color:var(--surface) !important;
+}}
+[data-baseweb="menu"] li {{
+    background-color:var(--surface) !important;
+    color:var(--text) !important;
+}}
+[data-baseweb="menu"] li:hover {{
+    background-color:var(--border) !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
 # Dil kısayolu — her render'da güncel
 L = LANGS[st.session_state.lang]
+_SENT_DISPLAY = L["sentiments"]
+_SENT_REVERSE = {v: k for k, v in _SENT_DISPLAY.items()}
+_TOPIC_DISPLAY = L["topics"]
+_TOPIC_REVERSE = {v: k for k, v in _TOPIC_DISPLAY.items()}
 
 # ── HEADER ────────────────────────────────────────────────────────────────────
 h1, _, h3 = st.columns([3, 5, 2])
@@ -453,40 +539,23 @@ with h3:
             key="theme")
 
         st.divider()
-        st.caption(L["data_pull"])
-        _sources = fetch_sources()
-        if st.button(L["fetch_all"], width='stretch'):
-            bar = st.progress(0, text="…")
-            for i, src in enumerate(_sources):
-                do_scrape(src)
-                bar.progress((i + 1) / len(_sources), text=src)
-            bar.empty()
-            st.success(f"✓ {len(_sources)} {L['fetch_queued']}")
+        st.segmented_control(
+            L["limit_label"],
+            [25, 50, 100, 200],
+            default=st.session_state.limit,
+            key="limit",
+        )
 
-        with st.expander(L["fetch_single"]):
-            src_sel = st.selectbox(L["source"], _sources, label_visibility="collapsed", key="src_single")
-            if st.button(L["fetch_btn"], key="btn_single"):
-                ok = do_scrape(src_sel)
-                if ok:
-                    st.cache_data.clear()
-                    st.success(L["fetch_ok"])
-                else:
-                    st.error(L["fetch_err"])
-
-        st.divider()
-        st.caption(L["vector_index"])
-        if st.button(L["reindex_btn"], width='stretch'):
-            with st.spinner("…"):
-                ok, res = do_reindex()
-            if ok:
-                st.success(f"✓ {res.get('indexed', 0)}/{res.get('total', 0)} {L['reindex_ok']}")
-            else:
-                st.error(str(res))
-
-        st.divider()
-        st.caption(L["view"])
-        st.select_slider(L["limit_label"], options=[25, 50, 100, 200], key="limit")
-        st.toggle(L["auto_refresh"], key="auto_refresh")
+        _refresh_options = {L["refresh_off"]: 0, "30s": 30, "1m": 60, "5m": 300}
+        _refresh_labels = list(_refresh_options.keys())
+        _current_refresh_label = next((k for k, v in _refresh_options.items() if v == st.session_state.refresh_sec), L["refresh_off"])
+        _sel_refresh = st.segmented_control(
+            L["refresh_lbl"],
+            _refresh_labels,
+            default=_current_refresh_label,
+        )
+        if _sel_refresh:
+            st.session_state.refresh_sec = _refresh_options.get(_sel_refresh, 0)
 
 st.markdown('<div class="nx-divider"></div>', unsafe_allow_html=True)
 
@@ -530,18 +599,14 @@ if search_btn:
 
 # ── SEARCH HISTORY ────────────────────────────────────────────────────────────
 if st.session_state.search_history:
-    hist = st.session_state.search_history
-    n_h  = min(len(hist), 6)
-    _spacer_weight = max(1, 12 - n_h * 2)
-    hist_cols = st.columns([2] * n_h + [_spacer_weight])
-    for i, h in enumerate(hist[:n_h]):
-        with hist_cols[i]:
-            lbl = h["query"] if len(h["query"]) <= 13 else h["query"][:11] + "…"
-            if st.button(f"↺ {lbl}", key=f"hist_{i}",
-                         help=f"{h['query']} · {h['count']} {L['hist_tooltip']}"):
-                st.session_state.pending_query = h["query"]
-                st.session_state.pending_n     = h["n"]
-                st.rerun()
+    _hist_labels = [h["query"] for h in st.session_state.search_history[:6]]
+    _hist_sel = st.pills("history", _hist_labels, default=None, label_visibility="collapsed")
+    if _hist_sel:
+        _hist_match = next((h for h in st.session_state.search_history if h["query"] == _hist_sel), None)
+        if _hist_match:
+            st.session_state.pending_query = _hist_match["query"]
+            st.session_state.pending_n = _hist_match["n"]
+            st.rerun()
 
 # ── SEARCH RESULTS ────────────────────────────────────────────────────────────
 if st.session_state.search_results is not None:
@@ -583,22 +648,49 @@ if st.session_state.search_results is not None:
                     show_detail(item)
 
     st.markdown('<div class="nx-divider"></div>', unsafe_allow_html=True)
+    st.stop()
+
+# ── TRENDING ─────────────────────────────────────────────────────────────────
+_trending_data, _trending_err = fetch_trending()
+if _trending_data and _trending_data.get("entities"):
+    _tent = _trending_data["entities"]
+    _trend_labels = [f"{e['name']} ({e['count']})" for e in _tent]
+    _trend_name_map = {f"{e['name']} ({e['count']})": e["name"] for e in _tent}
+    st.markdown(
+        f'<div style="font-family:\'Syne\',sans-serif;font-size:0.6rem;font-weight:700;'
+        f'color:var(--accent);letter-spacing:0.1em;margin-bottom:-0.6rem">{L["trending_title"]}</div>',
+        unsafe_allow_html=True,
+    )
+    _trend_sel = st.pills("trending", _trend_labels, default=None, label_visibility="collapsed")
+    if _trend_sel:
+        st.session_state.pending_query = _trend_name_map[_trend_sel]
+        st.session_state.pending_n = 10
+        st.rerun()
 
 # ── FİLTRELER ────────────────────────────────────────────────────────────────
-f1, f2, f3 = st.columns([2.5, 3.5, 2])
+_SENT_OPTIONS = [L["sent_all"]] + list(_SENT_DISPLAY.values())
+_TOPIC_OPTIONS = [L["topic_all"]] + list(_TOPIC_DISPLAY.values())
+
+f1, f2, f3, f4 = st.columns([2, 2.5, 3, 2])
 with f1:
     sentiment = st.pills(
         L["sentiment_lbl"],
-        [L["sent_all"], "Positive", "Negative", "Neutral"],
+        _SENT_OPTIONS,
         default=L["sent_all"], label_visibility="collapsed",
     )
 with f2:
+    topic_filter = st.pills(
+        L["topic_lbl"],
+        _TOPIC_OPTIONS,
+        default=L["topic_all"], label_visibility="collapsed",
+    )
+with f3:
     selected_sources = st.multiselect(
         L["sources_ph"], fetch_sources(),
         placeholder=L["sources_ph"],
         label_visibility="collapsed",
     )
-with f3:
+with f4:
     sort_by = st.segmented_control(
         L["sort_lbl"],
         [L["sort_new"], L["sort_high"], L["sort_low"]],
@@ -622,7 +714,12 @@ df["sentiment_label"] = df["sentiment_label"].fillna("Neutral")
 
 sentiment = sentiment or L["sent_all"]
 if sentiment != L["sent_all"]:
-    df = df[df["sentiment_label"] == sentiment]
+    db_sentiment = _SENT_REVERSE.get(sentiment, sentiment)
+    df = df[df["sentiment_label"] == db_sentiment]
+topic_filter = topic_filter or L["topic_all"]
+if topic_filter != L["topic_all"] and "topic" in df.columns:
+    db_topic = _TOPIC_REVERSE.get(topic_filter, topic_filter)
+    df = df[df["topic"] == db_topic]
 if selected_sources:
     df = df[df["source"].isin(selected_sources)]
 
@@ -634,7 +731,7 @@ elif sort_by == L["sort_low"]:
 else:
     df = df.sort_values("created_at_dt", ascending=False)
 
-now_str   = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+now_str   = datetime.now(_TZ_TR).strftime("%H:%M")
 src_count = df["source"].nunique()
 health    = fetch_health()
 
@@ -650,7 +747,7 @@ if health:
         f'&nbsp;·&nbsp;{h_db} DB'
         f'&nbsp;{h_kafka} Kafka'
         f'&nbsp;{h_chroma} Chroma'
-        f'&nbsp;<span style="color:var(--text3)">({indexed:,} vektör)</span>'
+        f'&nbsp;<span style="color:var(--text3)">({indexed:,} {L["health_vectors"]})</span>'
     )
 else:
     health_html = ""
@@ -706,10 +803,11 @@ with cc1:
     st.markdown(f'<div class="nx-section">{L["chart_pie"]}</div>', unsafe_allow_html=True)
     pie_df    = df["sentiment_label"].value_counts().reset_index()
     pie_df.columns = ["label", "count"]
+    pie_df["label_display"] = pie_df["label"].map(lambda x: _SENT_DISPLAY.get(x, x))
     color_map = {"Positive": t["pos"], "Negative": t["neg"], "Neutral": t["neu"]}
 
     fig_pie = go.Figure(go.Pie(
-        labels=pie_df["label"], values=pie_df["count"], hole=0.65,
+        labels=pie_df["label_display"], values=pie_df["count"], hole=0.65,
         marker=dict(
             colors=[color_map.get(l, t["text2"]) for l in pie_df["label"]],
             line=dict(color=t["bg"], width=3),
@@ -781,14 +879,18 @@ if df.empty:
 else:
     for i, (_, row) in enumerate(df.iterrows()):
         label   = row.get("sentiment_label", "Neutral") or "Neutral"
+        label_display = _SENT_DISPLAY.get(label, label)
         score   = float(row.get("sentiment_score") or 0)
         sc      = score_cls(score)
         title   = row.get("title", "—")
         url     = row.get("url", "#")
         summary = (row.get("summary") or row.get("content") or "")[:180]
         source  = row.get("source", "—")
+        topic   = row.get("topic") or ""
+        topic_display = _TOPIC_DISPLAY.get(topic, topic) if topic else ""
         age_dt  = row.get("published_at") or row.get("created_at", "")
         age     = rel_time(age_dt, st.session_state.lang)
+        topic_span = f'<span class="nx-source" style="font-size:0.52rem">{topic_display}</span>' if topic_display else ""
 
         col_card, col_det = st.columns([11, 1])
         with col_card:
@@ -803,11 +905,12 @@ else:
     <div class="nx-summary">{summary}</div>
     <div class="nx-meta">
       <span class="nx-source">{source}</span>
+      {topic_span}
       <span>{age}</span>
     </div>
   </div>
   <div class="nx-badge">
-    <div class="nx-badge-inner badge-{label}">{label}</div>
+    <div class="nx-badge-inner badge-{label}">{label_display}</div>
   </div>
 </div>""", unsafe_allow_html=True)
         with col_det:
@@ -815,7 +918,7 @@ else:
                 show_detail(row.to_dict())
 
 # ── OTOMATİK YENİLEME ────────────────────────────────────────────────────────
-if st.session_state.auto_refresh:
-    time.sleep(30)
+if st.session_state.refresh_sec > 0:
+    time.sleep(st.session_state.refresh_sec)
     st.cache_data.clear()
     st.rerun()

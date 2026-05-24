@@ -21,12 +21,12 @@ src/
 │   │   ├── messaging_port.py      # class MessagePublisherPort (ABC)
 │   │   └── embedding_port.py      # class EmbeddingPort (ABC)
 │   └── schemas/
-│       └── news_schema.py         # Pydantic: NewsResponse, SearchRequest, SearchResult
+│       └── news_schema.py         # Pydantic: NewsResponse, SearchRequest, SearchResult, TrendingResponse
 ├── application/
-│   └── services/news_service.py   # Orchestration — port'ları bağlar, reindex_all dahil
+│   └── services/news_service.py   # Orchestration — port'ları bağlar, reindex_all, get_trending dahil
 ├── adapters/
 │   ├── analysis/
-│   │   └── groq_analyzer.py       # Groq llama-3.1-8b-instant
+│   │   └── groq_analyzer.py       # Groq llama-3.1-8b-instant — sentiment + NER + topic (v1.5+)
 │   ├── scrapers/
 │   │   ├── rss_scrapers.py        # 11 TR+EN RSS kaynağı (BaseRssScraper tabanlı)
 │   │   └── registry.py            # SCRAPER_REGISTRY — tek kaynak doğruluk noktası
@@ -40,12 +40,12 @@ src/
 │   │   └── scheduler_service.py   # 10dk'da bir Kafka'ya mesaj atar
 │   ├── search/
 │   │   ├── sentence_transformer_embedder.py  # SentenceTransformerEmbedder (singleton)
-│   │   └── chroma_search_repository.py       # ChromaDB adapter — index + search
+│   │   └── chroma_search_repository.py       # ChromaDB adapter — index + search + dedup (v1.5+)
 │   └── api/
 │       ├── auth.py               # verify_api_key() dependency (v1.3+)
 │       ├── limiter.py            # slowapi Limiter singleton (v1.3+)
 │       └── routers/
-│           ├── news_router.py    # GET /news, POST /scrape, /search, /reindex, /sources
+│           ├── news_router.py    # GET /news, /trending, POST /scrape, /search, /reindex, /sources
 │           └── health_router.py  # GET /health — DB + Kafka + ChromaDB durumu
 ├── infrastructure/
 │   ├── config/
@@ -55,15 +55,20 @@ src/
 │       └── logger.py             # setup_logging(), JSON/text formatter (v1.3+)
 ├── dependencies.py                # FastAPI DI — GroqAnalyzer, NewsRepository, ChromaSearch inject
 └── main.py                        # FastAPI app
+migrations/
+└── v1_5_add_entities_topic.sql    # v1.5 DB migration (entities, topic, is_duplicate)
 dashboard/
-└── app.py                         # Streamlit — API_BASE=http://app:8000, semantik arama dahil
+└── app.py                         # Streamlit — 5 tema, TR/EN, trend/topic/dedup UI (v1.5+)
 tests/
 ├── domain/test_article.py
 ├── application/test_news_service.py
 ├── adapters/test_rss_scrapers.py
 ├── adapters/test_news_repository.py
 ├── adapters/test_groq_analyzer.py
-└── adapters/test_chroma_search_repository.py
+├── adapters/test_chroma_search_repository.py
+├── adapters/test_ner_prompt.py            # NER + topic Groq çıktısı (v1.5+)
+├── adapters/test_semantic_dedup.py        # is_near_duplicate testleri (v1.5+)
+└── adapters/test_trending_endpoint.py     # Trending engine testleri (v1.5+)
 ```
 
 ---
@@ -89,7 +94,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## KRİTİK KARARLAR VE GEREKÇELERİ
 
-**Neden Groq?** Gemini'den taşındı. 14.400 req/gün ücretsiz, llama-3.1-8b-instant TR+EN destekler, requests kütüphanesi yeterli (SDK yok). Model: `llama-3.1-8b-instant` (70B'den düşürüldü — sentiment extraction için 8B yeterli, TPM limiti 3× daha yüksek). Rate limit: `Retry-After` header kullanılıyor.
+**Neden Groq?** Gemini'den taşındı. 14.400 req/gün ücretsiz, llama-3.1-8b-instant TR+EN destekler, requests kütüphanesi yeterli (SDK yok). Model: `llama-3.1-8b-instant` (70B'den düşürüldü — sentiment + NER + topic extraction için 8B yeterli, TPM limiti 3× daha yüksek). Rate limit: `Retry-After` header kullanılıyor. v1.5'ten itibaren tek prompt'ta sentiment + entities + topic çıkarılıyor (max_tokens=350).
 
 **Neden sentence-transformers?** Groq'un embedding API'si yok. `paraphrase-multilingual-MiniLM-L12-v2` modeli TR+EN destekler, tamamen local çalışır, API key gerektirmez. Kurulu versiyon: 3.3.1, torch: 2.10.0, chromadb: 1.5.5
 
@@ -105,8 +110,8 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v1.4.0 tamamlandı — v1.5-dev sıradaki
-- **Test sayısı:** 145 test, hepsi yeşil
+- **Versiyon:** v1.5.0 tamamlandı — v1.6-dev sıradaki
+- **Test sayısı:** 173 test, hepsi yeşil
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
 - **Branch:** main (tüm özellikler merge edildi)
 
@@ -162,7 +167,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 Detaylı plan: `C:\Users\eren8\.claude\plans\encapsulated-squishing-willow.md`
 
-Sonraki oturumu başlatmak için: **"v1.5 implementasyonuna başlayalım — plan dosyasını oku, CLAUDE.md'deki yol haritasını takip et."**
+Sonraki oturumu başlatmak için: **"v1.6 implementasyonuna başlayalım — plan dosyasını oku, CLAUDE.md'deki yol haritasını takip et."**
 
 ### v1.3.0 — Foundation Hardening ✅ TAMAMLANDI
 1. **Pydantic Settings** — `src/infrastructure/config/settings.py` oluşturuldu, 5 dosyadaki os.getenv() kaldırıldı
@@ -186,13 +191,19 @@ Sonuç: 97 → 131 test (+34)
 
 Sonuç: 131 → 145 test (+14)
 
-### v1.5.0 — AI Features (~3-5 gün)
-1. **NER** — Groq prompt'a entities + topic ekle, Article model genişlet
-2. **Topic filter** — dashboard'da Technology/Sports/Economy/Politics pills
-3. **Trending engine** — `GET /news/trending?hours=6` — entity aggregate
-4. **Semantic dedup** — ChromaDB 0.92+ similarity → duplicate flag
+### v1.5.0 — AI Features ✅ TAMAMLANDI
+1. **NER** — Groq prompt'a entities (persons/organizations/locations) + topic eklendi, Article model genişletildi
+2. **Topic filter** — dashboard'da Technology/Sports/Economy/Politics/Health/Culture/World/Other pills
+3. **Trending engine** — `GET /news/trending?hours=6&limit=10` — entity aggregate, tıklanabilir trend pills
+4. **Semantic dedup** — ChromaDB `is_near_duplicate()` 0.92 threshold → `is_duplicate` flag
+5. **Summary surface** — Detay modalında önce summary, tam içerik expander'da; entity chips
+6. **DB migration** — `migrations/v1_5_add_entities_topic.sql` (entities JSON, topic, is_duplicate)
+7. **Dashboard UX overhaul** — Admin butonları kaldırıldı (pipeline tamamen otomatik), 5 tema (3 karanlık + 2 aydınlık: Snow/Sand), Türkiye saati, tüm etiketler TR/EN lokalize, sentiment scoring iyileştirildi (tam aralık kullanımı), arama sonuçları tam ekran, haber sayısı/yenileme segmented control
+8. **Auto reanalyze** — Worker her çevrimi sonunda entities=NULL olan haberleri otomatik analiz eder
+9. **Groq prompt** — Sentiment score aralıkları netleştirildi, summary haberin dilinde üretiliyor
+10. **`POST /news/reanalyze`** — Eski haberleri yeni prompt ile toplu analiz endpoint'i
 
-Beklenen: ~122 → ~130 test
+Sonuç: 145 → 173 test (+28)
 
 ### v1.6.0 — Production Deployment (~5-7 gün)
 1. **Nginx + HTTPS** — reverse proxy, Let's Encrypt, sadece 80/443 açık
@@ -228,15 +239,19 @@ venv\Scripts\python.exe -m pytest tests/ -v
 # Belirli test dosyası
 venv\Scripts\python.exe -m pytest tests/adapters/test_groq_analyzer.py -v
 
-# Docker — kod değiştiyse
+# Docker — kod değiştiyse (volume mount sayesinde build GEREKMEZ)
 docker-compose restart worker
 docker-compose restart app
+docker-compose restart dashboard
 
-# Docker — requirements değiştiyse
-docker-compose up --build
+# Docker — ilk çalıştırma veya requirements/Dockerfile değiştiyse (SADECE bu durumda build)
+docker-compose up --build -d
 
 # Docker — sıfırdan (DB + ChromaDB silinir)
-docker-compose down -v && docker-compose up --build
+docker-compose down -v && docker-compose up --build -d
+
+# Docker — gereksiz image/cache temizliği
+docker builder prune -f && docker volume prune -f
 
 # Loglar
 docker logs nexstream_worker --tail 30
