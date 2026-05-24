@@ -13,7 +13,9 @@ def make_service():
     mock_analyzer.analyze_text.return_value = {
         "sentiment_score": 0.8,
         "sentiment_label": "Positive",
-        "summary": "Good news today"
+        "summary": "Good news today",
+        "entities": {"persons": [], "organizations": [], "locations": []},
+        "topic": "Other",
     }
     return NewsService(repository=mock_repo, analyzer=mock_analyzer), mock_repo, mock_analyzer
 

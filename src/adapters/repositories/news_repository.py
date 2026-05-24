@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import datetime, timezone, timedelta
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -29,6 +30,9 @@ class NewsRepository(NewsRepositoryPort):
             sentiment_score=article.sentiment_score,
             sentiment_label=article.sentiment_label,
             published_at=article.published_at,
+            entities=article.entities,
+            topic=article.topic,
+            is_duplicate=article.is_duplicate,
         )
 
     def _to_domain(self, orm: NewsORM) -> Article:
@@ -43,6 +47,9 @@ class NewsRepository(NewsRepositoryPort):
             sentiment_label=orm.sentiment_label,
             created_at=orm.created_at,
             published_at=orm.published_at,
+            entities=orm.entities,
+            topic=orm.topic,
+            is_duplicate=orm.is_duplicate or False,
         )
 
     # --- SÖZLEŞME (PORT) METOTLARI ---
@@ -69,6 +76,23 @@ class NewsRepository(NewsRepositoryPort):
             logger.error("DB kayıt hatası: %s", e)
             return False
 
+    def update_article_analysis(self, article: Article) -> bool:
+        try:
+            orm_obj = self.db.query(NewsORM).filter(NewsORM.id == article.id).first()
+            if not orm_obj:
+                return False
+            orm_obj.summary = article.summary
+            orm_obj.sentiment_score = article.sentiment_score
+            orm_obj.sentiment_label = article.sentiment_label
+            orm_obj.entities = article.entities
+            orm_obj.topic = article.topic
+            self.db.commit()
+            return True
+        except Exception as e:
+            self.db.rollback()
+            logger.error("DB güncelleme hatası: %s", e)
+            return False
+
     def get_latest_news(self, limit: int, sentiment_filter: Optional[str] = None) -> List[Article]:
         query = self.db.query(NewsORM)
         if sentiment_filter:
@@ -79,6 +103,25 @@ class NewsRepository(NewsRepositoryPort):
 
     def get_all_articles(self) -> List[Article]:
         rows = self.db.query(NewsORM).all()
+        return [self._to_domain(row) for row in rows]
+
+    def get_unanalyzed_articles(self, limit: int = 5) -> List[Article]:
+        rows = (
+            self.db.query(NewsORM)
+            .filter(NewsORM.entities.is_(None))
+            .order_by(NewsORM.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return [self._to_domain(row) for row in rows]
+
+    def get_recent_articles_with_entities(self, hours: int = 6) -> List[Article]:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        rows = (
+            self.db.query(NewsORM)
+            .filter(NewsORM.created_at >= cutoff, NewsORM.entities.isnot(None))
+            .all()
+        )
         return [self._to_domain(row) for row in rows]
 
     def keyword_search(self, query: str, limit: int = 10, source: Optional[str] = None, sentiment: Optional[str] = None) -> List[Article]:

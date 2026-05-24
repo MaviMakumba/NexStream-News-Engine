@@ -1,17 +1,3 @@
-from sqlalchemy import Column, Integer, String, Text, Float, DateTime
-from sqlalchemy.sql import func
-from src.infrastructure.config.database import Base
+from src.adapters.repositories.orm_models import NewsORM
 
-class NewsORM(Base):
-    __tablename__ = "news_articles"
-    __table_args__ = {'extend_existing': True}
-
-    id = Column(Integer, primary_key=True)
-    title = Column(String(255), nullable=False)
-    content = Column(Text, nullable=False)
-    source = Column(String(50), nullable=False)
-    url = Column(String, unique=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    summary = Column(Text, nullable=True)
-    sentiment_score = Column(Float, nullable=True)
-    sentiment_label = Column(String(20), nullable=True)
+__all__ = ["NewsORM"]

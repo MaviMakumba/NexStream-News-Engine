@@ -16,12 +16,15 @@ class ChromaSearchRepository:
         self.client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
         self.collection = self.client.get_or_create_collection(COLLECTION_NAME)
 
+    def _article_embedding_text(self, article: Article) -> str:
+        return f"{article.title}. {article.summary or article.content[:200]}"
+
     def index_article(self, article: Article) -> bool:
         if not article.id:
             logger.warning("index_article: article.id yok, atlanıyor.")
             return False
         try:
-            text = f"{article.title}. {article.summary or article.content[:200]}"
+            text = self._article_embedding_text(article)
             embedding = self.embedder.embed_text(text)
             self.collection.upsert(
                 ids=[str(article.id)],
@@ -32,11 +35,31 @@ class ChromaSearchRepository:
                     "url": article.url,
                     "summary": article.summary or "",
                     "sentiment_label": article.sentiment_label or "",
+                    "topic": article.topic or "",
                 }],
             )
             return True
         except Exception as e:
             logger.error("ChromaDB index hatası: %s", e)
+            return False
+
+    def is_near_duplicate(self, article: Article, threshold: float = 0.92) -> bool:
+        try:
+            if self.collection.count() == 0:
+                return False
+            text = self._article_embedding_text(article)
+            embedding = self.embedder.embed_text(text)
+            results = self.collection.query(
+                query_embeddings=[embedding],
+                n_results=1,
+            )
+            if not results["ids"][0]:
+                return False
+            distance = results["distances"][0][0]
+            similarity = 1 / (1 + distance)
+            return similarity >= threshold
+        except Exception as e:
+            logger.warning("Dedup sorgusu başarısız: %s", e)
             return False
 
     def search(self, query: str, n_results: int = 10, source: str = None, sentiment: str = None) -> list[dict]:

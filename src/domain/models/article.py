@@ -13,4 +13,7 @@ class Article:
     sentiment_label: Optional[str] = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     published_at: Optional[datetime] = None
+    entities: Optional[dict] = None
+    topic: Optional[str] = None
+    is_duplicate: bool = False
     id: Optional[int] = None

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+from collections import Counter
 from src.domain.ports.news_repository_port import NewsRepositoryPort
 from src.domain.ports.analysis_port import AnalysisPort
 from src.domain.ports.scraper_port import NewsScraperPort
@@ -41,6 +42,14 @@ class NewsService:
             article.summary = result["summary"]
             article.sentiment_score = result["sentiment_score"]
             article.sentiment_label = result["sentiment_label"]
+            article.entities = result.get("entities")
+            article.topic = result.get("topic", "Other")
+
+            if self.search_repository:
+                try:
+                    article.is_duplicate = self.search_repository.is_near_duplicate(article)
+                except Exception as e:
+                    logger.warning("Dedup kontrolü başarısız, devam ediliyor: %s", e)
 
             saved = self.repository.save_article(article)
             if saved:
@@ -129,6 +138,96 @@ class NewsService:
         content_score = (content_hits / n) * _FIELD_WEIGHTS["content"]
 
         return round(max(title_score, summary_score, content_score), 4)
+
+    def get_trending(self, hours: int = 6, limit: int = 10) -> dict:
+        articles = self.repository.get_recent_articles_with_entities(hours)
+        entity_counter: Counter = Counter()
+        entity_type_map: dict[str, str] = {}
+        entity_titles: dict[str, list[str]] = {}
+
+        for article in articles:
+            if not article.entities:
+                continue
+            for etype, names in article.entities.items():
+                if not isinstance(names, list):
+                    continue
+                singular = etype.rstrip("s")
+                for name in names:
+                    if not isinstance(name, str) or len(name) < 2:
+                        continue
+                    key = name.strip()
+                    entity_counter[key] += 1
+                    entity_type_map.setdefault(key, singular)
+                    titles = entity_titles.setdefault(key, [])
+                    if article.title not in titles and len(titles) < 3:
+                        titles.append(article.title)
+
+        top = entity_counter.most_common(limit)
+        return {
+            "hours": hours,
+            "entities": [
+                {
+                    "name": name,
+                    "count": count,
+                    "type": entity_type_map[name],
+                    "example_titles": entity_titles[name],
+                }
+                for name, count in top
+            ],
+        }
+
+    def reanalyze_missed(self, limit: int = 5) -> int:
+        articles = self.repository.get_unanalyzed_articles(limit)
+        updated = 0
+        for article in articles:
+            try:
+                result = self.analyzer.analyze_text(article.content)
+                article.summary = result["summary"]
+                article.sentiment_score = result["sentiment_score"]
+                article.sentiment_label = result["sentiment_label"]
+                article.entities = result.get("entities")
+                article.topic = result.get("topic", "Other")
+                if self.repository.update_article_analysis(article):
+                    updated += 1
+                    if self.search_repository and article.id:
+                        try:
+                            self.search_repository.index_article(article)
+                        except Exception:
+                            pass
+            except Exception as e:
+                logger.warning("Reanalyze missed hatası (id=%s): %s", article.id, e)
+        if updated:
+            logger.info("Reanalyze missed: %d/%d haber güncellendi", updated, len(articles))
+        return updated
+
+    def reanalyze_all(self) -> dict:
+        articles = self.repository.get_all_articles()
+        updated, failed, skipped = 0, 0, 0
+        for article in articles:
+            if article.entities is not None:
+                skipped += 1
+                continue
+            try:
+                result = self.analyzer.analyze_text(article.content)
+                article.summary = result["summary"]
+                article.sentiment_score = result["sentiment_score"]
+                article.sentiment_label = result["sentiment_label"]
+                article.entities = result.get("entities")
+                article.topic = result.get("topic", "Other")
+
+                if self.repository.update_article_analysis(article):
+                    updated += 1
+                    if self.search_repository and article.id:
+                        try:
+                            self.search_repository.index_article(article)
+                        except Exception:
+                            pass
+                else:
+                    failed += 1
+            except Exception as e:
+                logger.error("Reanalyze hatası (id=%s): %s", article.id, e)
+                failed += 1
+        return {"total": len(articles), "updated": updated, "skipped": skipped, "failed": failed}
 
     def reindex_all(self) -> dict:
         if not self.search_repository:
