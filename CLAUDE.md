@@ -153,10 +153,12 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v1.6.0 tamamlandı
+- **Versiyon:** v1.6.0 tamamlandı — v1.7-dev sıradaki
 - **Test sayısı:** 180 test, hepsi yeşil
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
 - **Branch:** main (tüm özellikler merge edildi)
+- **Hedef:** CV/portfolio projesi → canlı ürüne geçiş (ücretsiz başla, gelir varsa harca)
+- **Kısıt:** VPS'te 7/24 bağımsız çalışacak, local bağımlılık yok
 
 ---
 
@@ -189,28 +191,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ---
 
-## BİLİNEN AÇIKLAR (audit sonuçları — v1.3'te giderilecek)
-
-### Kod Kalitesi
-- **24× print()** — sadece 2 dosya proper logging kullanıyor (news_service.py, chroma_search_repository.py)
-- **5 dosyada dağınık os.getenv()** — merkezi config yok: database.py, scheduler_service.py, groq_analyzer.py, chroma_search_repository.py, health_router.py
-- **N+1 query**: `news_repository.py` `article_exists()` her makale için ayrı SELECT çağırıyor
-- **Sequential scraping**: `rss_scrapers.py` requests.get() blocking — 11 kaynak için ~8-15sn
-
-### Güvenlik
-- **Exposed ports**: PostgreSQL (5433), Kafka (9092), Zookeeper (2181), ChromaDB (8001) host'a açık — internal-only olmalı
-- **Sıfır auth**: `/scrape`, `/reindex` endpoint'leri korumasız — herhangi biri tetikleyebilir
-- **DoS riski**: `SearchRequest.query` için uzunluk sınırı yok
-- **Rate limit yok**: slowapi/throttling eklenmedi
-- **CORS konfigürasyonu yok**
-
----
-
-## SIRADAKİ GÖREVLER (v1.3 → v1.6 Yol Haritası)
-
-Detaylı plan: `C:\Users\eren8\.claude\plans\encapsulated-squishing-willow.md`
-
-Sonraki oturumu başlatmak için: **"v1.6 implementasyonuna başlayalım — plan dosyasını oku, CLAUDE.md'deki yol haritasını takip et."**
+## TAMAMLANAN MİLESTONE'LAR (v1.3 → v1.6)
 
 ### v1.3.0 — Foundation Hardening ✅ TAMAMLANDI
 1. **Pydantic Settings** — `src/infrastructure/config/settings.py` oluşturuldu, 5 dosyadaki os.getenv() kaldırıldı
@@ -256,8 +237,53 @@ Sonuç: 145 → 173 test (+28)
 
 Sonuç: 173 → 180 test (+7)
 
-### Beyond v1.6 — Kasıtlı Kapsam Dışı
-JWT auth, WebSocket, NTV Playwright scraper, K8s/Helm, Qdrant migration, CQRS, Next.js rewrite — bu ölçek için fayda/maliyet uygun değil.
+---
+
+## SIRADAKİ GÖREVLER (v1.7 → v2.0 Yol Haritası)
+
+Detaylı plan: `C:\Users\eren8\.claude\plans\ancient-watching-crescent.md`
+
+Sonraki oturumu başlatmak için: **"v1.7 implementasyonuna başlayalım — plan dosyasını oku, CLAUDE.md'deki yol haritasını takip et."**
+
+### v1.7.0 — Kullanıcı Etkileşimi & API Ürünü (~12-15 gün)
+1. **WebSocket canlı akış** — `/ws/feed` endpoint, `NotificationPort` + `WebSocketNotifier` adapter, dashboard canlı ticker
+2. **Email Newsletter & Keyword Alert** — günlük digest (top 10 haber), keyword aboneliği, Resend/Brevo free tier
+3. **Public API v1** — `/api/v1/` prefix, cursor-based pagination, self-service API key üretimi, `X-RateLimit-*` header'ları
+4. **RSS/Atom feed çıktısı** — `/feed.xml` analiz edilmiş haberler, sentiment + topic tag'leri
+5. **Kullanıcı tercihleri** — API key'e bağlı kaynak/konu/dil/digest ayarları
+
+Beklenen: 180 → ~215 test (+35)
+
+### v1.8.0 — AI & Veri Kalitesi (~14-18 gün)
+1. **Kaynak genişletme** — Reuters, Guardian Tech, TechCrunch, Hacker News, Anadolu Ajansı, Ekonomist (5-8 yeni RSS)
+2. **Haber ilişki grafı** — `GET /news/{id}/related`, entity overlap ile ilgili haberler, dashboard'da "İlgili haberler"
+3. **Kaynak güvenilirlik skorlaması** — çapraz doğrulama, `credibility_score` + `corroboration_count`
+4. **Cloud LLM fallback** — Groq birincil, HuggingFace Inference API yedek (VPS'te çalışır, local değil), `FallbackAnalyzer`
+5. **İçerik kalite skorlama** — uzunluk, entity yoğunluğu, faktüel dil göstergeleri
+
+Beklenen: ~215 → ~255 test (+40)
+
+### v1.9.0 — Monetizasyon Temeli (~16-20 gün)
+1. **Hafif kullanıcı hesapları** — email + bcrypt, session token (JWT yok), profil
+2. **Katmanlı API erişimi** — Free (100 req/gün) / Pro ($9.99/ay, 2000 req/gün, WebSocket) / Enterprise ($49.99/ay, sınırsız)
+3. **Kullanım takibi & analytics** — user bazlı API log, admin endpoint, Grafana panel
+4. **Stripe ödeme** — Checkout + webhook + hosted billing portal
+5. **Redis cache katmanı** — trending (5dk), news list (1dk), session'lar
+6. **Newsletter sponsorluk alanı** — digest'te sponsor bölümü, admin panel
+
+Beklenen: ~255 → ~300 test (+45)
+
+### v2.0.0 — Public Launch (~10-14 gün)
+1. **Domain & VPS** — `nexstream.news`, Hetzner CX22 (€4.51/ay), Cloudflare CDN, UptimeRobot
+2. **Landing page** — Static HTML + Tailwind, Hero/Features/Pricing/Sign Up, TR/EN
+3. **API dökümantasyon portalı** — Swagger/Redoc, kullanım örnekleri, demo API key, Postman collection
+4. **SEO & içerik** — blog yazıları, OpenGraph, JSON-LD, sitemap.xml, Product Hunt launch
+5. **GitHub README overhaul** — Mermaid mimari diyagramı, dashboard GIF demo, badge'ler
+
+Beklenen: ~300 → ~320 test (+20)
+
+### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
+K8s/Helm, Qdrant migration, CQRS, Next.js rewrite, NTV Playwright scraper, Twitter/X entegrasyonu, custom billing portal
 
 ---
 
@@ -338,3 +364,4 @@ docker logs nexstream_chromadb --tail 20
 - `prometheus-fastapi-instrumentator` app'e eklendi, `/metrics` endpoint Prometheus format döndürür
 - `docker-compose.prod.yml` production için, `docker-compose.yml` dev için kullanılır
 - `infra/nginx/nginx.dev.conf` SSL olmadan local test için (nginx.conf SSL gerektirir)
+- Worker sıralı işleme: `asyncio.create_task` → `await` + 2sn throttle, Groq rate limit patlamasını önler
