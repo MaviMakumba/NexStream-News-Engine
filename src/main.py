@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from src.infrastructure.config.database import engine, Base
 from src.infrastructure.config.settings import settings
@@ -38,7 +39,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="NexStream News Engine API",
     description="Yapay Zeka Destekli Haber Motoru",
-    version="1.4.0",
+    version="1.6.0",
     lifespan=lifespan,
 )
 
@@ -56,6 +57,8 @@ app.add_middleware(
 
 app.include_router(news_router.router)
 app.include_router(health_router.router)
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 @app.get("/")

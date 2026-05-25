@@ -6,6 +6,7 @@ from src.domain.ports.news_repository_port import NewsRepositoryPort
 from src.domain.ports.analysis_port import AnalysisPort
 from src.domain.ports.scraper_port import NewsScraperPort
 from src.domain.models.article import Article
+from src.adapters.api.metrics import articles_processed_total
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,9 @@ class NewsService:
 
         saved_count = 0
         loop = asyncio.get_event_loop()
-        for article in new_articles:
+        for i, article in enumerate(new_articles):
+            if i > 0:
+                await asyncio.sleep(2)
             result = await loop.run_in_executor(None, self.analyzer.analyze_text, article.content)
 
             article.summary = result["summary"]
@@ -54,11 +57,14 @@ class NewsService:
             saved = self.repository.save_article(article)
             if saved:
                 saved_count += 1
+                articles_processed_total.labels(source=article.source, status="saved").inc()
                 if self.search_repository and article.id:
                     try:
                         self.search_repository.index_article(article)
                     except Exception as e:
                         logger.error("ChromaDB index hatası (PostgreSQL etkilenmedi): %s", e)
+            else:
+                articles_processed_total.labels(source=article.source, status="duplicate").inc()
 
         logger.info("Güncelleme bitti: %d/%d haber kaydedildi", saved_count, len(new_articles))
 

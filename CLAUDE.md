@@ -44,6 +44,7 @@ src/
 │   └── api/
 │       ├── auth.py               # verify_api_key() dependency (v1.3+)
 │       ├── limiter.py            # slowapi Limiter singleton (v1.3+)
+│       ├── metrics.py            # Prometheus custom metrics (v1.6+)
 │       └── routers/
 │           ├── news_router.py    # GET /news, /trending, POST /scrape, /search, /reindex, /sources
 │           └── health_router.py  # GET /health — DB + Kafka + ChromaDB durumu
@@ -68,24 +69,66 @@ tests/
 ├── adapters/test_chroma_search_repository.py
 ├── adapters/test_ner_prompt.py            # NER + topic Groq çıktısı (v1.5+)
 ├── adapters/test_semantic_dedup.py        # is_near_duplicate testleri (v1.5+)
-└── adapters/test_trending_endpoint.py     # Trending engine testleri (v1.5+)
+├── adapters/test_trending_endpoint.py     # Trending engine testleri (v1.5+)
+└── adapters/test_prometheus_metrics.py    # /metrics endpoint + custom counters (v1.6+)
+infra/
+├── nginx/
+│   ├── nginx.conf                         # Production: SSL, gzip, security headers, certbot
+│   └── nginx.dev.conf                     # Dev: HTTP-only, same routing
+├── prometheus/
+│   └── prometheus.yml                     # Scrape config: nexstream-api job
+├── grafana/
+│   ├── provisioning/
+│   │   ├── datasources/datasources.yml   # Prometheus + Loki auto-provisioned
+│   │   └── dashboards/dashboards.yml     # File-based dashboard provider
+│   └── dashboards/nexstream.json         # Pre-built panels: latency, articles, Groq, search
+├── loki/
+│   ├── loki-config.yml                   # TSDB schema, filesystem storage
+│   └── promtail-config.yml              # Docker SD, container labels
+└── backup/
+    ├── Dockerfile                         # Alpine + pg_dump + crond
+    ├── backup.sh                          # pg_dump + ChromaDB tar + retention cleanup
+    └── crontab                            # Daily 03:00 UTC
+docker-compose.prod.yml                    # Full production stack (16 services)
 ```
 
 ---
 
-## DOCKER SERVİSLER (docker-compose.yml)
+## DOCKER SERVİSLER
+
+### docker-compose.yml (geliştirme)
 
 | Servis | Port | Açıklama |
 |--------|------|----------|
 | app | 8000 | FastAPI |
-| db | 5432 (env) | PostgreSQL 15 |
+| db | — (internal) | PostgreSQL 15 |
 | adminer | 8080 | DB yönetim UI |
-| zookeeper | 2181 | Kafka koordinatör |
-| kafka | 9092 | Mesaj kuyruğu |
+| zookeeper | — (internal) | Kafka koordinatör |
+| kafka | — (internal) | Mesaj kuyruğu |
 | worker | — | Kafka consumer + Groq analyzer |
 | scheduler | — | 10dk'da bir scrape tetikler |
 | dashboard | 8501 | Streamlit |
-| chromadb | 8001 (host) / 8000 (container) | Vektör DB |
+| chromadb | — (internal) | Vektör DB |
+
+### docker-compose.prod.yml (production)
+
+| Servis | Port | Açıklama |
+|--------|------|----------|
+| nginx | 80, 443 | Reverse proxy + TLS termination |
+| certbot | — | Let's Encrypt otomatik yenileme |
+| app | — (internal) | FastAPI + /metrics endpoint |
+| db | — (internal) | PostgreSQL 15 |
+| zookeeper | — (internal) | Kafka koordinatör |
+| kafka | — (internal) | Mesaj kuyruğu |
+| worker | — (internal) | Kafka consumer + Groq analyzer |
+| scheduler | — (internal) | 10dk'da bir scrape tetikler |
+| dashboard | — (internal) | Streamlit (nginx üzerinden) |
+| chromadb | — (internal) | Vektör DB |
+| prometheus | — (monitoring) | Metric scraping, 30 gün retention |
+| grafana | — (via nginx) | Dashboard + alerting |
+| loki | — (monitoring) | Log aggregation |
+| promtail | — (monitoring) | Docker log collector |
+| backup | — (internal) | Günlük pg_dump + ChromaDB tar |
 
 Container içi Chroma bağlantısı: `http://chromadb:8000`
 Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
@@ -110,8 +153,8 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v1.5.0 tamamlandı — v1.6-dev sıradaki
-- **Test sayısı:** 173 test, hepsi yeşil
+- **Versiyon:** v1.6.0 tamamlandı
+- **Test sayısı:** 180 test, hepsi yeşil
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
 - **Branch:** main (tüm özellikler merge edildi)
 
@@ -205,16 +248,38 @@ Sonuç: 131 → 145 test (+14)
 
 Sonuç: 145 → 173 test (+28)
 
-### v1.6.0 — Production Deployment (~5-7 gün)
-1. **Nginx + HTTPS** — reverse proxy, Let's Encrypt, sadece 80/443 açık
-2. **Prometheus + Grafana + Loki** — metrics, dashboard, log aggregation
-3. **Backup otomasyonu** — pg_dump + ChromaDB volume, günde 1×
-4. **docker-compose.prod.yml** — resource limits, healthcheck'ler, restart policy
+### v1.6.0 — Production Deployment ✅ TAMAMLANDI
+1. **Nginx + HTTPS** — `infra/nginx/nginx.conf` reverse proxy (app + dashboard + grafana), gzip, security headers, Let's Encrypt certbot, sadece 80/443 açık
+2. **Prometheus + Grafana + Loki** — `infra/prometheus/`, `infra/grafana/`, `infra/loki/` tam observability stack; `prometheus-fastapi-instrumentator` ile `/metrics` endpoint; custom metrics: `nexstream_articles_processed_total`, `nexstream_groq_latency_seconds`, `nexstream_groq_rate_limit_total`, `nexstream_search_latency_seconds`
+3. **Backup otomasyonu** — `infra/backup/backup.sh` pg_dump + ChromaDB volume tar, günde 1× cron, 7 gün retention
+4. **docker-compose.prod.yml** — resource limits, healthcheck'ler, restart policy `always`, network isolation (backend internal, monitoring internal, frontend exposed), pre-provisioned Grafana datasources + dashboard
 
-Beklenen: ~130 → ~135 test
+Sonuç: 173 → 180 test (+7)
 
 ### Beyond v1.6 — Kasıtlı Kapsam Dışı
 JWT auth, WebSocket, NTV Playwright scraper, K8s/Helm, Qdrant migration, CQRS, Next.js rewrite — bu ölçek için fayda/maliyet uygun değil.
+
+---
+
+## PRODUCTION DEPLOYMENT NOTLARI (v1.6+)
+
+### İlk deployment adımları
+1. VPS'e (DigitalOcean/Hetzner/Oracle Free) Docker + Docker Compose kurulur
+2. `.env` dosyası production değerlerle oluşturulur (`API_KEY`, `GRAFANA_PASSWORD` güçlü değerler)
+3. SSL sertifikası: `infra/nginx/ssl/` dizinine self-signed cert koy, sonra certbot ile değiştir
+4. `docker-compose -f docker-compose.prod.yml up -d`
+5. Certbot ilk çalıştırma: `docker-compose -f docker-compose.prod.yml exec certbot certbot certonly --webroot -w /var/www/certbot -d your-domain.com`
+
+### Gözlemlenebilirlik
+- Grafana: `https://your-domain/grafana/` (admin/nexstream varsayılan)
+- Pre-provisioned datasources: Prometheus + Loki
+- NexStream dashboard: request latency, articles/min, Groq latency/rate limits, search latency
+- Worker logları: Grafana → Explore → Loki → `{service="worker"}`
+
+### Backup
+- Günlük 03:00 UTC: PostgreSQL pg_dump + ChromaDB tar
+- `/backups` volume'unda 7 gün retention
+- Manuel tetikleme: `docker exec nexstream_backup /usr/local/bin/backup.sh`
 
 ---
 
@@ -270,3 +335,6 @@ docker logs nexstream_chromadb --tail 20
 - `docker-compose down -v` sonrası ChromaDB da sıfırlanır
 - Dashboard sidebar kaldırıldı, tüm kontroller üst bar'da
 - README UTF-8 BOM'suz olarak yeniden yazıldı (önceki versiyon UTF-16 idi, GitHub'da bozuk görünüyordu)
+- `prometheus-fastapi-instrumentator` app'e eklendi, `/metrics` endpoint Prometheus format döndürür
+- `docker-compose.prod.yml` production için, `docker-compose.yml` dev için kullanılır
+- `infra/nginx/nginx.dev.conf` SSL olmadan local test için (nginx.conf SSL gerektirir)

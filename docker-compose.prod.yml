@@ -1,0 +1,386 @@
+services:
+  # ─── REVERSE PROXY ─────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: nexstream_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/ssl:/etc/nginx/ssl:ro
+      - certbot_webroot:/var/www/certbot:ro
+    depends_on:
+      app:
+        condition: service_healthy
+      dashboard:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+    networks:
+      - frontend
+      - backend
+
+  # ─── CERTBOT (Let's Encrypt) ──────────────────────────────────
+  certbot:
+    image: certbot/certbot
+    container_name: nexstream_certbot
+    volumes:
+      - ./infra/nginx/ssl:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - frontend
+
+  # ─── FASTAPI APP ───────────────────────────────────────────────
+  app:
+    build: .
+    container_name: nexstream_engine
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_HOST=kafka
+      - KAFKA_PORT=29092
+      - API_KEY=${API_KEY}
+      - LOG_FORMAT=json
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+    labels:
+      logging: "promtail"
+    networks:
+      - backend
+      - frontend
+
+  # ─── DATABASE ──────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: nexstream_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    networks:
+      - backend
+
+  # ─── ZOOKEEPER ─────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: nexstream_zookeeper
+    restart: always
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD-SHELL", "echo srvr | nc localhost 2181 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    networks:
+      - backend
+
+  # ─── KAFKA ─────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: nexstream_kafka
+    restart: always
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:29092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    networks:
+      - backend
+
+  # ─── WORKER ────────────────────────────────────────────────────
+  worker:
+    build: .
+    container_name: nexstream_worker
+    restart: always
+    depends_on:
+      kafka:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    command: python -m src.adapters.messaging.kafka_consumer
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+    labels:
+      logging: "promtail"
+    networks:
+      - backend
+
+  # ─── SCHEDULER ────────────────────────────────────���────────────
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.light
+    container_name: nexstream_scheduler
+    restart: always
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: python -m src.adapters.scheduling.scheduler_service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - SCRAPE_SOURCES=TRT Haber,BBC Türkçe,Hürriyet,Hürriyet Spor,Sabah,CNN Türk,Sözcü,Habertürk,HT Spor,BBC Technology,BBC Sport
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+    labels:
+      logging: "promtail"
+    networks:
+      - backend
+
+  # ─── DASHBOARD ─────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.light
+    container_name: nexstream_dashboard
+    restart: always
+    command: streamlit run dashboard/app.py --server.port=8501 --server.address=0.0.0.0
+    environment:
+      - API_BASE=http://app:8000
+      - API_KEY=${API_KEY}
+    depends_on:
+      app:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    labels:
+      logging: "promtail"
+    networks:
+      - frontend
+      - backend
+
+  # ─── CHROMADB ──────────────────────────────────────────────────
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: nexstream_chromadb
+    restart: always
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/heartbeat', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    networks:
+      - backend
+
+  # ─── PROMETHEUS ────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: nexstream_prometheus
+    restart: always
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    networks:
+      - monitoring
+      - backend
+
+  # ─── GRAFANA ───────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: nexstream_grafana
+    restart: always
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-nexstream}
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    networks:
+      - monitoring
+      - frontend
+
+  # ─── LOKI ──────────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:latest
+    container_name: nexstream_loki
+    restart: always
+    volumes:
+      - ./infra/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    networks:
+      - monitoring
+
+  # ─── PROMTAIL ──────────────────────────────────────────────────
+  promtail:
+    image: grafana/promtail:latest
+    container_name: nexstream_promtail
+    restart: always
+    volumes:
+      - ./infra/loki/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+    networks:
+      - monitoring
+      - backend
+
+  # ─── BACKUP ────────────────────────────────────────────────────
+  backup:
+    build: ./infra/backup
+    container_name: nexstream_backup
+    restart: always
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - RETENTION_DAYS=7
+    volumes:
+      - chroma_data:/chroma-data:ro
+      - backup_data:/backups
+      - ./infra/backup/crontab:/var/spool/cron/crontabs/root:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    networks:
+      - backend
+
+volumes:
+  postgres_data:
+  chroma_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  backup_data:
+  certbot_webroot:
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true
+  monitoring:
+    driver: bridge
+    internal: true

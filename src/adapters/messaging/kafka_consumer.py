@@ -52,7 +52,7 @@ async def consume():
                 logger.warning("Bilinmeyen kaynak: %s", source)
                 continue
             logger.info("İşleniyor: %s", source)
-            asyncio.create_task(_process(scraper))
+            await _process(scraper)
     except Exception as e:
         logger.error("Worker hatası: %s", e)
     finally:
