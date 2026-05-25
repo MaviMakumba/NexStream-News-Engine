@@ -4,6 +4,7 @@ import re
 import time
 from src.domain.ports.analysis_port import AnalysisPort
 from src.infrastructure.config.settings import settings
+from src.adapters.api.metrics import groq_latency_seconds, groq_rate_limit_total
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +50,12 @@ Respond with JSON only, no markdown, no explanation."""
 
         for attempt in range(5):
             try:
+                start = time.time()
                 r = requests.post(self.api_url, headers=headers, json=payload, timeout=30)
+                groq_latency_seconds.observe(time.time() - start)
 
                 if r.status_code == 429:
+                    groq_rate_limit_total.inc()
                     wait = int(r.headers.get("retry-after", 5))
                     logger.warning("Groq rate limit, %ds bekleniyor...", wait)
                     time.sleep(wait)

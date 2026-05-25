@@ -1,3 +1,5 @@
+import time
+
 from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from typing import List, Optional
 
@@ -7,6 +9,7 @@ from src.application.services.news_service import NewsService
 from src.dependencies import get_news_service, get_message_publisher
 from src.adapters.api.auth import verify_api_key
 from src.adapters.api.limiter import limiter
+from src.adapters.api.metrics import search_latency_seconds
 
 router = APIRouter(prefix="/news", tags=["News"])
 
@@ -43,7 +46,10 @@ def search_news(
     body: SearchRequest,
     service: NewsService = Depends(get_news_service),
 ):
-    return service.hybrid_search(body.query, body.n_results, body.source, body.sentiment)
+    start = time.time()
+    results = service.hybrid_search(body.query, body.n_results, body.source, body.sentiment)
+    search_latency_seconds.observe(time.time() - start)
+    return results
 
 
 @router.get("/trending", response_model=TrendingResponse)
