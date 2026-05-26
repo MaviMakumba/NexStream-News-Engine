@@ -153,8 +153,8 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v1.7.0 (kısmi) — WebSocket, API v1, RSS feed tamamlandı; Newsletter + kullanıcı tercihleri sıradaki
-- **Test sayısı:** 196 test, hepsi yeşil
+- **Versiyon:** v1.7.0 ✅ TAMAMLANDI — WebSocket, API v1, RSS feed, Email Newsletter & Keyword Alert hepsi bitti
+- **Test sayısı:** 217 test, hepsi yeşil
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
 - **Branch:** main (tüm özellikler merge edildi)
 - **Hedef:** CV/portfolio projesi → canlı ürüne geçiş (ücretsiz başla, gelir varsa harca)
@@ -237,22 +237,28 @@ Sonuç: 145 → 173 test (+28)
 
 Sonuç: 173 → 180 test (+7)
 
+### v1.7.0 — Kullanıcı Etkileşimi & API Ürünü ✅ TAMAMLANDI
+1. **WebSocket canlı akış** — `/ws/feed` endpoint, `WebSocketNotifier` adapter, dashboard canlı ticker, DB polling broadcast task
+2. **Email Newsletter & Keyword Alert** — `ConsoleEmailAdapter` + `ResendEmailAdapter` (Resend API), günlük digest (top 10 haber, `newsletter_job.py`), instant keyword alert (`_send_keyword_alerts`), `Subscriber` domain model + `SubscriberRepositoryPort` + PostgreSQL adapter
+3. **Public API v1** — `/api/v1/news`, cursor-based pagination, `X-RateLimit-*` header'ları
+4. **RSS/Atom feed** — `/feed.xml`, `feedgen` kütüphanesi, sentiment + topic tag'leri
+5. **Kullanıcı abonelik API'si** — `POST/DELETE/PATCH/GET /subscriptions/`, email-validator, frekans (daily/instant/never), keyword/kaynak/konu tercihleri
+6. **Türkçe arama iyileştirmesi** — morfolojik suffix stripping (`_TR_SUFFIXES`), `_stem_tr()`, `_tokenize()` token genişletme
+7. **Tema güncellemesi** — Snow/Sand kaldırıldı, Dusk (Catppuccin) + Ocean (navy-teal) eklendi
+8. **Teknik iyileştirmeler** — Kafka singleton (`startup_done` flag), health router singleton, JSON logging (print → logger), README UTF-8 düzeltmesi
+
+Sonuç: 180 → 217 test (+37)
+
 ---
 
 ## SIRADAKİ GÖREVLER (v1.7 → v2.0 Yol Haritası)
 
 Detaylı plan: `C:\Users\eren8\.claude\plans\ancient-watching-crescent.md`
 
-Sonraki oturumu başlatmak için: **"v1.7 implementasyonuna başlayalım — plan dosyasını oku, CLAUDE.md'deki yol haritasını takip et."**
+Sonraki oturumu başlatmak için: **"v1.8 implementasyonuna başlayalım — CLAUDE.md'deki yol haritasını takip et."**
 
-### v1.7.0 — Kullanıcı Etkileşimi & API Ürünü (~12-15 gün)
-1. **WebSocket canlı akış** — `/ws/feed` endpoint, `NotificationPort` + `WebSocketNotifier` adapter, dashboard canlı ticker
-2. **Email Newsletter & Keyword Alert** — günlük digest (top 10 haber), keyword aboneliği, Resend/Brevo free tier
-3. **Public API v1** — `/api/v1/` prefix, cursor-based pagination, self-service API key üretimi, `X-RateLimit-*` header'ları
-4. **RSS/Atom feed çıktısı** — `/feed.xml` analiz edilmiş haberler, sentiment + topic tag'leri
-5. **Kullanıcı tercihleri** — API key'e bağlı kaynak/konu/dil/digest ayarları
-
-Beklenen: 180 → ~215 test (+35)
+### v1.7.0 — Kullanıcı Etkileşimi & API Ürünü ✅ TAMAMLANDI
+Sonuç: 180 → 217 test (+37). Detaylar yukarıdaki tamamlanan milestone'larda.
 
 ### v1.8.0 — AI & Veri Kalitesi (~14-18 gün)
 1. **Kaynak genişletme** — Reuters, Guardian Tech, TechCrunch, Hacker News, Anadolu Ajansı, Ekonomist (5-8 yeni RSS)

@@ -17,7 +17,8 @@ def app_client():
          patch("src.infrastructure.config.database.Base") as mock_base, \
          patch("src.adapters.messaging.kafka_publisher.KafkaPublisherAdapter") as mock_kafka, \
          patch("src.dependencies.get_search_repository"), \
-         patch("src.main._broadcast_new_articles", side_effect=_noop_broadcast):
+         patch("src.main._broadcast_new_articles", side_effect=_noop_broadcast), \
+         patch("src.main.run_newsletter_job", side_effect=_noop_broadcast):
         mock_base.metadata.create_all = MagicMock()
 
         mock_kafka_instance = AsyncMock()

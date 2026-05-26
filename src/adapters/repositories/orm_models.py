@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, Index
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy.dialects.postgresql import JSON, JSONB
 from sqlalchemy.sql import func
 from src.infrastructure.config.database import Base
 
@@ -25,3 +25,20 @@ class NewsORM(Base):
     entities = Column(JSON, nullable=True)
     topic = Column(String(30), nullable=True)
     is_duplicate = Column(Boolean, nullable=False, server_default="false")
+
+
+class SubscriberORM(Base):
+    __tablename__ = "subscribers"
+    __table_args__ = (
+        Index("ix_subscribers_active", "is_active"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    keywords = Column(JSON, nullable=False, server_default="'[]'")
+    preferred_sources = Column(JSON, nullable=False, server_default="'[]'")
+    preferred_topics = Column(JSON, nullable=False, server_default="'[]'")
+    language = Column(String(10), nullable=False, server_default="'TR'")
+    frequency = Column(String(20), nullable=False, server_default="'daily'")
+    is_active = Column(Boolean, nullable=False, server_default="true")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

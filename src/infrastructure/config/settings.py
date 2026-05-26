@@ -39,5 +39,10 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = "*"
 
+    # Email (newsletter / alerts)
+    resend_api_key: str = ""          # if empty, falls back to console (log only)
+    email_from: str = "NexStream <no-reply@nexstream.news>"
+    newsletter_hour_utc: int = 5      # daily digest send time (05:00 UTC = 08:00 TR)
+
 
 settings = Settings()
