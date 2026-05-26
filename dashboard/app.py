@@ -66,21 +66,21 @@ THEMES = {
         "pos_bg": "#0c2017", "neg_bg": "#2d1515", "neu_bg": "#2a1f08",
         "grid": "#1a1825",
     },
-    "Snow": {
-        "bg": "#ffffff", "surface": "#f6f8fa", "border": "#d0d7de",
-        "border2": "#b0b8c1", "text": "#1f2328", "text2": "#59636e",
-        "text3": "#8b949e", "accent": "#0969da",
-        "pos": "#1a7f37", "neg": "#cf222e", "neu": "#bf8700",
-        "pos_bg": "#dafbe1", "neg_bg": "#ffebe9", "neu_bg": "#fff8c5",
-        "grid": "#f0f3f6",
+    "Dusk": {
+        "bg": "#1e1e2e", "surface": "#27273a", "border": "#393952",
+        "border2": "#4a4a68", "text": "#cdd6f4", "text2": "#a6adc8",
+        "text3": "#6c7086", "accent": "#cba6f7",
+        "pos": "#a6e3a1", "neg": "#f38ba8", "neu": "#f9e2af",
+        "pos_bg": "#0a2010", "neg_bg": "#2a0a14", "neu_bg": "#241c08",
+        "grid": "#27273a",
     },
-    "Sand": {
-        "bg": "#faf7f2", "surface": "#f0ebe3", "border": "#d5cdc2",
-        "border2": "#b8ad9e", "text": "#2c2417", "text2": "#6b5d4f",
-        "text3": "#9a8b7a", "accent": "#b35900",
-        "pos": "#2d7a3a", "neg": "#c4320a", "neu": "#9a6700",
-        "pos_bg": "#e6f6e8", "neg_bg": "#fde8e3", "neu_bg": "#fef3cd",
-        "grid": "#ece5db",
+    "Ocean": {
+        "bg": "#071e35", "surface": "#0d2b47", "border": "#163854",
+        "border2": "#1e4a6c", "text": "#b8d4ea", "text2": "#7098b8",
+        "text3": "#3a6080", "accent": "#22d3ee",
+        "pos": "#34d399", "neg": "#f87171", "neu": "#fbbf24",
+        "pos_bg": "#05281a", "neg_bg": "#280a12", "neu_bg": "#221a06",
+        "grid": "#0d2b47",
     },
 }
 
@@ -199,7 +199,7 @@ LANGS = {
 
 # ── SESSION STATE ─────────────────────────────────────────────────────────────
 for k, v in [
-    ("theme", "Midnight"), ("lang", "TR"), ("limit", 50), ("refresh_sec", 0),
+    ("theme", "Midnight"), ("lang", "TR"), ("limit", 50),
     ("search_results", None), ("search_error", None),
     ("search_history", []), ("pending_query", None), ("pending_n", 10),
 ]:
@@ -542,20 +542,9 @@ with h3:
         st.segmented_control(
             L["limit_label"],
             [25, 50, 100, 200],
-            default=st.session_state.limit,
             key="limit",
         )
 
-        _refresh_options = {L["refresh_off"]: 0, "30s": 30, "1m": 60, "5m": 300}
-        _refresh_labels = list(_refresh_options.keys())
-        _current_refresh_label = next((k for k, v in _refresh_options.items() if v == st.session_state.refresh_sec), L["refresh_off"])
-        _sel_refresh = st.segmented_control(
-            L["refresh_lbl"],
-            _refresh_labels,
-            default=_current_refresh_label,
-        )
-        if _sel_refresh:
-            st.session_state.refresh_sec = _refresh_options.get(_sel_refresh, 0)
 
 st.markdown('<div class="nx-divider"></div>', unsafe_allow_html=True)
 
@@ -917,8 +906,7 @@ else:
             if st.button("›", key=f"d_{i}", help=L["detail_full"]):
                 show_detail(row.to_dict())
 
-# ── OTOMATİK YENİLEME ────────────────────────────────────────────────────────
-if st.session_state.refresh_sec > 0:
-    time.sleep(st.session_state.refresh_sec)
-    st.cache_data.clear()
-    st.rerun()
+# ── OTOMATİK YENİLEME (her zaman 60s) ───────────────────────────────────────
+time.sleep(60)
+st.cache_data.clear()
+st.rerun()

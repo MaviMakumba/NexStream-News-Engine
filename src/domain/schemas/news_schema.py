@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 
 class ScrapeCommand(BaseModel):
@@ -39,6 +39,12 @@ class NewsResponse(BaseModel):
     is_duplicate: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class NewsPage(BaseModel):
+    items: List[NewsResponse]
+    next_cursor: Optional[int] = None
+    count: int
 
 
 class TrendingEntity(BaseModel):

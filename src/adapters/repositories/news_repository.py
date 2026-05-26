@@ -124,8 +124,31 @@ class NewsRepository(NewsRepositoryPort):
         )
         return [self._to_domain(row) for row in rows]
 
-    def keyword_search(self, query: str, limit: int = 10, source: Optional[str] = None, sentiment: Optional[str] = None) -> List[Article]:
-        words = [w for w in re.findall(r"\w+", query.lower()) if len(w) >= 2]
+    def get_articles_after_id(self, article_id: int, limit: int = 20) -> List[Article]:
+        rows = (
+            self.db.query(NewsORM)
+            .filter(NewsORM.id > article_id)
+            .order_by(NewsORM.id.asc())
+            .limit(limit)
+            .all()
+        )
+        return [self._to_domain(row) for row in rows]
+
+    def get_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None) -> List[Article]:
+        q = self.db.query(NewsORM)
+        if before_id is not None:
+            q = q.filter(NewsORM.id < before_id)
+        if source:
+            q = q.filter(NewsORM.source == source)
+        if sentiment:
+            q = q.filter(NewsORM.sentiment_label.ilike(f"%{sentiment}%"))
+        if topic:
+            q = q.filter(NewsORM.topic == topic)
+        rows = q.order_by(NewsORM.id.desc()).limit(limit).all()
+        return [self._to_domain(row) for row in rows]
+
+    def keyword_search(self, query: str, limit: int = 10, source: Optional[str] = None, sentiment: Optional[str] = None, terms: Optional[List[str]] = None) -> List[Article]:
+        words = terms if terms is not None else [w for w in re.findall(r"\w+", query.lower()) if len(w) >= 2]
         if not words:
             return []
 

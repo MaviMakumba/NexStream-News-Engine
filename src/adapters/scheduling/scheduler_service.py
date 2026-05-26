@@ -39,7 +39,7 @@ async def main():
             await asyncio.sleep(5)
 
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(send_scrape_command, 'interval', minutes=10)
+    scheduler.add_job(send_scrape_command, 'interval', minutes=10, misfire_grace_time=120, coalesce=True)
     scheduler.start()
     logger.info("Scheduler başladı (10dk aralık).")
     await send_scrape_command()

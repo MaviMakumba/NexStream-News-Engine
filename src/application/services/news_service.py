@@ -13,6 +13,32 @@ logger = logging.getLogger(__name__)
 
 # Hybrid search ağırlıkları
 _FIELD_WEIGHTS = {"title": 0.9, "summary": 0.7, "content": 0.5}
+
+# Turkish nominal suffixes ordered longest-first so we always strip the longest match.
+# Enables queries like "beşiktaşın hocası" to match articles containing "beşiktaş hocası".
+_TR_SUFFIXES = (
+    "larından", "lerinden",
+    "lardan", "lerden", "larla", "lerle",
+    "larda", "lerde", "lara", "lere", "ların", "lerin",
+    "ından", "inden", "undan", "ünden",
+    "ları", "leri",
+    "ndan", "nden", "ında", "inde", "unda", "ünde",
+    "lar", "ler",
+    "nda", "nde", "nın", "nin", "nun", "nün",
+    "ına", "ine", "una", "üne",
+    "ını", "ini", "unu", "ünü",
+    "dan", "den", "tan", "ten",
+    "yla", "yle",
+    "nı", "ni", "nu", "nü",
+    "na", "ne",
+    "ya", "ye", "yı", "yi", "yu", "yü",
+    "da", "de", "ta", "te",
+    "la", "le",
+    "li", "lı", "lu", "lü",
+    "sı", "si", "su", "sü",
+    "ın", "in", "un", "ün",
+    "ı", "i", "u", "ü",
+)
 _DOUBLE_HIT_BONUS = 0.10
 _CANDIDATE_MULTIPLIER = 3
 _MIN_CANDIDATES = 20
@@ -36,7 +62,7 @@ class NewsService:
         logger.info("%s: %d/%d yeni haber analiz edilecek", scraper.__class__.__name__, len(new_articles), len(articles))
 
         saved_count = 0
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         for i, article in enumerate(new_articles):
             if i > 0:
                 await asyncio.sleep(2)
@@ -73,6 +99,7 @@ class NewsService:
 
     def hybrid_search(self, query: str, n_results: int = 10, source: str = None, sentiment: str = None) -> list[dict]:
         candidate_size = min(max(n_results * _CANDIDATE_MULTIPLIER, _MIN_CANDIDATES), _MAX_CANDIDATES)
+        query_terms = self._tokenize(query)  # includes Turkish stems for better recall
 
         semantic_by_id: dict = {}
         if self.search_repository:
@@ -83,12 +110,12 @@ class NewsService:
                 logger.error(f"Semantik arama hatası: {e}")
 
         try:
-            keyword_articles = self.repository.keyword_search(query, candidate_size, source, sentiment)
+            keyword_articles = self.repository.keyword_search(
+                query, candidate_size, source, sentiment, terms=query_terms
+            )
         except Exception as e:
             logger.error(f"Keyword arama hatası: {e}")
             keyword_articles = []
-
-        query_terms = self._tokenize(query)
         keyword_by_id: dict = {}
         for article in keyword_articles:
             relevance = self._keyword_relevance(article, query_terms)
@@ -122,8 +149,23 @@ class NewsService:
         return combined[:n_results]
 
     @staticmethod
+    def _stem_tr(word: str) -> str:
+        for suffix in _TR_SUFFIXES:
+            if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+                return word[:-len(suffix)]
+        return word
+
+    @staticmethod
     def _tokenize(query: str) -> List[str]:
-        return [w for w in re.findall(r"\w+", query.lower()) if len(w) >= 2]
+        tokens = [w for w in re.findall(r"\w+", query.lower()) if len(w) >= 2]
+        seen: set = set(tokens)
+        expanded = list(tokens)
+        for t in tokens:
+            stem = NewsService._stem_tr(t)
+            if stem != t and stem not in seen:
+                seen.add(stem)
+                expanded.append(stem)
+        return expanded
 
     @staticmethod
     def _keyword_relevance(article: Article, query_terms: List[str]) -> float:
@@ -181,6 +223,9 @@ class NewsService:
                 for name, count in top
             ],
         }
+
+    def list_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None) -> List[Article]:
+        return self.repository.get_news_paginated(limit, before_id, source, sentiment, topic)
 
     def reanalyze_missed(self, limit: int = 5) -> int:
         articles = self.repository.get_unanalyzed_articles(limit)
