@@ -16,8 +16,10 @@ from src.adapters.api.routers import news_router, health_router
 from src.adapters.api.routers.websocket_router import router as ws_router
 from src.adapters.api.routers.feed_router import router as feed_router
 from src.adapters.api.routers.v1.news_router_v1 import router as v1_router
+from src.adapters.api.routers.subscription_router import router as subscription_router
 from src.adapters.messaging.kafka_publisher import KafkaPublisherAdapter
 from src.adapters.notifications.websocket_notifier import WebSocketNotifier
+from src.adapters.scheduling.newsletter_job import run_newsletter_job
 from src.dependencies import set_message_publisher, get_search_repository, set_notifier
 
 setup_logging()
@@ -77,13 +79,18 @@ async def lifespan(app: FastAPI):
     broadcast_task = asyncio.create_task(_broadcast_new_articles(notifier))
     log.info("WebSocket broadcast poller başladı.")
 
+    newsletter_task = asyncio.create_task(run_newsletter_job())
+    log.info("Newsletter job başlatıldı.")
+
     yield
 
     broadcast_task.cancel()
-    try:
-        await broadcast_task
-    except asyncio.CancelledError:
-        pass
+    newsletter_task.cancel()
+    for task in (broadcast_task, newsletter_task):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     await kafka_adapter.stop()
     log.info("Servisler kapatıldı.")
 
@@ -112,6 +119,7 @@ app.include_router(health_router.router)
 app.include_router(ws_router)
 app.include_router(feed_router)
 app.include_router(v1_router)
+app.include_router(subscription_router)
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
@@ -124,6 +132,7 @@ def root():
         "v1_api": "/api/v1/news",
         "rss_feed": "/feed.xml",
         "websocket": "/ws/feed",
+        "subscriptions": "/subscriptions",
     }
 
 

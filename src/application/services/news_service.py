@@ -7,7 +7,10 @@ from src.domain.ports.analysis_port import AnalysisPort
 from src.domain.ports.scraper_port import NewsScraperPort
 from src.domain.models.article import Article
 from src.adapters.api.metrics import articles_processed_total
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.domain.ports.email_port import EmailPort
+    from src.domain.ports.subscriber_port import SubscriberRepositoryPort
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +50,19 @@ _MAX_CANDIDATES = 50
 
 class NewsService:
 
-    def __init__(self, repository: NewsRepositoryPort, analyzer: AnalysisPort, search_repository=None):
+    def __init__(
+        self,
+        repository: NewsRepositoryPort,
+        analyzer: AnalysisPort,
+        search_repository=None,
+        subscriber_repository: Optional["SubscriberRepositoryPort"] = None,
+        email_port: Optional["EmailPort"] = None,
+    ):
         self.repository = repository
         self.analyzer = analyzer
         self.search_repository = search_repository
+        self.subscriber_repository = subscriber_repository
+        self.email_port = email_port
 
     async def update_news_from_source(self, scraper: NewsScraperPort):
         logger.info("Güncelleme başladı: %s", scraper.__class__.__name__)
@@ -89,6 +101,11 @@ class NewsService:
                         self.search_repository.index_article(article)
                     except Exception as e:
                         logger.error("ChromaDB index hatası (PostgreSQL etkilenmedi): %s", e)
+                if self.subscriber_repository and self.email_port:
+                    try:
+                        self._send_keyword_alerts(article)
+                    except Exception as e:
+                        logger.warning("Keyword alert hatası: %s", e)
             else:
                 articles_processed_total.labels(source=article.source, status="duplicate").inc()
 
@@ -223,6 +240,18 @@ class NewsService:
                 for name, count in top
             ],
         }
+
+    def _send_keyword_alerts(self, article: Article) -> None:
+        if self.subscriber_repository is None or self.email_port is None:
+            return
+        text = f"{article.title} {article.summary or ''} {article.content[:500]}".lower()
+        for sub in self.subscriber_repository.get_active_subscribers():
+            if sub.frequency != "instant" or not sub.keywords:
+                continue
+            for kw in sub.keywords:
+                if kw.lower() in text:
+                    self.email_port.send_alert(sub.email, article, kw)
+                    break  # one alert per article per subscriber
 
     def list_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None) -> List[Article]:
         return self.repository.get_news_paginated(limit, before_id, source, sentiment, topic)

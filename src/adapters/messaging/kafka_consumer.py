@@ -7,20 +7,20 @@ from src.infrastructure.config.database import SessionLocal
 from src.infrastructure.config.settings import settings
 from src.infrastructure.logging.logger import setup_logging
 from src.adapters.repositories.news_repository import NewsRepository
+from src.adapters.repositories.subscriber_repository import SubscriberRepository
 from src.adapters.analysis.groq_analyzer import GroqAnalyzer
 from src.adapters.scrapers.registry import SCRAPER_REGISTRY
 from src.adapters.search.chroma_search_repository import ChromaSearchRepository
+from src.adapters.notifications.email_adapter import get_email_adapter, EmailPort
 from src.application.services.news_service import NewsService
 
 logger = logging.getLogger(__name__)
 
-# Module-level singleton — avoids creating a new HttpClient + collection lookup per message.
-# ChromaDB's HttpClient is stateless (pure REST); if ChromaDB restarts the same object
-# continues to work. After `docker-compose down -v` the worker itself is restarted by Docker.
 _search_repo: Optional[ChromaSearchRepository] = None
+_email_adapter: Optional[EmailPort] = None
 
 
-def _get_search_repo() -> ChromaSearchRepository | None:
+def _get_search_repo() -> Optional[ChromaSearchRepository]:
     global _search_repo
     if _search_repo is None:
         try:
@@ -30,12 +30,26 @@ def _get_search_repo() -> ChromaSearchRepository | None:
     return _search_repo
 
 
+def _get_email_adapter() -> EmailPort:
+    global _email_adapter
+    if _email_adapter is None:
+        _email_adapter = get_email_adapter()
+    return _email_adapter
+
+
 async def _process(scraper):
     db = SessionLocal()
     try:
         repo = NewsRepository(db)
         analyzer = GroqAnalyzer()
-        service = NewsService(repository=repo, analyzer=analyzer, search_repository=_get_search_repo())
+        sub_repo = SubscriberRepository(db)
+        service = NewsService(
+            repository=repo,
+            analyzer=analyzer,
+            search_repository=_get_search_repo(),
+            subscriber_repository=sub_repo,
+            email_port=_get_email_adapter(),
+        )
         await service.update_news_from_source(scraper)
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, service.reanalyze_missed, 3)
