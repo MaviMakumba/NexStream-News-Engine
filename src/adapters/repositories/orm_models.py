@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, Index, text
 from sqlalchemy.dialects.postgresql import JSON, JSONB
 from sqlalchemy.sql import func
 from src.infrastructure.config.database import Base
@@ -35,10 +35,10 @@ class SubscriberORM(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
-    keywords = Column(JSON, nullable=False, server_default="'[]'")
-    preferred_sources = Column(JSON, nullable=False, server_default="'[]'")
-    preferred_topics = Column(JSON, nullable=False, server_default="'[]'")
-    language = Column(String(10), nullable=False, server_default="'TR'")
-    frequency = Column(String(20), nullable=False, server_default="'daily'")
-    is_active = Column(Boolean, nullable=False, server_default="true")
+    keywords = Column(JSON, nullable=False, server_default=text("'[]'"))
+    preferred_sources = Column(JSON, nullable=False, server_default=text("'[]'"))
+    preferred_topics = Column(JSON, nullable=False, server_default=text("'[]'"))
+    language = Column(String(10), nullable=False, server_default=text("'TR'"))
+    frequency = Column(String(20), nullable=False, server_default=text("'daily'"))
+    is_active = Column(Boolean, nullable=False, server_default=text("true"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
