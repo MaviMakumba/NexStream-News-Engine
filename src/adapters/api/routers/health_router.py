@@ -1,5 +1,6 @@
 import logging
 import socket
+from typing import Optional
 from fastapi import APIRouter
 from sqlalchemy import text
 from src.infrastructure.config.database import SessionLocal
@@ -8,6 +9,17 @@ import chromadb
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Health"])
+
+# Module-level singleton — avoids creating a new HttpClient on every health check.
+# Reset to None on exception so the next request retries the connection.
+_chroma_client: Optional[chromadb.HttpClient] = None
+
+
+def _get_chroma_client() -> chromadb.HttpClient:
+    global _chroma_client
+    if _chroma_client is None:
+        _chroma_client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+    return _chroma_client
 
 
 def _check_db() -> str:
@@ -32,19 +44,21 @@ def _check_kafka() -> str:
 
 
 def _check_chromadb() -> tuple[str, int]:
+    global _chroma_client
     try:
-        client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+        client = _get_chroma_client()
         collection = client.get_or_create_collection("news_articles")
         return "ok", collection.count()
     except Exception as e:
+        _chroma_client = None  # reset so next call retries
         logger.error("ChromaDB health check hatası: %s", e)
         return "error", 0
 
 
 @router.get("/health")
 def health_check():
-    db_status             = _check_db()
-    kafka_status          = _check_kafka()
+    db_status              = _check_db()
+    kafka_status           = _check_kafka()
     chroma_status, indexed = _check_chromadb()
 
     all_ok = all(s == "ok" for s in [db_status, kafka_status, chroma_status])

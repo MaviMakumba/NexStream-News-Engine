@@ -202,8 +202,9 @@ def test_hybrid_search_passes_filters_to_both():
     service.hybrid_search("filtreli", n_results=3, source="TRT Haber", sentiment="Positive")
 
     # candidate_size = max(3*3, 20) = 20
+    # "filtreli" → stem strips "-li" → "filtre"; terms == ["filtreli", "filtre"]
     mock_search.search.assert_called_once_with("filtreli", 20, "TRT Haber", "Positive")
-    mock_repo.keyword_search.assert_called_once_with("filtreli", 20, "TRT Haber", "Positive")
+    mock_repo.keyword_search.assert_called_once_with("filtreli", 20, "TRT Haber", "Positive", terms=["filtreli", "filtre"])
 
 
 # ── _tokenize / _keyword_relevance birim testleri ────────────────────────────
@@ -214,6 +215,26 @@ def test_tokenize_lowercases_and_filters_short():
 
 def test_tokenize_preserves_unicode():
     assert NewsService._tokenize("Beşiktaş'a transfer") == ["beşiktaş", "transfer"]
+
+
+def test_tokenize_expands_turkish_suffixes():
+    tokens = NewsService._tokenize("beşiktaşın hocası")
+    assert "beşiktaşın" in tokens
+    assert "beşiktaş" in tokens   # genitive stripped
+    assert "hocası" in tokens
+    assert "hoca" in tokens        # 3rd-person possessive stripped
+
+
+def test_stem_tr_common_cases():
+    assert NewsService._stem_tr("beşiktaşın") == "beşiktaş"   # genitive -ın
+    assert NewsService._stem_tr("hocası") == "hoca"             # possessive -sı
+    assert NewsService._stem_tr("fenerbahçenin") == "fenerbahçe"  # genitive -nin
+    assert NewsService._stem_tr("galatasaraydan") == "galatasaray"  # ablative -dan
+    assert NewsService._stem_tr("haberlerin") == "haber"         # plural genitive -lerin
+    assert NewsService._stem_tr("filtreli") == "filtre"          # adjective-forming -li
+    assert NewsService._stem_tr("köylü") == "köy"                # adjective-forming -lü
+    assert NewsService._stem_tr("yapay") == "yapay"              # no suffix → unchanged
+    assert NewsService._stem_tr("ev") == "ev"                    # too short to strip
 
 
 def test_tokenize_empty_query():

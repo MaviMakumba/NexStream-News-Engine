@@ -85,7 +85,9 @@ def test_check_kafka_returns_error_on_timeout():
 
 
 def test_check_chromadb_returns_ok_and_count():
+    import src.adapters.api.routers.health_router as hr
     from src.adapters.api.routers.health_router import _check_chromadb
+    hr._chroma_client = None  # reset singleton so the mock is actually called
     mock_collection = MagicMock()
     mock_collection.count.return_value = 99
     mock_client = MagicMock()
@@ -97,7 +99,9 @@ def test_check_chromadb_returns_ok_and_count():
 
 
 def test_check_chromadb_returns_error_on_exception():
+    import src.adapters.api.routers.health_router as hr
     from src.adapters.api.routers.health_router import _check_chromadb
+    hr._chroma_client = None  # reset singleton so the mock is actually called
     with patch("src.adapters.api.routers.health_router.chromadb.HttpClient", side_effect=Exception("unreachable")):
         status, count = _check_chromadb()
     assert status == "error"

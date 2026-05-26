@@ -153,8 +153,8 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v1.6.0 tamamlandı — v1.7-dev sıradaki
-- **Test sayısı:** 180 test, hepsi yeşil
+- **Versiyon:** v1.7.0 (kısmi) — WebSocket, API v1, RSS feed tamamlandı; Newsletter + kullanıcı tercihleri sıradaki
+- **Test sayısı:** 196 test, hepsi yeşil
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
 - **Branch:** main (tüm özellikler merge edildi)
 - **Hedef:** CV/portfolio projesi → canlı ürüne geçiş (ücretsiz başla, gelir varsa harca)

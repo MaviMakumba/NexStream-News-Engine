@@ -3,6 +3,7 @@ services:
   app:
     build: .
     container_name: nexstream_engine
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
@@ -90,6 +91,8 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_MS: 7200000
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
       interval: 10s
@@ -101,6 +104,7 @@ services:
   worker:
     build: .
     container_name: nexstream_worker
+    restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
@@ -128,6 +132,7 @@ services:
       context: .
       dockerfile: Dockerfile.light
     container_name: nexstream_scheduler
+    restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
@@ -160,9 +165,8 @@ services:
     image: chromadb/chroma:latest
     container_name: nexstream_chromadb
     volumes:
-      - chroma_data:/chroma/chroma
+      - chroma_data:/data
     environment:
-      - IS_PERSISTENT=TRUE
       - ANONYMIZED_TELEMETRY=FALSE
 
 volumes:

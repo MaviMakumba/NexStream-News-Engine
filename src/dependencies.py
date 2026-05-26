@@ -9,6 +9,7 @@ from src.domain.ports.messaging_port import MessagePublisherPort
 
 _message_publisher: MessagePublisherPort = None
 _search_repository: ChromaSearchRepository = None
+_notifier = None
 
 
 def set_message_publisher(publisher: MessagePublisherPort):
@@ -27,6 +28,15 @@ def get_search_repository() -> ChromaSearchRepository:
     if _search_repository is None:
         _search_repository = ChromaSearchRepository()
     return _search_repository
+
+
+def set_notifier(notifier) -> None:
+    global _notifier
+    _notifier = notifier
+
+
+def get_notifier():
+    return _notifier
 
 
 def get_news_service(db: Session = Depends(get_db)) -> NewsService:
