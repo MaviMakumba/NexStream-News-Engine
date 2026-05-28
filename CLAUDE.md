@@ -20,13 +20,20 @@ src/
 │   │   ├── news_repository_port.py
 │   │   ├── messaging_port.py      # class MessagePublisherPort (ABC)
 │   │   └── embedding_port.py      # class EmbeddingPort (ABC)
-│   └── schemas/
-│       └── news_schema.py         # Pydantic: NewsResponse, SearchRequest, SearchResult, TrendingResponse
+│   ├── schemas/
+│   │   └── news_schema.py         # Pydantic: NewsResponse, SearchRequest, SearchResult, TrendingResponse, RelatedResponse
+│   └── scoring/                   # Saf domain skorlama (v1.8) — dış bağımlılık yok
+│       ├── quality.py             # compute_quality_score — uzunluk/entity/summary/başlık
+│       └── credibility.py         # SOURCE_CREDIBILITY seed + compute_credibility
 ├── application/
-│   └── services/news_service.py   # Orchestration — port'ları bağlar, reindex_all, get_trending dahil
+│   └── services/news_service.py   # Orchestration — port'ları bağlar, get_related, _enrich_metadata dahil
 ├── adapters/
 │   ├── analysis/
-│   │   └── groq_analyzer.py       # Groq llama-3.1-8b-instant — sentiment + NER + topic (v1.5+)
+│   │   ├── groq_analyzer.py       # Groq llama-3.1-8b-instant — birincil analyzer (v1.5+)
+│   │   ├── huggingface_analyzer.py # HF Inference API — opsiyonel yedek (v1.8)
+│   │   ├── fallback_analyzer.py   # Groq dene, başarısızsa HF, hepsi olmazsa nötr (v1.8)
+│   │   ├── common.py              # Paylaşılan prompt + JSON parse + nötr fallback (v1.8)
+│   │   └── factory.py             # build_analyzer() — kompozisyon noktası (v1.8)
 │   ├── scrapers/
 │   │   ├── rss_scrapers.py        # 11 TR+EN RSS kaynağı (BaseRssScraper tabanlı)
 │   │   └── registry.py            # SCRAPER_REGISTRY — tek kaynak doğruluk noktası
@@ -46,7 +53,7 @@ src/
 │       ├── limiter.py            # slowapi Limiter singleton (v1.3+)
 │       ├── metrics.py            # Prometheus custom metrics (v1.6+)
 │       └── routers/
-│           ├── news_router.py    # GET /news, /trending, POST /scrape, /search, /reindex, /sources
+│           ├── news_router.py    # GET /news, /trending, /{id}/related, POST /scrape, /search, /reindex, /sources
 │           └── health_router.py  # GET /health — DB + Kafka + ChromaDB durumu
 ├── infrastructure/
 │   ├── config/
@@ -57,7 +64,9 @@ src/
 ├── dependencies.py                # FastAPI DI — GroqAnalyzer, NewsRepository, ChromaSearch inject
 └── main.py                        # FastAPI app
 migrations/
-└── v1_5_add_entities_topic.sql    # v1.5 DB migration (entities, topic, is_duplicate)
+├── v1_5_add_entities_topic.sql    # v1.5 DB migration (entities, topic, is_duplicate)
+├── v1_7_subscriptions.sql         # v1.7 DB migration (subscribers tablosu)
+└── v1_8_quality_credibility.sql   # v1.8 DB migration (quality_score, credibility_score, corroboration_count)
 dashboard/
 └── app.py                         # Streamlit — 5 tema, TR/EN, trend/topic/dedup UI (v1.5+)
 tests/
@@ -153,8 +162,9 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v1.7.0 ✅ TAMAMLANDI — WebSocket, API v1, RSS feed, Email Newsletter & Keyword Alert hepsi bitti
-- **Test sayısı:** 217 test, hepsi yeşil
+- **Versiyon:** v1.8.0 ✅ TAMAMLANDI — Kaynak genişletme, ilişki grafı, güvenilirlik+kalite skorlama, cloud LLM fallback bitti
+- **Test sayısı:** 280 test, hepsi yeşil
+- **Haber kaynağı:** 17 (11 → 17, +Anadolu Ajansı, AA Ekonomi, Guardian Tech, TechCrunch, Hacker News, The Verge)
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
 - **Branch:** main (tüm özellikler merge edildi)
 - **Hedef:** CV/portfolio projesi → canlı ürüne geçiş (ücretsiz başla, gelir varsa harca)
@@ -168,9 +178,9 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 - `POST /news/search`: ChromaDB (semantic) + PostgreSQL (keyword) birleşik
 - Coverage-based skor, normalize embedding, `1/(1+distance)` formülü
 
-### Haber Kaynakları (11 kaynak)
-- TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor
-- EN: BBC Technology, BBC Sport
+### Haber Kaynakları (17 kaynak, v1.8)
+- TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi
+- EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge
 - Registry pattern: `src/adapters/scrapers/registry.py` — tek kaynak doğruluk noktası
 
 ### Dashboard
@@ -249,25 +259,29 @@ Sonuç: 173 → 180 test (+7)
 
 Sonuç: 180 → 217 test (+37)
 
+### v1.8.0 — AI & Veri Kalitesi ✅ TAMAMLANDI
+1. **Kaynak genişletme** — 11 → 17 kaynak: Anadolu Ajansı, AA Ekonomi (TR), Guardian Tech, TechCrunch, Hacker News, The Verge (EN). `BaseRssScraper` pattern, registry + `settings.scrape_sources` güncellendi. (Reuters/Ekonomist atlandı: güvenilir public RSS yok)
+2. **Haber ilişki grafı** — `GET /news/{id}/related` (news + v1 router), entity overlap ile ilgili haberler. On-the-fly hesap (ayrı tablo YOK): `repository.get_article_by_id` + `get_articles_with_entities`, `service.get_related` overlap'e göre sıralar, ortak entity'ler orijinal yazımıyla döner
+3. **Kaynak güvenilirlik skorlaması** — `credibility_score` + `corroboration_count` kolonları. Taban skor `domain/scoring/credibility.py` seed dict; corroboration = aynı olayı (>=2 ortak entity) raporlayan FARKLI kaynak sayısı, ingest'te `_enrich_metadata` ile hesaplanır
+4. **İçerik kalite skorlama** — `quality_score` kolonu, deterministik `domain/scoring/quality.py` (uzunluk + entity yoğunluğu + summary + başlık). v1 API `min_quality` filtresi. Reanalyze yolları da quality hesaplar
+5. **Cloud LLM fallback** — `AnalysisError` + `analyze_or_raise` port'a eklendi. `GroqAnalyzer` (birincil) + `HuggingFaceAnalyzer` (opsiyonel yedek, `HUGGINGFACE_API_KEY` boşsa devre dışı) → `FallbackAnalyzer` zinciri. Ortak prompt/parse `adapters/analysis/common.py`. `factory.build_analyzer()` dependencies + kafka_consumer'da kullanılır
+6. **DB migration** — `migrations/v1_8_quality_credibility.sql` (quality_score, credibility_score, corroboration_count + index)
+
+Sonuç: 217 → 280 test (+63)
+
 ---
 
 ## SIRADAKİ GÖREVLER (v1.7 → v2.0 Yol Haritası)
 
 Detaylı plan: `C:\Users\eren8\.claude\plans\ancient-watching-crescent.md`
 
-Sonraki oturumu başlatmak için: **"v1.8 implementasyonuna başlayalım — CLAUDE.md'deki yol haritasını takip et."**
+Sonraki oturumu başlatmak için: **"v1.9 implementasyonuna başlayalım — CLAUDE.md'deki yol haritasını takip et."**
 
 ### v1.7.0 — Kullanıcı Etkileşimi & API Ürünü ✅ TAMAMLANDI
 Sonuç: 180 → 217 test (+37). Detaylar yukarıdaki tamamlanan milestone'larda.
 
-### v1.8.0 — AI & Veri Kalitesi (~14-18 gün)
-1. **Kaynak genişletme** — Reuters, Guardian Tech, TechCrunch, Hacker News, Anadolu Ajansı, Ekonomist (5-8 yeni RSS)
-2. **Haber ilişki grafı** — `GET /news/{id}/related`, entity overlap ile ilgili haberler, dashboard'da "İlgili haberler"
-3. **Kaynak güvenilirlik skorlaması** — çapraz doğrulama, `credibility_score` + `corroboration_count`
-4. **Cloud LLM fallback** — Groq birincil, HuggingFace Inference API yedek (VPS'te çalışır, local değil), `FallbackAnalyzer`
-5. **İçerik kalite skorlama** — uzunluk, entity yoğunluğu, faktüel dil göstergeleri
-
-Beklenen: ~215 → ~255 test (+40)
+### v1.8.0 — AI & Veri Kalitesi ✅ TAMAMLANDI
+Sonuç: 217 → 280 test (+63). Detaylar yukarıdaki tamamlanan milestone'larda.
 
 ### v1.9.0 — Monetizasyon Temeli (~16-20 gün)
 1. **Hafif kullanıcı hesapları** — email + bcrypt, session token (JWT yok), profil
@@ -371,3 +385,8 @@ docker logs nexstream_chromadb --tail 20
 - `docker-compose.prod.yml` production için, `docker-compose.yml` dev için kullanılır
 - `infra/nginx/nginx.dev.conf` SSL olmadan local test için (nginx.conf SSL gerektirir)
 - Worker sıralı işleme: `asyncio.create_task` → `await` + 2sn throttle, Groq rate limit patlamasını önler
+- **v1.8 kaynaklar:** Guardian Tech / The Verge WebFetch ile doğrulanamadı (Claude Code domain kısıtı) ama bilinen kararlı beslemeler; TechCrunch/Hacker News/AA doğrulandı. Ölü besleme worker'ı çökertmez (scraper exception'ı yutar, [] döner)
+- **v1.8 cloud fallback:** `HUGGINGFACE_API_KEY` boşsa fallback devre dışı (sadece Groq çalışır), davranış v1.7 ile aynı. Analyzer artık `factory.build_analyzer()` ile kurulur, `GroqAnalyzer()` doğrudan çağrılmaz. Concrete analyzer'lar `analyze_or_raise` ile `AnalysisError` fırlatır; `FallbackAnalyzer.analyze_text` asla fırlatmaz (nötr fallback)
+- **v1.8 related:** ilişki grafı ayrı tablo değil, on-the-fly entity overlap (son 500 entity'li haber taranır). `entities` SQL NULL filtresi postgres'te çalışır; SQLite/ORM'de None → JSON 'null' saklanır (servis boş entity'yi zaten güvenle eler)
+- **v1.8 skorlama:** `quality_score` + `credibility_score` + `corroboration_count` ingest'te `service._enrich_metadata` ile set edilir; saf hesap `domain/scoring/`'de. Eski haberler için migration sonrası `POST /news/reanalyze` quality'yi doldurur (credibility/corroboration ingest-only)
+- **v1.8 migration:** prod'da `migrations/v1_8_quality_credibility.sql` çalıştırılmalı (dev'de `create_all` otomatik ekler)

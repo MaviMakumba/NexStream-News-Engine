@@ -2,7 +2,7 @@ import time
 from fastapi import APIRouter, Depends, Query, Request
 from typing import Optional
 
-from src.domain.schemas.news_schema import NewsPage, SearchRequest, SearchResult, TrendingResponse
+from src.domain.schemas.news_schema import NewsPage, SearchRequest, SearchResult, TrendingResponse, RelatedResponse
 from src.application.services.news_service import NewsService
 from src.dependencies import get_news_service
 from src.adapters.api.limiter import limiter
@@ -20,6 +20,7 @@ def get_news_v1(
     source: Optional[str] = Query(None, max_length=64),
     sentiment: Optional[str] = Query(None, pattern="^(Positive|Negative|Neutral)$"),
     topic: Optional[str] = Query(None, max_length=32),
+    min_quality: Optional[float] = Query(None, ge=0.0, le=1.0, description="Sadece bu kalite skorunun üzerindeki haberler"),
     service: NewsService = Depends(get_news_service),
 ):
     """
@@ -27,7 +28,7 @@ def get_news_v1(
     İlk sayfa: cursor yok. Sonraki sayfa: önceki yanıttaki next_cursor değerini cursor olarak gönder.
     next_cursor null ise daha fazla haber yok.
     """
-    items = service.list_news_paginated(limit + 1, cursor, source, sentiment, topic)
+    items = service.list_news_paginated(limit + 1, cursor, source, sentiment, topic, min_quality)
     next_cursor = items[limit].id if len(items) > limit else None
     page_items = items[:limit]
     return NewsPage(items=page_items, next_cursor=next_cursor, count=len(page_items))
@@ -61,3 +62,14 @@ def get_trending_v1(
 def get_sources_v1():
     from src.adapters.scrapers.registry import SCRAPER_REGISTRY
     return list(SCRAPER_REGISTRY.keys())
+
+
+@router.get("/news/{article_id}/related", response_model=RelatedResponse)
+@limiter.limit("60/minute")
+def get_related_v1(
+    request: Request,
+    article_id: int,
+    limit: int = Query(5, ge=1, le=20),
+    service: NewsService = Depends(get_news_service),
+):
+    return service.get_related(article_id, limit)

@@ -1,8 +1,8 @@
 import json
 import logging
-import re
 import time
-from src.domain.ports.analysis_port import AnalysisPort
+from src.domain.ports.analysis_port import AnalysisPort, AnalysisError
+from src.adapters.analysis.common import build_analysis_prompt, parse_analysis_json, neutral_result
 from src.infrastructure.config.settings import settings
 from src.adapters.api.metrics import groq_latency_seconds, groq_rate_limit_total
 
@@ -16,27 +16,15 @@ class GroqAnalyzer(AnalysisPort):
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
 
     def analyze_text(self, text: str) -> dict:
+        try:
+            return self.analyze_or_raise(text)
+        except AnalysisError:
+            return neutral_result(text)
+
+    def analyze_or_raise(self, text: str) -> dict:
         import requests
 
-        prompt = f"""Analyze the following news article. The article may be in English or Turkish — handle both.
-
-Return ONLY a valid JSON object with these exact fields:
-- sentiment_score: float between -1.0 and 1.0. Use the FULL range:
-  * 0.7 to 1.0 = strongly positive (breakthrough, victory, celebration, major success)
-  * 0.3 to 0.7 = mildly positive (improvement, progress, good outcome)
-  * -0.2 to 0.2 = neutral (factual reporting, announcements, routine events)
-  * -0.7 to -0.3 = mildly negative (concern, decline, setback, minor conflict)
-  * -1.0 to -0.7 = strongly negative (disaster, death, crisis, severe harm)
-- sentiment_label: "Positive" if score > 0.2, "Negative" if score < -0.2, otherwise "Neutral"
-- summary: a 1-2 sentence summary of the article in the same language as the article
-- entities: object with three arrays: "persons", "organizations", "locations" — extract named entities mentioned in the article. Each array may be empty.
-- topic: exactly one of "Technology", "Sports", "Economy", "Politics", "Health", "Culture", "World", "Other"
-
-Article:
-{text[:1000]}
-
-Respond with JSON only, no markdown, no explanation."""
-
+        prompt = build_analysis_prompt(text)
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -63,28 +51,7 @@ Respond with JSON only, no markdown, no explanation."""
 
                 r.raise_for_status()
                 content = r.json()["choices"][0]["message"]["content"]
-                content = re.sub(r"```json|```", "", content).strip()
-                result = json.loads(content)
-
-                entities = result.get("entities", {})
-                if not isinstance(entities, dict):
-                    entities = {}
-                for key in ("persons", "organizations", "locations"):
-                    if key not in entities or not isinstance(entities[key], list):
-                        entities[key] = []
-
-                valid_topics = {"Technology", "Sports", "Economy", "Politics", "Health", "Culture", "World", "Other"}
-                topic = result.get("topic", "Other")
-                if topic not in valid_topics:
-                    topic = "Other"
-
-                return {
-                    "sentiment_score": float(result.get("sentiment_score", 0.0)),
-                    "sentiment_label": result.get("sentiment_label", "Neutral"),
-                    "summary": result.get("summary", text[:100]),
-                    "entities": entities,
-                    "topic": topic,
-                }
+                return parse_analysis_json(content, text)
 
             except json.JSONDecodeError:
                 logger.warning("Groq JSON parse hatası, deneme %d", attempt + 1)
@@ -95,10 +62,4 @@ Respond with JSON only, no markdown, no explanation."""
                     time.sleep(5)
                 continue
 
-        return {
-            "sentiment_score": 0.0,
-            "sentiment_label": "Neutral",
-            "summary": text[:100],
-            "entities": {"persons": [], "organizations": [], "locations": []},
-            "topic": "Other",
-        }
+        raise AnalysisError("Groq: tüm denemeler başarısız")

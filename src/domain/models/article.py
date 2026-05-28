@@ -16,4 +16,7 @@ class Article:
     entities: Optional[dict] = None
     topic: Optional[str] = None
     is_duplicate: bool = False
+    quality_score: Optional[float] = None
+    credibility_score: Optional[float] = None
+    corroboration_count: int = 0
     id: Optional[int] = None

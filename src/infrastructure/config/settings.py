@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     # Groq
     groq_api_key: str = ""
 
+    # HuggingFace (Groq yedeği) — opsiyonel; boşsa fallback devre dışı
+    huggingface_api_key: str = ""
+    huggingface_model: str = "mistralai/Mistral-7B-Instruct-v0.3"
+
     # ChromaDB
     chroma_host: str = "localhost"
     chroma_port: int = 8001
@@ -26,7 +30,8 @@ class Settings(BaseSettings):
     # Scheduler
     scrape_sources: str = (
         "TRT Haber,BBC Türkçe,Hürriyet,Hürriyet Spor,Sabah,"
-        "CNN Türk,Sözcü,Habertürk,HT Spor,BBC Technology,BBC Sport"
+        "CNN Türk,Sözcü,Habertürk,HT Spor,Anadolu Ajansı,AA Ekonomi,"
+        "BBC Technology,BBC Sport,Guardian Tech,TechCrunch,Hacker News,The Verge"
     )
 
     # API Security

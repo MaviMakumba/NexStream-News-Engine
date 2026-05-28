@@ -98,7 +98,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="NexStream News Engine API",
     description="Yapay Zeka Destekli Haber Motoru",
-    version="1.7.0",
+    version="1.8.0",
     lifespan=lifespan,
 )
 
@@ -127,9 +127,10 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 @app.get("/")
 def root():
     return {
-        "message": "NexStream API v1.7.0 Çalışıyor!",
+        "message": "NexStream API v1.8.0 Çalışıyor!",
         "docs": "/docs",
         "v1_api": "/api/v1/news",
+        "related": "/news/{id}/related",
         "rss_feed": "/feed.xml",
         "websocket": "/ws/feed",
         "subscriptions": "/subscriptions",

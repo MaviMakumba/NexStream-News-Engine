@@ -51,10 +51,19 @@ def test_settings_log_format_override():
     assert s.log_level == "DEBUG"
 
 
-def test_settings_scrape_sources_contains_all_11():
+def test_settings_scrape_sources_contains_all_17():
     s = _fresh_settings()
     sources = [src.strip() for src in s.scrape_sources.split(",")]
-    assert len(sources) == 11
+    assert len(sources) == 17
     assert "TRT Haber" in sources
     assert "BBC Technology" in sources
     assert "BBC Sport" in sources
+    assert "Anadolu Ajansı" in sources
+    assert "TechCrunch" in sources
+    assert "The Verge" in sources
+
+
+def test_settings_huggingface_defaults():
+    s = _fresh_settings()
+    assert s.huggingface_api_key == ""
+    assert s.huggingface_model == "mistralai/Mistral-7B-Instruct-v0.3"

@@ -1,0 +1,77 @@
+from unittest.mock import MagicMock
+
+
+def _override(app_client, mock_service):
+    from src.dependencies import get_news_service
+    app_client.app.dependency_overrides[get_news_service] = lambda: mock_service
+
+
+def _clear(app_client):
+    app_client.app.dependency_overrides.clear()
+
+
+_PAYLOAD = {
+    "article_id": 1,
+    "related": [
+        {"id": 2, "title": "İlgili haber", "source": "BBC", "url": "u2",
+         "topic": "Technology", "shared_entities": ["Erdogan"], "overlap": 1},
+    ],
+}
+
+
+def test_related_endpoint_returns_payload(app_client):
+    mock_service = MagicMock()
+    mock_service.get_related.return_value = _PAYLOAD
+    _override(app_client, mock_service)
+    try:
+        r = app_client.get("/news/1/related")
+    finally:
+        _clear(app_client)
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["article_id"] == 1
+    assert data["related"][0]["id"] == 2
+    assert data["related"][0]["overlap"] == 1
+
+
+def test_related_endpoint_passes_limit(app_client):
+    mock_service = MagicMock()
+    mock_service.get_related.return_value = {"article_id": 1, "related": []}
+    _override(app_client, mock_service)
+    try:
+        app_client.get("/news/1/related?limit=8")
+    finally:
+        _clear(app_client)
+
+    mock_service.get_related.assert_called_once_with(1, 8)
+
+
+def test_related_endpoint_default_limit(app_client):
+    mock_service = MagicMock()
+    mock_service.get_related.return_value = {"article_id": 5, "related": []}
+    _override(app_client, mock_service)
+    try:
+        app_client.get("/news/5/related")
+    finally:
+        _clear(app_client)
+
+    mock_service.get_related.assert_called_once_with(5, 5)
+
+
+def test_related_v1_endpoint(app_client):
+    mock_service = MagicMock()
+    mock_service.get_related.return_value = _PAYLOAD
+    _override(app_client, mock_service)
+    try:
+        r = app_client.get("/api/v1/news/1/related")
+    finally:
+        _clear(app_client)
+
+    assert r.status_code == 200
+    assert r.json()["related"][0]["id"] == 2
+
+
+def test_related_endpoint_rejects_non_integer_id(app_client):
+    r = app_client.get("/news/abc/related")
+    assert r.status_code == 422

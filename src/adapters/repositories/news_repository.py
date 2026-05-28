@@ -33,6 +33,9 @@ class NewsRepository(NewsRepositoryPort):
             entities=article.entities,
             topic=article.topic,
             is_duplicate=article.is_duplicate,
+            quality_score=article.quality_score,
+            credibility_score=article.credibility_score,
+            corroboration_count=article.corroboration_count,
         )
 
     def _to_domain(self, orm: NewsORM) -> Article:
@@ -50,6 +53,9 @@ class NewsRepository(NewsRepositoryPort):
             entities=orm.entities,
             topic=orm.topic,
             is_duplicate=orm.is_duplicate or False,
+            quality_score=orm.quality_score,
+            credibility_score=orm.credibility_score,
+            corroboration_count=orm.corroboration_count or 0,
         )
 
     # --- SÖZLEŞME (PORT) METOTLARI ---
@@ -86,6 +92,7 @@ class NewsRepository(NewsRepositoryPort):
             orm_obj.sentiment_label = article.sentiment_label
             orm_obj.entities = article.entities
             orm_obj.topic = article.topic
+            orm_obj.quality_score = article.quality_score
             self.db.commit()
             return True
         except Exception as e:
@@ -124,6 +131,17 @@ class NewsRepository(NewsRepositoryPort):
         )
         return [self._to_domain(row) for row in rows]
 
+    def get_article_by_id(self, article_id: int) -> Optional[Article]:
+        row = self.db.query(NewsORM).filter(NewsORM.id == article_id).first()
+        return self._to_domain(row) if row else None
+
+    def get_articles_with_entities(self, limit: int = 500, exclude_id: Optional[int] = None) -> List[Article]:
+        q = self.db.query(NewsORM).filter(NewsORM.entities.isnot(None))
+        if exclude_id is not None:
+            q = q.filter(NewsORM.id != exclude_id)
+        rows = q.order_by(NewsORM.created_at.desc()).limit(limit).all()
+        return [self._to_domain(row) for row in rows]
+
     def get_articles_after_id(self, article_id: int, limit: int = 20) -> List[Article]:
         rows = (
             self.db.query(NewsORM)
@@ -134,7 +152,7 @@ class NewsRepository(NewsRepositoryPort):
         )
         return [self._to_domain(row) for row in rows]
 
-    def get_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None) -> List[Article]:
+    def get_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None, min_quality: Optional[float] = None) -> List[Article]:
         q = self.db.query(NewsORM)
         if before_id is not None:
             q = q.filter(NewsORM.id < before_id)
@@ -144,6 +162,8 @@ class NewsRepository(NewsRepositoryPort):
             q = q.filter(NewsORM.sentiment_label.ilike(f"%{sentiment}%"))
         if topic:
             q = q.filter(NewsORM.topic == topic)
+        if min_quality is not None:
+            q = q.filter(NewsORM.quality_score >= min_quality)
         rows = q.order_by(NewsORM.id.desc()).limit(limit).all()
         return [self._to_domain(row) for row in rows]
 

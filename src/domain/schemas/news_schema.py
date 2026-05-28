@@ -37,6 +37,9 @@ class NewsResponse(BaseModel):
     entities: Optional[dict] = None
     topic: Optional[str] = None
     is_duplicate: bool = False
+    quality_score: Optional[float] = None
+    credibility_score: Optional[float] = None
+    corroboration_count: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -57,3 +60,18 @@ class TrendingEntity(BaseModel):
 class TrendingResponse(BaseModel):
     hours: int
     entities: list[TrendingEntity]
+
+
+class RelatedArticle(BaseModel):
+    id: int
+    title: str
+    source: str
+    url: str
+    topic: Optional[str] = None
+    shared_entities: List[str] = Field(default_factory=list)
+    overlap: int
+
+
+class RelatedResponse(BaseModel):
+    article_id: int
+    related: List[RelatedArticle] = Field(default_factory=list)

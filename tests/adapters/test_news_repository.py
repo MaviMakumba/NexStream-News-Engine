@@ -152,3 +152,68 @@ def test_keyword_search_source_filter():
     results = repo.keyword_search("haber", limit=10, source="BBC")
     assert len(results) == 1
     assert results[0].source == "BBC"
+
+
+# ── v1.8: get_article_by_id / get_articles_with_entities / min_quality ────────
+
+def test_get_article_by_id_returns_article():
+    db = make_session()
+    repo = NewsRepository(db)
+    repo.save_article(make_article("https://bbc.com/x"))
+    saved = repo.get_latest_news(1)[0]
+
+    fetched = repo.get_article_by_id(saved.id)
+    assert fetched is not None
+    assert fetched.id == saved.id
+
+
+def test_get_article_by_id_returns_none_when_missing():
+    db = make_session()
+    repo = NewsRepository(db)
+    assert repo.get_article_by_id(999) is None
+
+
+def test_get_articles_with_entities_returns_entity_bearing_articles():
+    db = make_session()
+    repo = NewsRepository(db)
+    repo.save_article(Article(title="t1", source="BBC", url="u1", content="c",
+                              entities={"persons": ["Ali"], "organizations": [], "locations": []}))
+
+    result = repo.get_articles_with_entities(limit=10)
+    urls = {a.url for a in result}
+    assert "u1" in urls
+    assert result[0].entities == {"persons": ["Ali"], "organizations": [], "locations": []}
+
+
+def test_get_articles_with_entities_exclude_id():
+    db = make_session()
+    repo = NewsRepository(db)
+    repo.save_article(Article(title="t1", source="BBC", url="u1", content="c",
+                              entities={"persons": ["Ali"], "organizations": [], "locations": []}))
+    saved = repo.get_articles_with_entities(limit=10)[0]
+
+    result = repo.get_articles_with_entities(limit=10, exclude_id=saved.id)
+    assert all(a.id != saved.id for a in result)
+
+
+def test_get_news_paginated_min_quality_filter():
+    db = make_session()
+    repo = NewsRepository(db)
+    repo.save_article(Article(title="hi", source="BBC", url="u1", content="c", quality_score=0.8))
+    repo.save_article(Article(title="lo", source="BBC", url="u2", content="c", quality_score=0.2))
+
+    urls = {a.url for a in repo.get_news_paginated(limit=10, min_quality=0.5)}
+    assert "u1" in urls
+    assert "u2" not in urls
+
+
+def test_save_persists_quality_credibility_corroboration():
+    db = make_session()
+    repo = NewsRepository(db)
+    repo.save_article(Article(title="t", source="BBC", url="u1", content="c",
+                              quality_score=0.7, credibility_score=0.85, corroboration_count=3))
+
+    fetched = repo.get_latest_news(1)[0]
+    assert fetched.quality_score == 0.7
+    assert fetched.credibility_score == 0.85
+    assert fetched.corroboration_count == 3

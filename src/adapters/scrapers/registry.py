@@ -4,6 +4,8 @@ from src.adapters.scrapers.rss_scrapers import (
     SabahScraper, CNNTurkScraper, SozcuScraper,
     HaberturkScraper, HaberturkSporScraper,
     BBCTechnologyScraper, BBCSportScraper,
+    GuardianTechScraper, TechCrunchScraper, HackerNewsScraper, TheVergeScraper,
+    AnadoluAjansiScraper, AnadoluEkonomiScraper,
 )
 
 # Kayıtlı tüm scraper'ların tek kayıt noktası.
@@ -19,7 +21,13 @@ SCRAPER_REGISTRY: dict = {
     "Sözcü":           SozcuScraper(),
     "Habertürk":       HaberturkScraper(),
     "HT Spor":         HaberturkSporScraper(),
+    "Anadolu Ajansı":  AnadoluAjansiScraper(),
+    "AA Ekonomi":      AnadoluEkonomiScraper(),
     # İngilizce
     "BBC Technology":  BBCTechnologyScraper(),
     "BBC Sport":       BBCSportScraper(),
+    "Guardian Tech":   GuardianTechScraper(),
+    "TechCrunch":      TechCrunchScraper(),
+    "Hacker News":     HackerNewsScraper(),
+    "The Verge":       TheVergeScraper(),
 }

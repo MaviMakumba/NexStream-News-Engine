@@ -6,6 +6,8 @@ from src.domain.ports.news_repository_port import NewsRepositoryPort
 from src.domain.ports.analysis_port import AnalysisPort
 from src.domain.ports.scraper_port import NewsScraperPort
 from src.domain.models.article import Article
+from src.domain.scoring.quality import compute_quality_score
+from src.domain.scoring.credibility import base_credibility, compute_credibility
 from src.adapters.api.metrics import articles_processed_total
 from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -85,6 +87,11 @@ class NewsService:
             article.sentiment_label = result["sentiment_label"]
             article.entities = result.get("entities")
             article.topic = result.get("topic", "Other")
+
+            try:
+                self._enrich_metadata(article)
+            except Exception as e:
+                logger.warning("Metadata zenginleştirme başarısız, devam ediliyor: %s", e)
 
             if self.search_repository:
                 try:
@@ -241,6 +248,78 @@ class NewsService:
             ],
         }
 
+    @staticmethod
+    def _entity_name_map(entities: Optional[dict]) -> dict:
+        """{lowercased_name: original_name} — eşleştirme için küçük harf, gösterim için orijinal."""
+        mapping: dict = {}
+        if not isinstance(entities, dict):
+            return mapping
+        for values in entities.values():
+            if not isinstance(values, list):
+                continue
+            for name in values:
+                if isinstance(name, str) and len(name.strip()) >= 2:
+                    clean = name.strip()
+                    mapping[clean.lower()] = clean
+        return mapping
+
+    @staticmethod
+    def _entity_name_set(entities: Optional[dict]) -> set:
+        return set(NewsService._entity_name_map(entities).keys())
+
+    def _count_corroboration(self, article: Article) -> int:
+        """Aynı olayı (>=2 ortak entity) raporlayan kaç FARKLI başka kaynak var."""
+        target = self._entity_name_set(article.entities)
+        if len(target) < 2:
+            return 0
+        sources: set = set()
+        for cand in self.repository.get_recent_articles_with_entities(48):
+            if cand.source == article.source or cand.id == article.id:
+                continue
+            if len(target & self._entity_name_set(cand.entities)) >= 2:
+                sources.add(cand.source)
+        return len(sources)
+
+    def _enrich_metadata(self, article: Article) -> None:
+        article.quality_score = compute_quality_score(article)
+        corroboration = self._count_corroboration(article)
+        article.corroboration_count = corroboration
+        article.credibility_score = compute_credibility(base_credibility(article.source), corroboration)
+
+    def get_related(self, article_id: int, limit: int = 5) -> dict:
+        target = self.repository.get_article_by_id(article_id)
+        if target is None:
+            return {"article_id": article_id, "related": []}
+
+        target_map = self._entity_name_map(target.entities)
+        target_keys = set(target_map)
+        if not target_keys:
+            return {"article_id": article_id, "related": []}
+
+        scored = []
+        for cand in self.repository.get_articles_with_entities(limit=500, exclude_id=article_id):
+            shared_keys = target_keys & self._entity_name_set(cand.entities)
+            if not shared_keys:
+                continue
+            shared_names = [target_map[k] for k in sorted(shared_keys)]
+            scored.append((len(shared_keys), cand, shared_names))
+
+        scored.sort(key=lambda x: (x[0], x[1].created_at), reverse=True)
+
+        related = [
+            {
+                "id": cand.id,
+                "title": cand.title,
+                "source": cand.source,
+                "url": cand.url,
+                "topic": cand.topic,
+                "shared_entities": shared_names,
+                "overlap": overlap,
+            }
+            for overlap, cand, shared_names in scored[:limit]
+        ]
+        return {"article_id": article_id, "related": related}
+
     def _send_keyword_alerts(self, article: Article) -> None:
         if self.subscriber_repository is None or self.email_port is None:
             return
@@ -253,8 +332,8 @@ class NewsService:
                     self.email_port.send_alert(sub.email, article, kw)
                     break  # one alert per article per subscriber
 
-    def list_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None) -> List[Article]:
-        return self.repository.get_news_paginated(limit, before_id, source, sentiment, topic)
+    def list_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None, min_quality: Optional[float] = None) -> List[Article]:
+        return self.repository.get_news_paginated(limit, before_id, source, sentiment, topic, min_quality)
 
     def reanalyze_missed(self, limit: int = 5) -> int:
         articles = self.repository.get_unanalyzed_articles(limit)
@@ -267,6 +346,7 @@ class NewsService:
                 article.sentiment_label = result["sentiment_label"]
                 article.entities = result.get("entities")
                 article.topic = result.get("topic", "Other")
+                article.quality_score = compute_quality_score(article)
                 if self.repository.update_article_analysis(article):
                     updated += 1
                     if self.search_repository and article.id:
@@ -294,6 +374,7 @@ class NewsService:
                 article.sentiment_label = result["sentiment_label"]
                 article.entities = result.get("entities")
                 article.topic = result.get("topic", "Other")
+                article.quality_score = compute_quality_score(article)
 
                 if self.repository.update_article_analysis(article):
                     updated += 1

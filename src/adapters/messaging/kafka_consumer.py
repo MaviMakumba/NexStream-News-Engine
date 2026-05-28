@@ -8,7 +8,7 @@ from src.infrastructure.config.settings import settings
 from src.infrastructure.logging.logger import setup_logging
 from src.adapters.repositories.news_repository import NewsRepository
 from src.adapters.repositories.subscriber_repository import SubscriberRepository
-from src.adapters.analysis.groq_analyzer import GroqAnalyzer
+from src.adapters.analysis.factory import build_analyzer
 from src.adapters.scrapers.registry import SCRAPER_REGISTRY
 from src.adapters.search.chroma_search_repository import ChromaSearchRepository
 from src.adapters.notifications.email_adapter import get_email_adapter, EmailPort
@@ -41,7 +41,7 @@ async def _process(scraper):
     db = SessionLocal()
     try:
         repo = NewsRepository(db)
-        analyzer = GroqAnalyzer()
+        analyzer = build_analyzer()
         sub_repo = SubscriberRepository(db)
         service = NewsService(
             repository=repo,

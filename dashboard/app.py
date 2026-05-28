@@ -3,7 +3,6 @@ import requests
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timezone, timedelta
-import time
 import os
 
 _TZ_TR = timezone(timedelta(hours=3))
@@ -13,7 +12,9 @@ API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 _SOURCES_FALLBACK = [
     "TRT Haber", "BBC Türkçe", "Hürriyet", "Hürriyet Spor",
     "Sabah", "CNN Türk", "Sözcü", "Habertürk", "HT Spor",
+    "Anadolu Ajansı", "AA Ekonomi",
     "BBC Technology", "BBC Sport",
+    "Guardian Tech", "TechCrunch", "Hacker News", "The Verge",
 ]
 
 @st.cache_data(ttl=30)
@@ -133,6 +134,15 @@ LANGS = {
         "topic_all":       "Hepsi",
         "trending_title":  "TREND",
         "health_vectors":  "vektör",
+        "quality_lbl":     "Kalite",
+        "quality_all":     "Tüm kalite",
+        "quality_med":     "Orta+",
+        "quality_high":    "Yüksek",
+        "related_title":   "İlgili Haberler",
+        "related_none":    "İlgili haber bulunamadı.",
+        "q_score_lbl":     "Kalite",
+        "cred_score_lbl":  "Güvenilirlik",
+        "corrob_lbl":      "kaynak doğrulaması",
         "sentiments": {"Positive": "Pozitif", "Negative": "Negatif", "Neutral": "Nötr"},
         "topics": {
             "Technology": "Teknoloji", "Sports": "Spor", "Economy": "Ekonomi",
@@ -188,6 +198,15 @@ LANGS = {
         "topic_all":       "All",
         "trending_title":  "TRENDING",
         "health_vectors":  "vectors",
+        "quality_lbl":     "Quality",
+        "quality_all":     "All quality",
+        "quality_med":     "Medium+",
+        "quality_high":    "High",
+        "related_title":   "Related Articles",
+        "related_none":    "No related articles.",
+        "q_score_lbl":     "Quality",
+        "cred_score_lbl":  "Credibility",
+        "corrob_lbl":      "source corroborations",
         "sentiments": {"Positive": "Positive", "Negative": "Negative", "Neutral": "Neutral"},
         "topics": {
             "Technology": "Technology", "Sports": "Sports", "Economy": "Economy",
@@ -202,9 +221,13 @@ for k, v in [
     ("theme", "Midnight"), ("lang", "TR"), ("limit", 50),
     ("search_results", None), ("search_error", None),
     ("search_history", []), ("pending_query", None), ("pending_n", 10),
+    ("quality", "all"),
 ]:
     if k not in st.session_state:
         st.session_state[k] = v
+
+# Kalite filtre eşikleri — segmented control label'i bu anahtarlara map'lenir
+_QUALITY_THRESHOLDS = {"all": 0.0, "med": 0.4, "high": 0.6}
 
 # ── API ───────────────────────────────────────────────────────────────────────
 @st.cache_data(ttl=30)
@@ -232,6 +255,15 @@ def do_search(query, n):
 def fetch_trending(hours=6, limit=8):
     try:
         r = requests.get(f"{API_BASE}/news/trending", params={"hours": hours, "limit": limit}, timeout=10)
+        r.raise_for_status()
+        return r.json(), None
+    except Exception as e:
+        return None, str(e)
+
+@st.cache_data(ttl=120)
+def fetch_related(article_id, limit=5):
+    try:
+        r = requests.get(f"{API_BASE}/news/{article_id}/related", params={"limit": limit}, timeout=8)
         r.raise_for_status()
         return r.json(), None
     except Exception as e:
@@ -279,11 +311,19 @@ def show_detail(article):
     created = article.get("published_at") or article.get("created_at", "")
     topic   = article.get("topic") or ""
     entities = article.get("entities") or {}
+    quality = article.get("quality_score")
+    cred    = article.get("credibility_score")
+    corrob  = article.get("corroboration_count") or 0
     sc      = score_cls(score)
 
     label_display = L["sentiments"].get(label, label)
     topic_display = L["topics"].get(topic, topic) if topic else ""
     topic_html = f'<span class="nx-source" style="margin-left:0.25rem">{topic_display}</span>' if topic_display else ""
+
+    _chip = "display:inline-block;padding:0.12rem 0.5rem;border-radius:5px;background:var(--border);color:var(--text2);font-size:0.55rem;font-weight:500"
+    quality_chip = f'<span style="{_chip}">{L["q_score_lbl"]} {quality:.0%}</span>' if quality is not None else ""
+    cred_chip    = f'<span style="{_chip}">{L["cred_score_lbl"]} {cred:.0%}</span>' if cred is not None else ""
+    corrob_chip  = f'<span style="{_chip}">+{corrob} {L["corrob_lbl"]}</span>' if corrob else ""
 
     entity_chips = ""
     for etype in ("persons", "organizations", "locations"):
@@ -299,6 +339,7 @@ def show_detail(article):
     <span class="nx-badge-inner badge-{label}">{label_display}</span>
     <span class="nx-score-val {sc}" style="font-size:0.85rem">{score:+.2f}</span>
     <span style="color:var(--text3)">{rel_time(created, st.session_state.lang)}</span>
+    {quality_chip}{cred_chip}{corrob_chip}
   </div>
   {f'<div style="margin-top:0.6rem">{entity_chips}</div>' if entity_chips else ""}
 </div>
@@ -315,6 +356,42 @@ def show_detail(article):
         st.markdown(f'<div style="font-size:0.78rem;color:var(--text2);line-height:1.85;white-space:pre-wrap">{content}</div>', unsafe_allow_html=True)
     else:
         st.markdown(f'<div style="font-size:0.78rem;color:var(--text2)">{L["detail_empty"]}</div>', unsafe_allow_html=True)
+
+    # ── İlgili Haberler (v1.8) ──
+    art_id = article.get("id")
+    rid = None
+    if art_id is not None:
+        try:
+            rid = int(art_id)
+        except (ValueError, TypeError):
+            rid = None
+    if rid is not None:
+        rel_data, _ = fetch_related(rid, 5)
+        related = (rel_data or {}).get("related", [])
+        if related:
+            st.markdown(f'<div class="nx-section" style="margin-top:1.2rem">{L["related_title"]}</div>', unsafe_allow_html=True)
+            _rchip = "display:inline-block;padding:0.08rem 0.4rem;border-radius:4px;background:var(--border);color:var(--text2);font-size:0.5rem;margin-right:0.2rem"
+            rel_html = ""
+            for rel in related:
+                r_title = rel.get("title", "—")
+                r_url   = rel.get("url") or "#"
+                r_src   = rel.get("source", "—")
+                r_topic = rel.get("topic") or ""
+                r_topic_disp = L["topics"].get(r_topic, r_topic) if r_topic else ""
+                r_topic_html = f'<span class="nx-source" style="font-size:0.5rem">{r_topic_disp}</span>' if r_topic_disp else ""
+                r_overlap = rel.get("overlap", 0)
+                shared_html = "".join(f'<span style="{_rchip}">{s}</span>' for s in (rel.get("shared_entities") or [])[:4])
+                rel_html += f"""
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.55rem 0.75rem;margin-bottom:0.4rem">
+  <a href="{r_url}" target="_blank" style="text-decoration:none;color:var(--text);font-family:'Syne',sans-serif;font-size:0.76rem;font-weight:600;line-height:1.4">{r_title}</a>
+  <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;margin-top:0.35rem;font-size:0.52rem;color:var(--text3)">
+    <span class="nx-source" style="font-size:0.5rem">{r_src}</span>
+    {r_topic_html}
+    <span style="color:var(--accent);font-weight:700">⊕ {r_overlap}</span>
+    {shared_html}
+  </div>
+</div>"""
+            st.markdown(rel_html, unsafe_allow_html=True)
 
     if url:
         st.link_button(L["detail_go"], url, width="stretch")
@@ -539,11 +616,22 @@ with h3:
             key="theme")
 
         st.divider()
-        st.segmented_control(
-            L["limit_label"],
-            [25, 50, 100, 200],
-            key="limit",
-        )
+        # key'li segmented_control tek tıkla geçiş yapar. Seçili öğeye tekrar tıklayınca
+        # Streamlit None döndürür (deselect). Widget'tan ÖNCE son geçerli değere sabitleyerek
+        # hem 10'a düşmeyi hem boş-seçim titremesini (kırmızı kutu) hem de 2-tık gecikmesini önlüyoruz.
+        if st.session_state.limit in (25, 50, 100, 200):
+            st.session_state._limit_ok = st.session_state.limit
+        else:
+            st.session_state.limit = st.session_state.get("_limit_ok", 50)
+        st.segmented_control(L["limit_label"], [25, 50, 100, 200], key="limit")
+
+        _Q_LABELS = {"all": L["quality_all"], "med": L["quality_med"], "high": L["quality_high"]}
+        _q_reverse = {v: k for k, v in _Q_LABELS.items()}
+        # Aynı mantık: deselect (None) veya dil değişiminde geçerli label'a geri sabitle.
+        if st.session_state.get("quality_sel") not in _Q_LABELS.values():
+            st.session_state.quality_sel = _Q_LABELS.get(st.session_state.quality, L["quality_all"])
+        st.segmented_control(L["quality_lbl"], list(_Q_LABELS.values()), key="quality_sel")
+        st.session_state.quality = _q_reverse.get(st.session_state.quality_sel, "all")
 
 
 st.markdown('<div class="nx-divider"></div>', unsafe_allow_html=True)
@@ -562,18 +650,20 @@ if st.session_state.pending_query is not None:
     st.session_state.search_error   = _err
     _add_to_history(_pq, _pn, len(_res))
 
-sc1, sc2, sc3 = st.columns([6, 1, 1])
-with sc1:
-    query = st.text_input(
-        "search",
-        placeholder=L["search_ph"],
-        label_visibility="collapsed",
-        key="_search_input",
-    )
-with sc2:
-    n_res = st.selectbox("n", [5, 10, 20], index=1, label_visibility="collapsed")
-with sc3:
-    search_btn = st.button(L["search_btn"], width='stretch')
+# Form: hem "Ara" butonu hem de kutuda Enter submit eder (form_submit_button davranışı).
+with st.form("search_form", clear_on_submit=False, border=False):
+    sc1, sc2, sc3 = st.columns([6, 1, 1])
+    with sc1:
+        query = st.text_input(
+            "search",
+            placeholder=L["search_ph"],
+            label_visibility="collapsed",
+            key="_search_input",
+        )
+    with sc2:
+        n_res = st.selectbox("n", [5, 10, 20], index=1, label_visibility="collapsed")
+    with sc3:
+        search_btn = st.form_submit_button(L["search_btn"], width='stretch')
 
 if search_btn:
     if query.strip():
@@ -711,6 +801,9 @@ if topic_filter != L["topic_all"] and "topic" in df.columns:
     df = df[df["topic"] == db_topic]
 if selected_sources:
     df = df[df["source"].isin(selected_sources)]
+_q_threshold = _QUALITY_THRESHOLDS.get(st.session_state.quality, 0.0)
+if _q_threshold > 0 and "quality_score" in df.columns:
+    df = df[df["quality_score"].fillna(0) >= _q_threshold]
 
 sort_by = sort_by or L["sort_new"]
 if sort_by == L["sort_high"]:
@@ -906,7 +999,7 @@ else:
             if st.button("›", key=f"d_{i}", help=L["detail_full"]):
                 show_detail(row.to_dict())
 
-# ── OTOMATİK YENİLEME (her zaman 60s) ───────────────────────────────────────
-time.sleep(60)
-st.cache_data.clear()
-st.rerun()
+# Not: Eski `time.sleep(60)+cache_data.clear()+rerun` bloklayan otomatik yenileme kaldırıldı —
+# script thread'ini bloklayıp tıklamaları geciktiriyor, her döngüde tüm cache'i silip sayıları
+# zıplatıyordu. Veri tazeliği artık cache TTL'leriyle sağlanıyor (fetch_news ttl=30sn): herhangi
+# bir etkileşimde otomatik tazelenir. Süreli canlı yenileme istenirse st.fragment(run_every=...) eklenir.
