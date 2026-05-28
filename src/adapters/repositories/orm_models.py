@@ -10,6 +10,7 @@ class NewsORM(Base):
         Index("ix_news_sentiment_label", "sentiment_label"),
         Index("ix_news_created_at", "created_at"),
         Index("ix_news_topic", "topic"),
+        Index("ix_news_quality_score", "quality_score"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -25,6 +26,9 @@ class NewsORM(Base):
     entities = Column(JSON, nullable=True)
     topic = Column(String(30), nullable=True)
     is_duplicate = Column(Boolean, nullable=False, server_default="false")
+    quality_score = Column(Float, nullable=True)
+    credibility_score = Column(Float, nullable=True)
+    corroboration_count = Column(Integer, nullable=False, server_default="0")
 
 
 class SubscriberORM(Base):

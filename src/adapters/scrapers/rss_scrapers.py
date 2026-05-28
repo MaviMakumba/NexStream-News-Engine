@@ -154,3 +154,47 @@ class BBCSportScraper(BaseRssScraper):
         self.url = "https://feeds.bbci.co.uk/sport/rss.xml"
         self.source_name = "BBC Sport"
         self.limit = 25
+
+
+class GuardianTechScraper(BaseRssScraper):
+    def __init__(self):
+        self.url = "https://www.theguardian.com/technology/rss"
+        self.source_name = "Guardian Tech"
+        self.limit = 25
+
+
+class TechCrunchScraper(BaseRssScraper):
+    def __init__(self):
+        self.url = "https://techcrunch.com/feed/"
+        self.source_name = "TechCrunch"
+        self.limit = 25
+
+
+class HackerNewsScraper(BaseRssScraper):
+    def __init__(self):
+        self.url = "https://hnrss.org/frontpage"
+        self.source_name = "Hacker News"
+        self.limit = 25
+
+
+class TheVergeScraper(BaseRssScraper):
+    def __init__(self):
+        self.url = "https://www.theverge.com/rss/index.xml"
+        self.source_name = "The Verge"
+        self.limit = 25
+
+
+# ── Yeni Türkçe Kaynaklar (v1.8) ──────────────────────────────────────────────
+
+class AnadoluAjansiScraper(BaseRssScraper):
+    def __init__(self):
+        self.url = "https://www.aa.com.tr/tr/rss/default?cat=guncel"
+        self.source_name = "Anadolu Ajansı"
+        self.limit = 25
+
+
+class AnadoluEkonomiScraper(BaseRssScraper):
+    def __init__(self):
+        self.url = "https://www.aa.com.tr/tr/rss/default?cat=ekonomi"
+        self.source_name = "AA Ekonomi"
+        self.limit = 25

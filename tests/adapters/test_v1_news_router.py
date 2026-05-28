@@ -88,7 +88,7 @@ def test_v1_news_cursor_passed_to_service(app_client):
     finally:
         _clear(app_client)
 
-    mock_service.list_news_paginated.assert_called_once_with(6, 20, None, None, None)
+    mock_service.list_news_paginated.assert_called_once_with(6, 20, None, None, None, None)
 
 
 def test_v1_news_filters_passed_to_service(app_client):
@@ -100,7 +100,19 @@ def test_v1_news_filters_passed_to_service(app_client):
     finally:
         _clear(app_client)
 
-    mock_service.list_news_paginated.assert_called_once_with(6, None, "TRT Haber", "Positive", "Sports")
+    mock_service.list_news_paginated.assert_called_once_with(6, None, "TRT Haber", "Positive", "Sports", None)
+
+
+def test_v1_news_min_quality_passed_to_service(app_client):
+    mock_service = MagicMock()
+    mock_service.list_news_paginated.return_value = []
+    _override(app_client, mock_service)
+    try:
+        app_client.get("/api/v1/news?limit=5&min_quality=0.5")
+    finally:
+        _clear(app_client)
+
+    mock_service.list_news_paginated.assert_called_once_with(6, None, None, None, None, 0.5)
 
 
 def test_v1_sources(app_client):

@@ -3,7 +3,7 @@ import time
 from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from typing import List, Optional
 
-from src.domain.schemas.news_schema import NewsResponse, ScrapeCommand, SearchRequest, SearchResult, TrendingResponse
+from src.domain.schemas.news_schema import NewsResponse, ScrapeCommand, SearchRequest, SearchResult, TrendingResponse, RelatedResponse
 from src.domain.ports.messaging_port import MessagePublisherPort
 from src.application.services.news_service import NewsService
 from src.dependencies import get_news_service, get_message_publisher
@@ -61,6 +61,17 @@ def get_trending(
     service: NewsService = Depends(get_news_service),
 ):
     return service.get_trending(hours, limit)
+
+
+@router.get("/{article_id}/related", response_model=RelatedResponse)
+@limiter.limit("60/minute")
+def get_related(
+    request: Request,
+    article_id: int,
+    limit: int = Query(5, ge=1, le=20),
+    service: NewsService = Depends(get_news_service),
+):
+    return service.get_related(article_id, limit)
 
 
 @router.post("/reanalyze")

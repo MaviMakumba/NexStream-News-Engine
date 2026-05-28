@@ -13,6 +13,12 @@ from src.adapters.scrapers.rss_scrapers import (
     SozcuScraper,
     HaberturkScraper,
     HaberturkSporScraper,
+    GuardianTechScraper,
+    TechCrunchScraper,
+    HackerNewsScraper,
+    TheVergeScraper,
+    AnadoluAjansiScraper,
+    AnadoluEkonomiScraper,
     BaseRssScraper,
 )
 from src.adapters.scrapers.registry import SCRAPER_REGISTRY
@@ -141,6 +147,12 @@ def test_atom_pub_date_parsed():
     (SozcuScraper,          "Sözcü"),
     (HaberturkScraper,      "Habertürk"),
     (HaberturkSporScraper,  "HT Spor"),
+    (GuardianTechScraper,   "Guardian Tech"),
+    (TechCrunchScraper,     "TechCrunch"),
+    (HackerNewsScraper,     "Hacker News"),
+    (TheVergeScraper,       "The Verge"),
+    (AnadoluAjansiScraper,  "Anadolu Ajansı"),
+    (AnadoluEkonomiScraper, "AA Ekonomi"),
 ])
 def test_each_scraper_has_correct_source_name(scraper_class, expected_source):
     scraper = scraper_class()
@@ -162,6 +174,12 @@ def test_each_scraper_has_correct_source_name(scraper_class, expected_source):
     SozcuScraper,
     HaberturkScraper,
     HaberturkSporScraper,
+    GuardianTechScraper,
+    TechCrunchScraper,
+    HackerNewsScraper,
+    TheVergeScraper,
+    AnadoluAjansiScraper,
+    AnadoluEkonomiScraper,
 ])
 def test_each_scraper_has_url(scraper_class):
     scraper = scraper_class()
@@ -171,7 +189,7 @@ def test_each_scraper_has_url(scraper_class):
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 def test_registry_contains_all_scrapers():
-    assert len(SCRAPER_REGISTRY) == 11
+    assert len(SCRAPER_REGISTRY) == 17
 
 def test_registry_values_are_scraper_instances():
     for name, scraper in SCRAPER_REGISTRY.items():
