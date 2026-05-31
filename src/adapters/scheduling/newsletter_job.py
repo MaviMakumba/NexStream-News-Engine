@@ -6,6 +6,7 @@ from src.infrastructure.config.settings import settings
 from src.adapters.repositories.news_repository import NewsRepository
 from src.adapters.repositories.subscriber_repository import SubscriberRepository
 from src.adapters.notifications.email_adapter import get_email_adapter
+from src.adapters.api.routers.admin_router import get_active_sponsor
 
 logger = logging.getLogger(__name__)
 
@@ -43,18 +44,24 @@ async def _send_digests(email_adapter) -> None:
             logger.info("Newsletter: gönderilecek haber yok, atlanıyor.")
             return
 
+        sponsor = None
+        try:
+            sponsor = get_active_sponsor(db)
+        except Exception:
+            pass
+
         subscribers = sub_repo.get_active_subscribers()
         sent = 0
         for sub in subscribers:
             if sub.frequency not in ("daily", "instant"):
                 continue
             try:
-                ok = email_adapter.send_digest(sub.email, articles, sub.language)
+                ok = email_adapter.send_digest(sub.email, articles, sub.language, sponsor=sponsor)
                 if ok:
                     sent += 1
             except Exception as e:
                 logger.warning("Digest gönderilemedi (%s): %s", sub.email, e)
 
-        logger.info("Newsletter digest gönderildi: %d/%d abone", sent, len(subscribers))
+        logger.info("Newsletter digest gönderildi: %d/%d abone | sponsor=%s", sent, len(subscribers), sponsor.name if sponsor else None)
     finally:
         db.close()

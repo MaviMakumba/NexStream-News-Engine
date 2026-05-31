@@ -1,8 +1,9 @@
 import asyncio
 import logging
+import time
 from contextlib import asynccontextmanager
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
@@ -17,6 +18,9 @@ from src.adapters.api.routers.websocket_router import router as ws_router
 from src.adapters.api.routers.feed_router import router as feed_router
 from src.adapters.api.routers.v1.news_router_v1 import router as v1_router
 from src.adapters.api.routers.subscription_router import router as subscription_router
+from src.adapters.api.routers.auth_router import router as auth_router
+from src.adapters.api.routers.admin_router import router as admin_router
+from src.adapters.api.routers.billing_router import router as billing_router
 from src.adapters.messaging.kafka_publisher import KafkaPublisherAdapter
 from src.adapters.notifications.websocket_notifier import WebSocketNotifier
 from src.adapters.scheduling.newsletter_job import run_newsletter_job
@@ -120,16 +124,53 @@ app.include_router(ws_router)
 app.include_router(feed_router)
 app.include_router(v1_router)
 app.include_router(subscription_router)
+app.include_router(auth_router)
+app.include_router(admin_router)
+app.include_router(billing_router)
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
+
+@app.middleware("http")
+async def usage_tracking_middleware(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    if request.url.path.startswith("/api/v1/"):
+        response_ms = (time.time() - start) * 1000
+        token = request.headers.get("x-session-token")
+        asyncio.create_task(
+            _log_api_usage(token, str(request.url.path), request.method, response.status_code, response_ms)
+        )
+    return response
+
+
+async def _log_api_usage(token, path, method, status_code, response_ms):
+    from src.adapters.repositories.user_repository import UserRepository
+    db = SessionLocal()
+    try:
+        user_id = None
+        if token:
+            repo = UserRepository(db)
+            session = repo.get_session(token)
+            if session:
+                user_id = session.user_id
+        repo = UserRepository(db)
+        repo.log_usage(user_id, path, method, status_code, response_ms)
+    except Exception as e:
+        log.debug("Usage logging hatası: %s", e)
+    finally:
+        db.close()
 
 
 @app.get("/")
 def root():
     return {
-        "message": "NexStream API v1.8.0 Çalışıyor!",
+        "message": "NexStream API v1.9.0 Çalışıyor!",
         "docs": "/docs",
         "v1_api": "/api/v1/news",
+        "auth": "/auth/register",
+        "billing": "/billing/checkout",
+        "admin": "/admin/usage",
         "related": "/news/{id}/related",
         "rss_feed": "/feed.xml",
         "websocket": "/ws/feed",

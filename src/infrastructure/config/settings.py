@@ -49,5 +49,17 @@ class Settings(BaseSettings):
     email_from: str = "NexStream <no-reply@nexstream.news>"
     newsletter_hour_utc: int = 5      # daily digest send time (05:00 UTC = 08:00 TR)
 
+    # Auth / Sessions
+    session_ttl_days: int = 30
+
+    # Stripe (billing)
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_pro_price_id: str = ""
+    stripe_enterprise_price_id: str = ""
+
+    # Redis (cache)
+    redis_url: str = ""               # e.g. redis://localhost:6379/0; empty = NullCache
+
 
 settings = Settings()

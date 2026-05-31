@@ -25,6 +25,12 @@ services:
       - KAFKA_HOST=kafka
       - KAFKA_PORT=29092
       - API_KEY=${API_KEY:-dev-key-change-me}
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:8000
+      - REDIS_URL=redis://redis:6379/0
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_PRO_PRICE_ID=${STRIPE_PRO_PRICE_ID:-}
+      - STRIPE_ENTERPRISE_PRICE_ID=${STRIPE_ENTERPRISE_PRICE_ID:-}
     ports:
       - "8000:8000"
     volumes:
@@ -143,22 +149,23 @@ services:
     volumes:
       - .:/app
 
-  # 8. GÖSTERGE PANELİ (Streamlit Dashboard)
-  dashboard:
+  # 8. FRONTEND (Next.js) — Streamlit'in yerini aldı
+  frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.light
-    command: streamlit run dashboard/app.py --server.port=8501 --server.address=0.0.0.0
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: nexstream_frontend
     ports:
-      - "8501:8501"
+      - "3000:3000"
     environment:
-      - API_BASE=http://app:8000
-      - API_KEY=${API_KEY:-dev-key-change-me}
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - WATCHPACK_POLLING=true
     depends_on:
       app:
         condition: service_healthy
     volumes:
-      - .:/app
+      - ./frontend:/app
+      - nexstream_node_modules:/app/node_modules
 
   # 9. VEKTÖR VERİTABANI (ChromaDB) — sadece internal ağda
   chromadb:
@@ -169,6 +176,22 @@ services:
     environment:
       - ANONYMIZED_TELEMETRY=FALSE
 
+  # 10. CACHE (Redis) — session'lar ve trending cache
+  redis:
+    image: redis:7-alpine
+    container_name: nexstream_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
   chroma_data:
+  redis_data:
+  nexstream_node_modules:
