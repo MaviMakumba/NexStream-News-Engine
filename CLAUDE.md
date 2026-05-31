@@ -286,39 +286,37 @@ Sonuç: 217 → 280 test (+63)
 
 ---
 
-## SIRADAKİ GÖREVLER (v1.7 → v2.0 Yol Haritası)
+## SIRADAKİ GÖREVLER (Yol Haritası — v1.11 → v2.0)
 
-Detaylı plan: `C:\Users\eren8\.claude\plans\ancient-watching-crescent.md`
+Eski detay plan: `C:\Users\eren8\.claude\plans\ancient-watching-crescent.md`
+Sonraki oturumu başlatmak için: **"Yol haritasına devam — CLAUDE.md'deki sıradaki sürümü uygula."**
 
-Sonraki oturumu başlatmak için: **"v2.0 implementasyonuna başlayalım — CLAUDE.md'deki yol haritasını takip et."**
+**Tamamlananlar:** v1.2 → v1.10 (detaylar yukarıdaki milestone'larda). v1.10 sonu: 343 test, sinematik tema frontend, lokalde tam çalışır (billing hariç — Stripe anahtarı gerekiyor).
 
-### v1.7.0 — Kullanıcı Etkileşimi & API Ürünü ✅ TAMAMLANDI
-Sonuç: 180 → 217 test (+37). Detaylar yukarıdaki tamamlanan milestone'larda.
+Kalan iş 3 sürüme bölündü. **v1.11 ve v1.12 büyük ölçüde bağımsız → paralel ilerleyebilir; v2.0 deploy ikisinin de stabil olmasına bağlı.**
 
-### v1.8.0 — AI & Veri Kalitesi ✅ TAMAMLANDI
-Sonuç: 217 → 280 test (+63). Detaylar yukarıdaki tamamlanan milestone'larda.
+### v1.11 — Monetizasyon & Erişim Tamamlama (backend ağırlıklı)
+Bu oturumda çıkan açık sorulardan doğdu (billing/admin gerçekten çalışsın).
+1. **Stripe test entegrasyonu** — test anahtarları + price ID'leri, `stripe` CLI ile lokal webhook (`stripe listen`), checkout→webhook→tier yükseltme uçtan uca. Alternatif/ek: Stripe'sız **dev-mode bypass** (env flag ile tier yükseltme simülasyonu) — local demo için.
+2. **Rol tabanlı admin** — `users.is_admin` kolonu + migration. Admin UI'ı paylaşımlı `API_KEY` yerine kullanıcı rolüne bağla (makine-makine için `X-API-Key` korunur). İlk kullanıcı / env ile admin atama.
+3. **Kullanıcı kullanım paneli** — Hesap sayfasında kullanıcının kendi API kullanımını/kotasını göster (self-service, admin değil).
+4. **(Ops.) Kullanıcı başına API key** — public API'yi session yerine key ile kullanmak isteyenler için anahtar üretimi.
 
-### v1.9.0 — Monetizasyon Temeli ✅ TAMAMLANDI
-1. **Hafif kullanıcı hesapları** — email + bcrypt, session token (JWT yok), profil
-2. **Katmanlı API erişimi** — Free (100 req/gün) / Pro ($9.99/ay, 2000 req/gün) / Enterprise ($49.99/ay, sınırsız)
-3. **Kullanım takibi & analytics** — user bazlı API log, admin endpoint
-4. **Stripe ödeme** — Checkout + webhook + hosted billing portal
-5. **Redis cache katmanı** — NullCacheAdapter fallback (REDIS_URL bossa), factory pattern
-6. **Newsletter sponsorluk alanı** — digest'te sponsor bölümü, admin CRUD
+### v1.12 — UX, Erişilebilirlik & SEO Cilası (frontend ağırlıklı, v1.11 ile paralel olabilir)
+1. **Responsive geçiş** — tüm sayfalar mobil/tablet; Navbar tema seçici + admin tabloları dar ekranda.
+2. **Erişilebilirlik** — focus halkaları, aria etiketleri, klavye navigasyonu, kontrast (özellikle koyu temalar).
+3. **SEO** — sayfa-başına OpenGraph/Twitter meta, JSON-LD, `sitemap.xml` + `robots.txt`, Next.js metadata API.
+4. **Tema ince ayarı** — efekt yoğunluğu/performans profilleri (low/high), istenirse 1-2 yeni tema.
+5. **Durum cilası** — tutarlı skeleton + boş/hata state'leri.
 
-Sonuç: 280 → 343 test (+63)
-
-### v2.0.0 — Public Launch (~10-14 gün)
-1. **Domain & VPS** — `nexstream.news`, Hetzner CX22 (€4.51/ay), Cloudflare CDN, UptimeRobot
-2. **Landing page** — Static HTML + Tailwind, Hero/Features/Pricing/Sign Up, TR/EN
-3. **API dökümantasyon portalı** — Swagger/Redoc, kullanım örnekleri, demo API key, Postman collection
-4. **SEO & içerik** — blog yazıları, OpenGraph, JSON-LD, sitemap.xml, Product Hunt launch
-5. **GitHub README overhaul** — Mermaid mimari diyagramı, dashboard GIF demo, badge'ler
-
-Beklenen: ~300 → ~320 test (+20)
+### v2.0 — Public Launch (v1.11 + v1.12 sonrası)
+1. **Domain & VPS** — `nexstream.news`, Hetzner CX22, `docker-compose.prod.yml` ile deploy, Cloudflare CDN, UptimeRobot.
+2. **API dökümantasyon portalı** — Swagger/Redoc cila, demo API key, kullanım örnekleri, Postman collection.
+3. **Launch içeriği** — landing son metinler, OG görselleri, Product Hunt materyali.
+4. **README** — ✅ v1.10'da tüm proje geneli güncellendi (gerekirse Mermaid diyagram + GIF demo eklenir).
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
-K8s/Helm, Qdrant migration, CQRS, Next.js rewrite, NTV Playwright scraper, Twitter/X entegrasyonu, custom billing portal
+K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu, custom (Stripe dışı) billing portalı
 
 ---
 
