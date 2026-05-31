@@ -26,7 +26,7 @@ export default function LoginPage() {
       login(token, user);
       router.push("/dashboard");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Giriş başarısız.");
+      setError(err instanceof Error ? err.message : t.loginFailed);
     } finally {
       setLoading(false);
     }
@@ -42,7 +42,7 @@ export default function LoginPage() {
         maskImage: "radial-gradient(ellipse 60% 60% at 50% 50%, black, transparent)",
       }} />
       <div style={{ position: "fixed", top: "30%", left: "40%", width: 400, height: 400, zIndex: 0,
-                    background: "radial-gradient(circle, rgba(34,211,238,.06), transparent 70%)", pointerEvents: "none" }} />
+                    background: "radial-gradient(circle, var(--glow), transparent 70%)", pointerEvents: "none" }} />
 
       <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 400 }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>

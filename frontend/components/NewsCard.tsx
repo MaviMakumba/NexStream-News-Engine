@@ -78,7 +78,7 @@ export function NewsCard({ article }: { article: Article }) {
 
       {/* Title */}
       <a href={article.url} target="_blank" rel="noopener noreferrer" style={{
-        display: "block", color: "var(--text)", fontWeight: 700, fontSize: "0.95rem",
+        color: "var(--text)", fontWeight: 700, fontSize: "0.95rem",
         lineHeight: 1.45, textDecoration: "none", transition: "color 0.15s",
         overflow: "hidden", display: "-webkit-box" as any,
         WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any,
@@ -104,9 +104,9 @@ export function NewsCard({ article }: { article: Article }) {
         <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 5 }}>
           {entities.map((e) => (
             <span key={e} className="badge" style={{
-              background: "rgba(34,211,238,.05)",
+              background: "var(--accent-soft)",
               color: "var(--accent)",
-              borderColor: "rgba(34,211,238,.2)",
+              borderColor: "var(--accent-line)",
               fontSize: "0.68rem",
             }}>
               {e}
@@ -149,7 +149,7 @@ export function NewsCard({ article }: { article: Article }) {
         <div style={{ marginTop: 12, paddingTop: 4 }}>
           {relatedError && (
             <p style={{ fontSize: "0.8rem", color: "var(--neg)", padding: "8px 0" }}>
-              ⚠ İlgili haberler yüklenemedi.
+              ⚠ {t.relatedError}
             </p>
           )}
           {!relatedError && related?.length === 0 && (

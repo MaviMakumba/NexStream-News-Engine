@@ -3,8 +3,12 @@
 import { useState } from "react";
 import { fetchUsage } from "@/lib/api";
 import type { UsageRow } from "@/lib/types";
+import { useSettings } from "@/lib/settings-context";
+import { UI } from "@/lib/i18n";
 
 export default function AdminUsagePage() {
+  const { lang } = useSettings();
+  const t = UI[lang];
   const [apiKey,  setApiKey]  = useState("");
   const [days,    setDays]    = useState(30);
   const [rows,    setRows]    = useState<UsageRow[]>([]);
@@ -20,7 +24,7 @@ export default function AdminUsagePage() {
       setRows(data.sort((a, b) => b.count - a.count));
       setLoaded(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erişim reddedildi.");
+      setError(err instanceof Error ? err.message : t.accessDenied);
     } finally {
       setLoading(false);
     }
@@ -34,20 +38,20 @@ export default function AdminUsagePage() {
       {/* API key bar */}
       <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
         <div style={{ flex: "1 1 240px" }}>
-          <label className="label">Admin API Anahtarı</label>
+          <label className="label">{t.adminKey}</label>
           <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
                  onKeyDown={(e) => e.key === "Enter" && load()}
                  className="input" placeholder="dev-key-change-me" />
         </div>
         <div>
-          <label className="label">Gün Aralığı</label>
+          <label className="label">{t.dayRange}</label>
           <select value={days} onChange={(e) => setDays(Number(e.target.value))}
                   className="input" style={{ width: 120, fontSize: "0.84rem" }}>
-            {[7, 14, 30, 90].map((d) => <option key={d} value={d}>{d} gün</option>)}
+            {[7, 14, 30, 90].map((d) => <option key={d} value={d}>{d} {t.dayUnit}</option>)}
           </select>
         </div>
         <button onClick={load} disabled={loading || !apiKey.trim()} className="btn-primary">
-          {loading ? "Yükleniyor…" : "Göster"}
+          {loading ? t.loadingShort : t.show}
         </button>
       </div>
 
@@ -61,9 +65,9 @@ export default function AdminUsagePage() {
           {/* KPI cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
             {[
-              { value: total.toLocaleString(), label: "Toplam İstek", color: "var(--accent)" },
-              { value: rows.length,            label: "Benzersiz Endpoint", color: "var(--accent2)" },
-              { value: `${avgMs}ms`,           label: "Ort. Yanıt Süresi", color: "var(--pos)" },
+              { value: total.toLocaleString(), label: t.totalReq, color: "var(--accent)" },
+              { value: rows.length,            label: t.uniqueEndpoint, color: "var(--accent2)" },
+              { value: `${avgMs}ms`,           label: t.avgResp, color: "var(--pos)" },
             ].map((kpi) => (
               <div key={kpi.label} className="card" style={{ textAlign: "center" }}>
                 <div style={{ fontSize: "1.8rem", fontWeight: 800, color: kpi.color, lineHeight: 1.2, marginBottom: 4 }}>
@@ -80,7 +84,7 @@ export default function AdminUsagePage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.84rem" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {["User ID", "Endpoint", "İstek", "Ort. ms"].map((h, i) => (
+                    {[t.colUserId, t.colEndpoint, t.colReq, t.colAvgMs].map((h, i) => (
                       <th key={h} style={{
                         padding: "14px 20px", textAlign: i >= 2 ? "right" : "left",
                         color: "var(--text3)", fontWeight: 700, textTransform: "uppercase",
@@ -98,15 +102,15 @@ export default function AdminUsagePage() {
                         onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
                       <td style={{ padding: "12px 20px", color: r.user_id ? "var(--text)" : "var(--text3)",
                                    fontFamily: "monospace", fontSize: "0.82rem" }}>
-                        {r.user_id ?? <span style={{ fontStyle: "italic" }}>anonim</span>}
+                        {r.user_id ?? <span style={{ fontStyle: "italic" }}>{t.anon}</span>}
                       </td>
                       <td style={{ padding: "12px 20px", color: "var(--accent)", fontFamily: "monospace",
                                    fontSize: "0.8rem" }}>
                         {r.endpoint}
                       </td>
                       <td style={{ padding: "12px 20px", textAlign: "right" }}>
-                        <span className="badge" style={{ background: "rgba(34,211,238,.08)",
-                                                          color: "var(--accent)", borderColor: "rgba(34,211,238,.2)" }}>
+                        <span className="badge" style={{ background: "var(--accent-soft)",
+                                                          color: "var(--accent)", borderColor: "var(--accent-line)" }}>
                           {r.count}
                         </span>
                       </td>
@@ -119,7 +123,7 @@ export default function AdminUsagePage() {
                   {rows.length === 0 && (
                     <tr>
                       <td colSpan={4} style={{ padding: "40px", textAlign: "center", color: "var(--text3)" }}>
-                        Kayıt bulunamadı.
+                        {t.noRecords}
                       </td>
                     </tr>
                   )}

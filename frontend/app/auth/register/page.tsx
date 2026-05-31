@@ -27,7 +27,7 @@ export default function RegisterPage() {
       login(token, user);
       router.push("/dashboard");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Kayıt başarısız.");
+      setError(err instanceof Error ? err.message : t.registerFailed);
     } finally {
       setLoading(false);
     }
@@ -43,7 +43,7 @@ export default function RegisterPage() {
         maskImage: "radial-gradient(ellipse 60% 60% at 50% 50%, black, transparent)",
       }} />
       <div style={{ position: "fixed", top: "20%", right: "30%", width: 400, height: 400, zIndex: 0,
-                    background: "radial-gradient(circle, rgba(167,139,250,.06), transparent 70%)", pointerEvents: "none" }} />
+                    background: "radial-gradient(circle, var(--glow2), transparent 70%)", pointerEvents: "none" }} />
 
       <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 400 }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
@@ -64,7 +64,7 @@ export default function RegisterPage() {
             <div>
               <label className="label">{t.nameLabel}</label>
               <input value={name} onChange={(e) => setName(e.target.value)}
-                     className="input" placeholder="Adınız Soyadınız" autoComplete="name" />
+                     className="input" placeholder={t.namePlaceholder} autoComplete="name" />
             </div>
             <div>
               <label className="label">{t.emailLabel}</label>
@@ -74,7 +74,7 @@ export default function RegisterPage() {
             <div>
               <label className="label">{t.passwordLabel}</label>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                     className="input" placeholder="En az 8 karakter" required minLength={8}
+                     className="input" placeholder={t.passwordHint} required minLength={8}
                      autoComplete="new-password" />
             </div>
             {error && (

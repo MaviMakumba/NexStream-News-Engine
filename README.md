@@ -98,8 +98,8 @@ FastAPI /news/scrape  ------>  Kafka Topic: news_updates
                           +---------------------+
                                         |
                           +-------------+
-                          |  Streamlit Dashboard |
-                          |  (visualize)         |
+                          |  Next.js Frontend    |
+                          |  (cinematic UI)      |
                           +---------------------+
 ```
 
@@ -115,11 +115,11 @@ FastAPI /news/scrape  ------>  Kafka Topic: news_updates
 | Embeddings | `paraphrase-multilingual-MiniLM-L12-v2` (local, no API key) |
 | Vector Search | ChromaDB 1.5.5 (persistent, Docker) |
 | Database | PostgreSQL 15 + SQLAlchemy ORM |
-| Dashboard | Streamlit + Plotly |
+| Frontend | Next.js 14 + React — 9 cinematic themes (CSS + Canvas) |
 | Scheduler | APScheduler |
 | Containerization | Docker + Docker Compose |
 | CI/CD | GitHub Actions |
-| Testing | pytest (97 tests) |
+| Testing | pytest (343 tests) |
 
 ---
 
@@ -143,14 +143,15 @@ New sources can be added in 6 lines — see [Adding a News Source](#adding-a-new
 
 ---
 
-### Dashboard Features
+### Frontend (Next.js)
 
-- **Search history**: last 8 queries shown as clickable chips
-- **Detail modal** (`st.dialog`): full article content + direct URL button, accessible via `›` on every card
-- **Stacked sentiment chart**: Positive/Neutral/Negative breakdown per source (Plotly)
-- **Language toggle**: Turkish / English UI (`LANGS` dict, `L["key"]` system)
-- **Health status bar**: real-time DB / Kafka / ChromaDB dots + indexed vector count
-- **Hybrid search**: semantic + keyword results ranked by combined score
+The original Streamlit dashboard was replaced by a **Next.js 14 + React** frontend with a distinctive **cinematic theme system**:
+
+- **9 cinematic themes** — Matrix, Godfather, Blade Runner, Dune, Star Wars, Spider-Man, Batman, Wolfenstein + a clean **Day** mode. Each theme transforms colors, fonts, an animated full-screen **Canvas background** (digital rain, film grain, neon rain, sandstorm, starfield, web mesh, bat-signal, embers) and plays a transition flash on switch. **Pure CSS + Canvas — no images or video assets.**
+- **Theme registry** (`lib/theme/registry.ts`): single source of truth. Add a theme = one registry entry + one CSS block + one effect, with zero consumer changes (Open/Closed).
+- **Full TR / EN i18n**: every string localized — landing, dashboard, account, and admin pages all switch language together.
+- **Trending pills** (clickable → semantic search), hybrid semantic search, related-article graph, user accounts, tiered API, Stripe billing, and an admin panel.
+- Honors `prefers-reduced-motion` and pauses animations when the browser tab is hidden (single shared `requestAnimationFrame` loop).
 
 ---
 
@@ -196,14 +197,14 @@ docker-compose up --build
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| Dashboard | http://localhost:8501 | Streamlit UI |
+| Frontend | http://localhost:3000 | Next.js UI |
 | API | http://localhost:8000 | FastAPI REST |
 | API Docs | http://localhost:8000/docs | Swagger UI |
 | DB Admin | http://localhost:8080 | Adminer |
 
 #### First Run
 
-Once all containers are healthy, open the dashboard at `http://localhost:8501` and click **Scrape** to fetch your first articles. The Kafka worker will process them through the AI analyzer automatically. Health dots in the top bar turn green when all systems are up.
+Once all containers are healthy, open the frontend at `http://localhost:3000`. The scheduler automatically triggers scraping every 10 minutes and the Kafka worker processes articles through the AI analyzer — no manual action needed. Check `http://localhost:8000/health` to confirm DB, Kafka, and ChromaDB are all green.
 
 ---
 
@@ -363,8 +364,8 @@ FastAPI /news/scrape  ------>  Kafka: news_updates
                           +---------------------------+
                                         |
                           +---------------------------+
-                          |  Streamlit Dashboard      |
-                          |  (görselleştir)           |
+                          |  Next.js Frontend         |
+                          |  (sinematik arayüz)       |
                           +---------------------------+
 ```
 
@@ -387,7 +388,7 @@ GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
 docker-compose up --build
 ```
 
-Konteynerler ayağa kalktıktan sonra `http://localhost:8501` adresindeki paneli aç ve **Scrape** butonuna basarak ilk haberleri çek. Üst bardaki sağlık dot'ları yeşile döndüğünde sistem hazır demektir.
+Konteynerler ayağa kalktıktan sonra `http://localhost:3000` adresindeki arayüzü aç. Scheduler her 10 dakikada bir scrape'i otomatik tetikler ve Kafka worker haberleri AI analizinden geçirir — manuel işlem gerekmez. `http://localhost:8000/health` ile DB / Kafka / ChromaDB'nin yeşil olduğunu doğrulayabilirsin.
 
 ---
 

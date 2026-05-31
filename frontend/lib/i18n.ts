@@ -22,8 +22,23 @@ export const SENTIMENT_LABELS: Record<string, Record<string, string>> = {
 
 export const UI: Record<Lang, Record<string, string>> = {
   TR: {
+    // ── Nav ──
     dashboard: "Haberler", search: "Arama", admin: "Yönetim", account: "Hesabım",
     login: "Giriş Yap", register: "Kayıt Ol", logout: "Çıkış",
+    settings: "Ayarlar", theme: "Tema", language: "Dil",
+
+    // ── Theme names + moods (registry referenced) ──
+    matrix: "Matrix", matrixTag: "Dijital Yağmur",
+    godfather: "Godfather", godfatherTag: "Sinematik Sepya",
+    cyberpunk: "Blade Runner", cyberpunkTag: "Neon Şehir",
+    dune: "Dune", duneTag: "Çöl Fırtınası",
+    starwars: "Star Wars", starwarsTag: "Hiperuzay",
+    spiderman: "Spider-Man", spidermanTag: "Örümcek Ağı",
+    batman: "Batman", batmanTag: "Gotham",
+    wolfenstein: "Wolfenstein", wolfensteinTag: "Dizelpunk",
+    day: "Aydınlık", dayTag: "Gündüz Modu",
+
+    // ── Dashboard ──
     trending: "Gündem", latestNews: "Son Haberler",
     allSources: "Tüm Kaynaklar", allQualities: "Tüm Kaliteler",
     qualityMed: "Orta+ (≥0.4)", qualityHigh: "Yüksek (≥0.6)",
@@ -31,25 +46,83 @@ export const UI: Record<Lang, Record<string, string>> = {
     noTrending: "Gündem verisi yok",
     related: "İlgili haberler", hideRelated: "Gizle",
     loadingRelated: "Yükleniyor…", noRelated: "İlgili haber bulunamadı.",
+    relatedError: "İlgili haberler yüklenemedi.",
     goToArticle: "Habere git →",
+
+    // ── Search ──
     searchPlaceholder: "bitcoin, deprem, yapay zeka…",
     searchBtn: "Ara", searchHistory: "Son aramalar",
     noResults: "için sonuç bulunamadı",
     semanticSearch: "Semantik Arama",
     semanticDesc: "Kelime tam eşleşmese de anlamsal olarak yakın haberler bulunur.",
-    matchRate: "eşleşme",
-    settings: "Ayarlar", theme: "Tema", language: "Dil",
+    matchRate: "eşleşme", searchFailed: "Arama başarısız.",
+
+    // ── Auth ──
     loginTitle: "Tekrar Hoş Geldiniz", loginSub: "Hesabınıza giriş yapın",
     registerTitle: "Ücretsiz Başlayın", registerSub: "Dakikalar içinde hesap oluşturun",
     emailLabel: "E-posta", passwordLabel: "Şifre", nameLabel: "İsim",
+    namePlaceholder: "Adınız Soyadınız", passwordHint: "En az 8 karakter",
     loginBtn: "Giriş Yap", registerBtn: "Kayıt Ol — Ücretsiz",
     haveAccount: "Zaten hesabınız var mı?", noAccount: "Hesabınız yok mu?",
     signIn: "Giriş yapın", signUp: "Kayıt olun",
     loading2: "Lütfen bekleyin…",
+    loginFailed: "Giriş başarısız.", registerFailed: "Kayıt başarısız.",
+
+    // ── Landing ──
+    heroBadge: "Canlı — 825+ haber indekslendi, 17 kaynak aktif",
+    heroPre: "Türkiye Haberlerini ", heroAccent: "Yapay Zeka", heroPost: " ile Keşfet",
+    heroSub: "17 kaynaktan gerçek zamanlı akış. Duygu analizi, entity tanıma, semantik arama ve ilişki grafı — tek platformda.",
+    ctaPrimary: "Ücretsiz Başla →", ctaSecondary: "Demo Görüntüle",
+    ctaAuthed: "Panele Git →", managePlan: "Planı Yönet",
+    statArticles: "Haber İndekslendi", statSources: "Aktif Kaynak",
+    statSpeed: "Analiz Süresi", statFree: "Ücretsiz Başlangıç",
+    featuresLabel: "Özellikler", featuresTitle: "Güçlü Altyapı, Sinematik Arayüz",
+    pricingLabel: "Fiyatlandırma", pricingTitle: "Ücretsiz başla, büyüdükçe yükselt",
+    mostPopular: "En Popüler", footerTagline: "AI Haber Motoru",
+
+    // ── Account ──
+    accountLabel: "Hesap", accountTitle: "Hesabım",
+    planLabel: "Plan", apiLimitLabel: "API Limiti", includedFeatures: "Dahil Özellikler",
+    upgradeTitle: "◈ Pro'ya Yükselt",
+    upgradeDesc: "2.000 istek/gün, WebSocket canlı akış ve daha fazlası — aylık yalnızca $9.99.",
+    proCta: "Pro — $9.99/ay", entCta: "Kurumsal — $49.99/ay",
+    billingTitle: "Fatura Yönetimi", billingDesc: "Aboneliğinizi yönetin, faturalarınıza bakın.",
+    billingPortal: "Fatura Portalı →", quickAccess: "Hızlı Erişim",
+    usage: "Kullanım", sponsors: "Sponsorlar", apiDocs: "API Docs", rssFeed: "RSS Akışı",
+    errorOccurred: "Hata oluştu.",
+
+    // ── Admin ──
+    adminTitle: "🔧 Yönetim Paneli", adminSub: "Admin API anahtarı gereklidir.",
+    adminKey: "Admin API Anahtarı", dayRange: "Gün Aralığı", dayUnit: "gün",
+    show: "Göster", loadingShort: "Yükleniyor…", accessDenied: "Erişim reddedildi.",
+    totalReq: "Toplam İstek", uniqueEndpoint: "Benzersiz Endpoint", avgResp: "Ort. Yanıt Süresi",
+    colUserId: "User ID", colEndpoint: "Endpoint", colReq: "İstek", colAvgMs: "Ort. ms",
+    noRecords: "Kayıt bulunamadı.", anon: "anonim",
+    currentSponsors: "Mevcut Sponsorlar", newSponsor: "Yeni Sponsor",
+    activeStatus: "Aktif", passiveStatus: "Pasif", deactivate: "Deaktif Et",
+    noSponsors: "Henüz sponsor yok.", sponsorName: "Sponsor Adı",
+    messageLabel: "Mesaj", startLabel: "Başlangıç", endLabel: "Bitiş",
+    addSponsor: "◈ Sponsor Ekle", saving: "Kaydediliyor…",
+    sponsorMsgPlaceholder: "Sponsor mesajı...", genericError: "Hata.",
   },
   EN: {
+    // ── Nav ──
     dashboard: "News", search: "Search", admin: "Admin", account: "Account",
     login: "Sign In", register: "Register", logout: "Log Out",
+    settings: "Settings", theme: "Theme", language: "Language",
+
+    // ── Theme names + moods ──
+    matrix: "Matrix", matrixTag: "Digital Rain",
+    godfather: "Godfather", godfatherTag: "Cinematic Sepia",
+    cyberpunk: "Blade Runner", cyberpunkTag: "Neon City",
+    dune: "Dune", duneTag: "Desert Storm",
+    starwars: "Star Wars", starwarsTag: "Hyperspace",
+    spiderman: "Spider-Man", spidermanTag: "Web Slinger",
+    batman: "Batman", batmanTag: "Gotham",
+    wolfenstein: "Wolfenstein", wolfensteinTag: "Dieselpunk",
+    day: "Daylight", dayTag: "Day Mode",
+
+    // ── Dashboard ──
     trending: "Trending", latestNews: "Latest News",
     allSources: "All Sources", allQualities: "All Qualities",
     qualityMed: "Medium+ (≥0.4)", qualityHigh: "High (≥0.6)",
@@ -57,27 +130,121 @@ export const UI: Record<Lang, Record<string, string>> = {
     noTrending: "No trending data",
     related: "Related articles", hideRelated: "Hide",
     loadingRelated: "Loading…", noRelated: "No related articles found.",
+    relatedError: "Failed to load related articles.",
     goToArticle: "Read article →",
+
+    // ── Search ──
     searchPlaceholder: "bitcoin, earthquake, AI…",
     searchBtn: "Search", searchHistory: "Recent searches",
     noResults: "no results for",
     semanticSearch: "Semantic Search",
     semanticDesc: "Finds semantically similar articles even without exact keyword matches.",
-    matchRate: "match",
-    settings: "Settings", theme: "Theme", language: "Language",
+    matchRate: "match", searchFailed: "Search failed.",
+
+    // ── Auth ──
     loginTitle: "Welcome Back", loginSub: "Sign in to your account",
     registerTitle: "Start for Free", registerSub: "Create your account in minutes",
     emailLabel: "Email", passwordLabel: "Password", nameLabel: "Name",
+    namePlaceholder: "Your full name", passwordHint: "At least 8 characters",
     loginBtn: "Sign In", registerBtn: "Create Free Account",
     haveAccount: "Already have an account?", noAccount: "Don't have an account?",
     signIn: "Sign in", signUp: "Sign up",
     loading2: "Please wait…",
+    loginFailed: "Sign in failed.", registerFailed: "Registration failed.",
+
+    // ── Landing ──
+    heroBadge: "Live — 825+ articles indexed, 17 sources active",
+    heroPre: "Discover the News with ", heroAccent: "Artificial Intelligence", heroPost: "",
+    heroSub: "Real-time stream from 17 sources. Sentiment analysis, entity recognition, semantic search and a relation graph — all in one platform.",
+    ctaPrimary: "Start Free →", ctaSecondary: "View Demo",
+    ctaAuthed: "Go to Dashboard →", managePlan: "Manage Plan",
+    statArticles: "Articles Indexed", statSources: "Active Sources",
+    statSpeed: "Analysis Time", statFree: "Free to Start",
+    featuresLabel: "Features", featuresTitle: "Powerful Engine, Cinematic Interface",
+    pricingLabel: "Pricing", pricingTitle: "Start free, upgrade as you grow",
+    mostPopular: "Most Popular", footerTagline: "AI News Engine",
+
+    // ── Account ──
+    accountLabel: "Account", accountTitle: "My Account",
+    planLabel: "Plan", apiLimitLabel: "API Limit", includedFeatures: "Included Features",
+    upgradeTitle: "◈ Upgrade to Pro",
+    upgradeDesc: "2,000 req/day, WebSocket live stream and more — just $9.99/month.",
+    proCta: "Pro — $9.99/mo", entCta: "Enterprise — $49.99/mo",
+    billingTitle: "Billing", billingDesc: "Manage your subscription and invoices.",
+    billingPortal: "Billing Portal →", quickAccess: "Quick Access",
+    usage: "Usage", sponsors: "Sponsors", apiDocs: "API Docs", rssFeed: "RSS Feed",
+    errorOccurred: "An error occurred.",
+
+    // ── Admin ──
+    adminTitle: "🔧 Admin Panel", adminSub: "Admin API key required.",
+    adminKey: "Admin API Key", dayRange: "Day Range", dayUnit: "days",
+    show: "Show", loadingShort: "Loading…", accessDenied: "Access denied.",
+    totalReq: "Total Requests", uniqueEndpoint: "Unique Endpoints", avgResp: "Avg Response Time",
+    colUserId: "User ID", colEndpoint: "Endpoint", colReq: "Requests", colAvgMs: "Avg ms",
+    noRecords: "No records found.", anon: "anonymous",
+    currentSponsors: "Current Sponsors", newSponsor: "New Sponsor",
+    activeStatus: "Active", passiveStatus: "Inactive", deactivate: "Deactivate",
+    noSponsors: "No sponsors yet.", sponsorName: "Sponsor Name",
+    messageLabel: "Message", startLabel: "Start", endLabel: "End",
+    addSponsor: "◈ Add Sponsor", saving: "Saving…",
+    sponsorMsgPlaceholder: "Sponsor message...", genericError: "Error.",
   },
 };
 
-export const THEMES = [
-  { id: "nebula",    label: "Nebula",    dot: "🔵" },
-  { id: "synthwave", label: "Synthwave", dot: "🟣" },
-  { id: "midnight",  label: "Midnight",  dot: "⚫" },
-  { id: "light",     label: "Light",     dot: "⚪" },
-] as const;
+// ── Structured landing content (localized) ──────────────────────────
+
+export interface Feature { icon: string; accent: string; title: string; desc: string; }
+
+export const FEATURES: Record<Lang, Feature[]> = {
+  TR: [
+    { icon: "◈", accent: "var(--accent)",  title: "AI Sentiment Analizi", desc: "Groq llama-3.1 ile her haberin duygu durumu, entity tanıma ve konu sınıflandırması saniyeler içinde." },
+    { icon: "⬡", accent: "var(--accent2)", title: "Semantik Arama",       desc: "ChromaDB vektör veritabanı ile anlamsal arama — aradığın kelime haberde olmasa bile bulur." },
+    { icon: "◎", accent: "var(--pos)",     title: "Canlı Haber Akışı",     desc: "WebSocket ile yeni haberler anında ekrana düşüyor. 17 kaynak, sürekli güncellenen feed." },
+  ],
+  EN: [
+    { icon: "◈", accent: "var(--accent)",  title: "AI Sentiment Analysis", desc: "Sentiment, entity recognition and topic classification for every article in seconds, powered by Groq llama-3.1." },
+    { icon: "⬡", accent: "var(--accent2)", title: "Semantic Search",       desc: "Vector search with ChromaDB — finds the right articles even when your exact keyword isn't in the text." },
+    { icon: "◎", accent: "var(--pos)",     title: "Live News Stream",      desc: "New articles hit the screen instantly over WebSocket. 17 sources, a continuously updated feed." },
+  ],
+};
+
+export interface Plan {
+  tier: string; price: string; period: string;
+  features: string[]; cta: string; href: string; highlight: boolean;
+}
+
+export const PRICING: Record<Lang, Plan[]> = {
+  TR: [
+    { tier: "Ücretsiz", price: "$0", period: "", highlight: false, href: "/auth/register", cta: "Hemen Başla",
+      features: ["100 API isteği / gün", "Haberler & semantik arama", "Günlük digest e-posta", "10 arama sonucu"] },
+    { tier: "Pro", price: "$9.99", period: "/ay", highlight: true, href: "/auth/register", cta: "Pro'ya Geç",
+      features: ["2.000 API isteği / gün", "WebSocket canlı akış", "50 arama sonucu", "Anlık keyword alert", "İlişki grafı"] },
+    { tier: "Kurumsal", price: "$49.99", period: "/ay", highlight: false, href: "/auth/register", cta: "İletişime Geç",
+      features: ["Sınırsız API isteği", "Ham veri export", "Özel kaynak ekleme", "SLA garantisi", "Öncelikli destek"] },
+  ],
+  EN: [
+    { tier: "Free", price: "$0", period: "", highlight: false, href: "/auth/register", cta: "Get Started",
+      features: ["100 API requests / day", "News & semantic search", "Daily digest email", "10 search results"] },
+    { tier: "Pro", price: "$9.99", period: "/mo", highlight: true, href: "/auth/register", cta: "Go Pro",
+      features: ["2,000 API requests / day", "WebSocket live stream", "50 search results", "Instant keyword alerts", "Relation graph"] },
+    { tier: "Enterprise", price: "$49.99", period: "/mo", highlight: false, href: "/auth/register", cta: "Contact Us",
+      features: ["Unlimited API requests", "Raw data export", "Custom source ingestion", "SLA guarantee", "Priority support"] },
+  ],
+};
+
+// ── Account tier detail (localized) ─────────────────────────────────
+
+export interface TierDetail { limit: string; icon: string; color: string; features: string[]; }
+
+export const TIER_DETAILS: Record<Lang, Record<string, TierDetail>> = {
+  TR: {
+    free:       { limit: "100 istek / gün",   icon: "○", color: "var(--text2)",   features: ["Haberler & arama", "10 arama sonucu", "Günlük digest e-posta"] },
+    pro:        { limit: "2.000 istek / gün", icon: "◈", color: "var(--accent)",  features: ["Tüm Ücretsiz özellikler", "WebSocket canlı akış", "50 arama sonucu", "İlişki grafı"] },
+    enterprise: { limit: "Sınırsız",          icon: "◆", color: "var(--accent2)", features: ["Tüm Pro özellikler", "Ham veri export", "Özel kaynak ekleme", "SLA garantisi"] },
+  },
+  EN: {
+    free:       { limit: "100 req / day",     icon: "○", color: "var(--text2)",   features: ["News & search", "10 search results", "Daily digest email"] },
+    pro:        { limit: "2,000 req / day",   icon: "◈", color: "var(--accent)",  features: ["All Free features", "WebSocket live stream", "50 search results", "Relation graph"] },
+    enterprise: { limit: "Unlimited",         icon: "◆", color: "var(--accent2)", features: ["All Pro features", "Raw data export", "Custom source ingestion", "SLA guarantee"] },
+  },
+};

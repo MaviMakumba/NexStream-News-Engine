@@ -73,6 +73,7 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
     container_name: nexstream_zookeeper
+    restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -87,6 +88,8 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.4.0
     container_name: nexstream_kafka
+    restart: unless-stopped
+    stop_grace_period: 30s
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -171,6 +174,7 @@ services:
   chromadb:
     image: chromadb/chroma:latest
     container_name: nexstream_chromadb
+    restart: unless-stopped
     volumes:
       - chroma_data:/data
     environment:

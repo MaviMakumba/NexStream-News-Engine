@@ -67,8 +67,21 @@ migrations/
 ├── v1_5_add_entities_topic.sql    # v1.5 DB migration (entities, topic, is_duplicate)
 ├── v1_7_subscriptions.sql         # v1.7 DB migration (subscribers tablosu)
 └── v1_8_quality_credibility.sql   # v1.8 DB migration (quality_score, credibility_score, corroboration_count)
-dashboard/
-└── app.py                         # Streamlit — 5 tema, TR/EN, trend/topic/dedup UI (v1.5+)
+frontend/                          # Next.js 14 + React (Streamlit'in yerini aldı, v1.10)
+├── app/                           # App Router sayfaları (landing, dashboard, search, account, admin, auth)
+│   ├── layout.tsx                 # data-theme=<id> + Google Fonts linkleri
+│   └── globals.css                # 9 tema token bloğu + component class'ları + geçiş flash'ı
+├── components/                    # Navbar, NewsCard, TrendingPills, SentimentBadge, TierBadge
+├── lib/
+│   ├── i18n.ts                    # UI sözlüğü + FEATURES/PRICING/TIER_DETAILS (tam TR/EN)
+│   ├── settings-context.tsx       # tema+dil context, data-theme uygular, ThemeBackground render
+│   └── theme/                     # SİNEMATİK TEMA SİSTEMİ (SOLID)
+│       ├── types.ts               # ThemeId, ThemeDefinition
+│       ├── registry.ts            # THEMES tek doğruluk kaynağı — yeni tema = 1 kayıt + 1 CSS + 1 efekt
+│       ├── useCanvasScene.ts      # paylaşılan RAF döngüsü (DPR, reduced-motion, tab gizli=duraklat)
+│       ├── ThemeBackground.tsx    # aktif temanın efektini key'li render eder
+│       └── effects/               # 8 canvas efekti: MatrixRain, FilmGrain, NeonRain, SandStorm,
+│                                  #   Starfield, WebStrands, BatSignal, EmberHaze (+ shared.ts)
 tests/
 ├── domain/test_article.py
 ├── application/test_news_service.py
@@ -162,13 +175,15 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v1.9.0 ✅ TAMAMLANDI — Kullanıcı hesapları, katmanlı API, Stripe ödeme, Redis cache, newsletter sponsor bitti
-- **Test sayısı:** 343 test, hepsi yeşil
+- **Versiyon:** v1.10.0 ✅ Frontend Sinematik Tema Sistemi (v1.9.0: kullanıcı hesapları, katmanlı API, Stripe, Redis, sponsor)
+- **Test sayısı:** 343 test, hepsi yeşil (backend); frontend `npm run build` temiz
+- **Frontend:** Next.js 14 + React. Streamlit dashboard tamamen kaldırıldı (`dashboard/app.py` silindi, compose'dan çıktı). 9 sinematik tema, tam TR/EN i18n. Port **3000**.
 - **Haber kaynağı:** 17 (11 → 17, +Anadolu Ajansı, AA Ekonomi, Guardian Tech, TechCrunch, Hacker News, The Verge)
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
 - **Branch:** main (tüm özellikler merge edildi)
 - **Hedef:** CV/portfolio projesi → canlı ürüne geçiş (ücretsiz başla, gelir varsa harca)
 - **Kısıt:** VPS'te 7/24 bağımsız çalışacak, local bağımlılık yok
+- **Lokal araçlar:** Node.js v24 + npm host'a kuruldu (winget). Docker Desktop, PostgreSQL 17, Git zaten kurulu.
 
 ---
 
@@ -350,6 +365,15 @@ venv\Scripts\python.exe -m pytest tests/ -v
 # Belirli test dosyası
 venv\Scripts\python.exe -m pytest tests/adapters/test_groq_analyzer.py -v
 
+# Frontend (Node v24 host'ta kurulu — PATH yenilenmediyse tam yol gerekebilir)
+cd frontend; npm install        # ilk kez / bağımlılık değiştiyse
+cd frontend; npm run dev        # http://localhost:3000 (hot reload)
+cd frontend; npm run build      # tip kontrolü + prod build doğrulama (DEĞİŞİKLİK SONRASI ÇALIŞTIR)
+
+# Temiz aç/kapa (stale kafka/zookeeper sorununu önler)
+docker compose down
+docker compose up -d
+
 # Docker — kod değiştiyse (volume mount sayesinde build GEREKMEZ)
 docker-compose restart worker
 docker-compose restart app
@@ -397,3 +421,9 @@ docker logs nexstream_chromadb --tail 20
 - **v1.9 usage log:** `/api/v1/` endpointleri için asyncio background task ile loglanır
 - **v1.9 admin:** `/admin/usage` + `/admin/sponsors` CRUD — `X-API-Key` gerektirir
 - **v1.9 billing:** Stripe yapılandırılmazsa `/billing/*` → 503. Webhook `stripe-signature` header doğrulaması yapılır
+- **v1.10 frontend tema:** Tema sistemi `frontend/lib/theme/registry.ts`'te tek doğruluk noktası. Renk token'ları `globals.css`'te `[data-theme="<id>"]` blokları (`--accent`, `--accent-soft`, `--accent-line`, `--glow`, `--font-display` vb.). Inline stillerde sabit renk KULLANMA — token kullan, yoksa tema değişince uyumsuz kalır. Efektler saf Canvas, `useCanvasScene` hook'unu paylaşır.
+- **v1.10 i18n:** TÜM kullanıcıya görünen string `lib/i18n.ts`'te (UI + FEATURES/PRICING/TIER_DETAILS). Sayfaya hardcoded TR metin YAZMA — yoksa EN'e geçince çevrilmez (eski bug buydu). `THEME_LIST`'teki `labelKey`/`tagKey`, `UI[lang]` içinden okunur.
+- **v1.10 trending:** API alanı `name` (eskiden frontend yanlışlıkla `entity` bekliyordu → boş isim, sadece sayı görünüyordu). `TrendingEntity` = `{name, count, type?, example_titles?}`. Pill'e tıklayınca `/dashboard/search?q=...`'a gider; search sayfası mount'ta `window.location.search`'ten `q`'yu okur (useSearchParams Suspense gerektirmesin diye).
+- **v1.10 kafka dayanıklılığı:** compose'da kafka/zookeeper/chromadb'ye `restart: unless-stopped` eklendi (eskiden yoktu → çökünce kalkmıyordu, "NodeExists"/stale state buradan). kafka'ya `stop_grace_period: 30s`. `KafkaPublisherAdapter.start()` artık retry'lı (başarısız her denemede producer'ı yeniden yaratır) → app kafka geç açılırsa çökmez. **Temiz aç/kapa:** `docker compose down` sonra `docker compose up -d`. Parçalı/ani kapanış stale broker bırakabilir ama restart politikası kendini düzeltir.
+- **v1.10 billing/admin işleyişi:** "Admin API Anahtarı" tek paylaşımlı sır (`API_KEY` env, default `dev-key-change-me`) — kullanıcı-başına DEĞİL. Admin sayfaları (/admin/usage, /admin/sponsors) bu key ile çalışır. Pro/Kurumsal butonu Stripe yapılandırılmadığı için 503 verir (gerçek Stripe hesabı + `STRIPE_*` env gerekir) — lokal dev'de beklenen davranış. Landing CTA'ları artık auth-aware (giriş yapmışsa /dashboard veya /account).
+- **v1.10 node lokal:** Node v24 + npm host'ta (`C:\Program Files\nodejs`). Frontend lokalde `cd frontend; npm run build` ile derlenir. Docker `Dockerfile.dev` `npm run dev` (SWC) tam tip kontrolü YAPMAZ → tip hataları sadece `next build`'te görünür. Frontend değişiminden sonra `npm run build` ile doğrula.

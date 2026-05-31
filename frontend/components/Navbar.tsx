@@ -7,7 +7,8 @@ import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/settings-context";
 import { apiLogout } from "@/lib/api";
 import { TierBadge } from "./TierBadge";
-import { UI, THEMES } from "@/lib/i18n";
+import { UI } from "@/lib/i18n";
+import { THEME_LIST } from "@/lib/theme/registry";
 
 export function Navbar() {
   const { user, token, logout } = useAuth();
@@ -37,7 +38,6 @@ export function Navbar() {
 
   return (
     <>
-      {/* Backdrop to close menus */}
       {(userMenu || settings) && (
         <div style={{ position: "fixed", inset: 0, zIndex: 30 }} onClick={close} />
       )}
@@ -54,7 +54,7 @@ export function Navbar() {
 
           {/* Logo */}
           <Link href="/" style={{ textDecoration: "none", marginRight: 8, flexShrink: 0 }}>
-            <span style={{ fontSize: "1.15rem", fontWeight: 800, letterSpacing: "-0.02em" }}>
+            <span className="font-display" style={{ fontSize: "1.15rem", fontWeight: 800 }}>
               <span style={{ color: "var(--text)" }}>Nex</span>
               <span className="gradient-text">Stream</span>
             </span>
@@ -67,8 +67,8 @@ export function Navbar() {
                 padding: "5px 12px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 500,
                 textDecoration: "none", transition: "all 0.15s",
                 color: isActive(l.href) ? "var(--accent)" : "var(--text2)",
-                background: isActive(l.href) ? "rgba(34,211,238,.08)" : "transparent",
-                border: isActive(l.href) ? "1px solid rgba(34,211,238,.15)" : "1px solid transparent",
+                background: isActive(l.href) ? "var(--accent-soft)" : "transparent",
+                border: isActive(l.href) ? "1px solid var(--accent-line)" : "1px solid transparent",
               }}>
                 {l.label}
               </Link>
@@ -83,7 +83,7 @@ export function Navbar() {
               <button onClick={() => { setSettings(!settings); setUserMenu(false); }}
                       title={t.settings}
                       style={{
-                        background: settings ? "rgba(34,211,238,.08)" : "none",
+                        background: settings ? "var(--accent-soft)" : "none",
                         border: `1px solid ${settings ? "var(--border2)" : "var(--border)"}`,
                         borderRadius: 8, color: settings ? "var(--accent)" : "var(--text3)",
                         cursor: "pointer", padding: "5px 10px", fontSize: "0.9rem",
@@ -94,32 +94,47 @@ export function Navbar() {
 
               {settings && (
                 <div className="glass" style={{
-                  position: "absolute", right: 0, top: "calc(100% + 8px)", width: 210,
-                  borderRadius: 14, padding: 16, boxShadow: "0 12px 40px rgba(0,0,0,.5)", zIndex: 50,
+                  position: "absolute", right: 0, top: "calc(100% + 8px)", width: 268,
+                  borderRadius: 14, padding: 16, boxShadow: "0 16px 48px rgba(0,0,0,.55)", zIndex: 50,
                 }}>
-                  <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text3)",
-                                textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
-                    {t.theme}
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 16 }}>
-                    {THEMES.map((th) => (
-                      <button key={th.id} onClick={() => setTheme(th.id as any)}
-                              style={{
-                                padding: "6px 8px", borderRadius: 8, fontSize: "0.78rem", fontWeight: 600,
-                                cursor: "pointer", transition: "all 0.15s",
-                                border: `1px solid ${theme === th.id ? "var(--accent)" : "var(--border)"}`,
-                                background: theme === th.id ? "rgba(34,211,238,.1)" : "rgba(0,0,0,.2)",
-                                color: theme === th.id ? "var(--accent)" : "var(--text2)",
-                              }}>
-                        {th.dot} {th.label}
-                      </button>
-                    ))}
+                  <div className="section-label" style={{ marginBottom: 10 }}>{t.theme}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4,
+                                maxHeight: 320, overflowY: "auto", marginBottom: 16 }}>
+                    {THEME_LIST.map((th) => {
+                      const active = theme === th.id;
+                      return (
+                        <button key={th.id} onClick={() => setTheme(th.id)}
+                                style={{
+                                  display: "flex", alignItems: "center", gap: 10,
+                                  padding: "8px 10px", borderRadius: 10, cursor: "pointer",
+                                  textAlign: "left", transition: "all 0.15s",
+                                  border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+                                  background: active ? "var(--accent-soft)" : "rgba(0,0,0,.2)",
+                                }}>
+                          <span style={{
+                            width: 26, height: 26, borderRadius: 8, flexShrink: 0,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: "0.95rem", color: active ? "var(--accent)" : "var(--text2)",
+                            background: active ? "var(--surface)" : "transparent",
+                            border: `1px solid ${active ? "var(--accent-line)" : "var(--border)"}`,
+                          }}>
+                            {th.icon}
+                          </span>
+                          <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
+                            <span style={{ fontSize: "0.84rem", fontWeight: 700,
+                                           color: active ? "var(--accent)" : "var(--text)" }}>
+                              {t[th.labelKey]}
+                            </span>
+                            <span style={{ fontSize: "0.7rem", color: "var(--text3)" }}>
+                              {t[th.tagKey]}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text3)",
-                                textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
-                    {t.language}
-                  </div>
+                  <div className="section-label" style={{ marginBottom: 10 }}>{t.language}</div>
                   <div style={{ display: "flex", gap: 6 }}>
                     {(["TR", "EN"] as const).map((l) => (
                       <button key={l} onClick={() => setLang(l)}
@@ -127,7 +142,7 @@ export function Navbar() {
                                 flex: 1, padding: "6px", borderRadius: 8, fontSize: "0.82rem",
                                 cursor: "pointer", fontWeight: 600, transition: "all 0.15s",
                                 border: `1px solid ${lang === l ? "var(--accent)" : "var(--border)"}`,
-                                background: lang === l ? "rgba(34,211,238,.1)" : "rgba(0,0,0,.2)",
+                                background: lang === l ? "var(--accent-soft)" : "rgba(0,0,0,.2)",
                                 color: lang === l ? "var(--accent)" : "var(--text2)",
                               }}>
                         {l === "TR" ? "🇹🇷 TR" : "🇬🇧 EN"}
@@ -145,7 +160,7 @@ export function Navbar() {
                         style={{
                           display: "flex", alignItems: "center", gap: 8,
                           padding: "5px 12px", borderRadius: 8,
-                          background: userMenu ? "rgba(34,211,238,.08)" : "var(--surface)",
+                          background: userMenu ? "var(--accent-soft)" : "var(--surface)",
                           border: `1px solid ${userMenu ? "var(--border2)" : "var(--border)"}`,
                           color: "var(--text)", cursor: "pointer", fontSize: "0.82rem",
                           transition: "all 0.15s", maxWidth: 240,
@@ -167,7 +182,7 @@ export function Navbar() {
                 {userMenu && (
                   <div className="glass" style={{
                     position: "absolute", right: 0, top: "calc(100% + 8px)", width: 190,
-                    borderRadius: 14, overflow: "hidden", boxShadow: "0 12px 40px rgba(0,0,0,.5)", zIndex: 50,
+                    borderRadius: 14, overflow: "hidden", boxShadow: "0 16px 48px rgba(0,0,0,.55)", zIndex: 50,
                   }}>
                     {[
                       { href: "/account",      label: `👤 ${t.account}` },
