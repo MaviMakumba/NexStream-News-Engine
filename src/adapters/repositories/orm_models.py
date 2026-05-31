@@ -46,3 +46,59 @@ class SubscriberORM(Base):
     frequency = Column(String(20), nullable=False, server_default=text("'daily'"))
     is_active = Column(Boolean, nullable=False, server_default=text("true"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserORM(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=False, server_default=text("''"))
+    tier = Column(String(20), nullable=False, server_default=text("'free'"))
+    is_active = Column(Boolean, nullable=False, server_default=text("true"))
+    stripe_customer_id = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserSessionORM(Base):
+    __tablename__ = "user_sessions"
+    __table_args__ = (
+        Index("ix_sessions_token", "token"),
+        Index("ix_sessions_user_id", "user_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)
+    token = Column(String(128), unique=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class UsageLogORM(Base):
+    __tablename__ = "usage_logs"
+    __table_args__ = (
+        Index("ix_usage_user_id", "user_id"),
+        Index("ix_usage_created_at", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=True)
+    endpoint = Column(String(255), nullable=False)
+    method = Column(String(10), nullable=False)
+    status_code = Column(Integer, nullable=False)
+    response_ms = Column(Float, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SponsorORM(Base):
+    __tablename__ = "sponsors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    url = Column(String(512), nullable=False)
+    message = Column(Text, nullable=False)
+    active_from = Column(DateTime(timezone=True), nullable=False)
+    active_until = Column(DateTime(timezone=True), nullable=False)
+    is_active = Column(Boolean, nullable=False, server_default=text("true"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

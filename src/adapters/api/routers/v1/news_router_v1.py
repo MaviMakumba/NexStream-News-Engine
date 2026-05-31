@@ -7,8 +7,9 @@ from src.application.services.news_service import NewsService
 from src.dependencies import get_news_service
 from src.adapters.api.limiter import limiter
 from src.adapters.api.metrics import search_latency_seconds
+from src.adapters.api.auth_utils import check_tier_limit
 
-router = APIRouter(prefix="/api/v1", tags=["API v1"])
+router = APIRouter(prefix="/api/v1", tags=["API v1"], dependencies=[Depends(check_tier_limit)])
 
 
 @router.get("/news", response_model=NewsPage)

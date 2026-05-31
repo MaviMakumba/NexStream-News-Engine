@@ -162,8 +162,8 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v1.8.0 ✅ TAMAMLANDI — Kaynak genişletme, ilişki grafı, güvenilirlik+kalite skorlama, cloud LLM fallback bitti
-- **Test sayısı:** 280 test, hepsi yeşil
+- **Versiyon:** v1.9.0 ✅ TAMAMLANDI — Kullanıcı hesapları, katmanlı API, Stripe ödeme, Redis cache, newsletter sponsor bitti
+- **Test sayısı:** 343 test, hepsi yeşil
 - **Haber kaynağı:** 17 (11 → 17, +Anadolu Ajansı, AA Ekonomi, Guardian Tech, TechCrunch, Hacker News, The Verge)
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
 - **Branch:** main (tüm özellikler merge edildi)
@@ -275,7 +275,7 @@ Sonuç: 217 → 280 test (+63)
 
 Detaylı plan: `C:\Users\eren8\.claude\plans\ancient-watching-crescent.md`
 
-Sonraki oturumu başlatmak için: **"v1.9 implementasyonuna başlayalım — CLAUDE.md'deki yol haritasını takip et."**
+Sonraki oturumu başlatmak için: **"v2.0 implementasyonuna başlayalım — CLAUDE.md'deki yol haritasını takip et."**
 
 ### v1.7.0 — Kullanıcı Etkileşimi & API Ürünü ✅ TAMAMLANDI
 Sonuç: 180 → 217 test (+37). Detaylar yukarıdaki tamamlanan milestone'larda.
@@ -283,15 +283,15 @@ Sonuç: 180 → 217 test (+37). Detaylar yukarıdaki tamamlanan milestone'larda.
 ### v1.8.0 — AI & Veri Kalitesi ✅ TAMAMLANDI
 Sonuç: 217 → 280 test (+63). Detaylar yukarıdaki tamamlanan milestone'larda.
 
-### v1.9.0 — Monetizasyon Temeli (~16-20 gün)
+### v1.9.0 — Monetizasyon Temeli ✅ TAMAMLANDI
 1. **Hafif kullanıcı hesapları** — email + bcrypt, session token (JWT yok), profil
-2. **Katmanlı API erişimi** — Free (100 req/gün) / Pro ($9.99/ay, 2000 req/gün, WebSocket) / Enterprise ($49.99/ay, sınırsız)
-3. **Kullanım takibi & analytics** — user bazlı API log, admin endpoint, Grafana panel
+2. **Katmanlı API erişimi** — Free (100 req/gün) / Pro ($9.99/ay, 2000 req/gün) / Enterprise ($49.99/ay, sınırsız)
+3. **Kullanım takibi & analytics** — user bazlı API log, admin endpoint
 4. **Stripe ödeme** — Checkout + webhook + hosted billing portal
-5. **Redis cache katmanı** — trending (5dk), news list (1dk), session'lar
-6. **Newsletter sponsorluk alanı** — digest'te sponsor bölümü, admin panel
+5. **Redis cache katmanı** — NullCacheAdapter fallback (REDIS_URL bossa), factory pattern
+6. **Newsletter sponsorluk alanı** — digest'te sponsor bölümü, admin CRUD
 
-Beklenen: ~255 → ~300 test (+45)
+Sonuç: 280 → 343 test (+63)
 
 ### v2.0.0 — Public Launch (~10-14 gün)
 1. **Domain & VPS** — `nexstream.news`, Hetzner CX22 (€4.51/ay), Cloudflare CDN, UptimeRobot
@@ -390,3 +390,10 @@ docker logs nexstream_chromadb --tail 20
 - **v1.8 related:** ilişki grafı ayrı tablo değil, on-the-fly entity overlap (son 500 entity'li haber taranır). `entities` SQL NULL filtresi postgres'te çalışır; SQLite/ORM'de None → JSON 'null' saklanır (servis boş entity'yi zaten güvenle eler)
 - **v1.8 skorlama:** `quality_score` + `credibility_score` + `corroboration_count` ingest'te `service._enrich_metadata` ile set edilir; saf hesap `domain/scoring/`'de. Eski haberler için migration sonrası `POST /news/reanalyze` quality'yi doldurur (credibility/corroboration ingest-only)
 - **v1.8 migration:** prod'da `migrations/v1_8_quality_credibility.sql` çalıştırılmalı (dev'de `create_all` otomatik ekler)
+- **v1.9 migration:** prod'da `migrations/v1_9_users_sessions_usage_sponsor.sql` çalıştırılmalı (users, user_sessions, usage_logs, sponsors tabloları)
+- **v1.9 yeni env var'lar:** `SESSION_TTL_DAYS` (30), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID`, `STRIPE_ENTERPRISE_PRICE_ID`, `REDIS_URL` (boşsa NullCache)
+- **v1.9 auth:** `X-Session-Token` header ile session tabanlı auth. bcrypt direkt kullanılıyor (passlib yerine — bcrypt 5.x ile uyumsuz)
+- **v1.9 tier:** `check_tier_limit` dependency v1 router'da, Free=100/gün, Pro=2000/gün, Enterprise=sınırsız
+- **v1.9 usage log:** `/api/v1/` endpointleri için asyncio background task ile loglanır
+- **v1.9 admin:** `/admin/usage` + `/admin/sponsors` CRUD — `X-API-Key` gerektirir
+- **v1.9 billing:** Stripe yapılandırılmazsa `/billing/*` → 503. Webhook `stripe-signature` header doğrulaması yapılır

@@ -10,7 +10,20 @@ logger = logging.getLogger(__name__)
 _SENTIMENT_ICON = {"Positive": "🟢", "Negative": "🔴", "Neutral": "🟡"}
 
 
-def _digest_html(articles: List[Article], language: str) -> str:
+def _sponsor_html(sponsor) -> str:
+    if not sponsor:
+        return ""
+    label = "Bu haftanın sponsoru" if True else "This week's sponsor"
+    return (
+        f"<div style='background:#f0f7ff;border-left:4px solid #1a73e8;padding:12px 16px;margin:16px 0'>"
+        f"<small style='color:#888;text-transform:uppercase;letter-spacing:1px'>{label}</small><br>"
+        f"<b><a href='{sponsor.url}' style='color:#1a73e8;text-decoration:none'>{sponsor.name}</a></b><br>"
+        f"<span style='color:#444;font-size:14px'>{sponsor.message}</span>"
+        f"</div>"
+    )
+
+
+def _digest_html(articles: List[Article], language: str, sponsor=None) -> str:
     header = "Günlük Haber Özeti" if language == "TR" else "Daily News Digest"
     rows = ""
     for a in articles:
@@ -24,8 +37,10 @@ def _digest_html(articles: List[Article], language: str) -> str:
             f"<span style='color:#444;font-size:14px'>{summary}</span>"
             f"</td></tr>"
         )
+    sponsor_section = _sponsor_html(sponsor)
     return f"""<html><body style='font-family:sans-serif;max-width:640px;margin:auto'>
 <h2 style='color:#1a1a1a'>{header}</h2>
+{sponsor_section}
 <table width='100%' cellpadding='0' cellspacing='0'>{rows}</table>
 <p style='color:#999;font-size:12px;margin-top:24px'>
 NexStream · <a href='{{unsubscribe_url}}'>Aboneliği iptal et</a>
@@ -45,8 +60,8 @@ def _alert_html(article: Article, keyword: str, language: str) -> str:
 class ConsoleEmailAdapter(EmailPort):
     """Development adapter — logs emails instead of sending them."""
 
-    def send_digest(self, to: str, articles: List[Article], language: str) -> bool:
-        logger.info("📧 [CONSOLE] Digest → %s | %d haber", to, len(articles))
+    def send_digest(self, to: str, articles: List[Article], language: str, sponsor=None) -> bool:
+        logger.info("📧 [CONSOLE] Digest → %s | %d haber | sponsor=%s", to, len(articles), sponsor.name if sponsor else None)
         return True
 
     def send_alert(self, to: str, article: Article, matched_keyword: str) -> bool:
@@ -83,9 +98,9 @@ class ResendEmailAdapter(EmailPort):
             logger.error("Email gönderilemedi (%s): %s", to, e)
             return False
 
-    def send_digest(self, to: str, articles: List[Article], language: str) -> bool:
+    def send_digest(self, to: str, articles: List[Article], language: str, sponsor=None) -> bool:
         subject = "NexStream Günlük Özet" if language == "TR" else "NexStream Daily Digest"
-        return self._post(to, subject, _digest_html(articles, language))
+        return self._post(to, subject, _digest_html(articles, language, sponsor))
 
     def send_alert(self, to: str, article: Article, matched_keyword: str) -> bool:
         subject = f"NexStream Alert: {matched_keyword}"
