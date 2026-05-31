@@ -49,9 +49,10 @@ export interface SearchResult {
 }
 
 export interface TrendingEntity {
-  entity: string;
+  name: string;
   count: number;
-  articles: number[];
+  type?: string;
+  example_titles?: string[];
 }
 
 export interface TrendingResponse {

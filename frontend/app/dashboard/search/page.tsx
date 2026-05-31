@@ -39,7 +39,13 @@ export default function SearchPage() {
   const [searched, setSearched] = useState(false);
   const [history,  setHistory]  = useState<string[]>([]);
 
-  useEffect(() => { setHistory(getHistory()); }, []);
+  useEffect(() => {
+    setHistory(getHistory());
+    // Trending pill / deep link: ?q=... otomatik arama tetikler.
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) { setQuery(q); handleSearch(q); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSearch(q = query) {
     const trimmed = q.trim();
@@ -51,7 +57,7 @@ export default function SearchPage() {
       saveHistory(trimmed);
       setHistory(getHistory());
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Arama başarısız.");
+      setError(err instanceof Error ? err.message : t.searchFailed);
     } finally {
       setLoading(false);
     }
@@ -66,7 +72,7 @@ export default function SearchPage() {
   return (
     <div style={{ maxWidth: 820, margin: "0 auto" }}>
       <div style={{ marginBottom: 28 }}>
-        <p className="section-label" style={{ marginBottom: 8 }}>Search</p>
+        <p className="section-label" style={{ marginBottom: 8 }}>{t.search}</p>
         <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--text)", letterSpacing: "-0.02em", marginBottom: 6 }}>
           {t.semanticSearch}
         </h1>
@@ -155,8 +161,8 @@ export default function SearchPage() {
                     )}
                     <SentimentBadge label={r.sentiment_label} />
                     <span className="badge" style={{
-                      background: "rgba(34,211,238,.08)", color: "var(--accent)",
-                      borderColor: "rgba(34,211,238,.2)", marginLeft: "auto",
+                      background: "var(--accent-soft)", color: "var(--accent)",
+                      borderColor: "var(--accent-line)", marginLeft: "auto",
                     }}>
                       {(r.score * 100).toFixed(0)}% {t.matchRate}
                     </span>

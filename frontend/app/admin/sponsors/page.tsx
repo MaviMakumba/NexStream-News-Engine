@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { fetchSponsors, createSponsor, deactivateSponsor } from "@/lib/api";
 import type { Sponsor } from "@/lib/types";
+import { useSettings } from "@/lib/settings-context";
+import { UI } from "@/lib/i18n";
 
 function today(offsetDays = 0) {
   const d = new Date();
@@ -11,6 +13,8 @@ function today(offsetDays = 0) {
 }
 
 export default function AdminSponsorsPage() {
+  const { lang } = useSettings();
+  const t = UI[lang];
   const [apiKey,  setApiKey]  = useState("");
   const [sponsors,setSponsors]= useState<Sponsor[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,7 +35,7 @@ export default function AdminSponsorsPage() {
       const data = await fetchSponsors(key);
       setSponsors(data); setLoaded(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erişim reddedildi.");
+      setError(err instanceof Error ? err.message : t.accessDenied);
     } finally {
       setLoading(false);
     }
@@ -50,7 +54,7 @@ export default function AdminSponsorsPage() {
       setName(""); setUrl(""); setMessage("");
       await load();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Hata.");
+      setError(err instanceof Error ? err.message : t.genericError);
     } finally {
       setSaving(false);
     }
@@ -58,7 +62,7 @@ export default function AdminSponsorsPage() {
 
   async function handleDeactivate(id: number) {
     try { await deactivateSponsor(apiKey, id); await load(); }
-    catch (err: unknown) { setError(err instanceof Error ? err.message : "Hata."); }
+    catch (err: unknown) { setError(err instanceof Error ? err.message : t.genericError); }
   }
 
   const activeSponsor   = sponsors.find((s) => s.is_active);
@@ -69,13 +73,13 @@ export default function AdminSponsorsPage() {
       {/* API key */}
       <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
         <div style={{ flex: "1 1 240px" }}>
-          <label className="label">Admin API Anahtarı</label>
+          <label className="label">{t.adminKey}</label>
           <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
                  onKeyDown={(e) => e.key === "Enter" && load()}
                  className="input" placeholder="dev-key-change-me" />
         </div>
         <button onClick={() => load()} disabled={loading || !apiKey.trim()} className="btn-primary">
-          {loading ? "Yükleniyor…" : "Göster"}
+          {loading ? t.loadingShort : t.show}
         </button>
       </div>
 
@@ -89,7 +93,7 @@ export default function AdminSponsorsPage() {
 
           {/* Sponsor list */}
           <div>
-            <p className="section-label" style={{ marginBottom: 12 }}>Mevcut Sponsorlar</p>
+            <p className="section-label" style={{ marginBottom: 12 }}>{t.currentSponsors}</p>
 
             {activeSponsor && (
               <div className="gradient-border" style={{ borderRadius: 14, padding: 20, marginBottom: 12,
@@ -102,7 +106,7 @@ export default function AdminSponsorsPage() {
                       </span>
                       <span className="badge" style={{ background: "var(--pos-bg)", color: "var(--pos)",
                                                         borderColor: "var(--pos)" }}>
-                        ● Aktif
+                        ● {t.activeStatus}
                       </span>
                     </div>
                     <p style={{ fontSize: "0.84rem", color: "var(--text2)", marginBottom: 8, lineHeight: 1.5 }}>
@@ -118,7 +122,7 @@ export default function AdminSponsorsPage() {
                   </div>
                   <button onClick={() => handleDeactivate(activeSponsor.id)} className="btn-danger"
                           style={{ padding: "6px 12px", fontSize: "0.78rem", flexShrink: 0 }}>
-                    Deaktif Et
+                    {t.deactivate}
                   </button>
                 </div>
               </div>
@@ -134,7 +138,7 @@ export default function AdminSponsorsPage() {
                     </div>
                   </div>
                   <span className="badge" style={{ background: "var(--neu-bg)", color: "var(--neu)",
-                                                    borderColor: "var(--neu)" }}>Pasif</span>
+                                                    borderColor: "var(--neu)" }}>{t.passiveStatus}</span>
                 </div>
               </div>
             ))}
@@ -142,18 +146,18 @@ export default function AdminSponsorsPage() {
             {sponsors.length === 0 && (
               <div className="card" style={{ textAlign: "center", padding: "40px 20px", color: "var(--text3)" }}>
                 <div style={{ fontSize: "2rem", marginBottom: 10 }}>⬡</div>
-                <p style={{ fontSize: "0.84rem" }}>Henüz sponsor yok.</p>
+                <p style={{ fontSize: "0.84rem" }}>{t.noSponsors}</p>
               </div>
             )}
           </div>
 
           {/* Create form */}
           <div>
-            <p className="section-label" style={{ marginBottom: 12 }}>Yeni Sponsor</p>
+            <p className="section-label" style={{ marginBottom: 12 }}>{t.newSponsor}</p>
             <div className="card">
               <form onSubmit={handleCreate} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <label className="label">Sponsor Adı</label>
+                  <label className="label">{t.sponsorName}</label>
                   <input value={name} onChange={(e) => setName(e.target.value)}
                          className="input" placeholder="Acme Corp" required />
                 </div>
@@ -163,25 +167,25 @@ export default function AdminSponsorsPage() {
                          className="input" placeholder="https://acme.com" required />
                 </div>
                 <div>
-                  <label className="label">Mesaj</label>
+                  <label className="label">{t.messageLabel}</label>
                   <textarea value={message} onChange={(e) => setMessage(e.target.value)}
                             className="input" style={{ resize: "none", fontFamily: "inherit" }}
-                            rows={3} placeholder="Sponsor mesajı..." required />
+                            rows={3} placeholder={t.sponsorMsgPlaceholder} required />
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
-                    <label className="label">Başlangıç</label>
+                    <label className="label">{t.startLabel}</label>
                     <input type="date" value={activeFrom} onChange={(e) => setActiveFrom(e.target.value)}
                            className="input" />
                   </div>
                   <div>
-                    <label className="label">Bitiş</label>
+                    <label className="label">{t.endLabel}</label>
                     <input type="date" value={activeUntil} onChange={(e) => setActiveUntil(e.target.value)}
                            className="input" />
                   </div>
                 </div>
                 <button type="submit" disabled={saving} className="btn-primary" style={{ justifyContent: "center" }}>
-                  {saving ? "Kaydediliyor…" : "◈ Sponsor Ekle"}
+                  {saving ? t.saving : t.addSponsor}
                 </button>
               </form>
             </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/settings-context";
 import { fetchNews, fetchTrending, fetchSources } from "@/lib/api";
@@ -15,6 +16,7 @@ const SENTIMENT_VALUES = ["", "Positive", "Negative", "Neutral"];
 export default function DashboardPage() {
   const { token } = useAuth();
   const { lang } = useSettings();
+  const router = useRouter();
   const t = UI[lang];
 
   const [articles,        setArticles]        = useState<Article[]>([]);
@@ -75,7 +77,10 @@ export default function DashboardPage() {
         <div>
           <p className="section-label" style={{ marginBottom: 10 }}>{t.trending}</p>
           {trending.length > 0
-            ? <TrendingPills entities={trending} />
+            ? <TrendingPills
+                entities={trending}
+                onSelect={(name) => router.push(`/dashboard/search?q=${encodeURIComponent(name)}`)}
+              />
             : <span style={{ fontSize: "0.8rem", color: "var(--text3)" }}>{t.noTrending}</span>
           }
         </div>

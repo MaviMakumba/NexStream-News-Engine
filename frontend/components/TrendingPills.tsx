@@ -7,6 +7,13 @@ interface Props {
   onSelect?: (entity: string) => void;
 }
 
+// Small glyph per entity type so trending reads at a glance.
+const TYPE_ICON: Record<string, string> = {
+  person: "◉",
+  organization: "▣",
+  location: "⌖",
+};
+
 export function TrendingPills({ entities, onSelect }: Props) {
   if (!entities.length) return null;
 
@@ -14,22 +21,20 @@ export function TrendingPills({ entities, onSelect }: Props) {
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
       {entities.map((e, i) => (
         <button
-          key={e.entity}
-          onClick={() => onSelect?.(e.entity)}
+          key={e.name}
+          onClick={() => onSelect?.(e.name)}
           className="pill"
-          style={{
-            animationDelay: `${i * 40}ms`,
-            animation: "fade-in 0.4s ease-out both",
-          }}
+          title={e.example_titles?.[0] ?? e.name}
+          style={{ animationDelay: `${i * 40}ms`, animation: "fade-in 0.4s ease-out both" }}
         >
-          <span style={{ color: "var(--accent)", fontSize: "0.65rem" }}>↑</span>
-          <span style={{ color: "var(--text)" }}>{e.entity}</span>
+          <span style={{ color: "var(--accent)", fontSize: "0.7rem" }}>
+            {TYPE_ICON[e.type ?? ""] ?? "↑"}
+          </span>
+          <span style={{ color: "var(--text)", fontWeight: 600 }}>{e.name}</span>
           <span style={{
-            fontSize: "0.65rem",
-            color: "var(--text3)",
-            background: "rgba(0,0,0,.2)",
-            padding: "1px 5px",
-            borderRadius: 4,
+            fontSize: "0.62rem", fontWeight: 700, color: "var(--accent)",
+            background: "var(--accent-soft)", border: "1px solid var(--accent-line)",
+            padding: "0 6px", borderRadius: 9999, minWidth: 18, textAlign: "center",
           }}>
             {e.count}
           </span>
