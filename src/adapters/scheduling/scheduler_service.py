@@ -1,3 +1,8 @@
+"""Zamanlayıcı süreci — 10 dakikada bir tüm kaynaklar için Kafka'ya scrape emri atar.
+
+Kendisi iş YAPMAZ; sadece üretir. Tüketim ve işleme worker'dadır (kafka_consumer).
+"""
+
 import asyncio
 import json
 import logging

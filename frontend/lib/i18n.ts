@@ -91,8 +91,22 @@ export const UI: Record<Lang, Record<string, string>> = {
     usage: "Kullanım", sponsors: "Sponsorlar", apiDocs: "API Docs", rssFeed: "RSS Akışı",
     errorOccurred: "Hata oluştu.",
 
+    // ── Account: kullanım paneli & API anahtarı (v1.11) ──
+    usageTitle: "Kullanım & Kota", usedToday: "Bugün Kullanılan",
+    remainingToday: "Kalan", dailyLimitLabel: "Günlük Limit",
+    unlimited: "Sınırsız", windowTotal: "istek (seçili aralık)",
+    noUsage: "Henüz API kullanımı yok.",
+    apiKeyTitle: "API Anahtarı",
+    apiKeyDesc: "Kişisel anahtarınızla /api/v1 endpoint'lerine X-User-Key header'ı üzerinden erişin. Kota planınızdan düşer.",
+    generateKey: "◈ Anahtar Üret", regenerateKey: "Yenile", revokeKey: "İptal Et",
+    copyKey: "Kopyala", copied: "Kopyalandı ✓",
+    noApiKey: "Henüz anahtar üretilmedi.",
+    devModeBadge: "DEV MODE", devUpgraded: "Planınız yükseltildi (ödeme simülasyonu).",
+    devDowngradeBtn: "Free'ye Dön (dev)", devDowngraded: "Planınız Free'ye düşürüldü.",
+
     // ── Admin ──
-    adminTitle: "🔧 Yönetim Paneli", adminSub: "Admin API anahtarı gereklidir.",
+    adminTitle: "🔧 Yönetim Paneli", adminSub: "Admin yetkisi veya API anahtarı gereklidir.",
+    adminAsUser: "Admin oturumuyla görüntülüyorsunuz — anahtar gerekmez.",
     adminKey: "Admin API Anahtarı", dayRange: "Gün Aralığı", dayUnit: "gün",
     show: "Göster", loadingShort: "Yükleniyor…", accessDenied: "Erişim reddedildi.",
     totalReq: "Toplam İstek", uniqueEndpoint: "Benzersiz Endpoint", avgResp: "Ort. Yanıt Süresi",
@@ -175,8 +189,22 @@ export const UI: Record<Lang, Record<string, string>> = {
     usage: "Usage", sponsors: "Sponsors", apiDocs: "API Docs", rssFeed: "RSS Feed",
     errorOccurred: "An error occurred.",
 
+    // ── Account: usage panel & API key (v1.11) ──
+    usageTitle: "Usage & Quota", usedToday: "Used Today",
+    remainingToday: "Remaining", dailyLimitLabel: "Daily Limit",
+    unlimited: "Unlimited", windowTotal: "requests (selected range)",
+    noUsage: "No API usage yet.",
+    apiKeyTitle: "API Key",
+    apiKeyDesc: "Access /api/v1 endpoints with your personal key via the X-User-Key header. Usage counts against your plan quota.",
+    generateKey: "◈ Generate Key", regenerateKey: "Rotate", revokeKey: "Revoke",
+    copyKey: "Copy", copied: "Copied ✓",
+    noApiKey: "No key generated yet.",
+    devModeBadge: "DEV MODE", devUpgraded: "Your plan was upgraded (payment simulation).",
+    devDowngradeBtn: "Back to Free (dev)", devDowngraded: "Your plan was downgraded to Free.",
+
     // ── Admin ──
-    adminTitle: "🔧 Admin Panel", adminSub: "Admin API key required.",
+    adminTitle: "🔧 Admin Panel", adminSub: "Admin role or API key required.",
+    adminAsUser: "Viewing with your admin session — no key needed.",
     adminKey: "Admin API Key", dayRange: "Day Range", dayUnit: "days",
     show: "Show", loadingShort: "Loading…", accessDenied: "Access denied.",
     totalReq: "Total Requests", uniqueEndpoint: "Unique Endpoints", avgResp: "Avg Response Time",

@@ -1,3 +1,10 @@
+"""E-posta adapter'ları — EmailPort'un iki implementasyonu + seçici factory.
+
+ResendEmailAdapter gerçek gönderim yapar (RESEND_API_KEY gerekli);
+ConsoleEmailAdapter sadece loglar (lokal geliştirme). get_email_adapter()
+ortama göre doğru olanı seçer — çağıran kod farkı bilmez.
+"""
+
 import logging
 from typing import List
 import requests

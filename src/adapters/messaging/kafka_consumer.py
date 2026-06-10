@@ -1,3 +1,11 @@
+"""Worker süreci — pipeline'ın tüketici ucu (ayrı container'da çalışır).
+
+Akış: Kafka 'news_updates' mesajı → kaynağın scraper'ı → NewsService ile
+analiz+kayıt+index → her çevrim sonunda eksik analizleri tamamla.
+İlk açılışta tüm kaynaklar bir kez taranır (startup scrape); Kafka kopması
+sonsuz döngüde yeniden bağlanılarak tolere edilir.
+"""
+
 import asyncio
 import json
 import logging

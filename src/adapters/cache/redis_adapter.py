@@ -1,3 +1,8 @@
+"""Redis cache adapter'ı — CachePort'un Redis implementasyonu.
+
+Bağlantı hatası isteği düşürmez: get None döner, set/delete sessizce loglar.
+"""
+
 import json
 import logging
 from typing import Any, Optional

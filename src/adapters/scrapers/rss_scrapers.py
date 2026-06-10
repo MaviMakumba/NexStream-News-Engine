@@ -1,3 +1,10 @@
+"""RSS scraper'ları — tüm haber kaynakları BaseRssScraper'dan türetilir.
+
+Yeni kaynak eklemek için: alt sınıf (FEED_URL + SOURCE_NAME) + registry kaydı.
+Çekim httpx ile asenkron yapılır; ölü/bozuk besleme worker'ı çökertmez —
+exception yutulur, boş liste döner. Kaynak başına 25 haber limiti vardır.
+"""
+
 import logging
 import httpx
 from bs4 import BeautifulSoup

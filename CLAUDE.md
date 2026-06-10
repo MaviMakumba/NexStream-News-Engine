@@ -49,12 +49,21 @@ src/
 │   │   ├── sentence_transformer_embedder.py  # SentenceTransformerEmbedder (singleton)
 │   │   └── chroma_search_repository.py       # ChromaDB adapter — index + search + dedup (v1.5+)
 │   └── api/
-│       ├── auth.py               # verify_api_key() dependency (v1.3+)
+│       ├── auth.py               # verify_api_key() — paylaşımlı X-API-Key (makine-makine)
+│       ├── auth_utils.py         # get_optional_user/get_current_user/require_admin/check_tier_limit (v1.9-v1.11)
 │       ├── limiter.py            # slowapi Limiter singleton (v1.3+)
 │       ├── metrics.py            # Prometheus custom metrics (v1.6+)
 │       └── routers/
 │           ├── news_router.py    # GET /news, /trending, /{id}/related, POST /scrape, /search, /reindex, /sources
-│           └── health_router.py  # GET /health — DB + Kafka + ChromaDB durumu
+│           ├── health_router.py  # GET /health — DB + Kafka + ChromaDB durumu
+│           ├── auth_router.py    # /auth: register, login, logout, me (v1.9)
+│           ├── account_router.py # /account: usage paneli + kişisel API key (v1.11)
+│           ├── admin_router.py   # /admin: usage + sponsor CRUD — require_admin (v1.11)
+│           ├── billing_router.py # /billing: Stripe + dev-mode bypass + /config (v1.11)
+│           ├── subscription_router.py # /subscriptions: newsletter abonelikleri (v1.7)
+│           ├── feed_router.py    # /feed.xml RSS 2.0 (v1.7)
+│           ├── websocket_router.py # /ws/feed canlı akış (v1.7)
+│           └── v1/news_router_v1.py # /api/v1: sürümlü, kotalı public API (v1.7+)
 ├── infrastructure/
 │   ├── config/
 │   │   ├── database.py           # SQLAlchemy engine — settings üzerinden bağlantı
@@ -66,7 +75,9 @@ src/
 migrations/
 ├── v1_5_add_entities_topic.sql    # v1.5 DB migration (entities, topic, is_duplicate)
 ├── v1_7_subscriptions.sql         # v1.7 DB migration (subscribers tablosu)
-└── v1_8_quality_credibility.sql   # v1.8 DB migration (quality_score, credibility_score, corroboration_count)
+├── v1_8_quality_credibility.sql   # v1.8 DB migration (quality_score, credibility_score, corroboration_count)
+├── v1_9_users_sessions_usage_sponsor.sql  # v1.9 (users, user_sessions, usage_logs, sponsors)
+└── v1_11_admin_api_keys.sql       # v1.11 (users.is_admin, users.api_key + unique index)
 frontend/                          # Next.js 14 + React (Streamlit'in yerini aldı, v1.10)
 ├── app/                           # App Router sayfaları (landing, dashboard, search, account, admin, auth)
 │   ├── layout.tsx                 # data-theme=<id> + Google Fonts linkleri
@@ -175,8 +186,8 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v1.10.0 ✅ Frontend Sinematik Tema Sistemi (v1.9.0: kullanıcı hesapları, katmanlı API, Stripe, Redis, sponsor)
-- **Test sayısı:** 343 test, hepsi yeşil (backend); frontend `npm run build` temiz
+- **Versiyon:** v1.11.0 ✅ Monetizasyon & Erişim (billing dev-mode, rol tabanlı admin, self-service kullanım paneli, kullanıcı başına API key) + proje geneli clean-code refactoring (tüm modüllerde docstring, ölü kod temizliği)
+- **Test sayısı:** 373 test, hepsi yeşil (backend); frontend `npm run build` temiz
 - **Frontend:** Next.js 14 + React. Streamlit dashboard tamamen kaldırıldı (`dashboard/app.py` silindi, compose'dan çıktı). 9 sinematik tema, tam TR/EN i18n. Port **3000**.
 - **Haber kaynağı:** 17 (11 → 17, +Anadolu Ajansı, AA Ekonomi, Guardian Tech, TechCrunch, Hacker News, The Verge)
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
@@ -284,32 +295,32 @@ Sonuç: 180 → 217 test (+37)
 
 Sonuç: 217 → 280 test (+63)
 
+### v1.11.0 — Monetizasyon & Erişim Tamamlama ✅ TAMAMLANDI
+1. **Billing dev-mode** — `BILLING_DEV_MODE=true` iken `/billing/checkout` Stripe'a gitmeden tier'ı anında günceller (`dev_mode: true` döner); `/billing/dev/downgrade` Free'ye çeker (flag kapalıyken 404). `GET /billing/config` public — frontend ödeme akışını buna göre seçer. Gerçek Stripe yolu aynen korunur (anahtar girilince çalışır).
+2. **Rol tabanlı admin** — `users.is_admin` kolonu + `migrations/v1_11_admin_api_keys.sql`. `require_admin` dependency: geçerli `X-API-Key` (makine) VEYA admin kullanıcı oturumu (`is_admin=true` ya da e-posta `ADMIN_EMAILS` listesinde — env ile bootstrap, DB yazmadan). Yetkisiz kullanıcı 403, anonim 401. Frontend admin sayfaları admin oturumuyla anahtar istemeden açılır; admin olmayana eski API key girişi kalır. Navbar/hesap sayfası admin linkleri sadece admin'e görünür.
+3. **Self-service kullanım paneli** — `GET /account/usage`: tier, günlük limit, bugünkü kullanım, kalan kota, endpoint bazlı istatistik. Hesap sayfasında KPI kartları + kota progress bar (%90 üzeri kırmızı).
+4. **Kullanıcı başına API key** — `users.api_key` kolonu (unique index). `POST /account/api-key` üret/rotate (`nxs_` önekli), `DELETE` iptal, `GET` görüntüle. `/api/v1` istekleri `X-User-Key` header'ı ile session'sız kullanılabilir; kota kullanıcının tier'ından uygulanır, usage middleware her iki kimliği de çözer.
+5. **Clean-code refactoring** — TÜM src/ modüllerinde docstring (%100 kapsam), `auth_router`+`auth_utils` oturum çözme mantığı `resolve_session_user`'da birleşti, `NewsService._apply_analysis` ile 3 yerdeki tekrar giderildi, ölü `adapters/api/controller.py` silindi, inline import'lar üste taşındı, frontend yeni dosyalarına açıklama katmanı.
+
+Sonuç: 343 → 373 test (+30: account router 9, billing dev-mode 8, admin rol/user-key 13)
+
 ---
 
-## SIRADAKİ GÖREVLER (Yol Haritası — v1.11 → v2.0)
+## SIRADAKİ GÖREVLER (Yol Haritası — v1.12 → v2.0)
 
 Eski detay plan: `C:\Users\eren8\.claude\plans\ancient-watching-crescent.md`
 Sonraki oturumu başlatmak için: **"Yol haritasına devam — CLAUDE.md'deki sıradaki sürümü uygula."**
 
-**Tamamlananlar:** v1.2 → v1.10 (detaylar yukarıdaki milestone'larda). v1.10 sonu: 343 test, sinematik tema frontend, lokalde tam çalışır (billing hariç — Stripe anahtarı gerekiyor).
+**Tamamlananlar:** v1.2 → v1.11 (detaylar yukarıdaki milestone'larda). v1.11 sonu: 373 test, lokalde TAM çalışır (billing dahil — `BILLING_DEV_MODE=true` ile Stripe'sız demo). Gerçek Stripe entegrasyonu kod tarafında hazır; sadece gerçek hesap + `STRIPE_*` anahtarları + `stripe listen` webhook'u gerekir (v2.0 deploy işi).
 
-Kalan iş 3 sürüme bölündü. **v1.11 ve v1.12 büyük ölçüde bağımsız → paralel ilerleyebilir; v2.0 deploy ikisinin de stabil olmasına bağlı.**
-
-### v1.11 — Monetizasyon & Erişim Tamamlama (backend ağırlıklı)
-Bu oturumda çıkan açık sorulardan doğdu (billing/admin gerçekten çalışsın).
-1. **Stripe test entegrasyonu** — test anahtarları + price ID'leri, `stripe` CLI ile lokal webhook (`stripe listen`), checkout→webhook→tier yükseltme uçtan uca. Alternatif/ek: Stripe'sız **dev-mode bypass** (env flag ile tier yükseltme simülasyonu) — local demo için.
-2. **Rol tabanlı admin** — `users.is_admin` kolonu + migration. Admin UI'ı paylaşımlı `API_KEY` yerine kullanıcı rolüne bağla (makine-makine için `X-API-Key` korunur). İlk kullanıcı / env ile admin atama.
-3. **Kullanıcı kullanım paneli** — Hesap sayfasında kullanıcının kendi API kullanımını/kotasını göster (self-service, admin değil).
-4. **(Ops.) Kullanıcı başına API key** — public API'yi session yerine key ile kullanmak isteyenler için anahtar üretimi.
-
-### v1.12 — UX, Erişilebilirlik & SEO Cilası (frontend ağırlıklı, v1.11 ile paralel olabilir)
+### v1.12 — UX, Erişilebilirlik & SEO Cilası (frontend ağırlıklı)
 1. **Responsive geçiş** — tüm sayfalar mobil/tablet; Navbar tema seçici + admin tabloları dar ekranda.
 2. **Erişilebilirlik** — focus halkaları, aria etiketleri, klavye navigasyonu, kontrast (özellikle koyu temalar).
 3. **SEO** — sayfa-başına OpenGraph/Twitter meta, JSON-LD, `sitemap.xml` + `robots.txt`, Next.js metadata API.
 4. **Tema ince ayarı** — efekt yoğunluğu/performans profilleri (low/high), istenirse 1-2 yeni tema.
 5. **Durum cilası** — tutarlı skeleton + boş/hata state'leri.
 
-### v2.0 — Public Launch (v1.11 + v1.12 sonrası)
+### v2.0 — Public Launch (v1.12 sonrası)
 1. **Domain & VPS** — `nexstream.news`, Hetzner CX22, `docker-compose.prod.yml` ile deploy, Cloudflare CDN, UptimeRobot.
 2. **API dökümantasyon portalı** — Swagger/Redoc cila, demo API key, kullanım örnekleri, Postman collection.
 3. **Launch içeriği** — landing son metinler, OG görselleri, Product Hunt materyali.
@@ -425,3 +436,8 @@ docker logs nexstream_chromadb --tail 20
 - **v1.10 kafka dayanıklılığı:** compose'da kafka/zookeeper/chromadb'ye `restart: unless-stopped` eklendi (eskiden yoktu → çökünce kalkmıyordu, "NodeExists"/stale state buradan). kafka'ya `stop_grace_period: 30s`. `KafkaPublisherAdapter.start()` artık retry'lı (başarısız her denemede producer'ı yeniden yaratır) → app kafka geç açılırsa çökmez. **Temiz aç/kapa:** `docker compose down` sonra `docker compose up -d`. Parçalı/ani kapanış stale broker bırakabilir ama restart politikası kendini düzeltir.
 - **v1.10 billing/admin işleyişi:** "Admin API Anahtarı" tek paylaşımlı sır (`API_KEY` env, default `dev-key-change-me`) — kullanıcı-başına DEĞİL. Admin sayfaları (/admin/usage, /admin/sponsors) bu key ile çalışır. Pro/Kurumsal butonu Stripe yapılandırılmadığı için 503 verir (gerçek Stripe hesabı + `STRIPE_*` env gerekir) — lokal dev'de beklenen davranış. Landing CTA'ları artık auth-aware (giriş yapmışsa /dashboard veya /account).
 - **v1.10 node lokal:** Node v24 + npm host'ta (`C:\Program Files\nodejs`). Frontend lokalde `cd frontend; npm run build` ile derlenir. Docker `Dockerfile.dev` `npm run dev` (SWC) tam tip kontrolü YAPMAZ → tip hataları sadece `next build`'te görünür. Frontend değişiminden sonra `npm run build` ile doğrula.
+- **v1.11 env var'lar:** `BILLING_DEV_MODE` (false — true iken checkout Stripe'sız tier yükseltir, PROD'DA AÇMA), `ADMIN_EMAILS` (boş — virgülle ayrılmış liste, eşleşen kullanıcı DB yazılmadan admin sayılır)
+- **v1.11 admin yetkisi:** `require_admin` (auth_utils) iki yol kabul eder: X-API-Key (makine) veya admin kullanıcı oturumu. Yetkisiz kullanıcıya 403, anonime 401. `/auth/me` artık `is_admin` döner; frontend Navbar/hesap admin linklerini buna göre gizler. Admin sayfaları admin oturumuyla otomatik yüklenir.
+- **v1.11 kullanıcı API key:** `nxs_` önekli, `/account/api-key` ile yönetilir, `X-User-Key` header'ı ile `/api/v1`'de kullanılır. Session ile key aynı anda gelirse session kazanır. Key düz saklanır (session token'lar gibi) — bilinçli sadelik tercihi.
+- **v1.11 billing testleri:** `billing_router.settings` MagicMock ile patch'lenen testlerde `ms.billing_dev_mode = False` set edilmeli — yoksa truthy MagicMock dev-mode yolunu tetikler.
+- **v1.11 refactoring:** `adapters/api/controller.py` silindi (main.py ile çakışan ölü legacy). `news_orm.py` sadece geriye-uyum köprüsü (orm_models'tan re-export). Tüm src/ modüllerinde docstring var; yeni modül eklerken docstring zorunlu kabul et. Frontend auth-context açılışta `/auth/me` ile kullanıcıyı tazeler (401'de oturumu düşürür).

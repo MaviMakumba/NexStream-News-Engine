@@ -1,3 +1,8 @@
+"""Mesaj kuyruğu port'u — scrape görevlerini yayınlama sözleşmesi.
+
+Somut implementasyon: KafkaPublisherAdapter (scheduler → kafka → worker akışı).
+"""
+
 from abc import ABC, abstractmethod
 
 class MessagePublisherPort(ABC):

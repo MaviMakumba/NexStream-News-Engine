@@ -63,6 +63,13 @@ services:
       - KAFKA_PORT=29092
       - API_KEY=${API_KEY}
       - LOG_FORMAT=json
+      # v1.11: Stripe + admin bootstrap. BILLING_DEV_MODE prod'da daima false!
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_PRO_PRICE_ID=${STRIPE_PRO_PRICE_ID:-}
+      - STRIPE_ENTERPRISE_PRICE_ID=${STRIPE_ENTERPRISE_PRICE_ID:-}
+      - BILLING_DEV_MODE=false
+      - ADMIN_EMAILS=${ADMIN_EMAILS:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 30s

@@ -1,3 +1,6 @@
+// Backend API yanıtlarının TypeScript karşılıkları.
+// Alan adları Pydantic şemalarıyla birebir aynıdır (snake_case korunur).
+
 export type Tier = "free" | "pro" | "enterprise";
 
 export interface User {
@@ -5,7 +8,33 @@ export interface User {
   email: string;
   name: string;
   tier: Tier;
+  is_admin?: boolean;          // v1.11: rol tabanlı admin (backend hesaplar)
   created_at?: string;
+}
+
+// v1.11: /account/usage — kullanıcının kendi kota & kullanım özeti
+export interface AccountUsage {
+  tier: Tier;
+  daily_limit: number | null;  // null = sınırsız (Enterprise)
+  used_today: number;
+  remaining_today: number | null;
+  days: number;
+  total_requests: number;
+  by_endpoint: UsageRow[];
+  has_api_key: boolean;
+}
+
+// v1.11: /billing/config — frontend'in ödeme akışını seçmesi için
+export interface BillingConfig {
+  dev_mode: boolean;
+  stripe_configured: boolean;
+}
+
+// /billing/checkout yanıtı — dev modda yönlendirme yerine anında yükseltme olur
+export interface CheckoutResponse {
+  url: string;
+  dev_mode?: boolean;
+  tier?: Tier;
 }
 
 export interface Article {

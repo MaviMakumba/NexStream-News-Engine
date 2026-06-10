@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { fetchSponsors, createSponsor, deactivateSponsor } from "@/lib/api";
+// Admin sponsor yönetimi sayfası (listele / ekle / deaktif et).
+// Erişim (v1.11): admin rolündeki kullanıcı session'ı ile otomatik yüklenir;
+// admin olmayanlar için paylaşımlı API anahtarı girişi gösterilir.
+
+import { useCallback, useEffect, useState } from "react";
+import { createSponsor, deactivateSponsor, fetchSponsors, type AdminCreds } from "@/lib/api";
 import type { Sponsor } from "@/lib/types";
+import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/settings-context";
 import { UI } from "@/lib/i18n";
 
@@ -13,8 +18,11 @@ function today(offsetDays = 0) {
 }
 
 export default function AdminSponsorsPage() {
+  const { user, token } = useAuth();
   const { lang } = useSettings();
   const t = UI[lang];
+  const isAdmin = Boolean(user?.is_admin && token);
+
   const [apiKey,  setApiKey]  = useState("");
   const [sponsors,setSponsors]= useState<Sponsor[]>([]);
   const [loading, setLoading] = useState(false);
@@ -28,25 +36,33 @@ export default function AdminSponsorsPage() {
   const [activeUntil, setActiveUntil] = useState(today(30));
   const [saving,      setSaving]      = useState(false);
 
-  async function load(key = apiKey) {
-    if (!key.trim()) return;
+  // Admin oturumu varsa anahtar gerekmez; yoksa girilen anahtar kullanılır.
+  const creds: AdminCreds = isAdmin ? { token } : { apiKey };
+
+  const load = useCallback(async (c: AdminCreds = creds) => {
+    if (!isAdmin && !(c.apiKey ?? "").trim()) return;
     setLoading(true); setError("");
     try {
-      const data = await fetchSponsors(key);
+      const data = await fetchSponsors(c);
       setSponsors(data); setLoaded(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t.accessDenied);
     } finally {
       setLoading(false);
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, token, apiKey, t.accessDenied]);
+
+  useEffect(() => {
+    if (isAdmin) load({ token });
+  }, [isAdmin, token, load]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !url.trim() || !message.trim()) return;
     setSaving(true);
     try {
-      await createSponsor(apiKey, {
+      await createSponsor(creds, {
         name, url, message,
         active_from:  `${activeFrom}T00:00:00Z`,
         active_until: `${activeUntil}T23:59:59Z`,
@@ -61,7 +77,7 @@ export default function AdminSponsorsPage() {
   }
 
   async function handleDeactivate(id: number) {
-    try { await deactivateSponsor(apiKey, id); await load(); }
+    try { await deactivateSponsor(creds, id); await load(); }
     catch (err: unknown) { setError(err instanceof Error ? err.message : t.genericError); }
   }
 
@@ -70,15 +86,21 @@ export default function AdminSponsorsPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* API key */}
+      {/* Auth bar */}
       <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-        <div style={{ flex: "1 1 240px" }}>
-          <label className="label">{t.adminKey}</label>
-          <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-                 onKeyDown={(e) => e.key === "Enter" && load()}
-                 className="input" placeholder="dev-key-change-me" />
-        </div>
-        <button onClick={() => load()} disabled={loading || !apiKey.trim()} className="btn-primary">
+        {isAdmin ? (
+          <div style={{ flex: "1 1 240px", fontSize: "0.84rem", color: "var(--pos)", paddingBottom: 6 }}>
+            ✓ {t.adminAsUser}
+          </div>
+        ) : (
+          <div style={{ flex: "1 1 240px" }}>
+            <label className="label">{t.adminKey}</label>
+            <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
+                   onKeyDown={(e) => e.key === "Enter" && load()}
+                   className="input" placeholder="dev-key-change-me" />
+          </div>
+        )}
+        <button onClick={() => load()} disabled={loading || (!isAdmin && !apiKey.trim())} className="btn-primary">
           {loading ? t.loadingShort : t.show}
         </button>
       </div>

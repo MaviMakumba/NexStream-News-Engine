@@ -1,3 +1,9 @@
+"""WebSocket canlı akış endpoint'i (/ws/feed).
+
+Yeni haberler main.py'deki DB poller'ı üzerinden push edilir; 30sn sessizlikte
+sunucu ping atarak bağlantıyı canlı tutar.
+"""
+
 import asyncio
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends

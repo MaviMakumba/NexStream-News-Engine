@@ -1,3 +1,16 @@
+"""NewsService — uygulamanın orkestrasyon katmanı (hexagonal core).
+
+Port'ları birbirine bağlar, iş akışlarını yürütür; HTTP/DB/LLM detayı bilmez:
+
+    scrape akışı   : update_news_from_source → analiz → skorlama → kaydet → indexle
+    arama          : hybrid_search (ChromaDB semantik + PostgreSQL keyword birleşimi)
+    keşif          : get_trending (entity agregasyonu), get_related (entity overlap)
+    bakım          : reanalyze_missed/reanalyze_all (eksik analizleri tamamlar),
+                     reindex_all (ChromaDB'yi sıfırdan doldurur)
+
+Hata felsefesi: tekil haber/adapter hatası akışı durdurmaz — logla, atla, devam et.
+"""
+
 import asyncio
 import logging
 import re
@@ -16,7 +29,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Hybrid search ağırlıkları
+# Hybrid search alan ağırlıkları: başlık eşleşmesi içerik eşleşmesinden değerlidir.
 _FIELD_WEIGHTS = {"title": 0.9, "summary": 0.7, "content": 0.5}
 
 # Turkish nominal suffixes ordered longest-first so we always strip the longest match.
@@ -44,13 +57,20 @@ _TR_SUFFIXES = (
     "ın", "in", "un", "ün",
     "ı", "i", "u", "ü",
 )
+# Hem semantik hem keyword aramada çıkan sonuç daha güvenilirdir → küçük bonus.
 _DOUBLE_HIT_BONUS = 0.10
+# Aday havuzu istenenden geniş tutulur ki birleştirme sonrası sıralama sağlıklı olsun.
 _CANDIDATE_MULTIPLIER = 3
 _MIN_CANDIDATES = 20
 _MAX_CANDIDATES = 50
 
 
 class NewsService:
+    """Haber iş akışlarının orkestratörü — tüm bağımlılıklar port olarak enjekte edilir.
+
+    search_repository / subscriber_repository / email_port opsiyoneldir:
+    verilmezse ilgili özellik (semantik arama, keyword alert) sessizce devre dışı kalır.
+    """
 
     def __init__(
         self,
@@ -66,7 +86,25 @@ class NewsService:
         self.subscriber_repository = subscriber_repository
         self.email_port = email_port
 
+    @staticmethod
+    def _apply_analysis(article: Article, result: dict) -> None:
+        """LLM analiz sonucunu (sentiment + NER + topic) makaleye işler.
+
+        Scrape, reanalyze_missed ve reanalyze_all aynı eşlemeyi paylaşır —
+        yeni bir analiz alanı eklendiğinde sadece burası değişir.
+        """
+        article.summary = result["summary"]
+        article.sentiment_score = result["sentiment_score"]
+        article.sentiment_label = result["sentiment_label"]
+        article.entities = result.get("entities")
+        article.topic = result.get("topic", "Other")
+
     async def update_news_from_source(self, scraper: NewsScraperPort):
+        """Tek kaynağı uçtan uca işler: çek → analiz et → skorla → kaydet → indexle.
+
+        Groq rate limit'ini korumak için analizler sıralı ve 2sn aralıklı çalışır;
+        ChromaDB/alert hataları kaydı engellemez (PostgreSQL tek doğruluk kaynağı).
+        """
         logger.info("Güncelleme başladı: %s", scraper.__class__.__name__)
         articles: List[Article] = await scraper.fetch_news()
 
@@ -79,14 +117,9 @@ class NewsService:
         loop = asyncio.get_running_loop()
         for i, article in enumerate(new_articles):
             if i > 0:
-                await asyncio.sleep(2)
+                await asyncio.sleep(2)  # Groq TPM limitini aşmamak için throttle
             result = await loop.run_in_executor(None, self.analyzer.analyze_text, article.content)
-
-            article.summary = result["summary"]
-            article.sentiment_score = result["sentiment_score"]
-            article.sentiment_label = result["sentiment_label"]
-            article.entities = result.get("entities")
-            article.topic = result.get("topic", "Other")
+            self._apply_analysis(article, result)
 
             try:
                 self._enrich_metadata(article)
@@ -122,6 +155,11 @@ class NewsService:
         return self.repository.get_latest_news(limit, sentiment)
 
     def hybrid_search(self, query: str, n_results: int = 10, source: str = None, sentiment: str = None) -> list[dict]:
+        """Semantik (ChromaDB) ve keyword (PostgreSQL) aramayı birleştirir.
+
+        Skor = max(semantik, keyword) + her ikisinde de çıkana _DOUBLE_HIT_BONUS.
+        Taraflardan biri hata verirse diğeri tek başına sonuç döndürür.
+        """
         candidate_size = min(max(n_results * _CANDIDATE_MULTIPLIER, _MIN_CANDIDATES), _MAX_CANDIDATES)
         query_terms = self._tokenize(query)  # includes Turkish stems for better recall
 
@@ -174,6 +212,11 @@ class NewsService:
 
     @staticmethod
     def _stem_tr(word: str) -> str:
+        """Türkçe ad çekim ekini kırpar ("beşiktaşın" → "beşiktaş").
+
+        Gerçek morfolojik analiz değil, pragmatik bir suffix-stripping —
+        en uzun ek önce denenir, kök en az 3 karakter kalmalıdır.
+        """
         for suffix in _TR_SUFFIXES:
             if word.endswith(suffix) and len(word) - len(suffix) >= 3:
                 return word[:-len(suffix)]
@@ -181,6 +224,7 @@ class NewsService:
 
     @staticmethod
     def _tokenize(query: str) -> List[str]:
+        """Sorguyu kelimelere böler ve her kelimenin TR kökünü de havuza ekler."""
         tokens = [w for w in re.findall(r"\w+", query.lower()) if len(w) >= 2]
         seen: set = set(tokens)
         expanded = list(tokens)
@@ -193,6 +237,11 @@ class NewsService:
 
     @staticmethod
     def _keyword_relevance(article: Article, query_terms: List[str]) -> float:
+        """Coverage tabanlı keyword skoru: terimlerin yüzde kaçı hangi alanda geçiyor.
+
+        Alanlar ayrı puanlanır ve en iyisi alınır — başlıkta tam eşleşme,
+        içerikte kısmi eşleşmeden her zaman üstündür (_FIELD_WEIGHTS).
+        """
         if not query_terms:
             return 0.0
 
@@ -212,6 +261,11 @@ class NewsService:
         return round(max(title_score, summary_score, content_score), 4)
 
     def get_trending(self, hours: int = 6, limit: int = 10) -> dict:
+        """Son N saatte en sık geçen entity'leri sayar (gündem listesi).
+
+        Her entity için tip (person/organization/location) ve en fazla 3
+        örnek başlık toplanır — frontend pill'lerinde tooltip olarak kullanılır.
+        """
         articles = self.repository.get_recent_articles_with_entities(hours)
         entity_counter: Counter = Counter()
         entity_type_map: dict[str, str] = {}
@@ -281,12 +335,21 @@ class NewsService:
         return len(sources)
 
     def _enrich_metadata(self, article: Article) -> None:
+        """Ingest anında hesaplanan skorları işler: kalite + güvenilirlik.
+
+        Saf hesaplama domain/scoring'dedir; bu metod sadece veri toplar ve yazar.
+        """
         article.quality_score = compute_quality_score(article)
         corroboration = self._count_corroboration(article)
         article.corroboration_count = corroboration
         article.credibility_score = compute_credibility(base_credibility(article.source), corroboration)
 
     def get_related(self, article_id: int, limit: int = 5) -> dict:
+        """Entity kesişimine göre ilgili haberleri bulur (ilişki grafı).
+
+        Ayrı bir ilişki tablosu YOKTUR — son 500 entity'li haber on-the-fly
+        taranır, ortak entity sayısına (eşitlikte tarihe) göre sıralanır.
+        """
         target = self.repository.get_article_by_id(article_id)
         if target is None:
             return {"article_id": article_id, "related": []}
@@ -321,6 +384,7 @@ class NewsService:
         return {"article_id": article_id, "related": related}
 
     def _send_keyword_alerts(self, article: Article) -> None:
+        """'instant' frekanslı abonelere keyword eşleşmesinde anında e-posta yollar."""
         if self.subscriber_repository is None or self.email_port is None:
             return
         text = f"{article.title} {article.summary or ''} {article.content[:500]}".lower()
@@ -336,16 +400,13 @@ class NewsService:
         return self.repository.get_news_paginated(limit, before_id, source, sentiment, topic, min_quality)
 
     def reanalyze_missed(self, limit: int = 5) -> int:
+        """Entity'si NULL kalmış haberleri tamamlar — worker her çevrim sonunda çağırır."""
         articles = self.repository.get_unanalyzed_articles(limit)
         updated = 0
         for article in articles:
             try:
                 result = self.analyzer.analyze_text(article.content)
-                article.summary = result["summary"]
-                article.sentiment_score = result["sentiment_score"]
-                article.sentiment_label = result["sentiment_label"]
-                article.entities = result.get("entities")
-                article.topic = result.get("topic", "Other")
+                self._apply_analysis(article, result)
                 article.quality_score = compute_quality_score(article)
                 if self.repository.update_article_analysis(article):
                     updated += 1
@@ -361,6 +422,10 @@ class NewsService:
         return updated
 
     def reanalyze_all(self) -> dict:
+        """Analizi eksik TÜM haberleri toplu işler (POST /news/reanalyze).
+
+        Entity'si zaten dolu olanlar atlanır — Groq kotası boşa harcanmaz.
+        """
         articles = self.repository.get_all_articles()
         updated, failed, skipped = 0, 0, 0
         for article in articles:
@@ -369,11 +434,7 @@ class NewsService:
                 continue
             try:
                 result = self.analyzer.analyze_text(article.content)
-                article.summary = result["summary"]
-                article.sentiment_score = result["sentiment_score"]
-                article.sentiment_label = result["sentiment_label"]
-                article.entities = result.get("entities")
-                article.topic = result.get("topic", "Other")
+                self._apply_analysis(article, result)
                 article.quality_score = compute_quality_score(article)
 
                 if self.repository.update_article_analysis(article):
@@ -391,6 +452,7 @@ class NewsService:
         return {"total": len(articles), "updated": updated, "skipped": skipped, "failed": failed}
 
     def reindex_all(self) -> dict:
+        """Tüm haberleri ChromaDB'ye yeniden indexler (volume sıfırlandığında)."""
         if not self.search_repository:
             return {"indexed": 0, "error": "ChromaDB bağlı değil"}
         articles = self.repository.get_all_articles()

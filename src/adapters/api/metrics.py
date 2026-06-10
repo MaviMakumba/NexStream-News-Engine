@@ -1,3 +1,9 @@
+"""Prometheus custom metrikleri — /metrics endpoint'inde dışa verilir.
+
+İsimlendirme: nexstream_<konu>_<birim>. Yeni metrik eklerken burada tanımla,
+kullanan modüle import et (tek doğruluk noktası).
+"""
+
 from prometheus_client import Counter, Histogram
 
 articles_processed_total = Counter(

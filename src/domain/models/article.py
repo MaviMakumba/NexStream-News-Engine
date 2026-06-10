@@ -1,3 +1,10 @@
+"""Article — sistemin merkezi domain modeli.
+
+Scraper üretir, analyzer zenginleştirir (summary/sentiment/entities/topic),
+scoring puanlar (quality/credibility), repository kalıcılaştırır, API sunar.
+Saf dataclass'tır: ORM ve Pydantic karşılıkları adapter katmanındadır.
+"""
+
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional

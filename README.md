@@ -10,7 +10,7 @@
 ![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=nextdotjs)
 ![Kafka](https://img.shields.io/badge/Apache_Kafka-231F20?logo=apachekafka)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
-![Tests](https://img.shields.io/badge/tests-343_passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-373_passing-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [English](#english) · [Türkçe](#turkce)
@@ -35,11 +35,12 @@ What started as a course project on enterprise architecture has grown into a pro
 - **Trending engine**, **related-article graph** (entity overlap), and **semantic dedup**
 - **Quality + credibility scoring**: deterministic content-quality score and source-credibility / corroboration metrics
 - **Real-time WebSocket feed**, **email newsletter + instant keyword alerts**, **RSS/Atom feed**
-- **User accounts** (session auth), **tiered API** (Free / Pro / Enterprise) with per-user rate limits and usage analytics, **Stripe billing**, **Redis cache**
+- **User accounts** (session auth), **tiered API** (Free / Pro / Enterprise) with per-user rate limits and usage analytics, **Stripe billing** (with a no-Stripe dev mode for local demos), **Redis cache**
+- **Role-based admin** (`is_admin` + `ADMIN_EMAILS` bootstrap), **self-service usage dashboard**, and **personal API keys** (`X-User-Key`) for the public API
 - **Next.js frontend**: 9 cinematic themes with animated Canvas backgrounds, full TR/EN i18n
 - **Event-driven** via Apache Kafka; **fully containerized** with Docker Compose
 - **Observability**: Prometheus + Grafana + Loki, `/health` and `/metrics` endpoints
-- **343 tests**, all green, CI via GitHub Actions
+- **373 tests**, all green, CI via GitHub Actions
 
 ---
 
@@ -116,7 +117,7 @@ Kafka topic: news_updates  ──>  Kafka worker (consumer)
 | Reverse proxy | Nginx + Let's Encrypt (production) |
 | Containerization | Docker + Docker Compose |
 | CI/CD | GitHub Actions |
-| Testing | pytest (343 tests) |
+| Testing | pytest (373 tests) |
 
 ---
 
@@ -236,7 +237,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-**Test coverage: 343 tests** across domain, application, and adapter layers. Every external call (Groq, Kafka, DB, ChromaDB) is mocked — no network access required.
+**Test coverage: 373 tests** across domain, application, and adapter layers. Every external call (Groq, Kafka, DB, ChromaDB) is mocked — no network access required.
 
 ---
 
@@ -316,7 +317,7 @@ Every push / PR to `main` triggers GitHub Actions:
 
 1. Spins up a PostgreSQL 15 service container
 2. Installs Python dependencies (incl. `pytest-asyncio`)
-3. Runs all 343 tests with `pytest`
+3. Runs all 373 tests with `pytest`
 4. Reports pass/fail status
 
 ---
@@ -334,6 +335,8 @@ Every push / PR to `main` triggers GitHub Actions:
 | v1.8 | Source expansion (17), related graph, quality + credibility scoring, LLM fallback | ✅ Done |
 | v1.9 | User accounts, tiered API, usage analytics, Stripe billing, Redis cache, sponsors | ✅ Done |
 | v1.10 | Cinematic-theme Next.js frontend (9 themes), full i18n, Kafka resilience | ✅ Done |
+| v1.11 | Billing dev mode, role-based admin, self-service usage panel, personal API keys, project-wide clean-code pass | ✅ Done |
+| v1.12 | Responsive UI, accessibility, SEO, theme polish | 🔜 Planned |
 | v2.0 | Public launch: domain + VPS, landing SEO, API docs portal, Product Hunt | 🔜 Planned |
 
 ---
@@ -364,7 +367,7 @@ Kurumsal mimari dersi için başlayan proje; kullanıcı hesapları, kullanım �
 - **Next.js arayüzü**: animasyonlu Canvas arka planlı 9 sinematik tema, tam TR/EN i18n
 - Apache Kafka ile **olay güdümlü**; Docker Compose ile **tamamen konteynerli**
 - **Gözlemlenebilirlik**: Prometheus + Grafana + Loki, `/health` ve `/metrics`
-- **343 test**, hepsi yeşil; GitHub Actions CI
+- **373 test**, hepsi yeşil; GitHub Actions CI
 
 ---
 
@@ -446,7 +449,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-**343 test** — domain, application ve adapter katmanları. Her dış çağrı (Groq, Kafka, DB, ChromaDB) mock'lanır; ağ erişimi gerekmez.
+**373 test** — domain, application ve adapter katmanları. Her dış çağrı (Groq, Kafka, DB, ChromaDB) mock'lanır; ağ erişimi gerekmez.
 
 ---
 
@@ -484,6 +487,8 @@ Conventional Commits kullanılır: `feat:`, `fix:`, `chore:`, `ci:`, `refactor:`
 | v1.8 | 17 kaynak, ilişki grafı, kalite + güvenilirlik skoru, LLM fallback | ✅ |
 | v1.9 | Kullanıcı hesapları, katmanlı API, analytics, Stripe, Redis, sponsor | ✅ |
 | v1.10 | Sinematik tema Next.js frontend (9 tema), tam i18n, Kafka dayanıklılığı | ✅ |
+| v1.11 | Billing dev mode, rol tabanlı admin, self-service kullanım paneli, kişisel API anahtarları, proje geneli clean-code | ✅ |
+| v1.12 | Responsive UI, erişilebilirlik, SEO, tema cilası | 🔜 |
 | v2.0 | Public launch: domain + VPS, landing SEO, API docs portalı, Product Hunt | 🔜 |
 
 ---

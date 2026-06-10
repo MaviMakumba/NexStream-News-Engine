@@ -1,3 +1,10 @@
+"""Haber endpoint'leri (/news) — liste, arama, gündem, ilişki + admin tetikleyiciler.
+
+Yazma/maliyetli işlemler (scrape, reanalyze, reindex) X-API-Key gerektirir;
+okuma endpoint'leri publictir ve rate limit ile korunur. Public API'nin
+sürümlü hali /api/v1 altındadır (v1/news_router_v1.py).
+"""
+
 import time
 
 from fastapi import APIRouter, Depends, Query, HTTPException, Request
@@ -10,6 +17,7 @@ from src.dependencies import get_news_service, get_message_publisher
 from src.adapters.api.auth import verify_api_key
 from src.adapters.api.limiter import limiter
 from src.adapters.api.metrics import search_latency_seconds
+from src.adapters.scrapers.registry import SCRAPER_REGISTRY
 
 router = APIRouter(prefix="/news", tags=["News"])
 
@@ -94,5 +102,5 @@ async def reindex_all(
 
 @router.get("/sources")
 def get_sources():
-    from src.adapters.scrapers.registry import SCRAPER_REGISTRY
+    """Sistemdeki aktif haber kaynaklarının listesi."""
     return list(SCRAPER_REGISTRY.keys())

@@ -28,10 +28,11 @@ export function Navbar() {
     router.push("/");
   }
 
+  // Yönetim linki sadece admin rolündeki kullanıcıya görünür (v1.11).
   const navLinks = [
     { href: "/dashboard",        label: t.dashboard },
     { href: "/dashboard/search", label: t.search },
-    { href: "/admin/usage",      label: t.admin },
+    ...(user?.is_admin ? [{ href: "/admin/usage", label: t.admin }] : []),
   ];
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
@@ -185,8 +186,8 @@ export function Navbar() {
                     borderRadius: 14, overflow: "hidden", boxShadow: "0 16px 48px rgba(0,0,0,.55)", zIndex: 50,
                   }}>
                     {[
-                      { href: "/account",      label: `👤 ${t.account}` },
-                      { href: "/admin/usage",  label: `🔧 ${t.admin}` },
+                      { href: "/account", label: `👤 ${t.account}` },
+                      ...(user.is_admin ? [{ href: "/admin/usage", label: `🔧 ${t.admin}` }] : []),
                     ].map((item) => (
                       <Link key={item.href} href={item.href} onClick={close}
                             style={{

@@ -1,3 +1,8 @@
+"""Newsletter abonesi repository port'u — kayıt/tercih/deaktivasyon sözleşmesi.
+
+Somut implementasyon: adapters/repositories/subscriber_repository.py (PostgreSQL).
+"""
+
 from abc import ABC, abstractmethod
 from typing import List, Optional
 from src.domain.models.subscriber import Subscriber

@@ -1,3 +1,9 @@
+"""Newsletter abonesi domain modeli.
+
+frequency alanı teslimat modunu belirler: "daily" (günlük digest),
+"instant" (keyword eşleşmesinde anında alert), "never" (durduruldu).
+"""
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional

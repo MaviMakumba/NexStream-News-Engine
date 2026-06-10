@@ -38,6 +38,7 @@ def test_checkout_503_when_stripe_not_configured(app_client):
     try:
         with patch("src.adapters.api.routers.billing_router.settings") as ms:
             ms.stripe_secret_key = ""
+            ms.billing_dev_mode = False
             resp = app_client.post("/billing/checkout", json={
                 "tier": "pro",
                 "success_url": "https://example.com/s",
@@ -53,6 +54,7 @@ def test_checkout_invalid_tier_returns_400(app_client):
     try:
         with patch("src.adapters.api.routers.billing_router.settings") as ms:
             ms.stripe_secret_key = "sk_test_xxx"
+            ms.billing_dev_mode = False
             ms.stripe_pro_price_id = ""
             ms.stripe_enterprise_price_id = ""
             mock_stripe = MagicMock()
@@ -74,6 +76,7 @@ def test_checkout_creates_stripe_session(app_client):
     try:
         with patch("src.adapters.api.routers.billing_router.settings") as ms:
             ms.stripe_secret_key = "sk_test_xxx"
+            ms.billing_dev_mode = False
             ms.stripe_pro_price_id = "price_pro_123"
             ms.stripe_enterprise_price_id = "price_ent_456"
             with patch("src.adapters.api.routers.billing_router._require_stripe", return_value=mock_stripe):
@@ -96,6 +99,7 @@ def test_checkout_returns_url(app_client):
     try:
         with patch("src.adapters.api.routers.billing_router.settings") as ms:
             ms.stripe_secret_key = "sk_test"
+            ms.billing_dev_mode = False
             ms.stripe_pro_price_id = "price_pro"
             ms.stripe_enterprise_price_id = "price_ent"
             with patch("src.adapters.api.routers.billing_router._require_stripe", return_value=mock_stripe):

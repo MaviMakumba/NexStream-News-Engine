@@ -1,3 +1,9 @@
+"""Cache port'u — TTL'li anahtar/değer sözleşmesi.
+
+Somut implementasyonlar: RedisCacheAdapter (REDIS_URL doluysa) ve
+NullCacheAdapter (boşsa — cache'siz çalışmak bir hata değil, bir moddur).
+"""
+
 from abc import ABC, abstractmethod
 from typing import Optional, Any
 

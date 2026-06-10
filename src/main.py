@@ -1,3 +1,16 @@
+"""FastAPI uygulama girişi — composition root.
+
+Sorumlulukları:
+    * Router'ları toplar (haber, auth, hesap, admin, billing, feed, ws, v1)
+    * Lifespan içinde uzun ömürlü kaynakları açar/kapatır:
+      Kafka publisher, SentenceTransformer ön-yükleme, WebSocket broadcast
+      poller'ı ve günlük newsletter job'ı
+    * CORS, rate-limit handler, Prometheus /metrics ve /api/v1 kullanım
+      takibi middleware'ini bağlar
+
+İş kuralı içermez — orkestrasyon NewsService'te, veri erişimi adapter'lardadır.
+"""
+
 import asyncio
 import logging
 import time
@@ -19,6 +32,7 @@ from src.adapters.api.routers.feed_router import router as feed_router
 from src.adapters.api.routers.v1.news_router_v1 import router as v1_router
 from src.adapters.api.routers.subscription_router import router as subscription_router
 from src.adapters.api.routers.auth_router import router as auth_router
+from src.adapters.api.routers.account_router import router as account_router
 from src.adapters.api.routers.admin_router import router as admin_router
 from src.adapters.api.routers.billing_router import router as billing_router
 from src.adapters.messaging.kafka_publisher import KafkaPublisherAdapter
@@ -29,15 +43,20 @@ from src.dependencies import set_message_publisher, get_search_repository, set_n
 setup_logging()
 log = logging.getLogger(__name__)
 
+# Dev ortamında tabloları otomatik oluşturur; prod'da migrations/ script'leri esastır.
 Base.metadata.create_all(bind=engine)
 
 kafka_adapter = KafkaPublisherAdapter(bootstrap_servers=settings.kafka_bootstrap_servers)
 
 
 async def _broadcast_new_articles(notifier: WebSocketNotifier) -> None:
-    """DB'yi 15sn'de bir sorgular, yeni haberleri WebSocket istemcilerine gönderir."""
+    """DB'yi 15sn'de bir sorgular, yeni haberleri WebSocket istemcilerine gönderir.
+
+    Bağlı istemci yoksa sorgu atlanır (boşuna DB yükü oluşturmaz).
+    """
     from src.adapters.repositories.news_repository import NewsRepository
 
+    # Başlangıç noktası: mevcut en yeni haber — eski kayıtlar tekrar yayınlanmaz.
     last_id = 0
     db = SessionLocal()
     try:
@@ -70,10 +89,12 @@ async def _broadcast_new_articles(notifier: WebSocketNotifier) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Uygulama ömrü: kaynakları sırayla aç, kapanışta ters sırayla temizle."""
     await kafka_adapter.start()
     set_message_publisher(kafka_adapter)
     log.info("Message Publisher (Kafka) sisteme bağlandı.")
 
+    # İlk arama isteği model yüklemesini beklemesin diye startup'ta ısıtılır.
     log.info("SentenceTransformer modeli yükleniyor...")
     get_search_repository()
     log.info("SentenceTransformer modeli hazır.")
@@ -102,7 +123,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="NexStream News Engine API",
     description="Yapay Zeka Destekli Haber Motoru",
-    version="1.8.0",
+    version="1.11.0",
     lifespan=lifespan,
 )
 
@@ -125,6 +146,7 @@ app.include_router(feed_router)
 app.include_router(v1_router)
 app.include_router(subscription_router)
 app.include_router(auth_router)
+app.include_router(account_router)
 app.include_router(admin_router)
 app.include_router(billing_router)
 
@@ -133,28 +155,37 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 @app.middleware("http")
 async def usage_tracking_middleware(request: Request, call_next):
+    """/api/v1 isteklerini kota ve istatistik için asenkron loglar.
+
+    Yanıtı bekletmemek için kayıt background task'ta yapılır; logging hatası
+    isteği asla etkilemez.
+    """
     start = time.time()
     response = await call_next(request)
     if request.url.path.startswith("/api/v1/"):
         response_ms = (time.time() - start) * 1000
-        token = request.headers.get("x-session-token")
+        session_token = request.headers.get("x-session-token")
+        user_key = request.headers.get("x-user-key")
         asyncio.create_task(
-            _log_api_usage(token, str(request.url.path), request.method, response.status_code, response_ms)
+            _log_api_usage(session_token, user_key, str(request.url.path),
+                           request.method, response.status_code, response_ms)
         )
     return response
 
 
-async def _log_api_usage(token, path, method, status_code, response_ms):
+async def _log_api_usage(session_token, user_key, path, method, status_code, response_ms):
+    """Kullanım kaydını yazar; kimlik session token VEYA kullanıcı API anahtarından çözülür."""
     from src.adapters.repositories.user_repository import UserRepository
     db = SessionLocal()
     try:
-        user_id = None
-        if token:
-            repo = UserRepository(db)
-            session = repo.get_session(token)
-            if session:
-                user_id = session.user_id
         repo = UserRepository(db)
+        user_id = None
+        if session_token:
+            session = repo.get_session(session_token)
+            user_id = session.user_id if session else None
+        if user_id is None and user_key:
+            user = repo.get_by_api_key(user_key)
+            user_id = user.id if user else None
         repo.log_usage(user_id, path, method, status_code, response_ms)
     except Exception as e:
         log.debug("Usage logging hatası: %s", e)
@@ -164,11 +195,13 @@ async def _log_api_usage(token, path, method, status_code, response_ms):
 
 @app.get("/")
 def root():
+    """Hızlı keşif için ana endpoint haritası."""
     return {
-        "message": "NexStream API v1.9.0 Çalışıyor!",
+        "message": "NexStream API v1.11.0 Çalışıyor!",
         "docs": "/docs",
         "v1_api": "/api/v1/news",
         "auth": "/auth/register",
+        "account": "/account/usage",
         "billing": "/billing/checkout",
         "admin": "/admin/usage",
         "related": "/news/{id}/related",

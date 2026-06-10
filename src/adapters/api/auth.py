@@ -1,3 +1,9 @@
+"""Paylaşımlı API anahtarı doğrulaması (X-API-Key).
+
+Makine-makine erişimi içindir (script, CI, cron). İnsan kullanıcılar için
+rol tabanlı yetki auth_utils.require_admin'dedir (v1.11).
+"""
+
 from fastapi import Header, HTTPException
 from src.infrastructure.config.settings import settings
 

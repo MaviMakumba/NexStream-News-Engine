@@ -1,3 +1,8 @@
+"""Kafka producer adapter'ı — scheduler'ın scrape görevlerini kuyruğa atar.
+
+start() retry'lıdır: broker app'ten geç ayağa kalkarsa servis çökmez (v1.10).
+"""
+
 import asyncio
 import json
 import logging
