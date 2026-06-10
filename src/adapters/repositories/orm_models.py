@@ -1,3 +1,9 @@
+"""SQLAlchemy ORM modelleri — DB tablolarının tek tanım noktası.
+
+Domain dataclass'larıyla birebir eşleşir; dönüşümler repository'lerdedir.
+Dev'de create_all tabloları otomatik kurar, prod'da migrations/ esastır.
+"""
+
 from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, Index, text
 from sqlalchemy.dialects.postgresql import JSON, JSONB
 from sqlalchemy.sql import func
@@ -57,6 +63,10 @@ class UserORM(Base):
     name = Column(String(255), nullable=False, server_default=text("''"))
     tier = Column(String(20), nullable=False, server_default=text("'free'"))
     is_active = Column(Boolean, nullable=False, server_default=text("true"))
+    # v1.11: rol tabanlı admin — paylaşımlı API_KEY yerine kullanıcı bazlı yetki
+    is_admin = Column(Boolean, nullable=False, server_default=text("false"))
+    # v1.11: kullanıcıya özel public API anahtarı (X-User-Key ile kullanılır)
+    api_key = Column(String(64), unique=True, nullable=True, index=True)
     stripe_customer_id = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

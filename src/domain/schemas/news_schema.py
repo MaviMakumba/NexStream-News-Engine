@@ -1,3 +1,9 @@
+"""API istek/yanıt şemaları (Pydantic).
+
+Domain dataclass'ları iç dünyada, bu şemalar HTTP sınırında yaşar:
+validasyon kuralları (uzunluk, pattern) burada uygulanır.
+"""
+
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import List, Optional

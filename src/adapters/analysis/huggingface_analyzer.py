@@ -1,3 +1,9 @@
+"""HuggingFace Inference API adapter'ı — Groq'un opsiyonel yedeği.
+
+HUGGINGFACE_API_KEY boşsa analyze_or_raise anında AnalysisError fırlatır;
+böylece FallbackAnalyzer bu halkayı maliyetsizce atlar.
+"""
+
 import json
 import logging
 import time

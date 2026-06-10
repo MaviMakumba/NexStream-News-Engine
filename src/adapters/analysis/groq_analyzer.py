@@ -1,3 +1,10 @@
+"""Groq LLM adapter'ı — birincil analyzer (llama-3.1-8b-instant).
+
+Tek prompt'ta sentiment + entities + topic + summary üretir (maliyet: 1 istek/haber).
+Rate limit (429) yanıtında Retry-After header'ına uyar; 5 deneme sonrası
+AnalysisError fırlatır (FallbackAnalyzer yedeğe geçsin diye).
+"""
+
 import json
 import logging
 import time

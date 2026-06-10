@@ -1,3 +1,9 @@
+"""SentenceTransformer embedding adapter'ı (lokal, TR+EN).
+
+Model: paraphrase-multilingual-MiniLM-L12-v2 — Groq embedding API'si olmadığı
+için lokal model kullanılır. Singleton: model bir kez yüklenir (~100MB).
+"""
+
 import os
 from sentence_transformers import SentenceTransformer
 from src.domain.ports.embedding_port import EmbeddingPort

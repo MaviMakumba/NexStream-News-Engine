@@ -1,3 +1,10 @@
+"""Günlük newsletter job'ı — her gün NEWSLETTER_HOUR_UTC'de digest gönderir.
+
+main.py lifespan'inde background task olarak çalışır; saat başı uyanır,
+gönderim saati geldiyse aktif 'daily' abonelere son 24 saatin en iyi 10
+haberini (tercihlere göre filtreli) yollar.
+"""
+
 import asyncio
 import logging
 from datetime import datetime, timezone, timedelta

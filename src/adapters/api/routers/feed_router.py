@@ -1,3 +1,8 @@
+"""RSS 2.0 feed (/feed.xml) — analiz edilmiş son 50 haber, sentiment+topic etiketli.
+
+feedgen opsiyonel bağımlılıktır: yüklü değilse 500 + açıklayıcı XML döner.
+"""
+
 import logging
 from datetime import timezone
 from fastapi import APIRouter, Depends

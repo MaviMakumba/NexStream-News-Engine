@@ -1,3 +1,10 @@
+"""Haber repository'sinin PostgreSQL (SQLAlchemy) implementasyonu.
+
+NewsRepositoryPort sözleşmesini gerçekler. ORM ↔ domain dönüşümleri _to_orm /
+_to_domain mapper'larında toplanır; servis katmanı asla ORM nesnesi görmez.
+Yazma hataları rollback + log ile yutulur (pipeline tek kayıt için durmaz).
+"""
+
 import logging
 import re
 from datetime import datetime, timezone, timedelta

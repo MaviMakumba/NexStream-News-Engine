@@ -1,3 +1,8 @@
+"""No-op cache — Redis yapılandırılmadığında sistemin cache'siz çalışmasını sağlar.
+
+Null Object pattern: çağıran kod "cache var mı?" diye sormak zorunda kalmaz.
+"""
+
 from typing import Any, Optional
 from src.domain.ports.cache_port import CachePort
 

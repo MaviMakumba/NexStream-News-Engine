@@ -1,3 +1,9 @@
+"""Newsletter abonelik endpoint'leri (/subscriptions).
+
+Kayıt ve iptal publictir (kullanıcı kendisi yönetir); tercih okuma/güncelleme
+X-API-Key gerektirir (başkasının aboneliğini kurcalamayı engeller).
+"""
+
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr

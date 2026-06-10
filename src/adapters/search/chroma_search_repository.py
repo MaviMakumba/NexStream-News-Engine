@@ -1,3 +1,9 @@
+"""ChromaDB vektör arama adapter'ı — indexleme, semantik arama ve near-duplicate tespiti.
+
+Skor formülü: 1/(1+distance) → (0,1] aralığına normalize. Dedup eşiği 0.92:
+yeni haber mevcut bir vektöre bu kadar yakınsa is_duplicate işaretlenir.
+"""
+
 import logging
 import chromadb
 from src.domain.models.article import Article

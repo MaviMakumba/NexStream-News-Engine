@@ -1,3 +1,9 @@
+"""WebSocket canlı yayın adapter'ı — /ws/feed istemcilerine haber push'lar.
+
+Bağlantı seti bellektedir (tek instance varsayımı); gönderim hatası alan
+bağlantılar otomatik düşürülür.
+"""
+
 import logging
 from fastapi import WebSocket
 from src.domain.ports.notification_port import NotificationPort

@@ -1,3 +1,5 @@
+"""Sponsor domain modeli — tarih aralıklı, soft-delete'li kampanya kaydı."""
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional

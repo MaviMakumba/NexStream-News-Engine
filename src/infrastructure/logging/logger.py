@@ -1,3 +1,9 @@
+"""Merkezi logging kurulumu — JSON (prod/Loki) veya text (lokal) formatter.
+
+LOG_FORMAT=json iken her satır tek JSON nesnesidir; Promtail/Loki bu formatı
+parse eder. setup_logging() main.py ve worker girişlerinde bir kez çağrılır.
+"""
+
 import json
 import logging
 import sys

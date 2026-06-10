@@ -1,3 +1,8 @@
+"""SQLAlchemy bağlantı kurulumu — engine, SessionLocal ve get_db dependency'si.
+
+Bağlantı bilgisi ayrı DB_* env değişkenlerinden gelir (DATABASE_URL kullanılmaz).
+"""
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from src.infrastructure.config.settings import settings

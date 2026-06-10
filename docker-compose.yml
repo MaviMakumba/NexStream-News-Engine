@@ -31,6 +31,8 @@ services:
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - STRIPE_PRO_PRICE_ID=${STRIPE_PRO_PRICE_ID:-}
       - STRIPE_ENTERPRISE_PRICE_ID=${STRIPE_ENTERPRISE_PRICE_ID:-}
+      - BILLING_DEV_MODE=${BILLING_DEV_MODE:-true}   # dev compose: Stripe'sız demo açık
+      - ADMIN_EMAILS=${ADMIN_EMAILS:-}
     ports:
       - "8000:8000"
     volumes:

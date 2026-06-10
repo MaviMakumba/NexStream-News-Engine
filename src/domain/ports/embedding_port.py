@@ -1,3 +1,8 @@
+"""Embedding port'u — metni vektöre çeviren bileşen sözleşmesi.
+
+Somut implementasyon: SentenceTransformerEmbedder (lokal, API anahtarı gerektirmez).
+"""
+
 from abc import ABC, abstractmethod
 
 

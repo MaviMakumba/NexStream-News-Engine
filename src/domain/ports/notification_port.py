@@ -1,3 +1,8 @@
+"""Canlı bildirim port'u — yeni haberi bağlı istemcilere duyurma sözleşmesi.
+
+Somut implementasyon: WebSocketNotifier (/ws/feed bağlantılarına broadcast).
+"""
+
 from abc import ABC, abstractmethod
 from src.domain.models.article import Article
 

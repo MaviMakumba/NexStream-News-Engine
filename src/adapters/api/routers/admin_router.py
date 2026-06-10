@@ -1,3 +1,13 @@
+"""Admin endpoint'leri (/admin) — kullanım istatistikleri + sponsor CRUD.
+
+Yetkilendirme (v1.11, `require_admin`): iki yoldan biri yeterlidir.
+    1. X-API-Key       — paylaşımlı makine-makine anahtarı (script/CI için)
+    2. X-Session-Token — `is_admin=true` olan (veya ADMIN_EMAILS'teki) kullanıcı
+
+Sponsor yönetimi kasıtlı olarak basit tutuldu (tek tablo, soft-delete):
+silme yerine `is_active=false` yazılır ki geçmiş kampanyalar raporlanabilsin.
+"""
+
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -7,15 +17,17 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from src.adapters.api.auth import verify_api_key
+from src.adapters.api.auth_utils import require_admin
 from src.adapters.repositories.user_repository import UserRepository
 from src.adapters.repositories.orm_models import SponsorORM
 from src.domain.models.sponsor import Sponsor
 from src.infrastructure.config.database import get_db
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/admin", tags=["Admin"], dependencies=[Depends(verify_api_key)])
+router = APIRouter(prefix="/admin", tags=["Admin"], dependencies=[Depends(require_admin)])
 
+
+# ── Kullanım istatistikleri ────────────────────────────────────────────────────
 
 @router.get("/usage")
 def get_usage_stats(
@@ -23,9 +35,12 @@ def get_usage_stats(
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
 ):
+    """Endpoint bazında istek sayısı/ortalama gecikme — opsiyonel kullanıcı filtresi."""
     repo = UserRepository(db)
     return repo.get_usage_stats(user_id=user_id, days=days)
 
+
+# ── Sponsor CRUD ───────────────────────────────────────────────────────────────
 
 class SponsorRequest(BaseModel):
     name: str
@@ -67,7 +82,7 @@ def create_sponsor(req: SponsorRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(orm)
     logger.info("Yeni sponsor: %s", req.name)
-    # Build from req to avoid SQLAlchemy lazy-load on mock sessions in tests
+    # Yanıt req'ten kurulur: testlerdeki mock session'larda ORM lazy-load tetiklenmesin
     return {
         "id": getattr(orm, "id", None),
         "name": req.name,
@@ -95,6 +110,7 @@ def update_sponsor(sponsor_id: int, req: SponsorRequest, db: Session = Depends(g
 
 @router.delete("/sponsors/{sponsor_id}")
 def deactivate_sponsor(sponsor_id: int, db: Session = Depends(get_db)):
+    """Soft-delete: kayıt silinmez, sadece pasife alınır."""
     orm = db.get(SponsorORM, sponsor_id)
     if not orm:
         raise HTTPException(status_code=404, detail="Sponsor not found")
@@ -104,6 +120,7 @@ def deactivate_sponsor(sponsor_id: int, db: Session = Depends(get_db)):
 
 
 def get_active_sponsor(db: Session) -> Optional[Sponsor]:
+    """Şu an yayında olan sponsoru döner (newsletter footer'ında kullanılır)."""
     now = datetime.now(timezone.utc)
     orm = (
         db.query(SponsorORM)

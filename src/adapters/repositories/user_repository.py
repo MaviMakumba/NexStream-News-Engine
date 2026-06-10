@@ -1,8 +1,16 @@
+"""Kullanıcı repository'sinin PostgreSQL (SQLAlchemy) implementasyonu.
+
+`UserRepositoryPort` sözleşmesini gerçekler: kullanıcı CRUD, oturum yönetimi
+ve API kullanım takibi (kota sayacı + istatistik). ORM ↔ domain dönüşümleri
+`_to_user` / `_to_session` yardımcılarında toplanır; router'lar asla ORM
+nesnesi görmez.
+"""
+
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
-from sqlalchemy import func
+from sqlalchemy import Date, func
 from sqlalchemy.orm import Session
 
 from src.domain.models.user import User, UserSession, UserTier
@@ -16,6 +24,8 @@ class UserRepository(UserRepositoryPort):
     def __init__(self, db: Session):
         self.db = db
 
+    # ── ORM ↔ Domain dönüşümleri ───────────────────────────────────────────
+
     def _to_user(self, orm: UserORM) -> User:
         return User(
             id=orm.id,
@@ -24,6 +34,8 @@ class UserRepository(UserRepositoryPort):
             name=orm.name or "",
             tier=UserTier(orm.tier),
             is_active=orm.is_active,
+            is_admin=bool(getattr(orm, "is_admin", False)),
+            api_key=getattr(orm, "api_key", None),
             stripe_customer_id=orm.stripe_customer_id,
             created_at=orm.created_at,
         )
@@ -37,6 +49,8 @@ class UserRepository(UserRepositoryPort):
             created_at=orm.created_at,
         )
 
+    # ── Kullanıcı CRUD ─────────────────────────────────────────────────────
+
     def create_user(self, user: User) -> User:
         orm = UserORM(
             email=user.email,
@@ -44,6 +58,7 @@ class UserRepository(UserRepositoryPort):
             name=user.name,
             tier=user.tier.value if isinstance(user.tier, UserTier) else user.tier,
             is_active=user.is_active,
+            is_admin=user.is_admin,
             stripe_customer_id=user.stripe_customer_id,
         )
         self.db.add(orm)
@@ -59,6 +74,10 @@ class UserRepository(UserRepositoryPort):
         orm = self.db.query(UserORM).filter(UserORM.id == user_id).first()
         return self._to_user(orm) if orm else None
 
+    def get_by_api_key(self, api_key: str) -> Optional[User]:
+        orm = self.db.query(UserORM).filter(UserORM.api_key == api_key).first()
+        return self._to_user(orm) if orm else None
+
     def update_tier(self, user_id: int, tier: str, stripe_customer_id: Optional[str] = None) -> bool:
         orm = self.db.query(UserORM).filter(UserORM.id == user_id).first()
         if not orm:
@@ -68,6 +87,16 @@ class UserRepository(UserRepositoryPort):
             orm.stripe_customer_id = stripe_customer_id
         self.db.commit()
         return True
+
+    def set_api_key(self, user_id: int, api_key: Optional[str]) -> bool:
+        orm = self.db.query(UserORM).filter(UserORM.id == user_id).first()
+        if not orm:
+            return False
+        orm.api_key = api_key
+        self.db.commit()
+        return True
+
+    # ── Oturum yönetimi ────────────────────────────────────────────────────
 
     def create_session(self, session: UserSession) -> UserSession:
         orm = UserSessionORM(
@@ -96,6 +125,8 @@ class UserRepository(UserRepositoryPort):
         self.db.commit()
         return True
 
+    # ── Kullanım takibi ────────────────────────────────────────────────────
+
     def log_usage(self, user_id: Optional[int], endpoint: str, method: str, status_code: int, response_ms: float) -> None:
         entry = UsageLogORM(
             user_id=user_id,
@@ -108,6 +139,11 @@ class UserRepository(UserRepositoryPort):
         self.db.commit()
 
     def get_usage_stats(self, user_id: Optional[int] = None, days: int = 30) -> List[dict]:
+        """Endpoint bazında istek sayısı ve ortalama yanıt süresi döner.
+
+        user_id verilirse tek kullanıcıya filtrelenir (self-service panel);
+        verilmezse tüm kullanıcıları kapsar (admin paneli).
+        """
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         query = self.db.query(
             UsageLogORM.user_id,
@@ -124,7 +160,7 @@ class UserRepository(UserRepositoryPort):
         ]
 
     def get_daily_usage_count(self, user_id: int) -> int:
-        from sqlalchemy import cast, Date
+        """Bugünkü (UTC) istek sayısı — tier kota kontrolünde kullanılır."""
         today = datetime.now(timezone.utc).date()
         return (
             self.db.query(func.count(UsageLogORM.id))

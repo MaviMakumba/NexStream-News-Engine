@@ -1,3 +1,10 @@
+"""LLM analiz port'u — sentiment + NER + topic çıkarımı sözleşmesi.
+
+Somut implementasyonlar: GroqAnalyzer (birincil), HuggingFaceAnalyzer (yedek),
+FallbackAnalyzer (zincir). `analyze_text` asla fırlatmaz; `analyze_or_raise`
+fallback zincirinin "bu analyzer başarısız, sıradakine geç" sinyalidir.
+"""
+
 from abc import ABC, abstractmethod
 
 

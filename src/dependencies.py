@@ -1,3 +1,10 @@
+"""FastAPI dependency injection — uygulamanın kompozisyon noktası.
+
+Uzun ömürlü singleton'lar (Kafka publisher, ChromaDB, cache, notifier) burada
+saklanır; istek başına nesneler (DB session, NewsService) dependency olarak
+üretilir. Router'lar somut sınıf değil, bu fonksiyonları bilir.
+"""
+
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from src.infrastructure.config.database import get_db

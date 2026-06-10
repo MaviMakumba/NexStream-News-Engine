@@ -1,5 +1,17 @@
+"""Billing endpoint'leri (/billing) — Stripe abonelik akışı + dev-mode simülasyonu.
+
+İki çalışma modu:
+    1. Stripe modu (production): checkout → Stripe Checkout sayfası → webhook
+       `customer.subscription.*` event'i → tier güncellemesi. Webhook imzası
+       `STRIPE_WEBHOOK_SECRET` ile doğrulanır.
+    2. Dev mode (BILLING_DEV_MODE=true): Stripe'a hiç gidilmez; checkout çağrısı
+       tier'ı ANINDA günceller ve `dev_mode: true` döner. Lokal demo içindir,
+       production'da asla açılmamalıdır.
+
+Stripe yapılandırılmamış ve dev mode kapalıysa tüm endpoint'ler 503 döner.
+"""
+
 import logging
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
@@ -14,6 +26,9 @@ from src.infrastructure.config.settings import settings
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/billing", tags=["Billing"])
 
+# Satın alınabilir kademeler — Free'ye "yükseltme" olmaz, o varsayılandır.
+_PURCHASABLE_TIERS = ("pro", "enterprise")
+
 
 class CheckoutRequest(BaseModel):
     tier: str  # "pro" | "enterprise"
@@ -22,6 +37,11 @@ class CheckoutRequest(BaseModel):
 
 
 def _require_stripe():
+    """Stripe SDK'sını yapılandırıp döner; anahtar yoksa 503.
+
+    Import fonksiyon içinde: Stripe kullanılmayan kurulumlarda (dev mode)
+    modül yüklenmesin, app açılışı yavaşlamasın.
+    """
     if not settings.stripe_secret_key:
         raise HTTPException(status_code=503, detail="Stripe not configured")
     import stripe as _stripe
@@ -29,11 +49,38 @@ def _require_stripe():
     return _stripe
 
 
+# ── Yapılandırma keşfi ─────────────────────────────────────────────────────────
+
+@router.get("/config")
+def billing_config():
+    """Frontend'in ödeme akışını seçmesi için public yapılandırma özeti.
+
+    Sır içermez — sadece hangi modun aktif olduğunu söyler.
+    """
+    return {
+        "dev_mode": bool(settings.billing_dev_mode),
+        "stripe_configured": bool(settings.stripe_secret_key),
+    }
+
+
+# ── Checkout ───────────────────────────────────────────────────────────────────
+
 @router.post("/checkout")
 def create_checkout(
     req: CheckoutRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
+    """Abonelik başlatır: Stripe Checkout URL'i veya dev modda anında yükseltme."""
+    if req.tier not in _PURCHASABLE_TIERS:
+        raise HTTPException(status_code=400, detail="Invalid tier. Use 'pro' or 'enterprise'")
+
+    # Dev mode: ödeme simülasyonu — tier anında güncellenir, Stripe'a gidilmez.
+    if settings.billing_dev_mode:
+        UserRepository(db).update_tier(current_user.id, req.tier)
+        logger.info("DEV MODE yükseltme: user_id=%s → %s", current_user.id, req.tier)
+        return {"url": req.success_url, "dev_mode": True, "tier": req.tier}
+
     stripe = _require_stripe()
     price_map = {
         "pro": settings.stripe_pro_price_id,
@@ -43,6 +90,7 @@ def create_checkout(
     if not price_id:
         raise HTTPException(status_code=400, detail="Invalid tier. Use 'pro' or 'enterprise'")
 
+    # Mevcut Stripe müşterisi varsa onu kullan; yoksa e-postadan yeni müşteri açılır.
     customer_kwargs = {}
     if current_user.stripe_customer_id:
         customer_kwargs["customer"] = current_user.stripe_customer_id
@@ -55,6 +103,7 @@ def create_checkout(
             line_items=[{"price": price_id, "quantity": 1}],
             success_url=req.success_url,
             cancel_url=req.cancel_url,
+            # metadata webhook'ta geri okunur — tier eşlemesi buradan yapılır
             metadata={"user_id": str(current_user.id), "tier": req.tier},
             **customer_kwargs,
         )
@@ -64,8 +113,27 @@ def create_checkout(
         raise HTTPException(status_code=502, detail="Payment provider error")
 
 
+@router.post("/dev/downgrade")
+def dev_downgrade(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Dev modda aboneliği iptal simülasyonu — tier'ı Free'ye çeker.
+
+    Stripe modunda bu iş müşteri portalından yapılır; endpoint 404 döner.
+    """
+    if not settings.billing_dev_mode:
+        raise HTTPException(status_code=404, detail="Not available")
+    UserRepository(db).update_tier(current_user.id, "free")
+    logger.info("DEV MODE düşürme: user_id=%s → free", current_user.id)
+    return {"dev_mode": True, "tier": "free"}
+
+
+# ── Stripe webhook ─────────────────────────────────────────────────────────────
+
 @router.post("/webhook")
 async def stripe_webhook(request: Request, stripe_signature: str = Header(None)):
+    """Stripe'tan gelen abonelik event'lerini işler (imza doğrulamalı)."""
     stripe = _require_stripe()
     payload = await request.body()
     try:
@@ -89,6 +157,10 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(None))
 
 
 def _handle_subscription_activated(subscription: dict) -> None:
+    """Abonelik açıldı/güncellendi → kullanıcı tier'ını yükselt.
+
+    Webhook request context'i dışında çalıştığı için kendi DB session'ını açar.
+    """
     from src.infrastructure.config.database import SessionLocal
     customer_id = subscription.get("customer")
     metadata = subscription.get("metadata", {})
@@ -98,14 +170,14 @@ def _handle_subscription_activated(subscription: dict) -> None:
         return
     db = SessionLocal()
     try:
-        repo = UserRepository(db)
-        repo.update_tier(int(user_id), tier, stripe_customer_id=customer_id)
+        UserRepository(db).update_tier(int(user_id), tier, stripe_customer_id=customer_id)
         logger.info("Kullanıcı tier güncellendi: user_id=%s, tier=%s", user_id, tier)
     finally:
         db.close()
 
 
 def _handle_subscription_cancelled(subscription: dict) -> None:
+    """Abonelik iptal → kullanıcı Free kademesine döner."""
     from src.infrastructure.config.database import SessionLocal
     metadata = subscription.get("metadata", {})
     user_id = metadata.get("user_id")
@@ -113,15 +185,17 @@ def _handle_subscription_cancelled(subscription: dict) -> None:
         return
     db = SessionLocal()
     try:
-        repo = UserRepository(db)
-        repo.update_tier(int(user_id), "free")
+        UserRepository(db).update_tier(int(user_id), "free")
         logger.info("Abonelik iptal: user_id=%s → free tier", user_id)
     finally:
         db.close()
 
 
+# ── Müşteri portalı ────────────────────────────────────────────────────────────
+
 @router.get("/portal")
 def billing_portal(current_user: User = Depends(get_current_user)):
+    """Stripe müşteri portalı URL'i — fatura görüntüleme/iptal buradan yapılır."""
     stripe = _require_stripe()
     if not current_user.stripe_customer_id:
         raise HTTPException(status_code=404, detail="No active subscription found. Please subscribe first.")

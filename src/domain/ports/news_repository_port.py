@@ -1,3 +1,8 @@
+"""Haber repository port'u — kalıcı haber deposu sözleşmesi.
+
+Somut implementasyon: adapters/repositories/news_repository.py (PostgreSQL).
+"""
+
 from abc import ABC, abstractmethod
 from typing import List, Optional
 from src.domain.models.article import Article

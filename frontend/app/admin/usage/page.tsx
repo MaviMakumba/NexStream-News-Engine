@@ -1,14 +1,23 @@
 "use client";
 
-import { useState } from "react";
+// Admin kullanım istatistikleri sayfası.
+// Erişim (v1.11): admin rolündeki kullanıcı (is_admin) session'ı ile otomatik
+// yüklenir; admin olmayanlar için paylaşımlı API anahtarı girişi gösterilir
+// (makine-makine senaryosunun manuel karşılığı).
+
+import { useCallback, useEffect, useState } from "react";
 import { fetchUsage } from "@/lib/api";
 import type { UsageRow } from "@/lib/types";
+import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/settings-context";
 import { UI } from "@/lib/i18n";
 
 export default function AdminUsagePage() {
+  const { user, token } = useAuth();
   const { lang } = useSettings();
   const t = UI[lang];
+  const isAdmin = Boolean(user?.is_admin && token);
+
   const [apiKey,  setApiKey]  = useState("");
   const [days,    setDays]    = useState(30);
   const [rows,    setRows]    = useState<UsageRow[]>([]);
@@ -16,11 +25,13 @@ export default function AdminUsagePage() {
   const [error,   setError]   = useState("");
   const [loaded,  setLoaded]  = useState(false);
 
-  async function load() {
-    if (!apiKey.trim()) return;
+  const load = useCallback(async (key?: string) => {
+    // Admin oturumu varsa anahtar gerekmez; yoksa girilen anahtar kullanılır.
+    const creds = isAdmin ? { token } : { apiKey: key ?? apiKey };
+    if (!isAdmin && !(creds.apiKey ?? "").trim()) return;
     setLoading(true); setError("");
     try {
-      const data = await fetchUsage(apiKey, undefined, days);
+      const data = await fetchUsage(creds, undefined, days);
       setRows(data.sort((a, b) => b.count - a.count));
       setLoaded(true);
     } catch (err: unknown) {
@@ -28,21 +39,32 @@ export default function AdminUsagePage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [isAdmin, token, apiKey, days, t.accessDenied]);
+
+  // Admin rolü varsa sayfa açılır açılmaz yükle (gün aralığı değişince de).
+  useEffect(() => {
+    if (isAdmin) load();
+  }, [isAdmin, days, load]);
 
   const total = rows.reduce((s, r) => s + r.count, 0);
   const avgMs = rows.length ? Math.round(rows.reduce((s, r) => s + r.avg_ms, 0) / rows.length) : 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* API key bar */}
+      {/* Auth bar: admin'e bilgi notu, diğerlerine API key girişi */}
       <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-        <div style={{ flex: "1 1 240px" }}>
-          <label className="label">{t.adminKey}</label>
-          <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
-                 onKeyDown={(e) => e.key === "Enter" && load()}
-                 className="input" placeholder="dev-key-change-me" />
-        </div>
+        {isAdmin ? (
+          <div style={{ flex: "1 1 240px", fontSize: "0.84rem", color: "var(--pos)", paddingBottom: 6 }}>
+            ✓ {t.adminAsUser}
+          </div>
+        ) : (
+          <div style={{ flex: "1 1 240px" }}>
+            <label className="label">{t.adminKey}</label>
+            <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
+                   onKeyDown={(e) => e.key === "Enter" && load()}
+                   className="input" placeholder="dev-key-change-me" />
+          </div>
+        )}
         <div>
           <label className="label">{t.dayRange}</label>
           <select value={days} onChange={(e) => setDays(Number(e.target.value))}
@@ -50,7 +72,7 @@ export default function AdminUsagePage() {
             {[7, 14, 30, 90].map((d) => <option key={d} value={d}>{d} {t.dayUnit}</option>)}
           </select>
         </div>
-        <button onClick={load} disabled={loading || !apiKey.trim()} className="btn-primary">
+        <button onClick={() => load()} disabled={loading || (!isAdmin && !apiKey.trim())} className="btn-primary">
           {loading ? t.loadingShort : t.show}
         </button>
       </div>

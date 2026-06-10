@@ -1,3 +1,9 @@
+"""Analyzer fallback zinciri — Chain of Responsibility.
+
+Sıra: Groq (birincil) → HuggingFace (yedek, anahtar varsa) → nötr sonuç.
+Zincir kompozisyonu factory.build_analyzer()'dadır; burada sadece mekanizma var.
+"""
+
 import logging
 from typing import List
 from src.domain.ports.analysis_port import AnalysisPort, AnalysisError

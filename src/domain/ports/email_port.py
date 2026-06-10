@@ -1,3 +1,9 @@
+"""E-posta port'u — digest / keyword alert / hoş geldin mailleri sözleşmesi.
+
+Somut implementasyonlar: ResendEmailAdapter (RESEND_API_KEY doluysa) ve
+ConsoleEmailAdapter (boşsa — mailler sadece loglanır, geliştirme modu).
+"""
+
 from abc import ABC, abstractmethod
 from typing import List, Optional
 from src.domain.models.article import Article

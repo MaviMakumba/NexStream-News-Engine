@@ -1,3 +1,9 @@
+"""SCRAPER_REGISTRY — kaynak adı → scraper sınıfı eşlemesi (tek doğruluk noktası).
+
+Yeni kaynak eklemek: rss_scrapers.py'de sınıf + buraya kayıt + settings.scrape_sources.
+Worker ve /news/sources endpoint'i bu sözlüğü kullanır.
+"""
+
 from src.adapters.scrapers.rss_scrapers import (
     TRTHaberScraper, BBCTurkishScraper,
     HurriyetScraper, HurriyetSporScraper,

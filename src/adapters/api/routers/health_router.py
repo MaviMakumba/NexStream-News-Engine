@@ -1,3 +1,10 @@
+"""Sağlık kontrolü (/health) — DB + Kafka + ChromaDB durumunu tek bakışta verir.
+
+Docker healthcheck'leri ve frontend durum göstergesi bu endpoint'i kullanır.
+Bir bileşen düşükse status "degraded" döner ama HTTP 200 kalır (yanıt
+verebiliyor olmak, kısmi hizmetin sinyalidir).
+"""
+
 import logging
 import socket
 from typing import Optional
