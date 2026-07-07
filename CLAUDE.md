@@ -44,7 +44,9 @@ src/
 │   │   ├── kafka_consumer.py      # Worker: consume → scrape → analyze → save → index
 │   │   └── kafka_publisher.py
 │   ├── scheduling/
-│   │   └── scheduler_service.py   # 10dk'da bir Kafka'ya mesaj atar
+│   │   ├── scheduler_service.py   # 10dk'da bir Kafka'ya mesaj atar
+│   │   ├── newsletter_job.py      # günlük digest (05:00 UTC)
+│   │   └── retention_job.py       # günlük ChromaDB/Postgres temizlik (04:00 UTC, v1.11 sonrası)
 │   ├── search/
 │   │   ├── sentence_transformer_embedder.py  # SentenceTransformerEmbedder (singleton)
 │   │   └── chroma_search_repository.py       # ChromaDB adapter — index + search + dedup (v1.5+)
@@ -77,7 +79,8 @@ migrations/
 ├── v1_7_subscriptions.sql         # v1.7 DB migration (subscribers tablosu)
 ├── v1_8_quality_credibility.sql   # v1.8 DB migration (quality_score, credibility_score, corroboration_count)
 ├── v1_9_users_sessions_usage_sponsor.sql  # v1.9 (users, user_sessions, usage_logs, sponsors)
-└── v1_11_admin_api_keys.sql       # v1.11 (users.is_admin, users.api_key + unique index)
+├── v1_11_admin_api_keys.sql       # v1.11 (users.is_admin, users.api_key + unique index)
+└── v1_12_password_reset_tokens.sql # şifre sıfırlama (password_reset_tokens tablosu)
 frontend/                          # Next.js 14 + React (Streamlit'in yerini aldı, v1.10)
 ├── app/                           # App Router sayfaları (landing, dashboard, search, account, admin, auth)
 │   ├── layout.tsx                 # data-theme=<id> + Google Fonts linkleri
@@ -189,8 +192,13 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 ## MEVCUT DURUM
 
 - **Versiyon:** v1.11.0 ✅ Monetizasyon & Erişim (billing dev-mode, rol tabanlı admin, self-service kullanım paneli, kullanıcı başına API key) + proje geneli clean-code refactoring (tüm modüllerde docstring, ölü kod temizliği)
-- **v1.11 sonrası ek (henüz versiyonlanmadı):** Şifremi unuttum / şifre sıfırlama mekanizması — `POST /auth/forgot-password` + `POST /auth/reset-password`, `password_reset_tokens` tablosu (`migrations/v1_12_password_reset_tokens.sql`), `EmailPort.send_password_reset` (Console + Resend), şifre değişince tüm oturumlar düşürülür
-- **Test sayısı:** 380 test, hepsi yeşil (backend); frontend `npm run build` temiz
+- **v1.11 sonrası ekler (henüz versiyonlanmadı — v1.12 öncesi ara işler):**
+  1. **Şifremi unuttum / şifre sıfırlama** — `POST /auth/forgot-password` + `POST /auth/reset-password`, `password_reset_tokens` tablosu (`migrations/v1_12_password_reset_tokens.sql`), `EmailPort.send_password_reset` (Console + Resend), şifre değişince tüm oturumlar düşürülür.
+  2. **Prod deploy tutarlılık düzeltmesi** — `docker-compose.prod.yml`'den silinmiş Streamlit `dashboard` servisi kaldırıldı, yerine `frontend` (Next.js, `frontend/Dockerfile` standalone build) eklendi; `redis` servisi prod'a eklendi; nginx `dashboard:8501` yerine `frontend:3000`'e yönlendiriyor; CI'a frontend `npm run build` job'u eklendi.
+  3. **KRİTİK bug fix — ChromaDB indeksleme:** `NewsRepository.save_article()` artık `commit()` sonrası `article.id`'yi domain nesnesine geri yazıyor (`self.db.refresh(orm_obj); article.id = orm_obj.id`). Önceden bu satır yoktu → `NewsService.update_news_from_source`'daki `if self.search_repository and article.id:` şartı normal scrape akışında HİÇBİR ZAMAN sağlanmıyordu, yani hiçbir yeni haber ChromaDB'ye indexlenmiyordu (sadece `reindex_all`/`reanalyze_missed` gibi haberi DB'den taze çeken yollar indexliyordu). Tespit: Postgres'te 2293 haber varken ChromaDB'de sadece 825'i aranabilirdi. `POST /news/reindex` ile backfill yapıldı.
+  4. **Arama sıralaması — recency decay** — `hybrid_search` skoru artık `relevance * decay_factor` (çarpımsal, additive bonus'un yerine geçti). `decay_factor`: bugün → 1.0, `search_recency_window_days` (30) sonra → `search_recency_decay_floor` (0.5) tabanına lineer iner. ChromaDB metadata'sına `published_at` eklendi (`published_at or created_at` fallback), `SearchResult` şemasına `created_at` eklendi. Eşit skorlu sonuçlarda ikincil sıralama anahtarı da `_recency_factor`.
+  5. **Retention job** (`src/adapters/scheduling/retention_job.py`, her gün 04:00 UTC) — iki katman: ChromaDB'den `chroma_retention_days` (90, varsayılan AÇIK) gününden eski vektörleri kaldırır (Postgres etkilenmez, `reindex_all` ile geri gelir); Postgres'ten `db_retention_days` (0, varsayılan KAPALI) kalıcı silme, bilinçli opt-in. Ayrıca son 7 günün haberlerini her çalıştığında yeniden indexleyerek indeksleme boşluklarına karşı kendini onarır (self-healing).
+- **Test sayısı:** 403 test, hepsi yeşil (backend); frontend `npm run build` temiz
 - **Frontend:** Next.js 14 + React. Streamlit dashboard tamamen kaldırıldı (`dashboard/app.py` silindi, compose'dan çıktı). 9 sinematik tema, tam TR/EN i18n. Port **3000**.
 - **Haber kaynağı:** 17 (11 → 17, +Anadolu Ajansı, AA Ekonomi, Guardian Tech, TechCrunch, Hacker News, The Verge)
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
@@ -206,6 +214,8 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 ### Hybrid Search
 - `POST /news/search`: ChromaDB (semantic) + PostgreSQL (keyword) birleşik
 - Coverage-based skor, normalize embedding, `1/(1+distance)` formülü
+- **v1.11 sonrası:** nihai skor `relevance * recency_decay` (çarpımsal) —
+  `NewsService.hybrid_search`/`_decay_factor`'a bak, detay MEVCUT DURUM'da
 
 ### Haber Kaynakları (17 kaynak, v1.8)
 - TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi
@@ -314,7 +324,7 @@ Sonuç: 343 → 373 test (+30: account router 9, billing dev-mode 8, admin rol/u
 Eski detay plan: `C:\Users\eren8\.claude\plans\ancient-watching-crescent.md`
 Sonraki oturumu başlatmak için: **"Yol haritasına devam — CLAUDE.md'deki sıradaki sürümü uygula."**
 
-**Tamamlananlar:** v1.2 → v1.11 (detaylar yukarıdaki milestone'larda). v1.11 sonu: 373 test, lokalde TAM çalışır (billing dahil — `BILLING_DEV_MODE=true` ile Stripe'sız demo). Gerçek Stripe entegrasyonu kod tarafında hazır; sadece gerçek hesap + `STRIPE_*` anahtarları + `stripe listen` webhook'u gerekir (v2.0 deploy işi).
+**Tamamlananlar:** v1.2 → v1.11 (detaylar yukarıdaki milestone'larda) + v1.11 sonrası 5 ara iş (şifre sıfırlama, prod deploy tutarlılığı, kritik ChromaDB indeksleme bug fix, arama recency sıralaması, retention job — detay MEVCUT DURUM'da). 403 test, lokalde TAM çalışır (billing dahil — `BILLING_DEV_MODE=true` ile Stripe'sız demo). Gerçek Stripe entegrasyonu kod tarafında hazır; sadece gerçek hesap + `STRIPE_*` anahtarları + `stripe listen` webhook'u gerekir (v2.0 deploy işi). **v1.12 henüz başlamadı** — sıradaki adım budur.
 
 ### v1.12 — UX, Erişilebilirlik & SEO Cilası (frontend ağırlıklı)
 1. **Responsive geçiş** — tüm sayfalar mobil/tablet; Navbar tema seçici + admin tabloları dar ekranda.
@@ -446,3 +456,5 @@ docker logs nexstream_chromadb --tail 20
 - **Prod deploy öncesi kontrol listesi:** `docker-compose.prod.yml`'de `FRONTEND_URL` env var'ı gerçek domain ile set edilmeli (boş kalırsa `settings.py`'deki `http://localhost:3000` default'u kullanılır, şifre sıfırlama maili yanlış linke gider). `RESEND_API_KEY`/`EMAIL_FROM` de dolu olmalı, yoksa mail sessizce `ConsoleEmailAdapter`'a düşer (log-only).
 - **nginx bilinen boşluklar (v2.0'a bırakıldı, henüz düzeltilmedi):** `location /api/` bloğu `/api/` prefix'ini sıyırıp app'e iletiyor; ama `/api/v1` router'ının kendi route'ları zaten `/api/v1/...` ile başlıyor, yani dışarıdan doğru erişim `/api/api/v1/...` olur — çirkin ama çalışır, düzeltilmedi. Ayrıca `/api/` location bloğunda WebSocket `Upgrade`/`Connection` header'ları yok, yani `/ws/feed` canlı akışı prod'da nginx arkasında şu an çalışmaz (dev'de nginx yok, doğrudan 8000'e gidildiği için sorun çıkmıyor).
 - **v1.12 öncesi durum taraması (bu session'da yapıldı):** Responsive/erişilebilirlik/SEO/tema-performans-profili maddelerinin hiçbiri henüz başlamadı; sadece dashboard sayfasında kısmi bir skeleton-loading deseni var (diğer sayfalarla tutarsız). Yeni bir session bu maddelere başlarken sıfırdan tasarlamalı.
+- **v1.11 sonrası yeni env var'lar:** `FRONTEND_URL` (boş — prod'da gerçek domain ile set edilmeli, şifre sıfırlama linki için), `PASSWORD_RESET_TTL_MINUTES` (60), `SEARCH_RECENCY_DECAY_FLOOR` (0.5), `SEARCH_RECENCY_WINDOW_DAYS` (30), `CHROMA_RETENTION_DAYS` (90 — 0 kapatır), `DB_RETENTION_DAYS` (0 — kapalı, açarsan Postgres'ten KALICI siler), `RETENTION_HOUR_UTC` (4).
+- **Ders — sessiz veri kaybı deseni:** `save_article()`'daki id-propagation bug'ı aylarca fark edilmeden ChromaDB indexlemeyi sessizce devre dışı bırakmıştı (exception fırlatmıyordu, sadece `article.id` None kalıyordu ve çağıran kod bunu es geçiyordu). Yeni bir "kaydet → sonra ID'ye ihtiyaç duyan bir şey yap" akışı eklerken, ORM nesnesinin PK'sının domain nesnesine gerçekten geri yazıldığını (`refresh()` + atama) doğrula — `user_repository.py::create_user` doğru pattern.
