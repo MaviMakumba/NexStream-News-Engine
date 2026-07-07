@@ -13,15 +13,17 @@ import logging
 import secrets
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from src.infrastructure.config.database import get_db
 from src.infrastructure.config.settings import settings
 from src.adapters.api.auth_utils import has_admin_role, resolve_session_user
+from src.adapters.api.limiter import limiter
+from src.adapters.notifications.email_adapter import get_email_adapter
 from src.adapters.repositories.user_repository import UserRepository
-from src.domain.models.user import User, UserSession, UserTier
+from src.domain.models.user import User, UserSession, UserTier, PasswordResetToken
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -35,6 +37,16 @@ class RegisterRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     email: EmailStr
+    password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+    language: str = "TR"
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
     password: str
 
 
@@ -132,3 +144,53 @@ def me(x_session_token: str = Header(None), db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid or expired session token")
     return {**_user_payload(user), "created_at": user.created_at}
+
+
+_GENERIC_FORGOT_MESSAGE = "Eğer bu e-posta kayıtlıysa, şifre sıfırlama bağlantısı gönderildi."
+
+
+@router.post("/forgot-password")
+@limiter.limit("10/minute")
+def forgot_password(request: Request, req: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Şifre sıfırlama e-postası tetikler.
+
+    Kayıtlı olsun ya da olmasın aynı mesaj döner (user enumeration önlemi,
+    login'deki desenle tutarlı). E-posta gönderimi başarısız olsa bile
+    istemciye sızdırılmaz — sadece loglanır.
+    """
+    repo = UserRepository(db)
+    user = repo.get_by_email(req.email)
+    if user and user.is_active:
+        token = _make_token()
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.password_reset_ttl_minutes)
+        repo.create_reset_token(PasswordResetToken(user_id=user.id, token=token, expires_at=expires_at))
+        reset_url = f"{settings.frontend_url}/auth/reset-password?token={token}"
+        ok = get_email_adapter().send_password_reset(user.email, reset_url, req.language)
+        if not ok:
+            logger.error("Şifre sıfırlama e-postası gönderilemedi: %s", user.email)
+        else:
+            logger.info("Şifre sıfırlama e-postası gönderildi: %s", user.email)
+    return {"message": _GENERIC_FORGOT_MESSAGE}
+
+
+@router.post("/reset-password")
+@limiter.limit("20/minute")
+def reset_password(request: Request, req: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Token'ı doğrulayıp yeni şifreyi kaydeder; tüm oturumları düşürür."""
+    repo = UserRepository(db)
+    reset_token = repo.get_reset_token(req.token)
+    if not reset_token or reset_token.used:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    expires = reset_token.expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    repo.update_password(reset_token.user_id, _hash_password(req.password))
+    repo.mark_reset_token_used(req.token)
+    repo.delete_sessions_for_user(reset_token.user_id)
+
+    logger.info("Şifre sıfırlandı: user_id=%s", reset_token.user_id)
+    return {"message": "Password updated successfully"}

@@ -1,11 +1,11 @@
 import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
-from src.domain.models.user import User, UserTier, UserSession
+from src.domain.models.user import User, UserTier, UserSession, PasswordResetToken
 
 
-def _make_user(id=1, email="test@example.com", tier=UserTier.FREE):
-    return User(id=id, email=email, password_hash="$2b$12$hashed", name="Test User", tier=tier)
+def _make_user(id=1, email="test@example.com", tier=UserTier.FREE, is_active=True):
+    return User(id=id, email=email, password_hash="$2b$12$hashed", name="Test User", tier=tier, is_active=is_active)
 
 
 def _make_session(user_id=1, token="tok123", days=30):
@@ -23,6 +23,26 @@ def _expired_session(user_id=1, token="tok_exp"):
         user_id=user_id,
         token=token,
         expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
+    )
+
+
+def _make_reset_token(user_id=1, token="reset_tok", minutes=60, used=False):
+    return PasswordResetToken(
+        id=1,
+        user_id=user_id,
+        token=token,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=minutes),
+        used=used,
+    )
+
+
+def _expired_reset_token(user_id=1, token="reset_tok_exp"):
+    return PasswordResetToken(
+        id=2,
+        user_id=user_id,
+        token=token,
+        expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        used=False,
     )
 
 
@@ -204,3 +224,100 @@ def test_me_expired_session_returns_401(client):
         resp = client.get("/auth/me", headers={"x-session-token": "tok_exp"})
 
     assert resp.status_code == 401
+
+
+# ── Forgot / Reset Password ────────────────────────────────────────────────────
+
+def test_forgot_password_existing_user_sends_email(client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
+         patch("src.adapters.api.routers.auth_router.get_email_adapter") as mock_get_adapter:
+        repo_instance = MagicMock()
+        repo_instance.get_by_email.return_value = _make_user()
+        MockRepo.return_value = repo_instance
+        mock_adapter = MagicMock()
+        mock_adapter.send_password_reset.return_value = True
+        mock_get_adapter.return_value = mock_adapter
+
+        resp = client.post("/auth/forgot-password", json={"email": "test@example.com"})
+
+    assert resp.status_code == 200
+    repo_instance.create_reset_token.assert_called_once()
+    mock_adapter.send_password_reset.assert_called_once()
+
+
+def test_forgot_password_unknown_email_returns_generic_message(client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
+         patch("src.adapters.api.routers.auth_router.get_email_adapter") as mock_get_adapter:
+        repo_instance = MagicMock()
+        repo_instance.get_by_email.return_value = None
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/forgot-password", json={"email": "ghost@example.com"})
+
+    assert resp.status_code == 200
+    repo_instance.create_reset_token.assert_not_called()
+    mock_get_adapter.assert_not_called()
+
+
+def test_forgot_password_inactive_user_no_email(client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
+         patch("src.adapters.api.routers.auth_router.get_email_adapter") as mock_get_adapter:
+        repo_instance = MagicMock()
+        repo_instance.get_by_email.return_value = _make_user(is_active=False)
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/forgot-password", json={"email": "test@example.com"})
+
+    assert resp.status_code == 200
+    repo_instance.create_reset_token.assert_not_called()
+    mock_get_adapter.assert_not_called()
+
+
+def test_reset_password_success(client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
+        repo_instance = MagicMock()
+        repo_instance.get_reset_token.return_value = _make_reset_token()
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/reset-password", json={"token": "reset_tok", "password": "newsecret123"})
+
+    assert resp.status_code == 200
+    repo_instance.update_password.assert_called_once()
+    assert repo_instance.update_password.call_args[0][0] == 1
+    repo_instance.mark_reset_token_used.assert_called_once_with("reset_tok")
+    repo_instance.delete_sessions_for_user.assert_called_once_with(1)
+
+
+def test_reset_password_invalid_token_returns_400(client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
+        repo_instance = MagicMock()
+        repo_instance.get_reset_token.return_value = None
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/reset-password", json={"token": "bogus", "password": "newsecret123"})
+
+    assert resp.status_code == 400
+
+
+def test_reset_password_expired_token_returns_400(client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
+        repo_instance = MagicMock()
+        repo_instance.get_reset_token.return_value = _expired_reset_token()
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/reset-password", json={"token": "reset_tok_exp", "password": "newsecret123"})
+
+    assert resp.status_code == 400
+    repo_instance.update_password.assert_not_called()
+
+
+def test_reset_password_used_token_returns_400(client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
+        repo_instance = MagicMock()
+        repo_instance.get_reset_token.return_value = _make_reset_token(used=True)
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/reset-password", json={"token": "reset_tok", "password": "newsecret123"})
+
+    assert resp.status_code == 400
+    repo_instance.update_password.assert_not_called()

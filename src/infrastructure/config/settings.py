@@ -65,6 +65,9 @@ class Settings(BaseSettings):
 
     # ── Auth / Sessions ────────────────────────────────────────────────────
     session_ttl_days: int = 30
+    # Şifre sıfırlama linkinin hedeflediği frontend origin'i (mail içindeki link).
+    frontend_url: str = "http://localhost:3000"
+    password_reset_ttl_minutes: int = 60
 
     # ── Billing (Stripe) ───────────────────────────────────────────────────
     stripe_secret_key: str = ""

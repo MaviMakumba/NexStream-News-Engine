@@ -7,7 +7,7 @@ Application katmanı kullanıcı/oturum/kullanım-logu işlemlerine bu soyutlama
 
 from abc import ABC, abstractmethod
 from typing import Optional, List
-from src.domain.models.user import User, UserSession
+from src.domain.models.user import User, UserSession, PasswordResetToken
 
 
 class UserRepositoryPort(ABC):
@@ -35,6 +35,9 @@ class UserRepositoryPort(ABC):
         """API anahtarını günceller; None vermek anahtarı iptal eder."""
         ...
 
+    @abstractmethod
+    def update_password(self, user_id: int, password_hash: str) -> bool: ...
+
     # ── Oturum yönetimi ────────────────────────────────────────────────────
 
     @abstractmethod
@@ -45,6 +48,22 @@ class UserRepositoryPort(ABC):
 
     @abstractmethod
     def delete_session(self, token: str) -> bool: ...
+
+    @abstractmethod
+    def delete_sessions_for_user(self, user_id: int) -> None:
+        """Şifre değişiminde tüm cihazlardaki oturumları düşürür."""
+        ...
+
+    # ── Şifre sıfırlama ────────────────────────────────────────────────────
+
+    @abstractmethod
+    def create_reset_token(self, reset_token: PasswordResetToken) -> PasswordResetToken: ...
+
+    @abstractmethod
+    def get_reset_token(self, token: str) -> Optional[PasswordResetToken]: ...
+
+    @abstractmethod
+    def mark_reset_token_used(self, token: str) -> None: ...
 
     # ── Kullanım takibi (kota + istatistik) ────────────────────────────────
 

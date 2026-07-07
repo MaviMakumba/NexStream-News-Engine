@@ -18,3 +18,6 @@ class EmailPort(ABC):
 
     @abstractmethod
     def send_welcome(self, to: str, language: str) -> bool: ...
+
+    @abstractmethod
+    def send_password_reset(self, to: str, reset_url: str, language: str) -> bool: ...
