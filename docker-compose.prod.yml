@@ -14,7 +14,7 @@ services:
     depends_on:
       app:
         condition: service_healthy
-      dashboard:
+      frontend:
         condition: service_started
     deploy:
       resources:
@@ -48,6 +48,8 @@ services:
         condition: service_healthy
       chromadb:
         condition: service_started
+      redis:
+        condition: service_healthy
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2
     environment:
       - DB_HOST=db
@@ -70,6 +72,12 @@ services:
       - STRIPE_ENTERPRISE_PRICE_ID=${STRIPE_ENTERPRISE_PRICE_ID:-}
       - BILLING_DEV_MODE=false
       - ADMIN_EMAILS=${ADMIN_EMAILS:-}
+      - REDIS_URL=redis://redis:6379/0
+      # v1.12: şifre sıfırlama maili. FRONTEND_URL gerçek domain ile set edilmeli,
+      # yoksa reset linki yanlışlıkla localhost:3000'e gider!
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - EMAIL_FROM=${EMAIL_FROM:-NexStream <no-reply@nexstream.news>}
+      - FRONTEND_URL=${FRONTEND_URL:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 30s
@@ -174,6 +182,8 @@ services:
         condition: service_healthy
       chromadb:
         condition: service_started
+      redis:
+        condition: service_healthy
     command: python -m src.adapters.messaging.kafka_consumer
     environment:
       - DB_HOST=db
@@ -185,6 +195,9 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
+      - REDIS_URL=redis://redis:6379/0
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - EMAIL_FROM=${EMAIL_FROM:-NexStream <no-reply@nexstream.news>}
     deploy:
       resources:
         limits:
@@ -219,17 +232,15 @@ services:
     networks:
       - backend
 
-  # ─── DASHBOARD ─────────────────────────────────────────────────
-  dashboard:
+  # ─── FRONTEND (Next.js) ────────────────────────────────────────
+  frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.light
-    container_name: nexstream_dashboard
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: /api
+    container_name: nexstream_frontend
     restart: always
-    command: streamlit run dashboard/app.py --server.port=8501 --server.address=0.0.0.0
-    environment:
-      - API_BASE=http://app:8000
-      - API_KEY=${API_KEY}
     depends_on:
       app:
         condition: service_healthy
@@ -242,6 +253,27 @@ services:
       logging: "promtail"
     networks:
       - frontend
+      - backend
+
+  # ─── REDIS (cache) ─────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: nexstream_redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+    networks:
       - backend
 
   # ─── CHROMADB ──────────────────────────────────────────────────
@@ -376,6 +408,7 @@ services:
 volumes:
   postgres_data:
   chroma_data:
+  redis_data:
   prometheus_data:
   grafana_data:
   loki_data:

@@ -140,8 +140,9 @@ docker-compose.prod.yml                    # Full production stack (16 services)
 | kafka | — (internal) | Mesaj kuyruğu |
 | worker | — | Kafka consumer + Groq analyzer |
 | scheduler | — | 10dk'da bir scrape tetikler |
-| dashboard | 8501 | Streamlit |
+| frontend | 3000 | Next.js dashboard |
 | chromadb | — (internal) | Vektör DB |
+| redis | — (internal) | Cache (opsiyonel, boşsa NullCache) |
 
 ### docker-compose.prod.yml (production)
 
@@ -155,8 +156,9 @@ docker-compose.prod.yml                    # Full production stack (16 services)
 | kafka | — (internal) | Mesaj kuyruğu |
 | worker | — (internal) | Kafka consumer + Groq analyzer |
 | scheduler | — (internal) | 10dk'da bir scrape tetikler |
-| dashboard | — (internal) | Streamlit (nginx üzerinden) |
+| frontend | — (internal) | Next.js (nginx üzerinden) |
 | chromadb | — (internal) | Vektör DB |
+| redis | — (internal) | Cache (opsiyonel, boşsa NullCache) |
 | prometheus | — (monitoring) | Metric scraping, 30 gün retention |
 | grafana | — (via nginx) | Dashboard + alerting |
 | loki | — (monitoring) | Log aggregation |
@@ -187,7 +189,8 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 ## MEVCUT DURUM
 
 - **Versiyon:** v1.11.0 ✅ Monetizasyon & Erişim (billing dev-mode, rol tabanlı admin, self-service kullanım paneli, kullanıcı başına API key) + proje geneli clean-code refactoring (tüm modüllerde docstring, ölü kod temizliği)
-- **Test sayısı:** 373 test, hepsi yeşil (backend); frontend `npm run build` temiz
+- **v1.11 sonrası ek (henüz versiyonlanmadı):** Şifremi unuttum / şifre sıfırlama mekanizması — `POST /auth/forgot-password` + `POST /auth/reset-password`, `password_reset_tokens` tablosu (`migrations/v1_12_password_reset_tokens.sql`), `EmailPort.send_password_reset` (Console + Resend), şifre değişince tüm oturumlar düşürülür
+- **Test sayısı:** 380 test, hepsi yeşil (backend); frontend `npm run build` temiz
 - **Frontend:** Next.js 14 + React. Streamlit dashboard tamamen kaldırıldı (`dashboard/app.py` silindi, compose'dan çıktı). 9 sinematik tema, tam TR/EN i18n. Port **3000**.
 - **Haber kaynağı:** 17 (11 → 17, +Anadolu Ajansı, AA Ekonomi, Guardian Tech, TechCrunch, Hacker News, The Verge)
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest`
@@ -386,7 +389,7 @@ docker compose up -d
 # Docker — kod değiştiyse (volume mount sayesinde build GEREKMEZ)
 docker-compose restart worker
 docker-compose restart app
-docker-compose restart dashboard
+docker-compose restart frontend
 
 # Docker — ilk çalıştırma veya requirements/Dockerfile değiştiyse (SADECE bu durumda build)
 docker-compose up --build -d
@@ -409,7 +412,6 @@ docker logs nexstream_chromadb --tail 20
 - Groq free tier: 14.400 req/gün — production'da dikkat
 - Scraper limit: 25 haber/kaynak/çalışma
 - DB duplicate kontrolü var — aynı URL tekrar kaydedilmez
-- NTV scrapers çalışmıyor (HTML dönüyor, RSS yok) — ekleme
 - ChromaDB 1.5.5 kurulu (0.5.23 uvicorn conflict veriyordu)
 - `docker-compose down -v` sonrası ChromaDB da sıfırlanır
 - Dashboard sidebar kaldırıldı, tüm kontroller üst bar'da
@@ -441,3 +443,6 @@ docker logs nexstream_chromadb --tail 20
 - **v1.11 kullanıcı API key:** `nxs_` önekli, `/account/api-key` ile yönetilir, `X-User-Key` header'ı ile `/api/v1`'de kullanılır. Session ile key aynı anda gelirse session kazanır. Key düz saklanır (session token'lar gibi) — bilinçli sadelik tercihi.
 - **v1.11 billing testleri:** `billing_router.settings` MagicMock ile patch'lenen testlerde `ms.billing_dev_mode = False` set edilmeli — yoksa truthy MagicMock dev-mode yolunu tetikler.
 - **v1.11 refactoring:** `adapters/api/controller.py` silindi (main.py ile çakışan ölü legacy). `news_orm.py` sadece geriye-uyum köprüsü (orm_models'tan re-export). Tüm src/ modüllerinde docstring var; yeni modül eklerken docstring zorunlu kabul et. Frontend auth-context açılışta `/auth/me` ile kullanıcıyı tazeler (401'de oturumu düşürür).
+- **Prod deploy öncesi kontrol listesi:** `docker-compose.prod.yml`'de `FRONTEND_URL` env var'ı gerçek domain ile set edilmeli (boş kalırsa `settings.py`'deki `http://localhost:3000` default'u kullanılır, şifre sıfırlama maili yanlış linke gider). `RESEND_API_KEY`/`EMAIL_FROM` de dolu olmalı, yoksa mail sessizce `ConsoleEmailAdapter`'a düşer (log-only).
+- **nginx bilinen boşluklar (v2.0'a bırakıldı, henüz düzeltilmedi):** `location /api/` bloğu `/api/` prefix'ini sıyırıp app'e iletiyor; ama `/api/v1` router'ının kendi route'ları zaten `/api/v1/...` ile başlıyor, yani dışarıdan doğru erişim `/api/api/v1/...` olur — çirkin ama çalışır, düzeltilmedi. Ayrıca `/api/` location bloğunda WebSocket `Upgrade`/`Connection` header'ları yok, yani `/ws/feed` canlı akışı prod'da nginx arkasında şu an çalışmaz (dev'de nginx yok, doğrudan 8000'e gidildiği için sorun çıkmıyor).
+- **v1.12 öncesi durum taraması (bu session'da yapıldı):** Responsive/erişilebilirlik/SEO/tema-performans-profili maddelerinin hiçbiri henüz başlamadı; sadece dashboard sayfasında kısmi bir skeleton-loading deseni var (diğer sayfalarla tutarsız). Yeni bir session bu maddelere başlarken sıfırdan tasarlamalı.
