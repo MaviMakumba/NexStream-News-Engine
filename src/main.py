@@ -38,6 +38,7 @@ from src.adapters.api.routers.billing_router import router as billing_router
 from src.adapters.messaging.kafka_publisher import KafkaPublisherAdapter
 from src.adapters.notifications.websocket_notifier import WebSocketNotifier
 from src.adapters.scheduling.newsletter_job import run_newsletter_job
+from src.adapters.scheduling.retention_job import run_retention_job
 from src.dependencies import set_message_publisher, get_search_repository, set_notifier
 
 setup_logging()
@@ -107,11 +108,15 @@ async def lifespan(app: FastAPI):
     newsletter_task = asyncio.create_task(run_newsletter_job())
     log.info("Newsletter job başlatıldı.")
 
+    retention_task = asyncio.create_task(run_retention_job())
+    log.info("Retention job başlatıldı.")
+
     yield
 
     broadcast_task.cancel()
     newsletter_task.cancel()
-    for task in (broadcast_task, newsletter_task):
+    retention_task.cancel()
+    for task in (broadcast_task, newsletter_task, retention_task):
         try:
             await task
         except asyncio.CancelledError:

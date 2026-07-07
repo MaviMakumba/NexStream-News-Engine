@@ -15,6 +15,7 @@ import asyncio
 import logging
 import re
 from collections import Counter
+from datetime import datetime, timezone
 from src.domain.ports.news_repository_port import NewsRepositoryPort
 from src.domain.ports.analysis_port import AnalysisPort
 from src.domain.ports.scraper_port import NewsScraperPort
@@ -22,6 +23,7 @@ from src.domain.models.article import Article
 from src.domain.scoring.quality import compute_quality_score
 from src.domain.scoring.credibility import base_credibility, compute_credibility
 from src.adapters.api.metrics import articles_processed_total
+from src.infrastructure.config.settings import settings
 from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from src.domain.ports.email_port import EmailPort
@@ -157,7 +159,11 @@ class NewsService:
     def hybrid_search(self, query: str, n_results: int = 10, source: str = None, sentiment: str = None) -> list[dict]:
         """Semantik (ChromaDB) ve keyword (PostgreSQL) aramayı birleştirir.
 
-        Skor = max(semantik, keyword) + her ikisinde de çıkana _DOUBLE_HIT_BONUS.
+        Skor = (max(semantik, keyword) + double-hit bonus) * recency çarpanı
+        (`_decay_factor` — bugün 1.0, `search_recency_window_days` sonra
+        `search_recency_decay_floor`'a iner). Additive bonus yerine çarpımsal
+        decay kullanılır: skor tavanına (1.0) takılan tam eşleşmeler artık
+        tazelikten etkilenmeye devam eder, sadece toplama ile maskelenmez.
         Taraflardan biri hata verirse diğeri tek başına sonuç döndürür.
         """
         candidate_size = min(max(n_results * _CANDIDATE_MULTIPLIER, _MIN_CANDIDATES), _MAX_CANDIDATES)
@@ -191,10 +197,10 @@ class NewsService:
 
             base = max(sem_score, kw_score)
             bonus = _DOUBLE_HIT_BONUS if (article_id in semantic_by_id and article_id in keyword_by_id) else 0.0
-            final = min(round(base + bonus, 4), 1.0)
 
             if article_id in semantic_by_id:
                 data = dict(semantic_by_id[article_id])
+                data.pop("published_at", None)
             else:
                 article = keyword_by_id[article_id][1]
                 data = {
@@ -204,11 +210,56 @@ class NewsService:
                     "source": article.source,
                     "url": article.url,
                 }
+
+            # Postgres verisi (keyword eşleşmesi) her zaman güncel/gerçek — tarih için tercih edilir.
+            if article_id in keyword_by_id:
+                kw_article = keyword_by_id[article_id][1]
+                date_value = kw_article.published_at or kw_article.created_at
+            else:
+                date_value = semantic_by_id[article_id].get("published_at")
+
+            relevance = min(round(base + bonus, 4), 1.0)
+            recency = self._recency_factor(date_value)
+            final = round(relevance * self._decay_factor(recency), 4)
+
             data["score"] = final
+            data["created_at"] = date_value
+            data["_recency_factor"] = recency
             combined.append(data)
 
-        combined.sort(key=lambda x: x["score"], reverse=True)
+        # Aynı (skor, tazelik) çiftine sahip sonuçlar için ikincil anahtar yine
+        # tazelik — pratikte skor zaten decay ile ayrıştığından nadiren devreye girer.
+        combined.sort(key=lambda x: (x["score"], x["_recency_factor"]), reverse=True)
         return combined[:n_results]
+
+    @staticmethod
+    def _decay_factor(recency: float) -> float:
+        """Çarpımsal tazelik katsayısı: bugün → 1.0, pencere sonu → `search_recency_decay_floor`.
+
+        Additive bonus'un aksine tavan skora (1.0) takılan tam eşleşmeleri de
+        etkiler — relevance ile ÇARPILDIĞI için maskelenmez.
+        """
+        floor = settings.search_recency_decay_floor
+        return floor + (1.0 - floor) * recency
+
+    @staticmethod
+    def _recency_factor(date_value) -> float:
+        """Taze içerik oranı: bugün → 1.0, `search_recency_window_days` sonra → 0.0."""
+        if not date_value:
+            return 0.0
+        if isinstance(date_value, str):
+            try:
+                date_value = datetime.fromisoformat(date_value)
+            except ValueError:
+                return 0.0
+        if date_value.tzinfo is None:
+            date_value = date_value.replace(tzinfo=timezone.utc)
+
+        window = settings.search_recency_window_days
+        if window <= 0:
+            return 0.0
+        age_days = (datetime.now(timezone.utc) - date_value).total_seconds() / 86400
+        return max(0.0, 1.0 - age_days / window)
 
     @staticmethod
     def _stem_tr(word: str) -> str:

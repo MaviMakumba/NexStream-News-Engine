@@ -82,6 +82,20 @@ class Settings(BaseSettings):
     # ── Redis (cache) ──────────────────────────────────────────────────────
     redis_url: str = ""                 # örn. redis://localhost:6379/0; boş = NullCache
 
+    # ── Arama sıralaması (recency) ──────────────────────────────────────────
+    # hybrid_search skoru relevance * decay_factor olarak hesaplanır (çarpımsal
+    # — additive bonus skor tavanına (1.0) takılan tam eşleşmeleri etkilemiyordu).
+    # decay_factor: bugün 1.0, window_days sonra decay_floor'a lineer iner.
+    search_recency_decay_floor: float = 0.5
+    search_recency_window_days: int = 30
+
+    # ── Retention (eski haber temizliği) ────────────────────────────────────
+    # ChromaDB'den eski vektörleri kaldırır (Postgres etkilenmez, reindex ile geri gelir).
+    chroma_retention_days: int = 90      # 0 = kapalı
+    # Postgres'ten KALICI silme — yıkıcı, varsayılan kapalı, bilinçli açılmalı.
+    db_retention_days: int = 0           # 0 = kapalı
+    retention_hour_utc: int = 4          # newsletter'dan (05:00 UTC) önce çalışır
+
     @property
     def admin_email_set(self) -> set[str]:
         """ADMIN_EMAILS değerini normalize edilmiş (küçük harf) set'e çevirir."""

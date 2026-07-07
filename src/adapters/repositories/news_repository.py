@@ -83,6 +83,8 @@ class NewsRepository(NewsRepositoryPort):
             orm_obj = self._to_orm(article)
             self.db.add(orm_obj)
             self.db.commit()
+            self.db.refresh(orm_obj)
+            article.id = orm_obj.id
             return True
         except Exception as e:
             self.db.rollback()
@@ -158,6 +160,17 @@ class NewsRepository(NewsRepositoryPort):
             .all()
         )
         return [self._to_domain(row) for row in rows]
+
+    def get_articles_created_after(self, cutoff: datetime) -> List[Article]:
+        """Entity şartı olmadan tarih filtresi — retention job'un self-healing reindex'i kullanır."""
+        rows = self.db.query(NewsORM).filter(NewsORM.created_at >= cutoff).all()
+        return [self._to_domain(row) for row in rows]
+
+    def delete_articles_before(self, cutoff: datetime) -> int:
+        """KALICI silme. Sadece `db_retention_days` > 0 iken çağrılır (varsayılan kapalı)."""
+        deleted = self.db.query(NewsORM).filter(NewsORM.created_at < cutoff).delete(synchronize_session=False)
+        self.db.commit()
+        return deleted
 
     def get_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None, min_quality: Optional[float] = None) -> List[Article]:
         q = self.db.query(NewsORM)

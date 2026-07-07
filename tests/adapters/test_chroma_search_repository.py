@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 from src.adapters.search.chroma_search_repository import ChromaSearchRepository
 from src.domain.models.article import Article
@@ -78,6 +79,24 @@ def test_index_article_falls_back_to_content_when_no_summary():
     assert "İçerik metni" in call_args
 
 
+def test_index_article_metadata_includes_published_at():
+    repo, _ = make_repo()
+    published = datetime(2026, 6, 1, tzinfo=timezone.utc)
+    article = make_article(published_at=published)
+    repo.index_article(article)
+    meta = repo._mock_collection.upsert.call_args[1]["metadatas"][0]
+    assert meta["published_at"] == published.isoformat()
+
+
+def test_index_article_metadata_falls_back_to_created_at():
+    repo, _ = make_repo()
+    created = datetime(2026, 5, 1, tzinfo=timezone.utc)
+    article = make_article(published_at=None, created_at=created)
+    repo.index_article(article)
+    meta = repo._mock_collection.upsert.call_args[1]["metadatas"][0]
+    assert meta["published_at"] == created.isoformat()
+
+
 # ── search ────────────────────────────────────────────────────────────────────
 
 def test_search_returns_results():
@@ -121,6 +140,48 @@ def test_search_score_calculation():
     }
     results = repo.search("mükemmel eşleşme")
     assert results[0]["score"] == 1.0
+
+
+def test_search_returns_published_at_from_metadata():
+    repo, _ = make_repo()
+    repo._mock_collection.query.return_value = {
+        "ids": [["1"]],
+        "metadatas": [[{"title": "T", "source": "S", "url": "U", "summary": "Ö",
+                         "sentiment_label": "N", "published_at": "2026-06-01T00:00:00+00:00"}]],
+        "distances": [[0.1]],
+    }
+    results = repo.search("sorgu")
+    assert results[0]["published_at"] == "2026-06-01T00:00:00+00:00"
+
+
+def test_search_missing_published_at_defaults_empty():
+    repo, _ = make_repo()
+    repo._mock_collection.query.return_value = {
+        "ids": [["1"]],
+        "metadatas": [[{"title": "T", "source": "S", "url": "U", "summary": "Ö", "sentiment_label": "N"}]],
+        "distances": [[0.1]],
+    }
+    results = repo.search("sorgu")
+    assert results[0]["published_at"] == ""
+
+
+# ── delete_before (retention) ──────────────────────────────────────────────────
+
+def test_delete_before_calls_collection_delete_with_where():
+    repo, _ = make_repo()
+    repo._mock_collection.delete.return_value = {"deleted": 3}
+    deleted = repo.delete_before("2026-04-01T00:00:00+00:00")
+    repo._mock_collection.delete.assert_called_once_with(
+        where={"published_at": {"$lt": "2026-04-01T00:00:00+00:00"}}
+    )
+    assert deleted == 3
+
+
+def test_delete_before_returns_zero_on_error():
+    repo, _ = make_repo()
+    repo._mock_collection.delete.side_effect = Exception("bağlantı hatası")
+    deleted = repo.delete_before("2026-04-01T00:00:00+00:00")
+    assert deleted == 0
 
 
 # ── filter / where ────────────────────────────────────────────────────────────
