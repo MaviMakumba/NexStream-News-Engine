@@ -32,6 +32,7 @@ class ChromaSearchRepository:
         try:
             text = self._article_embedding_text(article)
             embedding = self.embedder.embed_text(text)
+            published = article.published_at or article.created_at
             self.collection.upsert(
                 ids=[str(article.id)],
                 embeddings=[embedding],
@@ -42,6 +43,7 @@ class ChromaSearchRepository:
                     "summary": article.summary or "",
                     "sentiment_label": article.sentiment_label or "",
                     "topic": article.topic or "",
+                    "published_at": published.isoformat() if published else "",
                 }],
             )
             return True
@@ -88,11 +90,26 @@ class ChromaSearchRepository:
                     "source": meta.get("source", ""),
                     "url": meta.get("url", ""),
                     "score": round(1 / (1 + distance), 4),
+                    "published_at": meta.get("published_at", ""),
                 })
             return items
         except Exception as e:
             logger.error("ChromaDB arama hatası: %s", e)
             return []
+
+    def delete_before(self, cutoff_iso: str) -> int:
+        """Belirtilen ISO tarihinden eski vektörleri koleksiyondan kaldırır.
+
+        Postgres'e dokunmaz — geri dönüşü `reindex_all()` ile mümkündür.
+        """
+        try:
+            result = self.collection.delete(where={"published_at": {"$lt": cutoff_iso}})
+            deleted = result.get("deleted", 0) if isinstance(result, dict) else 0
+            logger.info("ChromaDB retention: %d vektör silindi (cutoff=%s)", deleted, cutoff_iso)
+            return deleted
+        except Exception as e:
+            logger.error("ChromaDB retention silme hatası: %s", e)
+            return 0
 
     @staticmethod
     def _build_where(source: str = None, sentiment: str = None) -> dict | None:

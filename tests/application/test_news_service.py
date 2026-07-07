@@ -1,10 +1,15 @@
 import asyncio
+import pytest
+from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, AsyncMock
 from src.application.services.news_service import NewsService
 from src.domain.models.article import Article
 
 def make_article(url="https://bbc.com/test"):
     return Article(title="Test", source="BBC", url=url, content="Good news today")
+
+# recency penceresinin (search_recency_window_days) dışında — decay tabana iner:
+_OLD_DATE = datetime.now(timezone.utc) - timedelta(days=100)
 
 def make_service():
     mock_repo = MagicMock()
@@ -95,7 +100,8 @@ def make_service_with_search():
 def test_hybrid_search_returns_semantic_results():
     service, mock_repo, mock_search = make_service_with_search()
     mock_search.search.return_value = [
-        {"id": "1", "title": "Semantic Haber", "summary": "s", "source": "BBC", "url": "u", "score": 0.9}
+        {"id": "1", "title": "Semantic Haber", "summary": "s", "source": "BBC", "url": "u", "score": 0.9,
+         "published_at": datetime.now(timezone.utc).isoformat()}
     ]
     mock_repo.keyword_search.return_value = []
 
@@ -192,6 +198,101 @@ def test_hybrid_search_keyword_only_ranks_above_low_semantic():
     assert results[0]["id"] == "7"   # başlık eşleşmesi (0.90) önde
     assert results[0]["score"] == 0.90
     assert results[1]["id"] == "99"  # düşük semantic (0.30) arkada
+
+
+def test_hybrid_search_recency_bonus_ranks_fresh_article_above_old_equal_score():
+    """Aynı keyword skoruna sahip iki sonuçtan yeni tarihli olan üstte çıkmalı."""
+    service, mock_repo, mock_search = make_service_with_search()
+    mock_search.search.return_value = []
+
+    fresh = make_article("https://bbc.com/fresh")
+    fresh.id = 1
+    fresh.title = "Hava durumu bugün"  # 2/2 başlıkta → 0.9
+    fresh.created_at = datetime.now(timezone.utc)
+
+    stale = make_article("https://bbc.com/stale")
+    stale.id = 2
+    stale.title = "Hava durumu geçen ay"  # 2/2 başlıkta → 0.9 (aynı base skor)
+    stale.created_at = _OLD_DATE
+
+    mock_repo.keyword_search.return_value = [stale, fresh]  # sıra önemli değil
+
+    results = service.hybrid_search("hava durumu", n_results=5)
+
+    assert results[0]["id"] == "1"  # taze haber recency bonus ile önde
+    assert results[0]["score"] > results[1]["score"]
+    assert results[1]["id"] == "2"
+
+
+def test_recency_factor_zero_for_missing_date():
+    assert NewsService._recency_factor(None) == 0.0
+    assert NewsService._recency_factor("") == 0.0
+
+
+def test_recency_factor_full_for_today():
+    assert NewsService._recency_factor(datetime.now(timezone.utc)) > 0.999
+
+
+def test_recency_factor_zero_beyond_window():
+    assert NewsService._recency_factor(_OLD_DATE) == 0.0
+
+
+def test_recency_factor_accepts_iso_string():
+    iso = datetime.now(timezone.utc).isoformat()
+    assert NewsService._recency_factor(iso) > 0.999
+
+
+# ── _decay_factor ─────────────────────────────────────────────────────────────
+
+def test_decay_factor_full_recency_is_near_one():
+    assert NewsService._decay_factor(1.0) == pytest.approx(1.0)
+
+
+def test_decay_factor_zero_recency_equals_floor():
+    from src.infrastructure.config.settings import settings
+    assert NewsService._decay_factor(0.0) == pytest.approx(settings.search_recency_decay_floor)
+
+
+def test_decay_factor_midpoint_is_between_floor_and_one():
+    from src.infrastructure.config.settings import settings
+    floor = settings.search_recency_decay_floor
+    expected = floor + (1 - floor) * 0.5
+    assert NewsService._decay_factor(0.5) == pytest.approx(expected)
+
+
+def test_hybrid_search_recency_decay_reorders_equal_relevance_results():
+    """Tam başlık eşleşmesi + double-hit bonus relevance'ı zaten 1.0'a ulaştırınca
+    (additive bonus ile bunun skorda hiç yeri kalmıyordu) çarpımsal decay devreye
+    girip tarihe göre gerçek bir ayrışma yaratmalı — gerçek prod'da tespit edilen
+    bug: 31 günlük haber, bugünkü haberin önüne geçiyordu."""
+    service, mock_repo, mock_search = make_service_with_search()
+
+    def _capped_article(id_, url, days_old):
+        a = make_article(url)
+        a.id = id_
+        a.title = "Hava Durumu Tahminleri"  # 2/2 başlıkta → keyword base 0.9
+        a.created_at = datetime.now(timezone.utc) - timedelta(days=days_old)
+        return a
+
+    very_old = _capped_article(1, "https://bbc.com/very-old", 31)   # pencere dışı → decay=floor
+    mid_old = _capped_article(2, "https://bbc.com/mid-old", 27)     # kısmi decay
+    fresh = _capped_article(3, "https://bbc.com/fresh", 0)          # decay≈1.0
+
+    # Her üçü hem semantik hem keyword'de bulunsun → double-hit bonus (0.10) ile
+    # relevance = base(0.9)+bonus(0.10) = 1.0 zaten cap'e takılıyor (gerçek prod
+    # senaryosu) — additive bonus'ta bu üçünü ayırt etmenin yolu yoktu.
+    mock_search.search.return_value = [
+        {"id": str(a.id), "title": a.title, "summary": "", "source": "BBC", "url": a.url, "score": 0.9}
+        for a in (very_old, mid_old, fresh)
+    ]
+    mock_repo.keyword_search.return_value = [very_old, mid_old, fresh]
+
+    results = service.hybrid_search("hava durumu", n_results=5)
+
+    assert [r["id"] for r in results] == ["3", "2", "1"]  # taze → orta → eski
+    scores = [r["score"] for r in results]
+    assert scores[0] > scores[1] > scores[2]               # çarpımsal decay artık gerçekten ayrıştırıyor
+    assert scores[2] == pytest.approx(0.5, abs=0.001)       # very_old: relevance(1.0) * floor(0.5)
 
 
 def test_hybrid_search_passes_filters_to_both():

@@ -27,6 +27,7 @@ class SearchResult(BaseModel):
     source: str
     url: str
     score: float
+    created_at: Optional[datetime] = None
 
 
 class NewsResponse(BaseModel):

@@ -1,3 +1,4 @@
+from datetime import datetime, timezone, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from src.infrastructure.config.database import Base
@@ -205,6 +206,65 @@ def test_get_news_paginated_min_quality_filter():
     urls = {a.url for a in repo.get_news_paginated(limit=10, min_quality=0.5)}
     assert "u1" in urls
     assert "u2" not in urls
+
+
+# ── save_article id propagation (regression: ChromaDB indexleme bug'ı) ────────
+
+def test_save_article_sets_id_on_domain_object():
+    """save_article sonrası article.id set edilmeli — yoksa ChromaDB indexleme
+    hiç tetiklenmez (NewsService.update_news_from_source `article.id` şartına bakıyor)."""
+    db = make_session()
+    repo = NewsRepository(db)
+    article = make_article()
+
+    assert article.id is None
+    result = repo.save_article(article)
+
+    assert result is True
+    assert article.id is not None
+    saved = db.query(NewsORM).filter(NewsORM.url == article.url).first()
+    assert article.id == saved.id
+
+
+# ── Retention: get_articles_created_after / delete_articles_before ───────────
+
+def _set_created_at(db, article, when):
+    db.query(NewsORM).filter(NewsORM.id == article.id).update({"created_at": when})
+    db.commit()
+
+
+def test_get_articles_created_after_excludes_older_rows():
+    db = make_session()
+    repo = NewsRepository(db)
+    old = make_article("https://bbc.com/old")
+    new = make_article("https://bbc.com/new")
+    repo.save_article(old)
+    repo.save_article(new)
+    _set_created_at(db, old, datetime.now(timezone.utc) - timedelta(days=10))
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=1)
+    urls = {a.url for a in repo.get_articles_created_after(cutoff)}
+
+    assert "https://bbc.com/new" in urls
+    assert "https://bbc.com/old" not in urls
+
+
+def test_delete_articles_before_removes_only_old_rows():
+    db = make_session()
+    repo = NewsRepository(db)
+    old = make_article("https://bbc.com/old2")
+    new = make_article("https://bbc.com/new2")
+    repo.save_article(old)
+    repo.save_article(new)
+    _set_created_at(db, old, datetime.now(timezone.utc) - timedelta(days=10))
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=1)
+    deleted = repo.delete_articles_before(cutoff)
+
+    assert deleted == 1
+    remaining_urls = {a.url for a in repo.get_all_articles()}
+    assert "https://bbc.com/new2" in remaining_urls
+    assert "https://bbc.com/old2" not in remaining_urls
 
 
 def test_save_persists_quality_credibility_corroboration():
