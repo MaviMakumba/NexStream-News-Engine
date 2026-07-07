@@ -59,3 +59,19 @@ class UserSession:
     expires_at: datetime
     id: Optional[int] = None
     created_at: Optional[datetime] = None
+
+
+@dataclass
+class PasswordResetToken:
+    """Şifre sıfırlama token'ı — tek kullanımlık, kısa TTL'li opak değer.
+
+    `used` işaretlendikten sonra (veya süresi dolduktan sonra) geçersizdir;
+    session token'ların aksine kalıcı silinmez, denetim izi için tutulur.
+    """
+
+    user_id: int
+    token: str
+    expires_at: datetime
+    used: bool = False
+    id: Optional[int] = None
+    created_at: Optional[datetime] = None

@@ -66,7 +66,13 @@ export default function LoginPage() {
                      className="input" placeholder="siz@ornek.com" required autoComplete="email" />
             </div>
             <div>
-              <label className="label">{t.passwordLabel}</label>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                <label className="label" style={{ marginBottom: 0 }}>{t.passwordLabel}</label>
+                <Link href="/auth/forgot-password"
+                      style={{ fontSize: "0.78rem", color: "var(--text3)", textDecoration: "none" }}>
+                  {t.forgotPasswordLink}
+                </Link>
+              </div>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                      className="input" placeholder="••••••••" required autoComplete="current-password" />
             </div>

@@ -85,6 +85,20 @@ class UserSessionORM(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class PasswordResetTokenORM(Base):
+    __tablename__ = "password_reset_tokens"
+    __table_args__ = (
+        Index("ix_reset_tokens_user_id", "user_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)
+    token = Column(String(128), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used = Column(Boolean, nullable=False, server_default=text("false"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class UsageLogORM(Base):
     __tablename__ = "usage_logs"
     __table_args__ = (

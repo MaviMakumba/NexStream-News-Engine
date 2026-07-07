@@ -13,9 +13,9 @@ from typing import List, Optional
 from sqlalchemy import Date, func
 from sqlalchemy.orm import Session
 
-from src.domain.models.user import User, UserSession, UserTier
+from src.domain.models.user import User, UserSession, UserTier, PasswordResetToken
 from src.domain.ports.user_port import UserRepositoryPort
-from src.adapters.repositories.orm_models import UserORM, UserSessionORM, UsageLogORM
+from src.adapters.repositories.orm_models import UserORM, UserSessionORM, UsageLogORM, PasswordResetTokenORM
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,16 @@ class UserRepository(UserRepositoryPort):
             user_id=orm.user_id,
             token=orm.token,
             expires_at=orm.expires_at,
+            created_at=orm.created_at,
+        )
+
+    def _to_reset_token(self, orm: PasswordResetTokenORM) -> PasswordResetToken:
+        return PasswordResetToken(
+            id=orm.id,
+            user_id=orm.user_id,
+            token=orm.token,
+            expires_at=orm.expires_at,
+            used=orm.used,
             created_at=orm.created_at,
         )
 
@@ -96,6 +106,14 @@ class UserRepository(UserRepositoryPort):
         self.db.commit()
         return True
 
+    def update_password(self, user_id: int, password_hash: str) -> bool:
+        orm = self.db.query(UserORM).filter(UserORM.id == user_id).first()
+        if not orm:
+            return False
+        orm.password_hash = password_hash
+        self.db.commit()
+        return True
+
     # ── Oturum yönetimi ────────────────────────────────────────────────────
 
     def create_session(self, session: UserSession) -> UserSession:
@@ -124,6 +142,37 @@ class UserRepository(UserRepositoryPort):
         self.db.delete(orm)
         self.db.commit()
         return True
+
+    def delete_sessions_for_user(self, user_id: int) -> None:
+        self.db.query(UserSessionORM).filter(UserSessionORM.user_id == user_id).delete()
+        self.db.commit()
+
+    # ── Şifre sıfırlama ────────────────────────────────────────────────────
+
+    def create_reset_token(self, reset_token: PasswordResetToken) -> PasswordResetToken:
+        orm = PasswordResetTokenORM(
+            user_id=reset_token.user_id,
+            token=reset_token.token,
+            expires_at=reset_token.expires_at,
+        )
+        self.db.add(orm)
+        self.db.commit()
+        self.db.refresh(orm)
+        return self._to_reset_token(orm)
+
+    def get_reset_token(self, token: str) -> Optional[PasswordResetToken]:
+        orm = (
+            self.db.query(PasswordResetTokenORM)
+            .filter(PasswordResetTokenORM.token == token)
+            .first()
+        )
+        return self._to_reset_token(orm) if orm else None
+
+    def mark_reset_token_used(self, token: str) -> None:
+        orm = self.db.query(PasswordResetTokenORM).filter(PasswordResetTokenORM.token == token).first()
+        if orm:
+            orm.used = True
+            self.db.commit()
 
     # ── Kullanım takibi ────────────────────────────────────────────────────
 

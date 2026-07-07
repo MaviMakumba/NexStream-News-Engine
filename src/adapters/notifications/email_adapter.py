@@ -54,6 +54,30 @@ NexStream · <a href='{{unsubscribe_url}}'>Aboneliği iptal et</a>
 </p></body></html>"""
 
 
+def _password_reset_html(reset_url: str, language: str) -> str:
+    if language == "TR":
+        title, body, cta, expiry = (
+            "Şifre Sıfırlama",
+            "Hesabınız için bir şifre sıfırlama talebi aldık. Aşağıdaki butona tıklayarak yeni bir şifre belirleyebilirsiniz.",
+            "Şifremi Sıfırla",
+            "Bu bağlantı 1 saat içinde geçerliliğini yitirir. Bu talebi siz yapmadıysanız bu maili yok sayabilirsiniz.",
+        )
+    else:
+        title, body, cta, expiry = (
+            "Password Reset",
+            "We received a request to reset your password. Click the button below to choose a new one.",
+            "Reset Password",
+            "This link expires in 1 hour. If you didn't request this, you can safely ignore this email.",
+        )
+    return f"""<html><body style='font-family:sans-serif;max-width:640px;margin:auto'>
+<h2 style='color:#1a1a1a'>{title}</h2>
+<p style='color:#444'>{body}</p>
+<p><a href='{reset_url}' style='display:inline-block;background:#1a73e8;color:#fff;text-decoration:none;
+padding:12px 24px;border-radius:6px;font-weight:600'>{cta}</a></p>
+<p style='color:#999;font-size:12px;margin-top:24px'>{expiry}</p>
+</body></html>"""
+
+
 def _alert_html(article: Article, keyword: str, language: str) -> str:
     label = "Anahtar kelime eşleşmesi" if language == "TR" else "Keyword match"
     return f"""<html><body style='font-family:sans-serif;max-width:640px;margin:auto'>
@@ -77,6 +101,10 @@ class ConsoleEmailAdapter(EmailPort):
 
     def send_welcome(self, to: str, language: str) -> bool:
         logger.info("📧 [CONSOLE] Welcome → %s | lang=%s", to, language)
+        return True
+
+    def send_password_reset(self, to: str, reset_url: str, language: str) -> bool:
+        logger.info("📧 [CONSOLE] Password reset → %s | %s", to, reset_url)
         return True
 
 
@@ -122,6 +150,10 @@ class ResendEmailAdapter(EmailPort):
             else "<h2>Welcome!</h2><p>Your daily digest will arrive every morning at 08:00.</p>"
         )
         return self._post(to, subject, f"<html><body>{body}</body></html>")
+
+    def send_password_reset(self, to: str, reset_url: str, language: str) -> bool:
+        subject = "NexStream Şifre Sıfırlama" if language == "TR" else "NexStream Password Reset"
+        return self._post(to, subject, _password_reset_html(reset_url, language))
 
 
 def get_email_adapter() -> EmailPort:

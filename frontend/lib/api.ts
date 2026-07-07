@@ -59,6 +59,20 @@ export async function apiLogout(token: string) {
   await fetch(`${BASE}/auth/logout`, { method: "POST", headers: authHeaders(token) });
 }
 
+export async function apiForgotPassword(email: string, language: string) {
+  return req<{ message: string }>(`${BASE}/auth/forgot-password`, {
+    method: "POST",
+    body: JSON.stringify({ email, language }),
+  });
+}
+
+export async function apiResetPassword(token: string, password: string) {
+  return req<{ message: string }>(`${BASE}/auth/reset-password`, {
+    method: "POST",
+    body: JSON.stringify({ token, password }),
+  });
+}
+
 /** Aktif oturumun güncel kullanıcı bilgisi (tier/is_admin tazelemek için). */
 export async function fetchMe(token: string): Promise<User> {
   return req<User>(`${BASE}/auth/me`, { headers: authHeaders(token) });
