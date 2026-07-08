@@ -133,8 +133,17 @@ def list_sponsors(db: Session = Depends(get_db)):
     return [_to_dict(r) for r in rows]
 
 
+def _deactivate_all_active_sponsors(db: Session) -> None:
+    """Tek "güncel sponsor" değişmezini korur (newsletter footer'ı ve admin
+    panelindeki "aktif sponsor" kartı ikisi de tekil bir kayıt bekler) — yoksa
+    birden fazla is_active=true kayıt oluşur ve arayüz sadece ilkini gösterip
+    diğerlerini sessizce gizler."""
+    db.query(SponsorORM).filter(SponsorORM.is_active.is_(True)).update({"is_active": False})
+
+
 @router.post("/sponsors", status_code=201, dependencies=[Depends(require_admin)])
 def create_sponsor(req: SponsorRequest, db: Session = Depends(get_db)):
+    _deactivate_all_active_sponsors(db)
     orm = SponsorORM(
         name=req.name,
         url=req.url,
@@ -182,6 +191,31 @@ def deactivate_sponsor(sponsor_id: int, db: Session = Depends(get_db)):
     orm.is_active = False
     db.commit()
     return {"id": sponsor_id, "is_active": False}
+
+
+@router.delete("/sponsors/{sponsor_id}/permanent", dependencies=[Depends(require_admin)])
+def delete_sponsor_permanently(sponsor_id: int, db: Session = Depends(get_db)):
+    """Kaydı kalıcı olarak siler — geri alınamaz. Süresi dolmuş/pasif eski
+    kayıtları listeden tamamen temizlemek için (soft-delete'in aksine)."""
+    orm = db.get(SponsorORM, sponsor_id)
+    if not orm:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
+    db.delete(orm)
+    db.commit()
+    return {"id": sponsor_id, "deleted": True}
+
+
+@router.post("/sponsors/{sponsor_id}/activate", dependencies=[Depends(require_admin)])
+def activate_sponsor(sponsor_id: int, db: Session = Depends(get_db)):
+    """Süresi geçmemiş pasif bir sponsoru yeniden aktifleştirir — diğer
+    aktif sponsor(lar) otomatik pasife alınır (tek güncel sponsor kuralı)."""
+    orm = db.get(SponsorORM, sponsor_id)
+    if not orm:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
+    _deactivate_all_active_sponsors(db)
+    orm.is_active = True
+    db.commit()
+    return _to_dict(orm)
 
 
 def get_active_sponsor(db: Session) -> Optional[Sponsor]:

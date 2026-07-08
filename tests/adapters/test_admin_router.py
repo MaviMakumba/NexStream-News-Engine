@@ -266,6 +266,29 @@ def test_create_sponsor(app_client):
     db.commit.assert_called_once()
 
 
+def test_create_sponsor_deactivates_other_active_sponsors(app_client):
+    """Tek 'güncel sponsor' değişmezi korunur — yeni sponsor eklenince
+    öncekiler pasife alınmazsa admin panelinde/bültende birden fazla
+    is_active=true kayıt oluşur ve arayüz sadece ilkini gösterip
+    diğerlerini sessizce gizler (gerçek bir kullanıcı bulgusuydu)."""
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    payload = {
+        "name": "New Sponsor",
+        "url": "https://new.example.com",
+        "message": "Hello",
+        "active_from": datetime.now(timezone.utc).isoformat(),
+        "active_until": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+    }
+    try:
+        resp = app_client.post("/admin/sponsors", json=payload, headers=_HEADERS)
+    finally:
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 201
+    db.query.return_value.filter.return_value.update.assert_called_once_with({"is_active": False})
+
+
 def test_deactivate_sponsor(app_client):
     db = _make_mock_db()
     orm = _sponsor_orm()
@@ -286,6 +309,61 @@ def test_deactivate_nonexistent_sponsor_returns_404(app_client):
     app_client.app.dependency_overrides[get_db] = lambda: db
     try:
         resp = app_client.delete("/admin/sponsors/999", headers=_HEADERS)
+    finally:
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 404
+
+
+def test_activate_sponsor_deactivates_others(app_client):
+    db = _make_mock_db()
+    orm = _sponsor_orm(id=2, is_active=False)
+    db.get.return_value = orm
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        resp = app_client.post("/admin/sponsors/2/activate", headers=_HEADERS)
+    finally:
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    assert resp.json()["is_active"] is True
+    db.query.return_value.filter.return_value.update.assert_called_once_with({"is_active": False})
+
+
+def test_activate_nonexistent_sponsor_returns_404(app_client):
+    db = _make_mock_db()
+    db.get.return_value = None
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        resp = app_client.post("/admin/sponsors/999/activate", headers=_HEADERS)
+    finally:
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 404
+
+
+def test_delete_sponsor_permanently(app_client):
+    db = _make_mock_db()
+    orm = _sponsor_orm(id=3)
+    db.get.return_value = orm
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        resp = app_client.delete("/admin/sponsors/3/permanent", headers=_HEADERS)
+    finally:
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"id": 3, "deleted": True}
+    db.delete.assert_called_once_with(orm)
+    db.commit.assert_called_once()
+
+
+def test_delete_nonexistent_sponsor_permanently_returns_404(app_client):
+    db = _make_mock_db()
+    db.get.return_value = None
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        resp = app_client.delete("/admin/sponsors/999/permanent", headers=_HEADERS)
     finally:
         app_client.app.dependency_overrides.pop(get_db, None)
 

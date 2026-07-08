@@ -188,6 +188,16 @@ export async function deactivateSponsor(creds: AdminCreds, id: number): Promise<
   await req(`${BASE}/admin/sponsors/${id}`, { method: "DELETE", headers: adminHeaders(creds) });
 }
 
+/** Süresi geçmemiş pasif bir sponsoru yeniden aktifleştirir (diğer aktifler otomatik pasife alınır). */
+export async function activateSponsor(creds: AdminCreds, id: number): Promise<Sponsor> {
+  return req<Sponsor>(`${BASE}/admin/sponsors/${id}/activate`, { method: "POST", headers: adminHeaders(creds) });
+}
+
+/** Sponsoru kalıcı olarak siler — geri alınamaz. */
+export async function deleteSponsorPermanently(creds: AdminCreds, id: number): Promise<void> {
+  await req(`${BASE}/admin/sponsors/${id}/permanent`, { method: "DELETE", headers: adminHeaders(creds) });
+}
+
 // ── Billing ───────────────────────────────────────────────────────────────────
 
 export async function fetchBillingConfig(): Promise<BillingConfig> {

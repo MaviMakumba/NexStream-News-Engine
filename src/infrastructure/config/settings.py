@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     # ── Email (newsletter / keyword alert) ─────────────────────────────────
     resend_api_key: str = ""            # boşsa console adapter (sadece log)
     email_from: str = "NexStream <no-reply@nexstream.news>"
-    newsletter_hour_utc: int = 5        # günlük digest saati (05:00 UTC = 08:00 TR)
+    newsletter_hour_utc: int = 6        # günlük digest saati (06:00 UTC = 09:00 TR)
 
     # ── Auth / Sessions ────────────────────────────────────────────────────
     session_ttl_days: int = 30
@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     # Şifre sıfırlama linkinin hedeflediği frontend origin'i (mail içindeki link).
     frontend_url: str = "http://localhost:3000"
     password_reset_ttl_minutes: int = 60
+    # Backend API'nin dışarıdan erişilebilir kök adresi — mail içindeki "aboneliği
+    # iptal et" linki gibi doğrudan API'ye giden bağlantılar için. Prod'da nginx
+    # /api/ altında proxy'lediği için gerçek domain + /api olmalı (örn. https://nexstream.news/api).
+    api_base_url: str = "http://localhost:8000"
 
     # ── Billing (Stripe) ───────────────────────────────────────────────────
     stripe_secret_key: str = ""
