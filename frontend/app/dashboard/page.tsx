@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/settings-context";
-import { fetchNews, fetchTrending, fetchSources } from "@/lib/api";
+import { BASE, fetchNews, fetchTrending, fetchSources } from "@/lib/api";
 import type { Article, TrendingEntity } from "@/lib/types";
 import { NewsCard } from "@/components/NewsCard";
 import { TrendingPills } from "@/components/TrendingPills";
@@ -14,7 +13,6 @@ const TOPIC_VALUES    = ["", "Technology", "Sports", "Economy", "Politics", "Hea
 const SENTIMENT_VALUES = ["", "Positive", "Negative", "Neutral"];
 
 export default function DashboardPage() {
-  const { token } = useAuth();
   const { lang } = useSettings();
   const router = useRouter();
   const t = UI[lang];
@@ -41,7 +39,7 @@ export default function DashboardPage() {
         topic:     topic     || undefined,
         source:    source    || undefined,
         min_quality: minQuality,
-      }, token);
+      });
       setArticles((prev) => reset ? page.items : [...prev, ...page.items]);
       setCursor(page.next_cursor);
       setHasMore(page.next_cursor !== null);
@@ -50,18 +48,18 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, sentiment, topic, source, minQuality]);
+  }, [sentiment, topic, source, minQuality]);
 
   // Reset on filter change
   useEffect(() => {
     setCursor(null);
     load(true, null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sentiment, topic, source, minQuality, token]);
+  }, [sentiment, topic, source, minQuality]);
 
   // Trending + sources once on mount
   useEffect(() => {
-    fetchTrending(6, 12, token)
+    fetchTrending(6, 12)
       .then((r) => { setTrending(r.entities ?? []); })
       .catch(() => {})
       .finally(() => setTrendingLoaded(true));
@@ -131,7 +129,7 @@ export default function DashboardPage() {
             </span>
           )}
         </h1>
-        <a href="http://localhost:8000/feed.xml" target="_blank"
+        <a href={`${BASE}/feed.xml`} target="_blank"
            style={{ fontSize: "0.75rem", color: "var(--text3)", textDecoration: "none", transition: "color 0.15s" }}
            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent)")}
            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text3)")}>

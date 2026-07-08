@@ -2,13 +2,16 @@
 // Alan adları Pydantic şemalarıyla birebir aynıdır (snake_case korunur).
 
 export type Tier = "free" | "pro" | "enterprise";
+export type Role = "user" | "moderator" | "admin";
 
 export interface User {
   id: number;
   email: string;
   name: string;
   tier: Tier;
-  is_admin?: boolean;          // v1.11: rol tabanlı admin (backend hesaplar)
+  role?: Role;                 // v1.13: yetki hiyerarşisi (backend hesaplar, ADMIN_EMAILS dahil)
+  is_admin?: boolean;          // geriye dönük uyumluluk — role === "admin" ile aynı
+  is_moderator?: boolean;      // role moderator VEYA admin
   created_at?: string;
 }
 
@@ -108,6 +111,22 @@ export interface UsageRow {
   endpoint: string;
   count: number;
   avg_ms: number;
+}
+
+export interface AdminUser {
+  id: number;
+  email: string;
+  name: string;
+  tier: string;
+  is_active: boolean;
+  role: Role;
+  is_paying: boolean;
+  created_at: string;
+}
+
+export interface AdminUserList {
+  total: number;
+  items: AdminUser[];
 }
 
 export interface Sponsor {

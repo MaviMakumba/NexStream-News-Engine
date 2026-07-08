@@ -13,7 +13,7 @@ from typing import List, Optional
 from sqlalchemy import Date, func
 from sqlalchemy.orm import Session
 
-from src.domain.models.user import User, UserSession, UserTier, PasswordResetToken
+from src.domain.models.user import User, UserSession, UserTier, UserRole, PasswordResetToken
 from src.domain.ports.user_port import UserRepositoryPort
 from src.adapters.repositories.orm_models import UserORM, UserSessionORM, UsageLogORM, PasswordResetTokenORM
 
@@ -34,7 +34,7 @@ class UserRepository(UserRepositoryPort):
             name=orm.name or "",
             tier=UserTier(orm.tier),
             is_active=orm.is_active,
-            is_admin=bool(getattr(orm, "is_admin", False)),
+            role=UserRole(getattr(orm, "role", None) or "user"),
             api_key=getattr(orm, "api_key", None),
             stripe_customer_id=orm.stripe_customer_id,
             created_at=orm.created_at,
@@ -68,7 +68,7 @@ class UserRepository(UserRepositoryPort):
             name=user.name,
             tier=user.tier.value if isinstance(user.tier, UserTier) else user.tier,
             is_active=user.is_active,
-            is_admin=user.is_admin,
+            role=user.role.value if isinstance(user.role, UserRole) else user.role,
             stripe_customer_id=user.stripe_customer_id,
         )
         self.db.add(orm)
@@ -88,6 +88,19 @@ class UserRepository(UserRepositoryPort):
         orm = self.db.query(UserORM).filter(UserORM.api_key == api_key).first()
         return self._to_user(orm) if orm else None
 
+    def list_users(self, limit: int = 50, offset: int = 0, tier: Optional[str] = None) -> List[User]:
+        query = self.db.query(UserORM).order_by(UserORM.created_at.desc())
+        if tier:
+            query = query.filter(UserORM.tier == tier)
+        rows = query.offset(offset).limit(limit).all()
+        return [self._to_user(r) for r in rows]
+
+    def count_users(self, tier: Optional[str] = None) -> int:
+        query = self.db.query(func.count(UserORM.id))
+        if tier:
+            query = query.filter(UserORM.tier == tier)
+        return query.scalar() or 0
+
     def update_tier(self, user_id: int, tier: str, stripe_customer_id: Optional[str] = None) -> bool:
         orm = self.db.query(UserORM).filter(UserORM.id == user_id).first()
         if not orm:
@@ -95,6 +108,14 @@ class UserRepository(UserRepositoryPort):
         orm.tier = tier
         if stripe_customer_id:
             orm.stripe_customer_id = stripe_customer_id
+        self.db.commit()
+        return True
+
+    def update_role(self, user_id: int, role: str) -> bool:
+        orm = self.db.query(UserORM).filter(UserORM.id == user_id).first()
+        if not orm:
+            return False
+        orm.role = role
         self.db.commit()
         return True
 

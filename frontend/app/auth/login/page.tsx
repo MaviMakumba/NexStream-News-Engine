@@ -22,8 +22,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError(""); setLoading(true);
     try {
-      const { token, user } = await apiLogin(email, password);
-      login(token, user);
+      const { user } = await apiLogin(email, password);
+      login(user);
       router.push("/dashboard");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t.loginFailed);

@@ -27,11 +27,34 @@ TIER_DAILY_LIMITS: dict = {
 }
 
 
+class UserRole(str, Enum):
+    """Yetki hiyerarşisi (v1.13) — user < moderator < admin.
+
+    moderator: admin panelini GÖREBİLİR (kullanım/kullanıcı/sponsor listeleri)
+        ama rol değiştiremez, sponsor CRUD yapamaz — destek/gözlem amaçlı.
+    admin: tam yetki, diğer kullanıcıların rolünü değiştirebilir.
+    ADMIN_EMAILS bootstrap listesi DB'ye dokunmadan "admin" muamelesi görür
+    (bkz. auth_utils.has_admin_role) — role kolonu bundan bağımsızdır.
+    """
+
+    USER = "user"
+    MODERATOR = "moderator"
+    ADMIN = "admin"
+
+
+_ROLE_RANK = {UserRole.USER: 0, UserRole.MODERATOR: 1, UserRole.ADMIN: 2}
+
+
+def role_at_least(role: "UserRole", minimum: "UserRole") -> bool:
+    """`role`, `minimum` seviyesinde veya üzerinde mi?"""
+    return _ROLE_RANK[UserRole(role)] >= _ROLE_RANK[UserRole(minimum)]
+
+
 @dataclass
 class User:
     """Kayıtlı kullanıcı.
 
-    is_admin: rol tabanlı admin yetkisi (v1.11). Paylaşımlı X-API-Key'in
+    role: yetki hiyerarşisi (v1.13, user/moderator/admin). Paylaşımlı X-API-Key'in
         yerine kullanıcı bazlı yetkilendirme sağlar; makine-makine erişimi
         için X-API-Key yolu korunur.
     api_key: kullanıcıya özel public API anahtarı (v1.11, opsiyonel).
@@ -43,7 +66,7 @@ class User:
     name: str = ""
     tier: UserTier = UserTier.FREE
     is_active: bool = True
-    is_admin: bool = False
+    role: UserRole = UserRole.USER
     api_key: Optional[str] = None
     stripe_customer_id: Optional[str] = None
     id: Optional[int] = None

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
 import { useSettings } from "@/lib/settings-context";
 import { useAuth } from "@/lib/auth-context";
+import { BASE } from "@/lib/api";
+import { LandingSearchDemo } from "@/components/LandingSearchDemo";
 import { UI, FEATURES, PRICING } from "@/lib/i18n";
 
 export default function LandingPage() {
@@ -105,6 +107,11 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Canlı arama demosu — kayıt olmadan denenebilir */}
+      <section style={{ padding: "0 20px 80px" }}>
+        <LandingSearchDemo />
+      </section>
+
       {/* Features */}
       <section style={{ maxWidth: 1100, margin: "0 auto", padding: "60px 20px" }}>
         <div style={{ textAlign: "center", marginBottom: 48 }}>
@@ -201,8 +208,10 @@ export default function LandingPage() {
           <div style={{ display: "flex", gap: 24 }}>
             {[
               { label: t.dashboard, href: "/dashboard" },
-              { label: t.apiDocs,   href: "http://localhost:8000/docs" },
-              { label: "RSS",       href: "http://localhost:8000/feed.xml" },
+              { label: t.apiDocs,   href: `${BASE}/docs` },
+              { label: "RSS",       href: `${BASE}/feed.xml` },
+              { label: t.privacy,   href: "/privacy" },
+              { label: t.terms,     href: "/terms" },
             ].map((l) => (
               <a key={l.label} href={l.href} target={l.href.startsWith("http") ? "_blank" : "_self"}
                  style={{ fontSize: "0.82rem", color: "var(--text3)", textDecoration: "none", transition: "color 0.15s" }}

@@ -63,8 +63,9 @@ class UserORM(Base):
     name = Column(String(255), nullable=False, server_default=text("''"))
     tier = Column(String(20), nullable=False, server_default=text("'free'"))
     is_active = Column(Boolean, nullable=False, server_default=text("true"))
-    # v1.11: rol tabanlı admin — paylaşımlı API_KEY yerine kullanıcı bazlı yetki
-    is_admin = Column(Boolean, nullable=False, server_default=text("false"))
+    # v1.13: yetki hiyerarşisi (user/moderator/admin) — paylaşımlı API_KEY yerine
+    # kullanıcı bazlı yetki. v1.11'deki boolean is_admin kolonunun yerini aldı.
+    role = Column(String(20), nullable=False, server_default=text("'user'"))
     # v1.11: kullanıcıya özel public API anahtarı (X-User-Key ile kullanılır)
     api_key = Column(String(64), unique=True, nullable=True, index=True)
     stripe_customer_id = Column(String(255), nullable=True)

@@ -1,31 +1,34 @@
 "use client";
 
-// Oturum durumu (token + kullanıcı) — localStorage'da saklanır.
-// Sayfa açılışında /auth/me ile tazelenir: tier veya is_admin backend'de
-// değiştiyse (örn. dev-mode yükseltme, admin atama) UI güncel kalır;
-// token geçersizse oturum otomatik kapatılır.
+// Oturum durumu — kimlik artık HttpOnly `nxs_session` cookie'sinde taşınır
+// (backend set eder, JS değerini hiç göremez). localStorage sadece kullanıcı
+// nesnesinin bir ÖNBELLEĞİ: ilk boyamada "misafir" flaş'ı görülmeden önceki
+// oturumu göstermek için. Doğruluk kaynağı her zaman /auth/me — arka planda
+// çağrılır, cookie geçersizse oturum otomatik kapatılır.
 
-import { createContext, useContext, useEffect, useState } from "react";
-import { fetchMe } from "./api";
+import { createContext, useContext, useEffect, useLayoutEffect, useState } from "react";
+import { fetchMe, apiLogout } from "./api";
 import type { User } from "./types";
+
+// SSR'da useLayoutEffect "does nothing on server" uyarısı verir — client'ta
+// layout effect (paint ÖNCESİ senkron), server'da normal effect (no-op) kullan.
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 interface AuthCtx {
   user: User | null;
-  token: string | null;
   isLoading: boolean;
-  login: (token: string, user: User) => void;
-  logout: () => void;
-  /** Kullanıcı bilgisini backend'den yeniden çeker (tier/is_admin değişimi sonrası). */
+  login: (user: User) => void;
+  logout: () => Promise<void>;
+  /** Kullanıcı bilgisini backend'den yeniden çeker (tier/rol değişimi sonrası). */
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthCtx>({
-  user: null, token: null, isLoading: true,
-  login: () => {}, logout: () => {},
+  user: null, isLoading: true,
+  login: () => {}, logout: async () => {},
   refreshUser: async () => {},
 });
 
-const TOKEN_KEY = "nxt_token";
 const USER_KEY = "nxt_user";
 
 function persistUser(user: User) {
@@ -33,47 +36,43 @@ function persistUser(user: User) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // SSR ile eşleşmesi için ilk render hep null (guest) — hydration mismatch
+  // riski almadan localStorage'daki önbellek hemen aşağıdaki layout effect'te,
+  // tarayıcı boyamadan (paint) ÖNCE senkron uygulanır.
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    let stored: string | null = null;
+  useIsomorphicLayoutEffect(() => {
     try {
-      stored = localStorage.getItem(TOKEN_KEY);
-      const u = localStorage.getItem(USER_KEY);
-      if (stored && u) { setToken(stored); setUser(JSON.parse(u)); }
+      const cached = localStorage.getItem(USER_KEY);
+      if (cached) setUser(JSON.parse(cached));
     } catch {}
     setIsLoading(false);
 
-    // Arka planda taze veriyi çek; 401 ise oturum düşmüştür → temizle.
-    if (stored) {
-      fetchMe(stored)
-        .then((fresh) => { setUser(fresh); persistUser(fresh); })
-        .catch(() => {
-          localStorage.removeItem(TOKEN_KEY);
-          localStorage.removeItem(USER_KEY);
-          setToken(null); setUser(null);
-        });
-    }
+    // Cookie backend'de doğruluk kaynağıdır; önbellek sadece ilk boyama içindir.
+    // Cookie yoksa/geçersizse 401 döner → oturumu düşür.
+    fetchMe()
+      .then((fresh) => { setUser(fresh); persistUser(fresh); })
+      .catch(() => {
+        localStorage.removeItem(USER_KEY);
+        setUser(null);
+      });
   }, []);
 
-  const login = (token: string, user: User) => {
-    localStorage.setItem(TOKEN_KEY, token);
+  const login = (user: User) => {
     persistUser(user);
-    setToken(token); setUser(user);
+    setUser(user);
   };
 
-  const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
+  const logout = async () => {
+    await apiLogout().catch(() => {});
     localStorage.removeItem(USER_KEY);
-    setToken(null); setUser(null);
+    setUser(null);
   };
 
   const refreshUser = async () => {
-    if (!token) return;
     try {
-      const fresh = await fetchMe(token);
+      const fresh = await fetchMe();
       setUser(fresh); persistUser(fresh);
     } catch {
       // Tazeleme başarısızsa mevcut kullanıcıyı koru — kritik bir akış değil.
@@ -81,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

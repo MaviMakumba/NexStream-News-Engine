@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/settings-context";
 import { searchNews } from "@/lib/api";
 import type { SearchResult } from "@/lib/types";
@@ -28,7 +27,6 @@ function relTime(iso: string) {
 }
 
 export default function SearchPage() {
-  const { token } = useAuth();
   const { lang } = useSettings();
   const t = UI[lang];
   const [query,    setQuery]    = useState("");
@@ -52,7 +50,7 @@ export default function SearchPage() {
     if (!trimmed) return;
     setLoading(true); setError(""); setSearched(true);
     try {
-      const r = await searchNews(trimmed, nResults, token);
+      const r = await searchNews(trimmed, nResults);
       setResults(r ?? []);
       saveHistory(trimmed);
       setHistory(getHistory());

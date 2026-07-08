@@ -1,9 +1,13 @@
 """Kayıt / giriş / oturum endpoint'leri (/auth).
 
 Oturum modeli: başarılı kayıt/giriş sonrası rastgele opak token üretilir,
-`user_sessions` tablosuna TTL ile yazılır ve istemci sonraki isteklerde
-`X-Session-Token` header'ı ile gönderir. JWT yerine DB-backed session
-tercih edildi: anında iptal edilebilir (logout) ve ekstra sır gerektirmez.
+`user_sessions` tablosuna TTL ile yazılır. İstemciye HttpOnly, `nxs_session`
+adlı bir cookie olarak verilir (JS token değerini hiç göremez — XSS'e karşı
+korumalı) ve tarayıcı sonraki isteklerde bunu otomatik gönderir. Next.js SSR
+da aynı cookie'yi `next/headers` ile okuyup ilk render'ı doğru üretir (bkz.
+frontend/app/layout.tsx) — bu sayede "önce misafir görünüp sonra giriş
+yapılmış hale geçme" flaş'ı (FOUC) sunucu seviyesinde ortadan kalkar.
+JWT yerine DB-backed session tercih edildi: anında iptal edilebilir (logout).
 
 Parola: bcrypt (passlib'siz, doğrudan) — bcrypt girdiyi 72 byte ile sınırlar.
 """
@@ -13,13 +17,13 @@ import logging
 import secrets
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Header, Request, Response, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from src.infrastructure.config.database import get_db
 from src.infrastructure.config.settings import settings
-from src.adapters.api.auth_utils import has_admin_role, resolve_session_user
+from src.adapters.api.auth_utils import has_admin_role, has_moderator_role, effective_role, get_current_user, SESSION_COOKIE_NAME
 from src.adapters.api.limiter import limiter
 from src.adapters.notifications.email_adapter import get_email_adapter
 from src.adapters.repositories.user_repository import UserRepository
@@ -77,21 +81,46 @@ def _open_session(repo: UserRepository, user_id: int) -> str:
     return token
 
 
+def _set_session_cookie(response: Response, token: str) -> None:
+    """HttpOnly oturum cookie'sini yazar — register/login ortak kullanır.
+
+    SameSite=Lax + aynı origin (Next.js rewrites/nginx proxy) varsayımıyla
+    çalışır; farklı origin'den cross-site istekte tarayıcı bu cookie'yi
+    göndermez (kasıtlı — CSRF yüzeyini büyütmemek için).
+    """
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token,
+        max_age=settings.session_ttl_days * 86400,
+        httponly=True,
+        samesite="lax",
+        secure=settings.session_cookie_secure,
+        path="/",
+    )
+
+
 def _user_payload(user: User) -> dict:
-    """API yanıtlarındaki kullanıcı gösterimi — parola hash'i asla sızmaz."""
+    """API yanıtlarındaki kullanıcı gösterimi — parola hash'i asla sızmaz.
+
+    `role`: etkin yetki (user/moderator/admin, ADMIN_EMAILS bootstrap'i dahil) —
+        frontend'in admin panel erişimini/rol yönetim kontrollerini göstermesi içindir.
+    `is_admin`: geriye dönük uyumluluk için korunan türetilmiş alan (role == admin).
+    """
     return {
         "id": user.id,
         "email": user.email,
         "name": user.name,
         "tier": user.tier,
+        "role": effective_role(user),
         "is_admin": has_admin_role(user),
+        "is_moderator": has_moderator_role(user),
     }
 
 
 # ── Endpoint'ler ───────────────────────────────────────────────────────────────
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-def register(req: RegisterRequest, db: Session = Depends(get_db)):
+def register(req: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     repo = UserRepository(db)
     if repo.get_by_email(req.email):
         raise HTTPException(status_code=409, detail="Email already registered")
@@ -104,13 +133,14 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
     )
     saved = repo.create_user(user)
     token = _open_session(repo, saved.id)
+    _set_session_cookie(response, token)
 
     logger.info("Yeni kullanıcı: %s (tier=free)", saved.email)
-    return {"token": token, "user": _user_payload(saved)}
+    return {"user": _user_payload(saved)}
 
 
 @router.post("/login")
-def login(req: LoginRequest, db: Session = Depends(get_db)):
+def login(req: LoginRequest, response: Response, db: Session = Depends(get_db)):
     repo = UserRepository(db)
     user = repo.get_by_email(req.email)
     # E-posta bulunamadı ile yanlış parola aynı mesajı döner (user enumeration önlemi)
@@ -120,29 +150,35 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=403, detail="Account is deactivated")
 
     token = _open_session(repo, user.id)
+    _set_session_cookie(response, token)
     logger.info("Giriş: %s", user.email)
-    return {"token": token, "user": _user_payload(user)}
+    return {"user": _user_payload(user)}
 
 
 @router.post("/logout")
-def logout(x_session_token: str = Header(None), db: Session = Depends(get_db)):
-    if not x_session_token:
+def logout(
+    response: Response,
+    x_session_token: str = Header(None),
+    session_cookie: str = Cookie(None, alias=SESSION_COOKIE_NAME),
+    db: Session = Depends(get_db),
+):
+    token = x_session_token or session_cookie
+    if not token:
         raise HTTPException(status_code=401, detail="Missing session token")
     repo = UserRepository(db)
-    if not repo.delete_session(x_session_token):
+    if not repo.delete_session(token):
         raise HTTPException(status_code=401, detail="Invalid session token")
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
     return {"message": "Logged out"}
 
 
 @router.get("/me")
-def me(x_session_token: str = Header(None), db: Session = Depends(get_db)):
-    """Aktif oturumun kullanıcısını döner — frontend sayfa açılışında çağırır."""
-    if not x_session_token:
-        raise HTTPException(status_code=401, detail="Missing session token")
-    repo = UserRepository(db)
-    user = resolve_session_user(repo, x_session_token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid or expired session token")
+def me(user: User = Depends(get_current_user)):
+    """Aktif oturumun kullanıcısını döner — frontend hem client'ta hem SSR'da çağırır.
+
+    Kimlik `get_current_user` → `get_optional_user` zincirinden gelir (header
+    veya cookie); 401 zaten o katmanda fırlatılır.
+    """
     return {**_user_payload(user), "created_at": user.created_at}
 
 

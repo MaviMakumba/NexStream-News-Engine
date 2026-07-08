@@ -1,7 +1,8 @@
-"""Rol tabanlı admin yetkilendirme testleri (v1.11).
+"""Rol tabanlı admin yetkilendirme testleri (v1.13, user/moderator/admin).
 
 `require_admin` iki yolu kabul eder: paylaşımlı X-API-Key (makine-makine)
-ve admin kullanıcı oturumu (users.is_admin VEYA ADMIN_EMAILS bootstrap).
+ve admin kullanıcı oturumu (users.role="admin" VEYA ADMIN_EMAILS bootstrap).
+`require_moderator` ayrıca moderator rolünü de kabul eder (görüntüleme).
 Ek olarak `get_optional_user`'ın X-User-Key çözümlemesi test edilir.
 """
 
@@ -13,17 +14,22 @@ from fastapi import HTTPException
 from src.adapters.api.auth_utils import (
     get_optional_user,
     has_admin_role,
+    has_moderator_role,
     require_admin,
+    require_moderator,
 )
-from src.domain.models.user import User, UserTier
+from src.domain.models.user import User, UserTier, UserRole
 from src.infrastructure.config.database import get_db
 from src.infrastructure.config.settings import settings
 
 
-def _make_user(is_admin=False, email="user@test.com", api_key=None):
+def _make_user(is_admin=False, email="user@test.com", api_key=None, role=None):
+    """`is_admin=True` eski testlerle uyum için `role=admin`'e eşlenir."""
+    if role is None:
+        role = UserRole.ADMIN if is_admin else UserRole.USER
     return User(
         id=1, email=email, password_hash="h",
-        tier=UserTier.FREE, is_admin=is_admin, api_key=api_key,
+        tier=UserTier.FREE, role=role, api_key=api_key,
     )
 
 
@@ -38,10 +44,38 @@ def test_regular_user_has_no_role():
 
 
 def test_admin_emails_env_bootstraps_role():
-    """DB'de is_admin=false olsa bile ADMIN_EMAILS listesi yetki verir."""
+    """DB'de role=user olsa bile ADMIN_EMAILS listesi yetki verir."""
     user = _make_user(is_admin=False, email="Boss@Company.com")
     with patch.object(settings, "admin_emails", "boss@company.com, other@x.com"):
         assert has_admin_role(user) is True
+
+
+# ── has_moderator_role ──────────────────────────────────────────────────────────
+
+def test_moderator_role_grants_moderator_access():
+    assert has_moderator_role(_make_user(role=UserRole.MODERATOR)) is True
+
+
+def test_moderator_role_does_not_grant_admin_access():
+    assert has_admin_role(_make_user(role=UserRole.MODERATOR)) is False
+
+
+def test_admin_role_also_grants_moderator_access():
+    assert has_moderator_role(_make_user(role=UserRole.ADMIN)) is True
+
+
+def test_plain_user_has_no_moderator_access():
+    assert has_moderator_role(_make_user(role=UserRole.USER)) is False
+
+
+def test_require_moderator_accepts_moderator_session():
+    require_moderator(x_api_key=None, user=_make_user(role=UserRole.MODERATOR))
+
+
+def test_require_moderator_rejects_plain_user_with_403():
+    with pytest.raises(HTTPException) as exc:
+        require_moderator(x_api_key=None, user=_make_user(role=UserRole.USER))
+    assert exc.value.status_code == 403
 
 
 # ── require_admin (unit) ──────────────────────────────────────────────────────
@@ -93,6 +127,41 @@ def test_admin_endpoint_accessible_with_admin_session(app_client):
     assert resp.status_code == 200
 
 
+def test_admin_endpoint_accessible_with_moderator_session(app_client):
+    """Moderator, admin router'ının GÖRÜNTÜLEME uçlarına erişebilir (require_moderator)."""
+    moderator = _make_user(role=UserRole.MODERATOR)
+    app_client.app.dependency_overrides[get_optional_user] = lambda: moderator
+    app_client.app.dependency_overrides[get_db] = lambda: MagicMock()
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_usage_stats.return_value = []
+            MockRepo.return_value = repo
+            resp = app_client.get("/admin/usage")
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+
+
+def test_sponsor_write_rejected_for_moderator_session(app_client):
+    """Moderator görüntüleyebilir ama sponsor CRUD gibi yazma işlemleri admin ister."""
+    moderator = _make_user(role=UserRole.MODERATOR)
+    app_client.app.dependency_overrides[get_optional_user] = lambda: moderator
+    app_client.app.dependency_overrides[get_db] = lambda: MagicMock()
+    try:
+        resp = app_client.post("/admin/sponsors", json={
+            "name": "X", "url": "https://x.com", "message": "m",
+            "active_from": "2026-01-01T00:00:00Z", "active_until": "2026-02-01T00:00:00Z",
+        })
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 403
+
+
 def test_admin_endpoint_403_for_regular_user_session(app_client):
     user = _make_user(is_admin=False)
     app_client.app.dependency_overrides[get_optional_user] = lambda: user
@@ -112,7 +181,7 @@ def test_get_optional_user_resolves_user_key():
         repo = MagicMock()
         repo.get_by_api_key.return_value = expected
         MockRepo.return_value = repo
-        result = get_optional_user(x_session_token=None, x_user_key="nxs_secret", db=MagicMock())
+        result = get_optional_user(x_session_token=None, session_cookie=None, x_user_key="nxs_secret", db=MagicMock())
 
     assert result is expected
     repo.get_by_api_key.assert_called_once_with("nxs_secret")
@@ -123,7 +192,7 @@ def test_get_optional_user_invalid_key_returns_none():
         repo = MagicMock()
         repo.get_by_api_key.return_value = None
         MockRepo.return_value = repo
-        result = get_optional_user(x_session_token=None, x_user_key="nxs_bogus", db=MagicMock())
+        result = get_optional_user(x_session_token=None, session_cookie=None, x_user_key="nxs_bogus", db=MagicMock())
 
     assert result is None
 
@@ -134,11 +203,23 @@ def test_get_optional_user_session_takes_priority_over_key():
     with patch("src.adapters.api.auth_utils.UserRepository") as MockRepo, \
          patch("src.adapters.api.auth_utils.resolve_session_user", return_value=session_user):
         MockRepo.return_value = MagicMock()
-        result = get_optional_user(x_session_token="tok", x_user_key="nxs_k", db=MagicMock())
+        result = get_optional_user(x_session_token="tok", session_cookie=None, x_user_key="nxs_k", db=MagicMock())
 
     assert result is session_user
 
 
+def test_get_optional_user_cookie_used_when_no_header():
+    """Header yoksa cookie'den çözülür — SSR/tarayıcı senaryosu."""
+    session_user = _make_user(email="cookie@test.com")
+    with patch("src.adapters.api.auth_utils.UserRepository") as MockRepo, \
+         patch("src.adapters.api.auth_utils.resolve_session_user", return_value=session_user) as mock_resolve:
+        MockRepo.return_value = MagicMock()
+        result = get_optional_user(x_session_token=None, session_cookie="cookie_tok", x_user_key=None, db=MagicMock())
+
+    assert result is session_user
+    mock_resolve.assert_called_once_with(MockRepo.return_value, "cookie_tok")
+
+
 def test_get_optional_user_anonymous_returns_none():
-    result = get_optional_user(x_session_token=None, x_user_key=None, db=MagicMock())
+    result = get_optional_user(x_session_token=None, session_cookie=None, x_user_key=None, db=MagicMock())
     assert result is None

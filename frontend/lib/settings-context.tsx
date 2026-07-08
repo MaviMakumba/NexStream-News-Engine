@@ -1,9 +1,13 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useRef } from "react";
+import { createContext, useContext, useState, useEffect, useLayoutEffect, useRef } from "react";
 import { ThemeBackground } from "./theme/ThemeBackground";
 import { THEMES, DEFAULT_THEME, isThemeId } from "./theme/registry";
 import type { ThemeId } from "./theme/types";
+
+// SSR'da useLayoutEffect "does nothing on server" uyarısı verir — client'ta
+// layout effect (paint ÖNCESİ senkron), server'da normal effect (no-op) kullan.
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 /** Re-exported for back-compat with existing imports. */
 export type Theme = ThemeId;
@@ -24,13 +28,16 @@ const SettingsContext = createContext<SettingsCtx>({
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
+  // SSR ile eşleşmesi için ilk render hep DEFAULT_THEME/TR — hydration mismatch
+  // riski almadan gerçek tercih aşağıdaki layout effect'te paint'ten ÖNCE
+  // senkron uygulanır (layout.tsx'teki blocking script CSS attribute'unu zaten
+  // erkenden düzeltiyor, burası React state'ini/canvas efektini eşitler).
   const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
   const [lang, setLangState] = useState<Lang>("TR");
   const [flash, setFlash] = useState<{ color: string; key: number } | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Hydrate persisted prefs.
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const stored = localStorage.getItem("nxt_theme");
     const l = localStorage.getItem("nxt_lang") as Lang | null;
     if (isThemeId(stored)) setThemeState(stored);
@@ -38,7 +45,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Apply the palette to <html> so :root CSS vars + canvas readers stay in sync.
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 

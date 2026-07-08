@@ -23,8 +23,8 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(""); setLoading(true);
     try {
-      const { token, user } = await apiRegister(email, password, name);
-      login(token, user);
+      const { user } = await apiRegister(email, password, name);
+      login(user);
       router.push("/dashboard");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t.registerFailed);
@@ -89,7 +89,15 @@ export default function RegisterPage() {
           </form>
         </div>
 
-        <p style={{ textAlign: "center", fontSize: "0.84rem", color: "var(--text3)", marginTop: 20 }}>
+        <p style={{ textAlign: "center", fontSize: "0.76rem", color: "var(--text3)", marginTop: 14, lineHeight: 1.6 }}>
+          {t.agreeToTermsPrefix}{" "}
+          <Link href="/terms" style={{ color: "var(--text2)", textDecoration: "underline" }}>{t.termsLinkLabel}</Link>
+          {" "}{t.agreeToTermsAnd}{" "}
+          <Link href="/privacy" style={{ color: "var(--text2)", textDecoration: "underline" }}>{t.privacyLinkLabel}</Link>
+          {t.agreeToTermsSuffix}
+        </p>
+
+        <p style={{ textAlign: "center", fontSize: "0.84rem", color: "var(--text3)", marginTop: 12 }}>
           {t.haveAccount}{" "}
           <Link href="/auth/login"
                 style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>

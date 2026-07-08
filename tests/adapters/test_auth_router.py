@@ -2,6 +2,7 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
 from src.domain.models.user import User, UserTier, UserSession, PasswordResetToken
+from src.infrastructure.config.settings import settings
 
 
 def _make_user(id=1, email="test@example.com", tier=UserTier.FREE, is_active=True):
@@ -65,7 +66,7 @@ def test_register_creates_user(client):
 
     assert resp.status_code == 201
     data = resp.json()
-    assert "token" in data
+    assert "token" not in data  # HttpOnly cookie'de — body'de sızmaz
     assert data["user"]["email"] == "test@example.com"
     assert data["user"]["tier"] == "free"
 
@@ -99,7 +100,7 @@ def test_register_tier_defaults_to_free(client):
     assert resp.json()["user"]["tier"] == "free"
 
 
-def test_register_response_has_token(client):
+def test_register_sets_httponly_session_cookie(client):
     with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
         repo_instance = MagicMock()
         repo_instance.get_by_email.return_value = None
@@ -109,13 +110,16 @@ def test_register_response_has_token(client):
 
         resp = client.post("/auth/register", json={"email": "a@b.com", "password": "pw"})
 
-    assert isinstance(resp.json().get("token"), str)
-    assert len(resp.json()["token"]) > 10
+    assert "nxs_session" in resp.cookies
+    assert len(resp.cookies["nxs_session"]) > 10
+    set_cookie = resp.headers.get("set-cookie", "")
+    assert "HttpOnly" in set_cookie
+    assert "samesite=lax" in set_cookie.lower()
 
 
 # ── Login ─────────────────────────────────────────────────────────────────────
 
-def test_login_success_returns_token(client):
+def test_login_success_sets_session_cookie(client):
     with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
          patch("src.adapters.api.routers.auth_router._verify_password", return_value=True):
         repo_instance = MagicMock()
@@ -126,7 +130,8 @@ def test_login_success_returns_token(client):
         resp = client.post("/auth/login", json={"email": "test@example.com", "password": "secret"})
 
     assert resp.status_code == 200
-    assert "token" in resp.json()
+    assert "token" not in resp.json()
+    assert "nxs_session" in resp.cookies
 
 
 def test_login_wrong_password_returns_401(client):
@@ -150,6 +155,34 @@ def test_login_unknown_email_returns_401(client):
         resp = client.post("/auth/login", json={"email": "ghost@example.com", "password": "pw"})
 
     assert resp.status_code == 401
+    assert "nxs_session" not in resp.cookies
+
+
+def test_login_then_me_works_via_cookie_without_header(client):
+    """Login'in verdiği cookie, tarayıcı gibi TestClient tarafından otomatik
+    taşınır — /auth/me'ye ayrıca header eklemeden çağrılabilmeli (SSR/tarayıcı
+    davranışının birebir aynısı). `session_cookie_secure=False` (dev senaryosu)
+    olmalı — yoksa Secure cookie düz HTTP'de (TestClient de dahil) hiç taşınmaz."""
+    with patch.object(settings, "session_cookie_secure", False), \
+         patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
+         patch("src.adapters.api.routers.auth_router._verify_password", return_value=True), \
+         patch("src.adapters.api.auth_utils.UserRepository") as MockUtilsRepo:
+        repo_instance = MagicMock()
+        repo_instance.get_by_email.return_value = _make_user()
+        repo_instance.create_session.return_value = _make_session()
+        MockRepo.return_value = repo_instance
+
+        utils_repo_instance = MagicMock()
+        utils_repo_instance.get_session.return_value = _make_session()
+        utils_repo_instance.get_by_id.return_value = _make_user()
+        MockUtilsRepo.return_value = utils_repo_instance
+
+        login_resp = client.post("/auth/login", json={"email": "test@example.com", "password": "secret"})
+        me_resp = client.get("/auth/me")
+
+    assert login_resp.status_code == 200
+    assert me_resp.status_code == 200
+    assert me_resp.json()["email"] == "test@example.com"
 
 
 # ── Logout ────────────────────────────────────────────────────────────────────
@@ -164,6 +197,19 @@ def test_logout_clears_session(client):
 
     assert resp.status_code == 200
     assert "Logged out" in resp.json()["message"]
+
+
+def test_logout_via_cookie_without_header(client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
+        repo_instance = MagicMock()
+        repo_instance.delete_session.return_value = True
+        MockRepo.return_value = repo_instance
+
+        client.cookies.set("nxs_session", "tok123")
+        resp = client.post("/auth/logout")
+
+    assert resp.status_code == 200
+    repo_instance.delete_session.assert_called_once_with("tok123")
 
 
 def test_logout_missing_token_returns_401(client):
@@ -182,10 +228,10 @@ def test_logout_invalid_token_returns_401(client):
     assert resp.status_code == 401
 
 
-# ── Me ────────────────────────────────────────────────────────────────────────
+# ── Me (Depends(get_current_user) → auth_utils.get_optional_user) ─────────────
 
 def test_me_returns_user_info(client):
-    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
+    with patch("src.adapters.api.auth_utils.UserRepository") as MockRepo:
         repo_instance = MagicMock()
         repo_instance.get_session.return_value = _make_session()
         repo_instance.get_by_id.return_value = _make_user()
@@ -198,13 +244,27 @@ def test_me_returns_user_info(client):
     assert resp.json()["tier"] == "free"
 
 
+def test_me_via_cookie_without_header(client):
+    with patch("src.adapters.api.auth_utils.UserRepository") as MockRepo:
+        repo_instance = MagicMock()
+        repo_instance.get_session.return_value = _make_session()
+        repo_instance.get_by_id.return_value = _make_user()
+        MockRepo.return_value = repo_instance
+
+        client.cookies.set("nxs_session", "tok123")
+        resp = client.get("/auth/me")
+
+    assert resp.status_code == 200
+    assert resp.json()["email"] == "test@example.com"
+
+
 def test_me_missing_token_returns_401(client):
     resp = client.get("/auth/me")
     assert resp.status_code == 401
 
 
 def test_me_invalid_token_returns_401(client):
-    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
+    with patch("src.adapters.api.auth_utils.UserRepository") as MockRepo:
         repo_instance = MagicMock()
         repo_instance.get_session.return_value = None
         MockRepo.return_value = repo_instance
@@ -215,7 +275,7 @@ def test_me_invalid_token_returns_401(client):
 
 
 def test_me_expired_session_returns_401(client):
-    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
+    with patch("src.adapters.api.auth_utils.UserRepository") as MockRepo:
         repo_instance = MagicMock()
         repo_instance.get_session.return_value = _expired_session()
         repo_instance.delete_session.return_value = True
