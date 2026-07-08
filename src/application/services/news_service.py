@@ -22,6 +22,7 @@ from src.domain.ports.scraper_port import NewsScraperPort
 from src.domain.models.article import Article
 from src.domain.scoring.quality import compute_quality_score
 from src.domain.scoring.credibility import base_credibility, compute_credibility
+from src.domain.services.subscriber_matching import matched_keyword
 from src.adapters.api.metrics import articles_processed_total
 from src.infrastructure.config.settings import settings
 from typing import List, Optional, TYPE_CHECKING
@@ -438,14 +439,12 @@ class NewsService:
         """'instant' frekanslı abonelere keyword eşleşmesinde anında e-posta yollar."""
         if self.subscriber_repository is None or self.email_port is None:
             return
-        text = f"{article.title} {article.summary or ''} {article.content[:500]}".lower()
         for sub in self.subscriber_repository.get_active_subscribers():
             if sub.frequency != "instant" or not sub.keywords:
                 continue
-            for kw in sub.keywords:
-                if kw.lower() in text:
-                    self.email_port.send_alert(sub.email, article, kw, sub.language)
-                    break  # one alert per article per subscriber
+            kw = matched_keyword(article, sub.keywords)
+            if kw is not None:
+                self.email_port.send_alert(sub.email, article, kw, sub.language)
 
     def list_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None, min_quality: Optional[float] = None) -> List[Article]:
         return self.repository.get_news_paginated(limit, before_id, source, sentiment, topic, min_quality)

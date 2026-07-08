@@ -7,11 +7,11 @@ from src.domain.models.article import Article
 from src.domain.models.sponsor import Sponsor
 
 
-def _article(title="Test Haberi"):
-    a = Article(title=title, source="TRT", url="http://t.com", content="içerik")
+def _article(title="Test Haberi", topic="Tech", source="TRT"):
+    a = Article(title=title, source=source, url="http://t.com/" + title, content="içerik " + title)
     a.summary = "Özet"
     a.sentiment_label = "Positive"
-    a.topic = "Tech"
+    a.topic = topic
     a.id = 1
     return a
 
@@ -177,3 +177,80 @@ async def test_newsletter_job_works_without_sponsor():
     mock_email.send_digest.assert_called_once()
     call_kwargs = mock_email.send_digest.call_args[1]
     assert call_kwargs["sponsor"] is None
+
+
+# ── Digest kişiselleştirmesi ───────────────────────────────────────────────────
+
+def test_personalize_returns_general_pool_when_no_preferences():
+    from src.adapters.scheduling.newsletter_job import _personalize
+    from src.domain.models.subscriber import Subscriber
+
+    pool = [_article("A", topic="Sports"), _article("B", topic="Politics")]
+    sub = Subscriber(email="x@test.com")  # tercih yok
+    assert _personalize(pool, sub) == pool
+
+
+def test_personalize_filters_by_preferred_topic():
+    from src.adapters.scheduling.newsletter_job import _personalize
+    from src.domain.models.subscriber import Subscriber
+
+    sports = _article("Maç", topic="Sports")
+    politics = _article("Seçim", topic="Politics")
+    sub = Subscriber(email="x@test.com", preferred_topics=["Sports"])
+    result = _personalize([sports, politics], sub)
+    assert result == [sports]
+
+
+def test_personalize_falls_back_to_general_pool_when_no_match():
+    """Tercih var ama havuzda eşleşen haber yoksa genel havuza düş — boş mail atma."""
+    from src.adapters.scheduling.newsletter_job import _personalize
+    from src.domain.models.subscriber import Subscriber
+
+    pool = [_article("A", topic="Sports"), _article("B", topic="Sports")]
+    sub = Subscriber(email="x@test.com", preferred_topics=["Politics"])
+    assert _personalize(pool, sub) == pool
+
+
+def test_personalize_respects_limit():
+    from src.adapters.scheduling.newsletter_job import _personalize
+    from src.domain.models.subscriber import Subscriber
+
+    pool = [_article(f"H{i}", topic="Sports") for i in range(5)]
+    sub = Subscriber(email="x@test.com", preferred_topics=["Sports"])
+    assert len(_personalize(pool, sub, limit=2)) == 2
+
+
+@pytest.mark.asyncio
+async def test_send_digests_sends_different_articles_per_subscriber_preference():
+    """İki farklı tercihi olan abone, aynı gönderimde farklı haber listesi almalı."""
+    from src.adapters.scheduling.newsletter_job import _send_digests
+    from src.domain.models.subscriber import Subscriber
+
+    sports = _article("Maç sonucu", topic="Sports")
+    politics = _article("Seçim sonucu", topic="Politics")
+
+    mock_email = MagicMock()
+    mock_email.send_digest.return_value = True
+
+    with patch("src.adapters.scheduling.newsletter_job.SessionLocal") as MockSession, \
+         patch("src.adapters.scheduling.newsletter_job.NewsRepository") as MockNewsRepo, \
+         patch("src.adapters.scheduling.newsletter_job.SubscriberRepository") as MockSubRepo, \
+         patch("src.adapters.scheduling.newsletter_job.get_active_sponsor", return_value=None):
+
+        MockSession.return_value = MagicMock()
+        news_repo = MagicMock()
+        news_repo.get_latest_news.return_value = [sports, politics]
+        MockNewsRepo.return_value = news_repo
+
+        sports_fan = Subscriber(email="sports@test.com", frequency="daily", preferred_topics=["Sports"])
+        politics_fan = Subscriber(email="politics@test.com", frequency="daily", preferred_topics=["Politics"])
+        sub_repo = MagicMock()
+        sub_repo.get_active_subscribers.return_value = [sports_fan, politics_fan]
+        MockSubRepo.return_value = sub_repo
+
+        await _send_digests(mock_email)
+
+    assert mock_email.send_digest.call_count == 2
+    calls_by_email = {c.args[0]: c.args[1] for c in mock_email.send_digest.call_args_list}
+    assert calls_by_email["sports@test.com"] == [sports]
+    assert calls_by_email["politics@test.com"] == [politics]
