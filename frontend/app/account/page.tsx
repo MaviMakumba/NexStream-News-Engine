@@ -12,14 +12,14 @@ import { useSettings } from "@/lib/settings-context";
 import { Navbar } from "@/components/Navbar";
 import { TierBadge } from "@/components/TierBadge";
 import {
-  createCheckout, devDowngrade, fetchBillingConfig, fetchMyUsage,
+  BASE, createCheckout, devDowngrade, fetchBillingConfig, fetchMyUsage,
   generateApiKey, getBillingPortal, revokeApiKey,
 } from "@/lib/api";
 import type { AccountUsage, BillingConfig } from "@/lib/types";
 import { UI, TIER_DETAILS } from "@/lib/i18n";
 
 export default function AccountPage() {
-  const { user, token, isLoading, refreshUser } = useAuth();
+  const { user, isLoading, refreshUser } = useAuth();
   const { lang } = useSettings();
   const t = UI[lang];
   const router = useRouter();
@@ -32,13 +32,13 @@ export default function AccountPage() {
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
-    if (!isLoading && !token) router.replace("/auth/login");
-  }, [isLoading, token, router]);
+    if (!isLoading && !user) router.replace("/auth/login");
+  }, [isLoading, user, router]);
 
   const loadUsage = useCallback(() => {
-    if (!token) return;
-    fetchMyUsage(token, 7).then(setUsage).catch(() => {});
-  }, [token]);
+    if (!user) return;
+    fetchMyUsage(7).then(setUsage).catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     loadUsage();
@@ -52,9 +52,9 @@ export default function AccountPage() {
   const devMode = billing?.dev_mode ?? false;
 
   async function handleUpgrade(tier: "pro" | "enterprise") {
-    if (!token) return;
+    if (!user) return;
     try {
-      const res = await createCheckout(token, tier, window.location.href, window.location.href);
+      const res = await createCheckout(tier, window.location.href, window.location.href);
       if (res.dev_mode) {
         // Dev mode: ödeme yok — tier anında değişti, UI'ı tazele.
         await refreshUser();
@@ -69,9 +69,9 @@ export default function AccountPage() {
   }
 
   async function handleDowngrade() {
-    if (!token) return;
+    if (!user) return;
     try {
-      await devDowngrade(token);
+      await devDowngrade();
       await refreshUser();
       loadUsage();
       setNotice(t.devDowngraded);
@@ -81,9 +81,9 @@ export default function AccountPage() {
   }
 
   async function handlePortal() {
-    if (!token) return;
+    if (!user) return;
     try {
-      const { url } = await getBillingPortal(token);
+      const { url } = await getBillingPortal();
       window.location.href = url;
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : t.errorOccurred);
@@ -91,10 +91,10 @@ export default function AccountPage() {
   }
 
   async function handleGenerateKey() {
-    if (!token) return;
+    if (!user) return;
     setKeyBusy(true);
     try {
-      const { api_key } = await generateApiKey(token);
+      const { api_key } = await generateApiKey();
       setApiKey(api_key);
       setCopied(false);
       loadUsage();
@@ -106,10 +106,10 @@ export default function AccountPage() {
   }
 
   async function handleRevokeKey() {
-    if (!token) return;
+    if (!user) return;
     setKeyBusy(true);
     try {
-      await revokeApiKey(token);
+      await revokeApiKey();
       setApiKey(null);
       loadUsage();
     } catch (err: unknown) {
@@ -138,13 +138,14 @@ export default function AccountPage() {
   const quickLinks = [
     { label: t.dashboard, href: "/dashboard" },
     { label: t.search,    href: "/dashboard/search" },
-    // Admin linkleri sadece admin rolüne görünür (v1.11)
-    ...(user.is_admin ? [
+    // Admin linkleri moderator+admin rolüne görünür (v1.13)
+    ...(user.is_moderator ? [
+      { label: t.users,    href: "/admin/users" },
       { label: t.usage,    href: "/admin/usage" },
       { label: t.sponsors, href: "/admin/sponsors" },
     ] : []),
-    { label: t.apiDocs,   href: "http://localhost:8000/docs" },
-    { label: t.rssFeed,   href: "http://localhost:8000/feed.xml" },
+    { label: t.apiDocs,   href: `${BASE}/docs` },
+    { label: t.rssFeed,   href: `${BASE}/feed.xml` },
   ];
 
   return (

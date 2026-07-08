@@ -1,8 +1,8 @@
 "use client";
 
-// Admin kullanım istatistikleri sayfası.
-// Erişim (v1.11): admin rolündeki kullanıcı (is_admin) session'ı ile otomatik
-// yüklenir; admin olmayanlar için paylaşımlı API anahtarı girişi gösterilir
+// Admin kullanım istatistikleri sayfası — salt görüntüleme, moderator+admin erişebilir.
+// Erişim (v1.13): moderator/admin rolündeki kullanıcı session'ı ile otomatik
+// yüklenir; session'sız kullanıcılar için paylaşımlı API anahtarı girişi gösterilir
 // (makine-makine senaryosunun manuel karşılığı).
 
 import { useCallback, useEffect, useState } from "react";
@@ -13,10 +13,10 @@ import { useSettings } from "@/lib/settings-context";
 import { UI } from "@/lib/i18n";
 
 export default function AdminUsagePage() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { lang } = useSettings();
   const t = UI[lang];
-  const isAdmin = Boolean(user?.is_admin && token);
+  const isModerator = Boolean(user?.is_moderator);
 
   const [apiKey,  setApiKey]  = useState("");
   const [days,    setDays]    = useState(30);
@@ -26,9 +26,9 @@ export default function AdminUsagePage() {
   const [loaded,  setLoaded]  = useState(false);
 
   const load = useCallback(async (key?: string) => {
-    // Admin oturumu varsa anahtar gerekmez; yoksa girilen anahtar kullanılır.
-    const creds = isAdmin ? { token } : { apiKey: key ?? apiKey };
-    if (!isAdmin && !(creds.apiKey ?? "").trim()) return;
+    // Admin oturumu varsa anahtar gerekmez (cookie otomatik taşınır); yoksa girilen anahtar kullanılır.
+    const creds = isModerator ? {} : { apiKey: key ?? apiKey };
+    if (!isModerator && !(creds.apiKey ?? "").trim()) return;
     setLoading(true); setError("");
     try {
       const data = await fetchUsage(creds, undefined, days);
@@ -39,12 +39,12 @@ export default function AdminUsagePage() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, token, apiKey, days, t.accessDenied]);
+  }, [isModerator, apiKey, days, t.accessDenied]);
 
   // Admin rolü varsa sayfa açılır açılmaz yükle (gün aralığı değişince de).
   useEffect(() => {
-    if (isAdmin) load();
-  }, [isAdmin, days, load]);
+    if (isModerator) load();
+  }, [isModerator, days, load]);
 
   const total = rows.reduce((s, r) => s + r.count, 0);
   const avgMs = rows.length ? Math.round(rows.reduce((s, r) => s + r.avg_ms, 0) / rows.length) : 0;
@@ -53,7 +53,7 @@ export default function AdminUsagePage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Auth bar: admin'e bilgi notu, diğerlerine API key girişi */}
       <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-        {isAdmin ? (
+        {isModerator ? (
           <div style={{ flex: "1 1 240px", fontSize: "0.84rem", color: "var(--pos)", paddingBottom: 6 }}>
             ✓ {t.adminAsUser}
           </div>
@@ -72,7 +72,7 @@ export default function AdminUsagePage() {
             {[7, 14, 30, 90].map((d) => <option key={d} value={d}>{d} {t.dayUnit}</option>)}
           </select>
         </div>
-        <button onClick={() => load()} disabled={loading || (!isAdmin && !apiKey.trim())} className="btn-primary">
+        <button onClick={() => load()} disabled={loading || (!isModerator && !apiKey.trim())} className="btn-primary">
           {loading ? t.loadingShort : t.show}
         </button>
       </div>
