@@ -12,6 +12,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const t = UI[lang];
 
   const tabs = [
+    { href: "/admin/users",    icon: "◉", label: t.users },
     { href: "/admin/usage",    icon: "◈", label: t.usage },
     { href: "/admin/sponsors", icon: "⬡", label: t.sponsors },
   ];

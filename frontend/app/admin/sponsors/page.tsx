@@ -1,8 +1,9 @@
 "use client";
 
 // Admin sponsor yönetimi sayfası (listele / ekle / deaktif et).
-// Erişim (v1.11): admin rolündeki kullanıcı session'ı ile otomatik yüklenir;
-// admin olmayanlar için paylaşımlı API anahtarı girişi gösterilir.
+// Erişim (v1.13): moderator+admin session'ı ile liste otomatik yüklenir (görüntüleme);
+// ekleme/deaktif etme sadece admin rolüne açık (backend require_admin ile korunur).
+// Session'sız kullanıcılar için paylaşımlı API anahtarı girişi gösterilir.
 
 import { useCallback, useEffect, useState } from "react";
 import { createSponsor, deactivateSponsor, fetchSponsors, type AdminCreds } from "@/lib/api";
@@ -18,10 +19,14 @@ function today(offsetDays = 0) {
 }
 
 export default function AdminSponsorsPage() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { lang } = useSettings();
   const t = UI[lang];
-  const isAdmin = Boolean(user?.is_admin && token);
+  const isModerator = Boolean(user?.is_moderator);
+  const isAdmin = Boolean(user?.is_admin);
+  // Moderator session görüntüleyebilir ama sponsor CRUD admin ister (backend require_admin);
+  // manuel anahtar girişinde (session yok) önceki davranış korunur — anahtarın geçerliliği sunucuda doğrulanır.
+  const canManage = isAdmin || !isModerator;
 
   const [apiKey,  setApiKey]  = useState("");
   const [sponsors,setSponsors]= useState<Sponsor[]>([]);
@@ -36,11 +41,11 @@ export default function AdminSponsorsPage() {
   const [activeUntil, setActiveUntil] = useState(today(30));
   const [saving,      setSaving]      = useState(false);
 
-  // Admin oturumu varsa anahtar gerekmez; yoksa girilen anahtar kullanılır.
-  const creds: AdminCreds = isAdmin ? { token } : { apiKey };
+  // Moderator/admin oturumu varsa anahtar gerekmez (cookie otomatik taşınır); yoksa girilen anahtar kullanılır.
+  const creds: AdminCreds = isModerator ? {} : { apiKey };
 
   const load = useCallback(async (c: AdminCreds = creds) => {
-    if (!isAdmin && !(c.apiKey ?? "").trim()) return;
+    if (!isModerator && !(c.apiKey ?? "").trim()) return;
     setLoading(true); setError("");
     try {
       const data = await fetchSponsors(c);
@@ -51,11 +56,11 @@ export default function AdminSponsorsPage() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, token, apiKey, t.accessDenied]);
+  }, [isModerator, apiKey, t.accessDenied]);
 
   useEffect(() => {
-    if (isAdmin) load({ token });
-  }, [isAdmin, token, load]);
+    if (isModerator) load({});
+  }, [isModerator, load]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -88,7 +93,7 @@ export default function AdminSponsorsPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Auth bar */}
       <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-        {isAdmin ? (
+        {isModerator ? (
           <div style={{ flex: "1 1 240px", fontSize: "0.84rem", color: "var(--pos)", paddingBottom: 6 }}>
             ✓ {t.adminAsUser}
           </div>
@@ -100,7 +105,7 @@ export default function AdminSponsorsPage() {
                    className="input" placeholder="dev-key-change-me" />
           </div>
         )}
-        <button onClick={() => load()} disabled={loading || (!isAdmin && !apiKey.trim())} className="btn-primary">
+        <button onClick={() => load()} disabled={loading || (!isModerator && !apiKey.trim())} className="btn-primary">
           {loading ? t.loadingShort : t.show}
         </button>
       </div>
@@ -111,7 +116,7 @@ export default function AdminSponsorsPage() {
       )}
 
       {loaded && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: canManage ? "1fr 1fr" : "1fr", gap: 20 }}>
 
           {/* Sponsor list */}
           <div>
@@ -142,10 +147,12 @@ export default function AdminSponsorsPage() {
                       {activeSponsor.active_from.split("T")[0]} → {activeSponsor.active_until.split("T")[0]}
                     </div>
                   </div>
-                  <button onClick={() => handleDeactivate(activeSponsor.id)} className="btn-danger"
-                          style={{ padding: "6px 12px", fontSize: "0.78rem", flexShrink: 0 }}>
-                    {t.deactivate}
-                  </button>
+                  {canManage && (
+                    <button onClick={() => handleDeactivate(activeSponsor.id)} className="btn-danger"
+                            style={{ padding: "6px 12px", fontSize: "0.78rem", flexShrink: 0 }}>
+                      {t.deactivate}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -173,45 +180,47 @@ export default function AdminSponsorsPage() {
             )}
           </div>
 
-          {/* Create form */}
-          <div>
-            <p className="section-label" style={{ marginBottom: 12 }}>{t.newSponsor}</p>
-            <div className="card">
-              <form onSubmit={handleCreate} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <div>
-                  <label className="label">{t.sponsorName}</label>
-                  <input value={name} onChange={(e) => setName(e.target.value)}
-                         className="input" placeholder="Acme Corp" required />
-                </div>
-                <div>
-                  <label className="label">URL</label>
-                  <input value={url} onChange={(e) => setUrl(e.target.value)}
-                         className="input" placeholder="https://acme.com" required />
-                </div>
-                <div>
-                  <label className="label">{t.messageLabel}</label>
-                  <textarea value={message} onChange={(e) => setMessage(e.target.value)}
-                            className="input" style={{ resize: "none", fontFamily: "inherit" }}
-                            rows={3} placeholder={t.sponsorMsgPlaceholder} required />
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {/* Create form — sadece admin (moderator sadece görüntüler) */}
+          {canManage && (
+            <div>
+              <p className="section-label" style={{ marginBottom: 12 }}>{t.newSponsor}</p>
+              <div className="card">
+                <form onSubmit={handleCreate} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   <div>
-                    <label className="label">{t.startLabel}</label>
-                    <input type="date" value={activeFrom} onChange={(e) => setActiveFrom(e.target.value)}
-                           className="input" />
+                    <label className="label">{t.sponsorName}</label>
+                    <input value={name} onChange={(e) => setName(e.target.value)}
+                           className="input" placeholder="Acme Corp" required />
                   </div>
                   <div>
-                    <label className="label">{t.endLabel}</label>
-                    <input type="date" value={activeUntil} onChange={(e) => setActiveUntil(e.target.value)}
-                           className="input" />
+                    <label className="label">URL</label>
+                    <input value={url} onChange={(e) => setUrl(e.target.value)}
+                           className="input" placeholder="https://acme.com" required />
                   </div>
-                </div>
-                <button type="submit" disabled={saving} className="btn-primary" style={{ justifyContent: "center" }}>
-                  {saving ? t.saving : t.addSponsor}
-                </button>
-              </form>
+                  <div>
+                    <label className="label">{t.messageLabel}</label>
+                    <textarea value={message} onChange={(e) => setMessage(e.target.value)}
+                              className="input" style={{ resize: "none", fontFamily: "inherit" }}
+                              rows={3} placeholder={t.sponsorMsgPlaceholder} required />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div>
+                      <label className="label">{t.startLabel}</label>
+                      <input type="date" value={activeFrom} onChange={(e) => setActiveFrom(e.target.value)}
+                             className="input" />
+                    </div>
+                    <div>
+                      <label className="label">{t.endLabel}</label>
+                      <input type="date" value={activeUntil} onChange={(e) => setActiveUntil(e.target.value)}
+                             className="input" />
+                    </div>
+                  </div>
+                  <button type="submit" disabled={saving} className="btn-primary" style={{ justifyContent: "center" }}>
+                    {saving ? t.saving : t.addSponsor}
+                  </button>
+                </form>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
