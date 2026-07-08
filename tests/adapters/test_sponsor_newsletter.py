@@ -32,24 +32,64 @@ def _sponsor():
 # ── _digest_html ──────────────────────────────────────────────────────────────
 
 def test_digest_html_without_sponsor_has_no_sponsor_block():
-    html = _digest_html([_article()], "TR", sponsor=None)
+    html = _digest_html("user@test.com", [_article()], "TR", sponsor=None)
     assert "Acme Corp" not in html
     assert "sponsor" not in html.lower() or "unsubscribe" in html  # footer only
 
 
 def test_digest_html_with_sponsor_includes_sponsor_name():
-    html = _digest_html([_article()], "TR", sponsor=_sponsor())
+    html = _digest_html("user@test.com", [_article()], "TR", sponsor=_sponsor())
     assert "Acme Corp" in html
 
 
 def test_digest_html_with_sponsor_includes_sponsor_url():
-    html = _digest_html([_article()], "EN", sponsor=_sponsor())
+    html = _digest_html("user@test.com", [_article()], "EN", sponsor=_sponsor())
     assert "https://acme.example.com" in html
 
 
 def test_digest_html_with_sponsor_includes_message():
-    html = _digest_html([_article()], "TR", sponsor=_sponsor())
+    html = _digest_html("user@test.com", [_article()], "TR", sponsor=_sponsor())
     assert "The best product for developers" in html
+
+
+# ── Gerçek kullanıcı bulgularının regresyon testleri ──────────────────────────
+
+def test_digest_html_translates_topic_for_tr_language():
+    """Konu etiketleri TR abonede çevrilmeli — önceden ham İngilizce basılıyordu."""
+    a = _article()
+    a.topic = "Sports"
+    html = _digest_html("user@test.com", [a], "TR", sponsor=None)
+    assert "Spor" in html
+    assert ">Sports<" not in html and "· Sports" not in html
+
+
+def test_digest_html_keeps_topic_in_english_for_en_language():
+    a = _article()
+    a.topic = "Sports"
+    html = _digest_html("user@test.com", [a], "EN", sponsor=None)
+    assert "Sports" in html
+
+
+def test_sponsor_label_respects_language_not_hardcoded_true():
+    """Eskiden `if True else` yüzünden dil ne olursa olsun hep Türkçe basılıyordu."""
+    html_en = _digest_html("user@test.com", [_article()], "EN", sponsor=_sponsor())
+    assert "This week's sponsor" in html_en
+    assert "Bu haftanın sponsoru" not in html_en
+
+    html_tr = _digest_html("user@test.com", [_article()], "TR", sponsor=_sponsor())
+    assert "Bu haftanın sponsoru" in html_tr
+
+
+def test_digest_html_unsubscribe_link_is_real_not_placeholder():
+    """Eskiden link hedefi hiç doldurulmayan '{unsubscribe_url}' placeholder'ıydı."""
+    html = _digest_html("user@test.com", [_article()], "TR", sponsor=None)
+    assert "{unsubscribe_url}" not in html
+    assert "/subscriptions/unsubscribe?email=user%40test.com" in html
+
+
+def test_digest_html_unsubscribe_label_translated_for_en():
+    html = _digest_html("user@test.com", [_article()], "EN", sponsor=None)
+    assert "Unsubscribe" in html
 
 
 def test_console_adapter_logs_sponsor_name():

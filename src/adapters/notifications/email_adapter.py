@@ -3,10 +3,16 @@
 ResendEmailAdapter gerçek gönderim yapar (RESEND_API_KEY gerekli);
 ConsoleEmailAdapter sadece loglar (lokal geliştirme). get_email_adapter()
 ortama göre doğru olanı seçer — çağıran kod farkı bilmez.
+
+i18n: tüm çeviriler `_STRINGS`/`_TOPIC_LABELS` sözlüklerinde toplanır —
+frontend/lib/i18n.ts::UI ile aynı desen. Yeni bir dil eklemek (örn. Fransızca)
+sadece bu iki sözlüğe bir `"FR": {...}` bloğu eklemek demektir; hiçbir
+`if language == "TR" else ...` dallanmasına dokunulmaz.
 """
 
 import logging
 from typing import List
+from urllib.parse import quote
 import requests
 from src.domain.models.article import Article
 from src.domain.ports.email_port import EmailPort
@@ -14,13 +20,82 @@ from src.infrastructure.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_LANG = "TR"
+
 _SENTIMENT_ICON = {"Positive": "🟢", "Negative": "🔴", "Neutral": "🟡"}
 
+_STRINGS: dict = {
+    "TR": {
+        "digest_subject": "NexStream Günlük Özet",
+        "digest_header": "Günlük Haber Özeti",
+        "unsubscribe": "Aboneliği iptal et",
+        "sponsor_label": "Bu haftanın sponsoru",
+        "alert_subject_prefix": "NexStream Uyarı",
+        "alert_keyword_label": "Anahtar kelime eşleşmesi",
+        "welcome_subject": "NexStream'e Hoş Geldiniz!",
+        "welcome_title": "Hoş Geldiniz!",
+        "welcome_body": "Günlük haber özetiniz her sabah 09:00'da gelecek.",
+        "reset_subject": "NexStream Şifre Sıfırlama",
+        "reset_title": "Şifre Sıfırlama",
+        "reset_body": "Hesabınız için bir şifre sıfırlama talebi aldık. Aşağıdaki butona tıklayarak yeni bir şifre belirleyebilirsiniz.",
+        "reset_cta": "Şifremi Sıfırla",
+        "reset_expiry": "Bu bağlantı 1 saat içinde geçerliliğini yitirir. Bu talebi siz yapmadıysanız bu maili yok sayabilirsiniz.",
+    },
+    "EN": {
+        "digest_subject": "NexStream Daily Digest",
+        "digest_header": "Daily News Digest",
+        "unsubscribe": "Unsubscribe",
+        "sponsor_label": "This week's sponsor",
+        "alert_subject_prefix": "NexStream Alert",
+        "alert_keyword_label": "Keyword match",
+        "welcome_subject": "Welcome to NexStream!",
+        "welcome_title": "Welcome!",
+        "welcome_body": "Your daily digest will arrive every morning at 09:00.",
+        "reset_subject": "NexStream Password Reset",
+        "reset_title": "Password Reset",
+        "reset_body": "We received a request to reset your password. Click the button below to choose a new one.",
+        "reset_cta": "Reset Password",
+        "reset_expiry": "This link expires in 1 hour. If you didn't request this, you can safely ignore this email.",
+    },
+}
 
-def _sponsor_html(sponsor) -> str:
+# Frontend'in lib/i18n.ts::TOPIC_LABELS'iyle birebir aynı yapı — haber konuları
+# backend'de İngilizce sabit değer olarak saklanır (Sports, Technology, ...),
+# e-postada abonenin dil tercihine göre çevrilir.
+_TOPIC_LABELS: dict = {
+    "TR": {
+        "Technology": "Teknoloji", "Sports": "Spor", "Economy": "Ekonomi",
+        "Politics": "Siyaset", "Health": "Sağlık", "Culture": "Kültür",
+        "World": "Dünya", "Other": "Diğer",
+    },
+    "EN": {
+        "Technology": "Technology", "Sports": "Sports", "Economy": "Economy",
+        "Politics": "Politics", "Health": "Health", "Culture": "Culture",
+        "World": "World", "Other": "Other",
+    },
+}
+
+
+def _t(language: str, key: str) -> str:
+    """Sözlük tabanlı çeviri — bilinmeyen dil `_DEFAULT_LANG`'a düşer."""
+    return _STRINGS.get(language, _STRINGS[_DEFAULT_LANG])[key]
+
+
+def _topic_label(topic: str, language: str) -> str:
+    if not topic:
+        return ""
+    labels = _TOPIC_LABELS.get(language, _TOPIC_LABELS[_DEFAULT_LANG])
+    return labels.get(topic, topic)
+
+
+def _unsubscribe_url(email: str, language: str) -> str:
+    return f"{settings.api_base_url}/subscriptions/unsubscribe?email={quote(email)}&lang={quote(language)}"
+
+
+def _sponsor_html(sponsor, language: str) -> str:
     if not sponsor:
         return ""
-    label = "Bu haftanın sponsoru" if True else "This week's sponsor"
+    label = _t(language, "sponsor_label")
     return (
         f"<div style='background:#f0f7ff;border-left:4px solid #1a73e8;padding:12px 16px;margin:16px 0'>"
         f"<small style='color:#888;text-transform:uppercase;letter-spacing:1px'>{label}</small><br>"
@@ -30,12 +105,13 @@ def _sponsor_html(sponsor) -> str:
     )
 
 
-def _digest_html(articles: List[Article], language: str, sponsor=None) -> str:
-    header = "Günlük Haber Özeti" if language == "TR" else "Daily News Digest"
+def _digest_html(to: str, articles: List[Article], language: str, sponsor=None) -> str:
+    header = _t(language, "digest_header")
+    unsubscribe_label = _t(language, "unsubscribe")
     rows = ""
     for a in articles:
         icon = _SENTIMENT_ICON.get(a.sentiment_label or "Neutral", "⚪")
-        topic = a.topic or ""
+        topic = _topic_label(a.topic, language)
         summary = a.summary or ""
         rows += (
             f"<tr><td style='padding:10px 0;border-bottom:1px solid #eee'>"
@@ -44,31 +120,21 @@ def _digest_html(articles: List[Article], language: str, sponsor=None) -> str:
             f"<span style='color:#444;font-size:14px'>{summary}</span>"
             f"</td></tr>"
         )
-    sponsor_section = _sponsor_html(sponsor)
+    sponsor_section = _sponsor_html(sponsor, language)
     return f"""<html><body style='font-family:sans-serif;max-width:640px;margin:auto'>
 <h2 style='color:#1a1a1a'>{header}</h2>
 {sponsor_section}
 <table width='100%' cellpadding='0' cellspacing='0'>{rows}</table>
 <p style='color:#999;font-size:12px;margin-top:24px'>
-NexStream · <a href='{{unsubscribe_url}}'>Aboneliği iptal et</a>
+NexStream · <a href='{_unsubscribe_url(to, language)}' style='color:#999;text-decoration:underline'>{unsubscribe_label}</a>
 </p></body></html>"""
 
 
 def _password_reset_html(reset_url: str, language: str) -> str:
-    if language == "TR":
-        title, body, cta, expiry = (
-            "Şifre Sıfırlama",
-            "Hesabınız için bir şifre sıfırlama talebi aldık. Aşağıdaki butona tıklayarak yeni bir şifre belirleyebilirsiniz.",
-            "Şifremi Sıfırla",
-            "Bu bağlantı 1 saat içinde geçerliliğini yitirir. Bu talebi siz yapmadıysanız bu maili yok sayabilirsiniz.",
-        )
-    else:
-        title, body, cta, expiry = (
-            "Password Reset",
-            "We received a request to reset your password. Click the button below to choose a new one.",
-            "Reset Password",
-            "This link expires in 1 hour. If you didn't request this, you can safely ignore this email.",
-        )
+    title, body, cta, expiry = (
+        _t(language, "reset_title"), _t(language, "reset_body"),
+        _t(language, "reset_cta"), _t(language, "reset_expiry"),
+    )
     return f"""<html><body style='font-family:sans-serif;max-width:640px;margin:auto'>
 <h2 style='color:#1a1a1a'>{title}</h2>
 <p style='color:#444'>{body}</p>
@@ -79,13 +145,19 @@ padding:12px 24px;border-radius:6px;font-weight:600'>{cta}</a></p>
 
 
 def _alert_html(article: Article, keyword: str, language: str) -> str:
-    label = "Anahtar kelime eşleşmesi" if language == "TR" else "Keyword match"
+    label = _t(language, "alert_keyword_label")
+    topic = _topic_label(article.topic, language)
     return f"""<html><body style='font-family:sans-serif;max-width:640px;margin:auto'>
 <p style='color:#666'>{label}: <b>{keyword}</b></p>
 <h2><a href='{article.url}' style='color:#1a73e8;text-decoration:none'>{article.title}</a></h2>
-<p style='color:#555'>{article.source} · {article.topic or ''}</p>
+<p style='color:#555'>{article.source} · {topic}</p>
 <p>{article.summary or ''}</p>
 </body></html>"""
+
+
+def _welcome_html(language: str) -> str:
+    title, body = _t(language, "welcome_title"), _t(language, "welcome_body")
+    return f"<html><body style='font-family:sans-serif'><h2>{title}</h2><p>{body}</p></body></html>"
 
 
 class ConsoleEmailAdapter(EmailPort):
@@ -95,7 +167,7 @@ class ConsoleEmailAdapter(EmailPort):
         logger.info("📧 [CONSOLE] Digest → %s | %d haber | sponsor=%s", to, len(articles), sponsor.name if sponsor else None)
         return True
 
-    def send_alert(self, to: str, article: Article, matched_keyword: str) -> bool:
+    def send_alert(self, to: str, article: Article, matched_keyword: str, language: str) -> bool:
         logger.info("📧 [CONSOLE] Alert → %s | kw=%s | '%s'", to, matched_keyword, article.title)
         return True
 
@@ -134,26 +206,17 @@ class ResendEmailAdapter(EmailPort):
             return False
 
     def send_digest(self, to: str, articles: List[Article], language: str, sponsor=None) -> bool:
-        subject = "NexStream Günlük Özet" if language == "TR" else "NexStream Daily Digest"
-        return self._post(to, subject, _digest_html(articles, language, sponsor))
+        return self._post(to, _t(language, "digest_subject"), _digest_html(to, articles, language, sponsor))
 
-    def send_alert(self, to: str, article: Article, matched_keyword: str) -> bool:
-        subject = f"NexStream Alert: {matched_keyword}"
-        language = "TR"
+    def send_alert(self, to: str, article: Article, matched_keyword: str, language: str) -> bool:
+        subject = f"{_t(language, 'alert_subject_prefix')}: {matched_keyword}"
         return self._post(to, subject, _alert_html(article, matched_keyword, language))
 
     def send_welcome(self, to: str, language: str) -> bool:
-        subject = "NexStream'e Hoş Geldiniz!" if language == "TR" else "Welcome to NexStream!"
-        body = (
-            "<h2>Hoş Geldiniz!</h2><p>Günlük haber özetiniz her sabah 08:00'de gelecek.</p>"
-            if language == "TR"
-            else "<h2>Welcome!</h2><p>Your daily digest will arrive every morning at 08:00.</p>"
-        )
-        return self._post(to, subject, f"<html><body>{body}</body></html>")
+        return self._post(to, _t(language, "welcome_subject"), _welcome_html(language))
 
     def send_password_reset(self, to: str, reset_url: str, language: str) -> bool:
-        subject = "NexStream Şifre Sıfırlama" if language == "TR" else "NexStream Password Reset"
-        return self._post(to, subject, _password_reset_html(reset_url, language))
+        return self._post(to, _t(language, "reset_subject"), _password_reset_html(reset_url, language))
 
 
 def get_email_adapter() -> EmailPort:

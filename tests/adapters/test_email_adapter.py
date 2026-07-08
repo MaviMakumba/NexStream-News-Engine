@@ -20,7 +20,7 @@ def test_console_adapter_send_digest_returns_true():
 
 def test_console_adapter_send_alert_returns_true():
     adapter = ConsoleEmailAdapter()
-    assert adapter.send_alert("user@test.com", _article(), "beşiktaş") is True
+    assert adapter.send_alert("user@test.com", _article(), "beşiktaş", "TR") is True
 
 
 def test_console_adapter_send_welcome_returns_true():
@@ -55,7 +55,7 @@ def test_resend_adapter_returns_false_on_error():
         mock_response.status_code = 429
         mock_response.text = "Too Many Requests"
         with patch("requests.post", return_value=mock_response):
-            result = adapter.send_alert("user@test.com", _article(), "keyword")
+            result = adapter.send_alert("user@test.com", _article(), "keyword", "TR")
 
     assert result is False
 

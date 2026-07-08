@@ -6,6 +6,7 @@ X-API-Key gerektirir (başkasının aboneliğini kurcalamayı engeller).
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from src.infrastructure.config.database import SessionLocal
@@ -16,6 +17,22 @@ from src.adapters.api.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/subscriptions", tags=["Subscriptions"])
+
+_UNSUBSCRIBE_CONFIRM_HTML = {
+    "TR": ("Aboneliğiniz iptal edildi", "Artık NexStream'den e-posta almayacaksınız."),
+    "EN": ("You've been unsubscribed", "You will no longer receive emails from NexStream."),
+}
+_UNSUBSCRIBE_NOTFOUND_HTML = {
+    "TR": ("Abone bulunamadı", "Bu e-posta adresi için aktif bir abonelik bulunamadı."),
+    "EN": ("Subscriber not found", "No active subscription was found for this email address."),
+}
+
+
+def _confirmation_page(title: str, body: str) -> str:
+    return f"""<html><body style='font-family:sans-serif;max-width:480px;margin:80px auto;text-align:center'>
+<h2 style='color:#1a1a1a'>{title}</h2>
+<p style='color:#666'>{body}</p>
+</body></html>"""
 
 
 class SubscribeRequest(BaseModel):
@@ -63,6 +80,22 @@ def subscribe(req: SubscribeRequest, repo: SubscriberRepository = Depends(_get_r
         logger.warning("Welcome email gönderilemedi: %s", e)
     logger.info("Yeni abone: %s", req.email)
     return {"email": saved.email, "frequency": saved.frequency, "active": saved.is_active}
+
+
+@router.get("/unsubscribe", response_class=HTMLResponse)
+def unsubscribe_via_link(email: str, lang: str = "TR", repo: SubscriberRepository = Depends(_get_repo)):
+    """E-postadaki tıklanabilir 'aboneliği iptal et' linkinin hedefi — tarayıcıda
+    açılan basit bir onay sayfası döner (JSON değil, çünkü doğrudan e-posta
+    istemcisinden/tarayıcıdan tıklanır). Bu route `/{email}` parametreli
+    route'lardan ÖNCE tanımlanmalı, yoksa "unsubscribe" bir e-posta adresi
+    sanılıp oraya yönlenir."""
+    ok = repo.deactivate(email)
+    title, body = (_UNSUBSCRIBE_CONFIRM_HTML if ok else _UNSUBSCRIBE_NOTFOUND_HTML).get(
+        lang, _UNSUBSCRIBE_CONFIRM_HTML["TR"] if ok else _UNSUBSCRIBE_NOTFOUND_HTML["TR"]
+    )
+    if ok:
+        logger.info("Abonelik iptal edildi (link): %s", email)
+    return _confirmation_page(title, body)
 
 
 @router.delete("/{email}", status_code=status.HTTP_200_OK)

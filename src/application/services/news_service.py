@@ -444,7 +444,7 @@ class NewsService:
                 continue
             for kw in sub.keywords:
                 if kw.lower() in text:
-                    self.email_port.send_alert(sub.email, article, kw)
+                    self.email_port.send_alert(sub.email, article, kw, sub.language)
                     break  # one alert per article per subscriber
 
     def list_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None, min_quality: Optional[float] = None) -> List[Article]:

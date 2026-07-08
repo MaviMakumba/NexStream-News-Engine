@@ -6,7 +6,10 @@
 // Session'sız kullanıcılar için paylaşımlı API anahtarı girişi gösterilir.
 
 import { useCallback, useEffect, useState } from "react";
-import { createSponsor, deactivateSponsor, fetchSponsors, type AdminCreds } from "@/lib/api";
+import {
+  activateSponsor, createSponsor, deactivateSponsor, deleteSponsorPermanently,
+  fetchSponsors, type AdminCreds,
+} from "@/lib/api";
 import type { Sponsor } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/settings-context";
@@ -86,6 +89,17 @@ export default function AdminSponsorsPage() {
     catch (err: unknown) { setError(err instanceof Error ? err.message : t.genericError); }
   }
 
+  async function handleActivate(id: number) {
+    try { await activateSponsor(creds, id); await load(); }
+    catch (err: unknown) { setError(err instanceof Error ? err.message : t.genericError); }
+  }
+
+  async function handleDeletePermanent(id: number) {
+    if (!window.confirm(t.deleteSponsorConfirm)) return;
+    try { await deleteSponsorPermanently(creds, id); await load(); }
+    catch (err: unknown) { setError(err instanceof Error ? err.message : t.genericError); }
+  }
+
   const activeSponsor   = sponsors.find((s) => s.is_active);
   const inactiveSponsors = sponsors.filter((s) => !s.is_active);
 
@@ -157,20 +171,37 @@ export default function AdminSponsorsPage() {
               </div>
             )}
 
-            {inactiveSponsors.map((s) => (
-              <div key={s.id} className="card" style={{ marginBottom: 8, opacity: 0.55 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <span style={{ fontWeight: 600, color: "var(--text)", fontSize: "0.88rem" }}>{s.name}</span>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text3)", marginTop: 4 }}>
-                      {s.active_from.split("T")[0]} → {s.active_until.split("T")[0]}
+            {inactiveSponsors.map((s) => {
+              const isExpired = new Date(s.active_until) < new Date();
+              return (
+                <div key={s.id} className="card" style={{ marginBottom: 8, opacity: 0.7 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <span style={{ fontWeight: 600, color: "var(--text)", fontSize: "0.88rem" }}>{s.name}</span>
+                      <div style={{ fontSize: "0.75rem", color: "var(--text3)", marginTop: 4 }}>
+                        {s.active_from.split("T")[0]} → {s.active_until.split("T")[0]}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                      <span className="badge" style={{ background: "var(--neu-bg)", color: "var(--neu)",
+                                                        borderColor: "var(--neu)" }}>{t.passiveStatus}</span>
+                      {canManage && !isExpired && (
+                        <button onClick={() => handleActivate(s.id)} className="btn-secondary"
+                                style={{ padding: "5px 10px", fontSize: "0.75rem" }}>
+                          {t.activateSponsor}
+                        </button>
+                      )}
+                      {canManage && (
+                        <button onClick={() => handleDeletePermanent(s.id)} className="btn-danger"
+                                style={{ padding: "5px 10px", fontSize: "0.75rem" }}>
+                          {t.deletePermanently}
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <span className="badge" style={{ background: "var(--neu-bg)", color: "var(--neu)",
-                                                    borderColor: "var(--neu)" }}>{t.passiveStatus}</span>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {sponsors.length === 0 && (
               <div className="card" style={{ textAlign: "center", padding: "40px 20px", color: "var(--text3)" }}>

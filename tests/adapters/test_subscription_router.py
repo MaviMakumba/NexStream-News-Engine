@@ -77,6 +77,56 @@ def test_unsubscribe_404_when_not_found(app_client):
     assert r.status_code == 404
 
 
+def test_unsubscribe_via_link_deactivates_and_returns_html(app_client):
+    mock_repo = _mock_repo()
+    _override(app_client, mock_repo)
+    try:
+        r = app_client.get("/subscriptions/unsubscribe?email=test@example.com&lang=TR")
+    finally:
+        _clear(app_client)
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    assert "İptal edildi" in r.text or "iptal edildi" in r.text
+    mock_repo.deactivate.assert_called_once_with("test@example.com")
+
+
+def test_unsubscribe_via_link_english(app_client):
+    mock_repo = _mock_repo()
+    _override(app_client, mock_repo)
+    try:
+        r = app_client.get("/subscriptions/unsubscribe?email=test@example.com&lang=EN")
+    finally:
+        _clear(app_client)
+    assert r.status_code == 200
+    assert "unsubscribed" in r.text.lower()
+
+
+def test_unsubscribe_via_link_not_found_still_returns_200_with_message(app_client):
+    """Link tıklamaları JSON hata değil, kullanıcı dostu bir sayfa göstermeli."""
+    mock_repo = _mock_repo()
+    mock_repo.deactivate.return_value = False
+    _override(app_client, mock_repo)
+    try:
+        r = app_client.get("/subscriptions/unsubscribe?email=missing@example.com")
+    finally:
+        _clear(app_client)
+    assert r.status_code == 200
+    assert "bulunamadı" in r.text.lower()
+
+
+def test_unsubscribe_link_route_does_not_collide_with_email_param_route(app_client):
+    """'/unsubscribe' bir e-posta adresi olarak yorumlanmamalı (route sırası önemli)."""
+    mock_repo = _mock_repo()
+    _override(app_client, mock_repo)
+    try:
+        r = app_client.get("/subscriptions/unsubscribe?email=test@example.com")
+    finally:
+        _clear(app_client)
+    assert r.status_code == 200
+    mock_repo.deactivate.assert_called_once_with("test@example.com")
+    mock_repo.get_by_email.assert_not_called()
+
+
 def test_update_preferences_requires_api_key(app_client):
     r = app_client.patch("/subscriptions/test@example.com", json={"keywords": ["spor"]})
     assert r.status_code == 401
