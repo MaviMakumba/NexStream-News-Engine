@@ -4,9 +4,27 @@ import { AuthProvider } from "@/lib/auth-context";
 import { SettingsProvider } from "@/lib/settings-context";
 import { DEFAULT_THEME } from "@/lib/theme/registry";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://nexstream.news";
+const SITE_TITLE = "NexStream — AI Haber Motoru";
+const SITE_DESCRIPTION = "Türkiye ve dünyadan yapay zeka destekli haber analizi: duygu analizi, semantik arama ve ilişki grafı tek platformda.";
+
 export const metadata: Metadata = {
-  title: "NexStream — AI Haber Motoru",
-  description: "Türkiye ve dünyadan yapay zeka destekli haber analizi",
+  metadataBase: new URL(SITE_URL),
+  title: { template: "%s — NexStream", default: SITE_TITLE },
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: SITE_URL,
+    siteName: "NexStream",
+    locale: "tr_TR",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 // One combined Google Fonts request covering every theme's display face.
@@ -25,10 +43,17 @@ const FONTS_HREF =
   ].join("&") +
   "&display=swap";
 
+// İlk boyamadan (paint) ÖNCE çalışır — localStorage'daki temayı senkron uygular,
+// böylece sayfa her açılışta varsayılan (matrix) temayla yanıp kullanıcının
+// gerçek temasına geçmez. React state'i settings-context.tsx'te aynı değeri
+// lazy initializer ile okur, ikisi arasında fark olmaz.
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('nxt_theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="tr" data-theme={DEFAULT_THEME}>
+    <html lang="tr" data-theme={DEFAULT_THEME} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="stylesheet" href={FONTS_HREF} />

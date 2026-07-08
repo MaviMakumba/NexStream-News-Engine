@@ -25,7 +25,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     // ── Nav ──
     dashboard: "Haberler", search: "Arama", admin: "Yönetim", account: "Hesabım",
     login: "Giriş Yap", register: "Kayıt Ol", logout: "Çıkış",
-    settings: "Ayarlar", theme: "Tema", language: "Dil",
+    settings: "Ayarlar", theme: "Tema", language: "Dil", menu: "Menü",
 
     // ── Theme names + moods (registry referenced) ──
     matrix: "Matrix", matrixTag: "Dijital Yağmur",
@@ -92,7 +92,23 @@ export const UI: Record<Lang, Record<string, string>> = {
     statSpeed: "Analiz Süresi", statFree: "Ücretsiz Başlangıç",
     featuresLabel: "Özellikler", featuresTitle: "Güçlü Altyapı, Sinematik Arayüz",
     pricingLabel: "Fiyatlandırma", pricingTitle: "Ücretsiz başla, büyüdükçe yükselt",
+
+    // ── Landing Search Demo ──
+    landingSearchLabel: "CANLI DEMO — KAYIT GEREKMEZ",
+    landingSearchTitle: "Klasik aramayı unutun. Ne anlama geldiğini arayın.",
+    landingSearchPlaceholder: "örn. ekonomik kriz ve teknoloji şirketleri",
+    landingSearchBtn: "Ara",
+    landingSearchTryLabel: "Dene:",
+    landingSearchEmpty: "Sonuç bulunamadı — farklı bir sorgu deneyin.",
+    landingSearchErrorRateLimit: "Çok fazla arama denendi, birazdan tekrar deneyin.",
+    landingSearchErrorGeneric: "Arama şu anda başarısız oldu, birazdan tekrar deneyin.",
+    landingSearchSignupCta: "Tam deneyim için ücretsiz kaydolun →",
+    landingSearchMatchRate: "eşleşme",
     mostPopular: "En Popüler", footerTagline: "AI Haber Motoru",
+    privacy: "Gizlilik", terms: "Şartlar",
+    agreeToTermsPrefix: "Kayıt olarak", agreeToTermsAnd: "ve",
+    agreeToTermsSuffix: " kabul edersiniz.",
+    termsLinkLabel: "Kullanım Şartları'nı", privacyLinkLabel: "Gizlilik Politikası'nı",
 
     // ── Account ──
     accountLabel: "Hesap", accountTitle: "Hesabım",
@@ -132,12 +148,24 @@ export const UI: Record<Lang, Record<string, string>> = {
     messageLabel: "Mesaj", startLabel: "Başlangıç", endLabel: "Bitiş",
     addSponsor: "◈ Sponsor Ekle", saving: "Kaydediliyor…",
     sponsorMsgPlaceholder: "Sponsor mesajı...", genericError: "Hata.",
+
+    // ── Admin: kullanıcı/müşteri listesi ──
+    users: "Kullanıcılar",
+    usersTitle: "Kullanıcılar & Ödeme Durumu",
+    tierFilter: "Tier Filtresi", allTiers: "Tüm Tier'lar",
+    colEmail: "E-posta", colTier: "Tier", colStatus: "Durum", colPaying: "Ödeme", colJoined: "Kayıt",
+    colRole: "Rol",
+    payingReal: "✓ Stripe", payingDev: "Dev-mode", inactiveStatus: "Pasif",
+    totalUsers: "Toplam Kullanıcı", payingUsers: "Gerçek Ödeyen",
+    noUsers: "Kullanıcı bulunamadı.",
+    roleUser: "Kullanıcı", roleModerator: "Moderatör", roleAdmin: "Admin",
+    roleUpdateError: "Rol değiştirilemedi.",
   },
   EN: {
     // ── Nav ──
     dashboard: "News", search: "Search", admin: "Admin", account: "Account",
     login: "Sign In", register: "Register", logout: "Log Out",
-    settings: "Settings", theme: "Theme", language: "Language",
+    settings: "Settings", theme: "Theme", language: "Language", menu: "Menu",
 
     // ── Theme names + moods ──
     matrix: "Matrix", matrixTag: "Digital Rain",
@@ -204,7 +232,23 @@ export const UI: Record<Lang, Record<string, string>> = {
     statSpeed: "Analysis Time", statFree: "Free to Start",
     featuresLabel: "Features", featuresTitle: "Powerful Engine, Cinematic Interface",
     pricingLabel: "Pricing", pricingTitle: "Start free, upgrade as you grow",
+
+    // ── Landing Search Demo ──
+    landingSearchLabel: "LIVE DEMO — NO SIGN-UP NEEDED",
+    landingSearchTitle: "Forget keyword search. Search for what it means.",
+    landingSearchPlaceholder: "e.g. economic crisis and tech companies",
+    landingSearchBtn: "Search",
+    landingSearchTryLabel: "Try:",
+    landingSearchEmpty: "No results found — try a different query.",
+    landingSearchErrorRateLimit: "Too many searches, please try again shortly.",
+    landingSearchErrorGeneric: "Search failed right now, please try again shortly.",
+    landingSearchSignupCta: "Sign up free for the full experience →",
+    landingSearchMatchRate: "match",
     mostPopular: "Most Popular", footerTagline: "AI News Engine",
+    privacy: "Privacy", terms: "Terms",
+    agreeToTermsPrefix: "By signing up, you agree to our", agreeToTermsAnd: "and",
+    agreeToTermsSuffix: ".",
+    termsLinkLabel: "Terms of Service", privacyLinkLabel: "Privacy Policy",
 
     // ── Account ──
     accountLabel: "Account", accountTitle: "My Account",
@@ -244,10 +288,28 @@ export const UI: Record<Lang, Record<string, string>> = {
     messageLabel: "Message", startLabel: "Start", endLabel: "End",
     addSponsor: "◈ Add Sponsor", saving: "Saving…",
     sponsorMsgPlaceholder: "Sponsor message...", genericError: "Error.",
+
+    // ── Admin: user/customer list ──
+    users: "Users",
+    usersTitle: "Users & Payment Status",
+    tierFilter: "Tier Filter", allTiers: "All Tiers",
+    colEmail: "Email", colTier: "Tier", colStatus: "Status", colPaying: "Payment", colJoined: "Joined",
+    colRole: "Role",
+    payingReal: "✓ Stripe", payingDev: "Dev-mode", inactiveStatus: "Inactive",
+    totalUsers: "Total Users", payingUsers: "Real Paying",
+    noUsers: "No users found.",
+    roleUser: "User", roleModerator: "Moderator", roleAdmin: "Admin",
+    roleUpdateError: "Could not update role.",
   },
 };
 
 // ── Structured landing content (localized) ──────────────────────────
+
+/** Landing arama demosundaki tıklanabilir örnek sorgu chip'leri. */
+export const LANDING_SEARCH_EXAMPLES: Record<Lang, string[]> = {
+  TR: ["ekonomik kriz ve teknoloji şirketleri", "yapay zeka düzenlemeleri", "İstanbul deprem riski"],
+  EN: ["economic crisis and tech companies", "AI regulation", "climate change summit"],
+};
 
 export interface Feature { icon: string; accent: string; title: string; desc: string; }
 

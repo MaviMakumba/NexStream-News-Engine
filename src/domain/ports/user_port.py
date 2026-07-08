@@ -28,7 +28,18 @@ class UserRepositoryPort(ABC):
         ...
 
     @abstractmethod
+    def list_users(self, limit: int, offset: int, tier: Optional[str] = None) -> List[User]:
+        """Kayıt tarihine göre azalan sırada kullanıcı listesi (admin müşteri paneli)."""
+        ...
+
+    @abstractmethod
+    def count_users(self, tier: Optional[str] = None) -> int: ...
+
+    @abstractmethod
     def update_tier(self, user_id: int, tier: str, stripe_customer_id: Optional[str] = None) -> bool: ...
+
+    @abstractmethod
+    def update_role(self, user_id: int, role: str) -> bool: ...
 
     @abstractmethod
     def set_api_key(self, user_id: int, api_key: Optional[str]) -> bool:

@@ -4,7 +4,6 @@ import { useState } from "react";
 import type { Article, RelatedArticle } from "@/lib/types";
 import { SentimentBadge } from "./SentimentBadge";
 import { fetchRelated } from "@/lib/api";
-import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/settings-context";
 import { TOPIC_LABELS, UI } from "@/lib/i18n";
 
@@ -18,7 +17,6 @@ function relTime(iso: string, lang: "TR" | "EN") {
 }
 
 export function NewsCard({ article }: { article: Article }) {
-  const { token } = useAuth();
   const { lang } = useSettings();
   const t = UI[lang];
   const [expanded, setExpanded] = useState(false);
@@ -32,7 +30,7 @@ export function NewsCard({ article }: { article: Article }) {
     setLoadingRelated(true);
     setRelatedError(false);
     try {
-      const r = await fetchRelated(article.id, token);
+      const r = await fetchRelated(article.id);
       setRelated(r.related ?? []);
     } catch {
       setRelatedError(true);

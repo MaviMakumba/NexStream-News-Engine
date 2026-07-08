@@ -45,7 +45,7 @@ class Settings(BaseSettings):
 
     # ── API güvenliği ──────────────────────────────────────────────────────
     # Paylaşımlı makine-makine anahtarı (X-API-Key). İnsan kullanıcılar için
-    # v1.11'den itibaren rol tabanlı admin (users.is_admin) tercih edilir.
+    # v1.13'ten itibaren rol tabanlı yetki (users.role) tercih edilir.
     api_key: str = "dev-key-change-me"
     # Virgülle ayrılmış e-posta listesi; eşleşen kullanıcılar otomatik admin
     # sayılır (DB'ye yazmadan, okuma anında). Örn: "ben@mail.com,sen@mail.com"
@@ -65,6 +65,9 @@ class Settings(BaseSettings):
 
     # ── Auth / Sessions ────────────────────────────────────────────────────
     session_ttl_days: int = 30
+    # Oturum cookie'sinin Secure bayrağı — prod'da HTTPS üzerinden True olmalı;
+    # dev'de HTTP olduğu için False (Secure cookie HTTP'de hiç gönderilmez).
+    session_cookie_secure: bool = True
     # Şifre sıfırlama linkinin hedeflediği frontend origin'i (mail içindeki link).
     frontend_url: str = "http://localhost:3000"
     password_reset_ttl_minutes: int = 60
