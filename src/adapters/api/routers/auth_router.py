@@ -19,6 +19,7 @@ from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Header, Request, Response, status
 from pydantic import BaseModel, EmailStr
+from email_validator import validate_email, EmailNotValidError
 from sqlalchemy.orm import Session
 
 from src.infrastructure.config.database import get_db
@@ -99,6 +100,26 @@ def _set_session_cookie(response: Response, token: str) -> None:
     )
 
 
+def _assert_deliverable_email(email: str) -> None:
+    """Domain'in gerçekten mail kabul ettiğini DNS (MX/A kaydı) üzerinden doğrular.
+
+    Sadece kayıtta çalışır — "muz@muz.com" gibi hiç var olmayan/mail almayan
+    domain'leri yakalar. Var olan gerçek bir domain + uydurma kullanıcı adını
+    (örn. rastgele123@gmail.com) YAKALAYAMAZ — bunun tek gerçek çözümü
+    e-posta doğrulama linkidir (ayrı bir iş, henüz yok). DNS sorgusunun
+    kendisi ağ/timeout yüzünden başarısız olursa KAYDI ENGELLEMEYİZ — sadece
+    definitif "bu domain mail almıyor" sonucunda 400 döneriz.
+    """
+    try:
+        validate_email(email, check_deliverability=True)
+    except EmailNotValidError as e:
+        raise HTTPException(status_code=400, detail=f"E-posta adresi geçersiz görünüyor: {e}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning("E-posta deliverability kontrolü başarısız oldu (kayıt engellenmedi): %s", e)
+
+
 def _user_payload(user: User) -> dict:
     """API yanıtlarındaki kullanıcı gösterimi — parola hash'i asla sızmaz.
 
@@ -124,6 +145,7 @@ def register(req: RegisterRequest, response: Response, db: Session = Depends(get
     repo = UserRepository(db)
     if repo.get_by_email(req.email):
         raise HTTPException(status_code=409, detail="Email already registered")
+    _assert_deliverable_email(req.email)
 
     user = User(
         email=req.email,

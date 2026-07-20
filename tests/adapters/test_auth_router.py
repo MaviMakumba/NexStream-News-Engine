@@ -52,6 +52,17 @@ def client(app_client):
     return app_client
 
 
+@pytest.fixture(autouse=True)
+def _skip_real_dns_deliverability_check(monkeypatch):
+    """Kayıt endpoint'i artık DNS/MX deliverability kontrolü yapıyor (v1.14) —
+    testler gerçek ağ isteği atmasın diye varsayılan olarak her e-postayı
+    geçerli kabul eder. Reddetme/fail-open senaryoları kendi testlerinde
+    ayrıca override eder."""
+    monkeypatch.setattr(
+        "src.adapters.api.routers.auth_router.validate_email", lambda *a, **k: None
+    )
+
+
 # ── Register ─────────────────────────────────────────────────────────────────
 
 def test_register_creates_user(client):
@@ -115,6 +126,54 @@ def test_register_sets_httponly_session_cookie(client):
     set_cookie = resp.headers.get("set-cookie", "")
     assert "HttpOnly" in set_cookie
     assert "samesite=lax" in set_cookie.lower()
+
+
+# ── Register: DNS/MX deliverability kontrolü (v1.14) ───────────────────────────
+
+def test_register_rejects_domain_with_no_mail_service(client):
+    """'muz@muz.com' gibi hiç mail almayan bir domain — 400 ile reddedilmeli."""
+    from email_validator import EmailNotValidError
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
+         patch("src.adapters.api.routers.auth_router.validate_email",
+               side_effect=EmailNotValidError("The domain name muz.com does not accept email.")):
+        repo_instance = MagicMock()
+        repo_instance.get_by_email.return_value = None
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/register", json={"email": "muz@muz.com", "password": "secret123"})
+
+    assert resp.status_code == 400
+    repo_instance.create_user.assert_not_called()
+
+
+def test_register_dns_check_failure_does_not_block_registration(client):
+    """DNS sorgusu ağ/timeout yüzünden patlarsa kayıt ENGELLENMEMELİ (fail-open)."""
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
+         patch("src.adapters.api.routers.auth_router.validate_email",
+               side_effect=TimeoutError("DNS sunucusuna ulaşılamadı")):
+        repo_instance = MagicMock()
+        repo_instance.get_by_email.return_value = None
+        repo_instance.create_user.return_value = _make_user()
+        repo_instance.create_session.return_value = _make_session()
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/register", json={"email": "ok@example.com", "password": "secret123"})
+
+    assert resp.status_code == 201
+
+
+def test_register_duplicate_email_skips_dns_check(client):
+    """E-posta zaten kayıtlıysa 409 döner, deliverability kontrolüne hiç gerek kalmaz."""
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
+         patch("src.adapters.api.routers.auth_router.validate_email") as mock_validate:
+        repo_instance = MagicMock()
+        repo_instance.get_by_email.return_value = _make_user()
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/register", json={"email": "taken@example.com", "password": "secret123"})
+
+    assert resp.status_code == 409
+    mock_validate.assert_not_called()
 
 
 # ── Login ─────────────────────────────────────────────────────────────────────

@@ -11,8 +11,10 @@ from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from src.infrastructure.config.database import SessionLocal
 from src.adapters.repositories.subscriber_repository import SubscriberRepository
+from src.adapters.repositories.user_repository import UserRepository
 from src.adapters.notifications.email_adapter import get_email_adapter
 from src.domain.models.subscriber import Subscriber
+from src.domain.models.user import UserTier, tier_at_least
 from src.adapters.api.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
@@ -60,10 +62,41 @@ def _get_repo() -> SubscriberRepository:
         db.close()
 
 
+def _get_user_repo() -> UserRepository:
+    db = SessionLocal()
+    try:
+        yield UserRepository(db)
+    finally:
+        db.close()
+
+
+def _assert_instant_allowed(email: str, frequency: str, users: UserRepository) -> None:
+    """Anlık (instant) keyword alert Pro+ özelliğidir.
+
+    Subscriber e-posta bazlı ve User hesabından bağımsız tasarlandığı için
+    (bkz. CLAUDE.md) yetki kontrolü aynı e-postayla kayıtlı bir User'ın
+    tier'ına bakarak yapılır — kayıtsız/Free e-postalar instant isteyemez.
+    """
+    if frequency != "instant":
+        return
+    user = users.get_by_email(email)
+    if not user or not tier_at_least(user.tier, UserTier.PRO):
+        raise HTTPException(
+            status_code=403,
+            detail="Anlık uyarılar Pro plan gerektirir — bu e-postayla kayıtlı bir Pro/Kurumsal hesap gerekli. "
+                   "/ Instant alerts require a Pro plan registered with this email.",
+        )
+
+
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def subscribe(req: SubscribeRequest, repo: SubscriberRepository = Depends(_get_repo)):
+def subscribe(
+    req: SubscribeRequest,
+    repo: SubscriberRepository = Depends(_get_repo),
+    users: UserRepository = Depends(_get_user_repo),
+):
     if req.frequency not in ("daily", "instant", "never"):
         raise HTTPException(status_code=400, detail="frequency must be daily, instant or never")
+    _assert_instant_allowed(req.email, req.frequency, users)
 
     sub = Subscriber(
         email=req.email,
@@ -112,6 +145,7 @@ def update_preferences(
     email: str,
     req: PreferencesUpdateRequest,
     repo: SubscriberRepository = Depends(_get_repo),
+    users: UserRepository = Depends(_get_user_repo),
 ):
     sub = repo.get_by_email(email)
     if not sub or not sub.is_active:
@@ -128,6 +162,7 @@ def update_preferences(
     if req.frequency is not None:
         if req.frequency not in ("daily", "instant", "never"):
             raise HTTPException(status_code=400, detail="frequency must be daily, instant or never")
+        _assert_instant_allowed(email, req.frequency, users)
         sub.frequency = req.frequency
 
     repo.update_subscriber(sub)

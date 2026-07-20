@@ -33,7 +33,7 @@ def test_subscribe_creates_subscriber(app_client):
             r = app_client.post("/subscriptions/", json={
                 "email": "test@example.com",
                 "keywords": ["beşiktaş", "fenerbahçe"],
-                "frequency": "instant",
+                "frequency": "daily",
                 "language": "TR",
             })
     finally:

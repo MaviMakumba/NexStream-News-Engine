@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from typing import List, Optional
 
 from src.domain.schemas.news_schema import NewsResponse, ScrapeCommand, SearchRequest, SearchResult, TrendingResponse, RelatedResponse
+from src.domain.models.user import UserTier, TIER_SEARCH_RESULT_CAP
 from src.domain.ports.messaging_port import MessagePublisherPort
 from src.application.services.news_service import NewsService
 from src.dependencies import get_news_service, get_message_publisher
@@ -54,8 +55,12 @@ def search_news(
     body: SearchRequest,
     service: NewsService = Depends(get_news_service),
 ):
+    """Kimliksiz herkese açık arama (landing sayfası demosu) — her zaman
+    Free tavanına (bkz. TIER_SEARCH_RESULT_CAP) sabitlenir; kayıtlı/kotalı
+    erişim için /api/v1/news/search kullanılmalı."""
+    n_results = min(body.n_results, TIER_SEARCH_RESULT_CAP[UserTier.FREE])
     start = time.time()
-    results = service.hybrid_search(body.query, body.n_results, body.source, body.sentiment)
+    results = service.hybrid_search(body.query, n_results, body.source, body.sentiment)
     search_latency_seconds.observe(time.time() - start)
     return results
 
