@@ -15,7 +15,10 @@ class ScrapeCommand(BaseModel):
 
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=200)
-    n_results: int = Field(default=10, ge=1, le=50)
+    # Üst sınır Enterprise tavanı (bkz. TIER_SEARCH_RESULT_CAP) — asıl tier'a göre
+    # kısıtlama endpoint'te uygulanır (search_news_v1/search_news), burası sadece
+    # şema seviyesinde kaba bir üst sınır.
+    n_results: int = Field(default=10, ge=1, le=200)
     source: Optional[str] = Field(None, max_length=64)
     sentiment: Optional[str] = Field(None, pattern="^(Positive|Negative|Neutral)$")
 

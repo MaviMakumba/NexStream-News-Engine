@@ -37,8 +37,10 @@ def test_search_request_n_results_min():
 
 
 def test_search_request_n_results_max():
-    req = SearchRequest(query="test", n_results=50)
-    assert req.n_results == 50
+    # Şema seviyesindeki üst sınır Enterprise tavanı (bkz. TIER_SEARCH_RESULT_CAP) —
+    # asıl tier'a göre kısıtlama endpoint'te uygulanır, bkz. test_tier_gating.py.
+    req = SearchRequest(query="test", n_results=200)
+    assert req.n_results == 200
 
 
 def test_search_request_n_results_zero_rejected():
@@ -46,9 +48,9 @@ def test_search_request_n_results_zero_rejected():
         SearchRequest(query="test", n_results=0)
 
 
-def test_search_request_n_results_over_50_rejected():
+def test_search_request_n_results_over_200_rejected():
     with pytest.raises(ValidationError):
-        SearchRequest(query="test", n_results=51)
+        SearchRequest(query="test", n_results=201)
 
 
 def test_search_request_valid_sentiment():

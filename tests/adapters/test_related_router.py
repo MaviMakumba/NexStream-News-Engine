@@ -1,9 +1,19 @@
 from unittest.mock import MagicMock
 
+from src.domain.models.user import User, UserTier
+from src.adapters.api.auth_utils import check_tier_limit
+
 
 def _override(app_client, mock_service):
     from src.dependencies import get_news_service
     app_client.app.dependency_overrides[get_news_service] = lambda: mock_service
+
+
+def _override_pro(app_client, mock_service):
+    """/api/v1'deki ilişki grafı Pro+ gerektirir (v1.14 tier-gating)."""
+    _override(app_client, mock_service)
+    pro = User(id=1, email="pro@test.com", password_hash="h", tier=UserTier.PRO)
+    app_client.app.dependency_overrides[check_tier_limit] = lambda: pro
 
 
 def _clear(app_client):
@@ -62,7 +72,7 @@ def test_related_endpoint_default_limit(app_client):
 def test_related_v1_endpoint(app_client):
     mock_service = MagicMock()
     mock_service.get_related.return_value = _PAYLOAD
-    _override(app_client, mock_service)
+    _override_pro(app_client, mock_service)
     try:
         r = app_client.get("/api/v1/news/1/related")
     finally:

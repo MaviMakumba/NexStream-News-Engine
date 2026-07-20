@@ -26,6 +26,20 @@ TIER_DAILY_LIMITS: dict = {
     UserTier.ENTERPRISE: None,
 }
 
+# Kademe başına arama sonucu tavanı (pricing sayfasındaki vaat — v1.14 tier-gating).
+TIER_SEARCH_RESULT_CAP: dict = {
+    UserTier.FREE: 10,
+    UserTier.PRO: 50,
+    UserTier.ENTERPRISE: 200,
+}
+
+_TIER_RANK = {UserTier.FREE: 0, UserTier.PRO: 1, UserTier.ENTERPRISE: 2}
+
+
+def tier_at_least(tier: "UserTier", minimum: "UserTier") -> bool:
+    """`tier`, `minimum` seviyesinde veya üzerinde mi? (Pro+ özellik kontrolleri için)"""
+    return _TIER_RANK[UserTier(tier)] >= _TIER_RANK[UserTier(minimum)]
+
 
 class UserRole(str, Enum):
     """Yetki hiyerarşisi (v1.13) — user < moderator < admin.
