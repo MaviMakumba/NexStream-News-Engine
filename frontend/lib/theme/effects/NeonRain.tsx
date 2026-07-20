@@ -1,7 +1,7 @@
 "use client";
 
 import { useCanvasScene } from "../useCanvasScene";
-import { fxLayerStyle, rand } from "./shared";
+import { fxLayerStyle, rand, density } from "./shared";
 
 interface Drop {
   x: number;
@@ -31,7 +31,8 @@ const HUES = ["255, 70, 200", "70, 220, 255", "180, 90, 255"];
 export function NeonRain() {
   const ref = useCanvasScene<State>({
     setup: (w, h) => {
-      const drops: Drop[] = Array.from({ length: Math.round(w / 7) }, () => ({
+      const d = density();
+      const drops: Drop[] = Array.from({ length: Math.max(1, Math.round((w / 7) * d)) }, () => ({
         x: rand(0, w),
         y: rand(0, h),
         len: rand(12, 46),
@@ -39,7 +40,7 @@ export function NeonRain() {
         hue: HUES[(Math.random() * HUES.length) | 0],
         w: rand(0.6, 1.6),
       }));
-      const lights: Bokeh[] = Array.from({ length: 28 }, () => ({
+      const lights: Bokeh[] = Array.from({ length: Math.max(1, Math.round(28 * d)) }, () => ({
         x: rand(0, w),
         y: rand(h * 0.3, h),
         r: rand(20, 90),

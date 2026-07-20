@@ -1,7 +1,7 @@
 "use client";
 
 import { useCanvasScene } from "../useCanvasScene";
-import { fxLayerStyle, rand } from "./shared";
+import { fxLayerStyle, rand, density } from "./shared";
 
 interface Node {
   x: number;
@@ -19,7 +19,9 @@ interface State {
 export function WebStrands() {
   const ref = useCanvasScene<State>({
     setup: (w, h) => {
-      const nodes: Node[] = Array.from({ length: 60 }, () => ({
+      // O(n²) cross-link pass below — halving node count in low-perf mode
+      // quarters that cost, the biggest win of any effect here.
+      const nodes: Node[] = Array.from({ length: Math.max(1, Math.round(60 * density())) }, () => ({
         x: rand(0, w),
         y: rand(0, h),
         vx: rand(-12, 12),

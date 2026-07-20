@@ -11,7 +11,7 @@ import { THEME_LIST } from "@/lib/theme/registry";
 
 export function Navbar() {
   const { user, logout } = useAuth();
-  const { theme, lang, setTheme, setLang } = useSettings();
+  const { theme, lang, perf, setTheme, setLang, setPerf } = useSettings();
   const router = useRouter();
   const pathname = usePathname();
   const [userMenu, setUserMenu] = useState(false);
@@ -51,6 +51,17 @@ export function Navbar() {
 
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, [userMenu, settings, mobileMenu]);
+
+  // Escape ile açık olan menüyü kapat — klavye kullanıcısı fareyle backdrop'a
+  // tıklayamaz, bu olmadan menüyü kapatmanın tek yolu Tab ile başka yere gitmek olurdu.
+  useEffect(() => {
+    if (!userMenu && !settings && !mobileMenu) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") close();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [userMenu, settings, mobileMenu]);
 
   // Ekran mobil eşiğin (Tailwind `md`, 768px) üzerine büyüyünce mobil menüyü
@@ -109,7 +120,7 @@ export function Navbar() {
           {/* Nav links — masaüstünde görünür, mobilde hamburger menüsüne taşınır */}
           <div className="hidden md:flex" style={{ alignItems: "center", gap: 2, flex: 1 }}>
             {navLinks.map((l) => (
-              <Link key={l.href} href={l.href} style={{
+              <Link key={l.href} href={l.href} aria-current={isActive(l.href) ? "page" : undefined} style={{
                 padding: "5px 12px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 500,
                 textDecoration: "none", transition: "all 0.15s",
                 color: isActive(l.href) ? "var(--accent)" : "var(--text2)",
@@ -127,7 +138,8 @@ export function Navbar() {
             {/* Settings */}
             <div style={{ position: "relative" }}>
               <button onClick={() => { setSettings(!settings); setUserMenu(false); }}
-                      title={t.settings}
+                      title={t.settings} aria-label={t.settings}
+                      aria-haspopup="true" aria-expanded={settings}
                       style={{
                         background: settings ? "var(--accent-soft)" : "none",
                         border: `1px solid ${settings ? "var(--border2)" : "var(--border)"}`,
@@ -150,6 +162,7 @@ export function Navbar() {
                       const active = theme === th.id;
                       return (
                         <button key={th.id} onClick={() => setTheme(th.id)}
+                                aria-pressed={active}
                                 style={{
                                   display: "flex", alignItems: "center", gap: 10,
                                   padding: "8px 10px", borderRadius: 10, cursor: "pointer",
@@ -184,6 +197,7 @@ export function Navbar() {
                   <div style={{ display: "flex", gap: 6 }}>
                     {(["TR", "EN"] as const).map((l) => (
                       <button key={l} onClick={() => setLang(l)}
+                              aria-pressed={lang === l}
                               style={{
                                 flex: 1, padding: "6px", borderRadius: 8, fontSize: "0.82rem",
                                 cursor: "pointer", fontWeight: 600, transition: "all 0.15s",
@@ -195,6 +209,24 @@ export function Navbar() {
                       </button>
                     ))}
                   </div>
+
+                  <div className="section-label" style={{ margin: "16px 0 10px" }}>{t.perfLabel}</div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {(["high", "low"] as const).map((p) => (
+                      <button key={p} onClick={() => setPerf(p)}
+                              aria-pressed={perf === p}
+                              title={p === "low" ? t.perfLowDesc : t.perfHighDesc}
+                              style={{
+                                flex: 1, padding: "6px", borderRadius: 8, fontSize: "0.82rem",
+                                cursor: "pointer", fontWeight: 600, transition: "all 0.15s",
+                                border: `1px solid ${perf === p ? "var(--accent)" : "var(--border)"}`,
+                                background: perf === p ? "var(--accent-soft)" : "rgba(0,0,0,.2)",
+                                color: perf === p ? "var(--accent)" : "var(--text2)",
+                              }}>
+                        {p === "low" ? t.perfLow : t.perfHigh}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -203,13 +235,15 @@ export function Navbar() {
             {user ? (
               <div style={{ position: "relative" }}>
                 <button onClick={() => { setUserMenu(!userMenu); setSettings(false); }}
+                        aria-haspopup="true" aria-expanded={userMenu}
+                        aria-label={user.name || user.email}
                         style={{
                           display: "flex", alignItems: "center", gap: 8,
                           padding: "5px 12px", borderRadius: 8,
                           background: userMenu ? "var(--accent-soft)" : "var(--surface)",
                           border: `1px solid ${userMenu ? "var(--border2)" : "var(--border)"}`,
                           color: "var(--text)", cursor: "pointer", fontSize: "0.82rem",
-                          transition: "all 0.15s", maxWidth: 240,
+                          transition: "all 0.15s", maxWidth: 280,
                         }}>
                   <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
                                 background: "linear-gradient(135deg, var(--accent), var(--accent2))",
@@ -218,11 +252,11 @@ export function Navbar() {
                     {(user.name || user.email || "?")[0].toUpperCase()}
                   </div>
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                                 maxWidth: 100, color: "var(--text)" }}>
+                                 maxWidth: 100, flexShrink: 1, color: "var(--text)" }}>
                     {user.name || user.email}
                   </span>
                   <TierBadge tier={user.tier} lang={lang} />
-                  <span style={{ color: "var(--text3)", fontSize: "0.6rem" }}>▾</span>
+                  <span style={{ color: "var(--text3)", fontSize: "0.6rem", flexShrink: 0 }}>▾</span>
                 </button>
 
                 {userMenu && (
@@ -314,7 +348,7 @@ export function Navbar() {
               const active = theme === th.id;
               return (
                 <button key={th.id} onClick={() => setTheme(th.id)}
-                        title={t[th.labelKey]}
+                        title={t[th.labelKey]} aria-label={t[th.labelKey]} aria-pressed={active}
                         style={{
                           width: 34, height: 34, borderRadius: 8, cursor: "pointer",
                           display: "flex", alignItems: "center", justifyContent: "center",
@@ -330,6 +364,7 @@ export function Navbar() {
           <div style={{ display: "flex", gap: 6, padding: "0 4px 8px" }}>
             {(["TR", "EN"] as const).map((l) => (
               <button key={l} onClick={() => setLang(l)}
+                      aria-pressed={lang === l}
                       style={{
                         flex: 1, padding: "7px", borderRadius: 8, fontSize: "0.82rem",
                         cursor: "pointer", fontWeight: 600, transition: "all 0.15s",
@@ -338,6 +373,22 @@ export function Navbar() {
                         color: lang === l ? "var(--accent)" : "var(--text2)",
                       }}>
                 {l === "TR" ? "🇹🇷 TR" : "🇬🇧 EN"}
+              </button>
+            ))}
+          </div>
+          <div className="section-label" style={{ margin: "2px 4px 6px" }}>{t.perfLabel}</div>
+          <div style={{ display: "flex", gap: 6, padding: "0 4px 8px" }}>
+            {(["high", "low"] as const).map((p) => (
+              <button key={p} onClick={() => setPerf(p)}
+                      aria-pressed={perf === p}
+                      style={{
+                        flex: 1, padding: "7px", borderRadius: 8, fontSize: "0.82rem",
+                        cursor: "pointer", fontWeight: 600, transition: "all 0.15s",
+                        border: `1px solid ${perf === p ? "var(--accent)" : "var(--border)"}`,
+                        background: perf === p ? "var(--accent-soft)" : "rgba(0,0,0,.2)",
+                        color: perf === p ? "var(--accent)" : "var(--text2)",
+                      }}>
+                {p === "low" ? t.perfLow : t.perfHigh}
               </button>
             ))}
           </div>

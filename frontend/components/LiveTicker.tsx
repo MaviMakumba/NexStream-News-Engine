@@ -12,6 +12,7 @@ export function LiveTicker() {
   const t = UI[lang];
   const { articles, status } = useLiveFeed();
   const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
   const lastIdRef = useRef<number | null>(null);
 
   // Yeni haber gelince ticker en başa (en yeniye) döner.
@@ -23,11 +24,13 @@ export function LiveTicker() {
     }
   }, [articles]);
 
+  // WCAG 2.2.2 (Pause, Stop, Hide): 5sn'de bir kendiliğinden değişen içerik
+  // hover veya klavye focus'unda durur — okumaya çalışan kullanıcı yarıda kesilmesin.
   useEffect(() => {
-    if (articles.length < 2) return;
+    if (articles.length < 2 || paused) return;
     const id = setInterval(() => setIndex((i) => (i + 1) % articles.length), ROTATE_MS);
     return () => clearInterval(id);
-  }, [articles.length]);
+  }, [articles.length, paused]);
 
   const dotColor =
     status === "live" ? "var(--pos)" : status === "connecting" ? "var(--text3)" : "var(--neg)";
@@ -36,11 +39,16 @@ export function LiveTicker() {
   const current = articles[index];
 
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 12,
-      padding: "8px 20px", borderBottom: "1px solid var(--border)",
-      background: "var(--surface)", overflow: "hidden",
-    }}>
+    <div
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "8px 20px", borderBottom: "1px solid var(--border)",
+        background: "var(--surface)", overflow: "hidden",
+      }}>
       <span style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
         <span style={{
           width: 7, height: 7, borderRadius: "50%", background: dotColor,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCanvasScene } from "../useCanvasScene";
-import { fxLayerStyle } from "./shared";
+import { fxLayerStyle, density } from "./shared";
 
 const GLYPHS = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈ0123456789:.=*+-<>".split("");
 
@@ -13,6 +13,8 @@ interface Column {
 
 interface State {
   fontSize: number;
+  /** Column x-spacing — widens in low-perf mode so fewer columns still span full width. */
+  spacing: number;
   cols: Column[];
 }
 
@@ -21,13 +23,14 @@ export function MatrixRain() {
   const ref = useCanvasScene<State>({
     setup: (w) => {
       const fontSize = 16;
-      const count = Math.ceil(w / fontSize);
+      const count = Math.max(1, Math.ceil((w / fontSize) * density()));
+      const spacing = w / count;
       const cols: Column[] = Array.from({ length: count }, () => ({
         y: Math.random() * -60,
         speed: 6 + Math.random() * 10,
         glyphs: Array.from({ length: 30 }, () => GLYPHS[(Math.random() * GLYPHS.length) | 0]),
       }));
-      return { fontSize, cols };
+      return { fontSize, spacing, cols };
     },
     draw: ({ ctx, width, height, dt }, s) => {
       // Trail fade — translucent black over the previous frame.
@@ -40,7 +43,7 @@ export function MatrixRain() {
         const col = s.cols[i];
         col.y += col.speed * dt;
         const headRow = Math.floor(col.y);
-        const x = i * s.fontSize;
+        const x = i * s.spacing;
         // randomly mutate a glyph so the stream shimmers
         if (Math.random() < 0.04) col.glyphs[headRow % col.glyphs.length] = GLYPHS[(Math.random() * GLYPHS.length) | 0];
 

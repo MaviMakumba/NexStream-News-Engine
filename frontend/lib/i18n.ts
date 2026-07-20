@@ -26,6 +26,9 @@ export const UI: Record<Lang, Record<string, string>> = {
     dashboard: "Haberler", search: "Arama", admin: "Yönetim", account: "Hesabım",
     login: "Giriş Yap", register: "Kayıt Ol", logout: "Çıkış",
     settings: "Ayarlar", theme: "Tema", language: "Dil", menu: "Menü",
+    perfLabel: "Performans", perfLow: "Düşük", perfHigh: "Yüksek",
+    perfLowDesc: "Tema animasyonlarında daha az parçacık — düşük donanımda daha akıcı",
+    perfHighDesc: "Tema animasyonları tam yoğunlukta",
 
     // ── Theme names + moods (registry referenced) ──
     matrix: "Matrix", matrixTag: "Dijital Yağmur",
@@ -55,7 +58,7 @@ export const UI: Record<Lang, Record<string, string>> = {
 
     // ── Search ──
     searchPlaceholder: "bitcoin, deprem, yapay zeka…",
-    searchBtn: "Ara", searchHistory: "Son aramalar",
+    searchBtn: "Ara", searchHistory: "Son aramalar", removeFromHistory: "Geçmişten kaldır",
     noResults: "için sonuç bulunamadı",
     semanticSearch: "Semantik Arama",
     semanticDesc: "Kelime tam eşleşmese de anlamsal olarak yakın haberler bulunur.",
@@ -172,6 +175,9 @@ export const UI: Record<Lang, Record<string, string>> = {
     dashboard: "News", search: "Search", admin: "Admin", account: "Account",
     login: "Sign In", register: "Register", logout: "Log Out",
     settings: "Settings", theme: "Theme", language: "Language", menu: "Menu",
+    perfLabel: "Performance", perfLow: "Low", perfHigh: "High",
+    perfLowDesc: "Fewer particles in theme animations — smoother on low-end hardware",
+    perfHighDesc: "Theme animations run at full density",
 
     // ── Theme names + moods ──
     matrix: "Matrix", matrixTag: "Digital Rain",
@@ -201,7 +207,7 @@ export const UI: Record<Lang, Record<string, string>> = {
 
     // ── Search ──
     searchPlaceholder: "bitcoin, earthquake, AI…",
-    searchBtn: "Search", searchHistory: "Recent searches",
+    searchBtn: "Search", searchHistory: "Recent searches", removeFromHistory: "Remove from history",
     noResults: "no results for",
     semanticSearch: "Semantic Search",
     semanticDesc: "Finds semantically similar articles even without exact keyword matches.",

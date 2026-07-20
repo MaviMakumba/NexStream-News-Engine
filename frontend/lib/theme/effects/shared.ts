@@ -17,3 +17,14 @@ export const fxLayerStyle: CSSProperties = {
 export function rand(min: number, max: number): number {
   return min + Math.random() * (max - min);
 }
+
+/**
+ * Particle-count multiplier for the active performance profile
+ * (`<html data-perf="low">`, set from the settings panel). Effects multiply
+ * their column/star/mote counts by this so "low" halves particle density
+ * on low-end devices instead of running the full-detail scene.
+ */
+export function density(): number {
+  if (typeof document === "undefined") return 1;
+  return document.documentElement.dataset.perf === "low" ? 0.5 : 1;
+}

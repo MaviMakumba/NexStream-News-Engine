@@ -1,7 +1,7 @@
 "use client";
 
 import { useCanvasScene } from "../useCanvasScene";
-import { fxLayerStyle, rand } from "./shared";
+import { fxLayerStyle, rand, density } from "./shared";
 
 interface Grain {
   x: number;
@@ -21,7 +21,7 @@ interface State {
 export function SandStorm() {
   const ref = useCanvasScene<State>({
     setup: (w, h) => {
-      const grains: Grain[] = Array.from({ length: Math.round(w / 3) }, () => ({
+      const grains: Grain[] = Array.from({ length: Math.max(1, Math.round((w / 3) * density())) }, () => ({
         x: rand(0, w),
         y: rand(0, h),
         r: rand(0.4, 2.0),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCanvasScene } from "../useCanvasScene";
-import { fxLayerStyle, rand } from "./shared";
+import { fxLayerStyle, rand, density } from "./shared";
 
 interface Star {
   x: number;
@@ -20,7 +20,7 @@ interface State {
 export function Starfield() {
   const ref = useCanvasScene<State>({
     setup: (w, h) => {
-      const stars: Star[] = Array.from({ length: 520 }, () => {
+      const stars: Star[] = Array.from({ length: Math.max(1, Math.round(520 * density())) }, () => {
         const z = rand(0, w);
         return { x: rand(-w, w), y: rand(-h, h), z, pz: z };
       });

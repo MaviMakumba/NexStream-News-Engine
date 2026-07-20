@@ -95,7 +95,10 @@ export default function LandingPage() {
           display: "flex", justifyContent: "center", gap: 48, marginTop: 64, flexWrap: "wrap",
         }}>
           {stats.map((s) => (
-            <div key={s.label} style={{ textAlign: "center" }}>
+            // Sabit minWidth: TR/EN etiket uzunlukları farklı (örn. "Haber İndekslendi"
+            // vs "Articles Indexed") — genişlik içeriğe göre belirlenirse dil değişince
+            // her sütun farklı boy alır ve tüm satır kayar. Her ikisi de bu genişliğe sığar.
+            <div key={s.label} style={{ textAlign: "center", minWidth: 160 }}>
               <div className="gradient-text font-display" style={{ fontSize: "1.9rem", fontWeight: 800, lineHeight: 1 }}>
                 {s.value}
               </div>
