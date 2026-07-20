@@ -1,16 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useLiveFeed } from "@/lib/useLiveFeed";
 import { useSettings } from "@/lib/settings-context";
+import { useAuth } from "@/lib/auth-context";
 import { UI } from "@/lib/i18n";
 
 const ROTATE_MS = 5000;
 
 export function LiveTicker() {
   const { lang } = useSettings();
+  const { user } = useAuth();
   const t = UI[lang];
-  const { articles, status } = useLiveFeed();
+  const isPro = user?.tier === "pro" || user?.tier === "enterprise";
+  const { articles, status } = useLiveFeed(isPro);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const lastIdRef = useRef<number | null>(null);
@@ -37,6 +41,30 @@ export function LiveTicker() {
   const statusLabel =
     status === "live" ? t.liveOn : status === "connecting" ? t.liveConnecting : t.liveOff;
   const current = articles[index];
+
+  // Free tier: hiç bağlanmayı denemeyiz (bkz. useLiveFeed enabled param) —
+  // sonsuz reconnect döngüsü yerine doğrudan yükseltme çağrısı gösteririz.
+  if (status === "locked") {
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "8px 20px", borderBottom: "1px solid var(--border)",
+        background: "var(--surface)",
+      }}>
+        <span style={{ fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.08em",
+                       color: "var(--text3)", textTransform: "uppercase", flexShrink: 0 }}>
+          ◆ {t.liveOn}
+        </span>
+        <span style={{ fontSize: "0.82rem", color: "var(--text3)", flex: 1 }}>
+          {t.liveLocked}
+        </span>
+        <Link href="/account" className="btn-secondary"
+              style={{ fontSize: "0.72rem", padding: "4px 12px", flexShrink: 0 }}>
+          {t.liveUpgrade}
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -51,7 +51,9 @@ export const UI: Record<Lang, Record<string, string>> = {
     // ── Live ticker (WebSocket) ──
     liveOn: "Canlı", liveConnecting: "Bağlanıyor…", liveOff: "Bağlantı kesildi",
     liveWaiting: "Yeni haberler burada anında görünecek.",
+    liveLocked: "Canlı haber akışı Pro plan özelliği.", liveUpgrade: "Yükselt",
     related: "İlgili haberler", hideRelated: "Gizle",
+    relatedLocked: "İlişki grafı Pro plan özelliği.",
     loadingRelated: "Yükleniyor…", noRelated: "İlgili haber bulunamadı.",
     relatedError: "İlgili haberler yüklenemedi.",
     goToArticle: "Habere git →",
@@ -63,6 +65,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     semanticSearch: "Semantik Arama",
     semanticDesc: "Kelime tam eşleşmese de anlamsal olarak yakın haberler bulunur.",
     matchRate: "eşleşme", searchFailed: "Arama başarısız.",
+    searchResultCapHint: "Ücretsiz planda sonuçlar 10 ile sınırlıdır — daha fazlası için Pro'ya geç.",
 
     // ── Auth ──
     loginTitle: "Tekrar Hoş Geldiniz", loginSub: "Hesabınıza giriş yapın",
@@ -146,6 +149,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     adminAsUser: "Admin oturumuyla görüntülüyorsunuz — anahtar gerekmez.",
     adminKey: "Admin API Anahtarı", dayRange: "Gün Aralığı", dayUnit: "gün",
     show: "Göster", loadingShort: "Yükleniyor…", accessDenied: "Erişim reddedildi.",
+    accessDeniedDesc: "Bu sayfayı görüntülemek için yönetici veya moderatör yetkisi gerekir.",
     totalReq: "Toplam İstek", uniqueEndpoint: "Benzersiz Endpoint", avgResp: "Ort. Yanıt Süresi",
     colUserId: "User ID", colEndpoint: "Endpoint", colReq: "İstek", colAvgMs: "Ort. ms",
     noRecords: "Kayıt bulunamadı.", anon: "anonim",
@@ -200,7 +204,9 @@ export const UI: Record<Lang, Record<string, string>> = {
     // ── Live ticker (WebSocket) ──
     liveOn: "Live", liveConnecting: "Connecting…", liveOff: "Disconnected",
     liveWaiting: "New articles will appear here instantly.",
+    liveLocked: "Live news stream is a Pro plan feature.", liveUpgrade: "Upgrade",
     related: "Related articles", hideRelated: "Hide",
+    relatedLocked: "Relation graph is a Pro plan feature.",
     loadingRelated: "Loading…", noRelated: "No related articles found.",
     relatedError: "Failed to load related articles.",
     goToArticle: "Read article →",
@@ -212,6 +218,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     semanticSearch: "Semantic Search",
     semanticDesc: "Finds semantically similar articles even without exact keyword matches.",
     matchRate: "match", searchFailed: "Search failed.",
+    searchResultCapHint: "Free plan is limited to 10 results — go Pro for more.",
 
     // ── Auth ──
     loginTitle: "Welcome Back", loginSub: "Sign in to your account",
@@ -295,6 +302,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     adminAsUser: "Viewing with your admin session — no key needed.",
     adminKey: "Admin API Key", dayRange: "Day Range", dayUnit: "days",
     show: "Show", loadingShort: "Loading…", accessDenied: "Access denied.",
+    accessDeniedDesc: "You need admin or moderator privileges to view this page.",
     totalReq: "Total Requests", uniqueEndpoint: "Unique Endpoints", avgResp: "Avg Response Time",
     colUserId: "User ID", colEndpoint: "Endpoint", colReq: "Requests", colAvgMs: "Avg ms",
     noRecords: "No records found.", anon: "anonymous",

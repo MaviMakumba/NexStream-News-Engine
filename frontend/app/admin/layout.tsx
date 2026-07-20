@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
+import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/settings-context";
 import { UI } from "@/lib/i18n";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user, isLoading } = useAuth();
   const { lang } = useSettings();
   const t = UI[lang];
 
@@ -16,6 +18,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: "/admin/usage",    icon: "◈", label: t.usage },
     { href: "/admin/sponsors", icon: "⬡", label: t.sponsors },
   ];
+
+  // Giriş yapmış ama moderator/admin OLMAYAN kullanıcıya "API anahtarı gir"
+  // demek yanlış (anahtarı yok, olmamalı da) — açık bir 403 göster. API key
+  // girişi sadece OTURUMSUZ (anonim/makine) erişim için sayfa içinde kalır.
+  const forbidden = !isLoading && Boolean(user) && !user?.is_moderator;
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -29,6 +36,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <p style={{ fontSize: "0.84rem", color: "var(--text3)" }}>{t.adminSub}</p>
         </div>
 
+        {forbidden ? (
+          <div className="card" style={{ textAlign: "center", padding: "56px 24px" }}>
+            <div style={{ fontSize: "2.4rem", marginBottom: 14, color: "var(--neg)" }}>⛔</div>
+            <h2 style={{ fontSize: "1.15rem", fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>
+              403 — {t.accessDenied}
+            </h2>
+            <p style={{ fontSize: "0.86rem", color: "var(--text3)", marginBottom: 20 }}>
+              {t.accessDeniedDesc}
+            </p>
+            <Link href="/dashboard" className="btn-secondary" style={{ justifyContent: "center" }}>
+              {t.dashboard}
+            </Link>
+          </div>
+        ) : (
+        <>
         {/* Tabs */}
         <div style={{ display: "flex", gap: 6, marginBottom: 28, padding: 4,
                       background: "var(--surface)", border: "1px solid var(--border)",
@@ -53,6 +75,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
 
         {children}
+        </>
+        )}
       </div>
     </div>
   );
