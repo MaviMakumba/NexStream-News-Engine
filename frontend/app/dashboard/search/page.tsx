@@ -79,9 +79,9 @@ export default function SearchPage() {
 
       {/* Search form */}
       <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }}
-            style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
         <input value={query} onChange={(e) => setQuery(e.target.value)}
-               className="input" style={{ flex: 1, fontSize: "0.9rem" }}
+               className="input" style={{ flex: "1 1 180px", fontSize: "0.9rem", minWidth: 0 }}
                placeholder={t.searchPlaceholder} autoFocus />
         <select value={nResults} onChange={(e) => setNResults(Number(e.target.value))}
                 className="input" style={{ width: 72, fontSize: "0.84rem" }}>
@@ -104,6 +104,7 @@ export default function SearchPage() {
                 {h}
               </button>
               <button onClick={() => removeHistory(h)}
+                      aria-label={`${t.removeFromHistory}: ${h}`}
                       style={{
                         background: "var(--surface)", border: "1px solid var(--border)",
                         borderLeft: "none", borderRadius: "0 9999px 9999px 0",

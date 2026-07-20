@@ -130,7 +130,9 @@ export default function AdminSponsorsPage() {
       )}
 
       {loaded && (
-        <div style={{ display: "grid", gridTemplateColumns: canManage ? "1fr 1fr" : "1fr", gap: 20 }}>
+        <div style={{ display: "grid",
+                      gridTemplateColumns: canManage ? "repeat(auto-fit, minmax(280px, 1fr))" : "1fr",
+                      gap: 20 }}>
 
           {/* Sponsor list */}
           <div>
@@ -154,7 +156,8 @@ export default function AdminSponsorsPage() {
                       {activeSponsor.message}
                     </p>
                     <a href={activeSponsor.url} target="_blank" rel="noopener noreferrer"
-                       style={{ fontSize: "0.78rem", color: "var(--accent)", textDecoration: "none" }}>
+                       style={{ fontSize: "0.78rem", color: "var(--accent)", textDecoration: "none",
+                                wordBreak: "break-all" }}>
                       {activeSponsor.url}
                     </a>
                     <div style={{ fontSize: "0.75rem", color: "var(--text3)", marginTop: 6 }}>
@@ -233,7 +236,7 @@ export default function AdminSponsorsPage() {
                               className="input" style={{ resize: "none", fontFamily: "inherit" }}
                               rows={3} placeholder={t.sponsorMsgPlaceholder} required />
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
                     <div>
                       <label className="label">{t.startLabel}</label>
                       <input type="date" value={activeFrom} onChange={(e) => setActiveFrom(e.target.value)}

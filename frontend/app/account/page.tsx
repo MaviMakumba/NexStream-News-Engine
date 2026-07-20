@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/settings-context";
 import { Navbar } from "@/components/Navbar";
 import { TierBadge } from "@/components/TierBadge";
+import { AuthLoadingScreen } from "@/components/AuthLoadingScreen";
 import {
   BASE, createCheckout, devDowngrade, fetchBillingConfig, fetchMyUsage,
   generateApiKey, getBillingPortal, revokeApiKey,
@@ -45,7 +46,7 @@ export default function AccountPage() {
     fetchBillingConfig().then(setBilling).catch(() => {});
   }, [loadUsage]);
 
-  if (isLoading) return null;
+  if (isLoading) return <AuthLoadingScreen />;
   if (!user) return null;
 
   const info = TIER_DETAILS[lang][user.tier] ?? TIER_DETAILS[lang].free;
@@ -181,7 +182,7 @@ export default function AccountPage() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, paddingTop: 20,
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12, paddingTop: 20,
                         borderTop: "1px solid var(--border)" }}>
             <div>
               <div className="section-label" style={{ marginBottom: 6 }}>{t.planLabel}</div>
@@ -213,7 +214,7 @@ export default function AccountPage() {
               ◈ {t.usageTitle}
             </h2>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginBottom: 14 }}>
               {[
                 { label: t.usedToday,       value: usage.used_today.toLocaleString() },
                 { label: t.remainingToday,  value: usage.remaining_today == null ? "∞" : usage.remaining_today.toLocaleString() },

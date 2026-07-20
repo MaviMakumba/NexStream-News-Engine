@@ -12,19 +12,24 @@ const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffec
 /** Re-exported for back-compat with existing imports. */
 export type Theme = ThemeId;
 export type Lang = "TR" | "EN";
+export type Perf = "low" | "high";
 
 interface SettingsCtx {
   theme: Theme;
   lang: Lang;
+  perf: Perf;
   setTheme: (t: Theme) => void;
   setLang: (l: Lang) => void;
+  setPerf: (p: Perf) => void;
 }
 
 const SettingsContext = createContext<SettingsCtx>({
   theme: DEFAULT_THEME,
   lang: "TR",
+  perf: "high",
   setTheme: () => {},
   setLang: () => {},
+  setPerf: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -34,20 +39,30 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   // erkenden düzeltiyor, burası React state'ini/canvas efektini eşitler).
   const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
   const [lang, setLangState] = useState<Lang>("TR");
+  const [perf, setPerfState] = useState<Perf>("high");
   const [flash, setFlash] = useState<{ color: string; key: number } | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useIsomorphicLayoutEffect(() => {
     const stored = localStorage.getItem("nxt_theme");
     const l = localStorage.getItem("nxt_lang") as Lang | null;
+    const p = localStorage.getItem("nxt_perf") as Perf | null;
     if (isThemeId(stored)) setThemeState(stored);
     if (l === "TR" || l === "EN") setLangState(l);
+    if (p === "low" || p === "high") setPerfState(p);
   }, []);
 
   // Apply the palette to <html> so :root CSS vars + canvas readers stay in sync.
   useIsomorphicLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  // Canvas effects read data-perf synchronously in their setup() (see
+  // lib/theme/effects/shared.ts::density) — this must land before that
+  // regular effect runs, which a layout effect guarantees (see ThemeBackground).
+  useIsomorphicLayoutEffect(() => {
+    document.documentElement.dataset.perf = perf;
+  }, [perf]);
 
   const setTheme = (t: Theme) => {
     if (t === theme) return;
@@ -64,9 +79,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setLangState(l);
   };
 
+  const setPerf = (p: Perf) => {
+    localStorage.setItem("nxt_perf", p);
+    setPerfState(p);
+  };
+
   return (
-    <SettingsContext.Provider value={{ theme, lang, setTheme, setLang }}>
-      <ThemeBackground theme={theme} />
+    <SettingsContext.Provider value={{ theme, lang, perf, setTheme, setLang, setPerf }}>
+      <ThemeBackground theme={theme} perf={perf} />
       <div className="app-shell">{children}</div>
       {flash && (
         <div

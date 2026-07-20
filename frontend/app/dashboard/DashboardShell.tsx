@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Navbar } from "@/components/Navbar";
 import { LiveTicker } from "@/components/LiveTicker";
+import { AuthLoadingScreen } from "@/components/AuthLoadingScreen";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -15,18 +16,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     if (!isLoading && !user) router.replace("/auth/login");
   }, [isLoading, user]); // intentionally omit router — stable reference
 
-  if (isLoading) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-          <div className="gradient-text" style={{ fontSize: "1.4rem", fontWeight: 800 }}>NexStream</div>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)",
-                        animation: "glow-pulse 1.5s ease-in-out infinite" }} />
-        </div>
-      </div>
-    );
-  }
-
+  if (isLoading) return <AuthLoadingScreen />;
   if (!user) return null;
 
   return (

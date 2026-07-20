@@ -1,7 +1,7 @@
 "use client";
 
 import { useCanvasScene } from "../useCanvasScene";
-import { fxLayerStyle, rand } from "./shared";
+import { fxLayerStyle, rand, density } from "./shared";
 
 interface Ember {
   x: number;
@@ -21,7 +21,7 @@ interface State {
 export function EmberHaze() {
   const ref = useCanvasScene<State>({
     setup: (w, h) => {
-      const embers: Ember[] = Array.from({ length: 90 }, () => ({
+      const embers: Ember[] = Array.from({ length: Math.max(1, Math.round(90 * density())) }, () => ({
         x: rand(0, w),
         y: rand(0, h),
         vy: rand(-60, -22),

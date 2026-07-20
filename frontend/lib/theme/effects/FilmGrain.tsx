@@ -1,7 +1,7 @@
 "use client";
 
 import { useCanvasScene } from "../useCanvasScene";
-import { fxLayerStyle, rand } from "./shared";
+import { fxLayerStyle, rand, density } from "./shared";
 
 interface Mote {
   x: number;
@@ -22,10 +22,13 @@ export function FilmGrain() {
   const ref = useCanvasScene<State>({
     setup: (w, h) => {
       // Low-res noise tile, regenerated each frame and scaled up cheaply.
+      // Low-perf mode halves the tile resolution too — the per-frame
+      // putImageData() is the single most expensive part of this effect.
+      const d = density();
       const noise = document.createElement("canvas");
-      noise.width = 160;
-      noise.height = 90;
-      const motes: Mote[] = Array.from({ length: 26 }, () => ({
+      noise.width = Math.round(160 * d);
+      noise.height = Math.round(90 * d);
+      const motes: Mote[] = Array.from({ length: Math.max(1, Math.round(26 * d)) }, () => ({
         x: rand(0, w),
         y: rand(0, h),
         r: rand(0.5, 2.2),

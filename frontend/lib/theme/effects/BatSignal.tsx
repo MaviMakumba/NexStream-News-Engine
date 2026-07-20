@@ -1,7 +1,7 @@
 "use client";
 
 import { useCanvasScene } from "../useCanvasScene";
-import { fxLayerStyle, rand } from "./shared";
+import { fxLayerStyle, rand, density } from "./shared";
 
 interface Drop {
   x: number;
@@ -18,7 +18,7 @@ interface State {
 export function BatSignal() {
   const ref = useCanvasScene<State>({
     setup: (w, h) => {
-      const drops: Drop[] = Array.from({ length: Math.round(w / 10) }, () => ({
+      const drops: Drop[] = Array.from({ length: Math.max(1, Math.round((w / 10) * density())) }, () => ({
         x: rand(0, w),
         y: rand(0, h),
         len: rand(10, 26),
