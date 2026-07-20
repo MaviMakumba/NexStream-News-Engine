@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Navbar } from "@/components/Navbar";
+import { LiveTicker } from "@/components/LiveTicker";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -31,6 +32,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ minHeight: "100vh" }}>
       <Navbar />
+      <LiveTicker />
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "28px 20px" }}>
         {children}
       </main>

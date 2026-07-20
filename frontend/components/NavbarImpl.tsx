@@ -17,9 +17,41 @@ export function Navbar() {
   const [userMenu, setUserMenu] = useState(false);
   const [settings, setSettings] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [visible, setVisible] = useState(true);
   const t = UI[lang];
 
   const close = () => { setUserMenu(false); setSettings(false); setMobileMenu(false); };
+
+  // Aşağı kaydırınca navbar gizlenir, yukarı doğru en ufak bir kaydırmada
+  // (veya sayfa başına yakınken) hemen geri gelir — sayfanın altındayken tema
+  // değiştirmek için en tepeye kadar geri dönmeye gerek kalmasın diye.
+  useEffect(() => {
+    let lastY = window.scrollY;
+    let ticking = false;
+
+    function update() {
+      const y = window.scrollY;
+      if (userMenu || settings || mobileMenu || y < 80) {
+        setVisible(true);
+      } else if (y > lastY + 4) {
+        setVisible(false);
+      } else if (y < lastY - 4) {
+        setVisible(true);
+      }
+      lastY = y;
+      ticking = false;
+    }
+
+    function onScroll() {
+      if (!ticking) {
+        requestAnimationFrame(update);
+        ticking = true;
+      }
+    }
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [userMenu, settings, mobileMenu]);
 
   // Ekran mobil eşiğin (Tailwind `md`, 768px) üzerine büyüyünce mobil menüyü
   // otomatik kapat — yoksa panel görsel olarak gizlenir ama state açık kalır
@@ -59,6 +91,8 @@ export function Navbar() {
         backdropFilter: "blur(16px)",
         WebkitBackdropFilter: "blur(16px)",
         position: "sticky", top: 0, zIndex: 40,
+        transform: visible ? "translateY(0)" : "translateY(-100%)",
+        transition: "transform 0.25s ease",
       }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 20px",
                       display: "flex", alignItems: "center", justifyContent: "space-between",
