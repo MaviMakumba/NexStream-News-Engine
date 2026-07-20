@@ -44,6 +44,10 @@ export const UI: Record<Lang, Record<string, string>> = {
     qualityMed: "Orta+ (≥0.4)", qualityHigh: "Yüksek (≥0.6)",
     loadMore: "Daha fazla", loading: "Yükleniyor…",
     noTrending: "Gündem verisi yok",
+
+    // ── Live ticker (WebSocket) ──
+    liveOn: "Canlı", liveConnecting: "Bağlanıyor…", liveOff: "Bağlantı kesildi",
+    liveWaiting: "Yeni haberler burada anında görünecek.",
     related: "İlgili haberler", hideRelated: "Gizle",
     loadingRelated: "Yükleniyor…", noRelated: "İlgili haber bulunamadı.",
     relatedError: "İlgili haberler yüklenemedi.",
@@ -186,6 +190,10 @@ export const UI: Record<Lang, Record<string, string>> = {
     qualityMed: "Medium+ (≥0.4)", qualityHigh: "High (≥0.6)",
     loadMore: "Load more", loading: "Loading…",
     noTrending: "No trending data",
+
+    // ── Live ticker (WebSocket) ──
+    liveOn: "Live", liveConnecting: "Connecting…", liveOff: "Disconnected",
+    liveWaiting: "New articles will appear here instantly.",
     related: "Related articles", hideRelated: "Hide",
     loadingRelated: "Loading…", noRelated: "No related articles found.",
     relatedError: "Failed to load related articles.",

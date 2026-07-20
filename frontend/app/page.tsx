@@ -27,11 +27,12 @@ export default function LandingPage() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", overflowX: "hidden" }}>
+    <div style={{ minHeight: "100vh" }}>
       <Navbar />
 
-      {/* Hero */}
-      <section style={{ position: "relative", padding: "100px 20px 80px", textAlign: "center" }}>
+      {/* Hero — overflow burada (bölüm seviyesinde) clip'lenir; kökte overflowX:hidden
+          navbar'ın sticky/scroll-hide davranışını kırıyordu (scroll container'a çeviriyordu). */}
+      <section style={{ position: "relative", padding: "100px 20px 80px", textAlign: "center", overflow: "hidden" }}>
         <div className="grid-bg" style={{
           position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
           maskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent)",
@@ -162,9 +163,9 @@ export default function LandingPage() {
                  }}>
               {p.highlight && (
                 <div style={{ textAlign: "center", marginBottom: 12 }}>
-                  <span className="badge gradient-text" style={{
+                  <span className="badge" style={{
                     background: "var(--accent-soft)", borderColor: "var(--accent-line)",
-                    fontSize: "0.7rem", fontWeight: 700,
+                    color: "var(--accent)", fontSize: "0.7rem", fontWeight: 700,
                   }}>
                     ◈ {t.mostPopular}
                   </span>
