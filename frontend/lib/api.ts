@@ -28,6 +28,28 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * FastAPI'nin `detail` alanı her zaman string değildir — Pydantic doğrulama
+ * hatalarında (422) `[{type, loc, msg, ...}, ...]` dizisi döner. Bunu doğrudan
+ * `Error` mesajına vermek `String([{...}])` → "[object Object]" ile sonuçlanır
+ * (Array.prototype.toString her elemanı ToString'e çevirip virgülle birleştirir,
+ * objenin varsayılan toString'i de "[object Object]"tir). Her iki şekli de
+ * okunabilir bir stringe indirger.
+ */
+function extractErrorMessage(err: unknown, fallback: string): string {
+  const detail = (err as { detail?: unknown } | null)?.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail.map((e) => (typeof e === "string" ? e : (e as { msg?: string })?.msg)).filter(Boolean);
+    if (msgs.length) return msgs.join(" ");
+  }
+  if (detail && typeof detail === "object") {
+    const msg = (detail as { msg?: string }).msg;
+    if (msg) return msg;
+  }
+  return fallback;
+}
+
 /** Ortak fetch sarmalayıcı: `nxs_session` cookie'sini taşır, hata gövdesindeki `detail`'i Error'a çevirir. */
 async function req<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -37,7 +59,7 @@ async function req<T>(url: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(err.detail ?? `HTTP ${res.status}`, res.status);
+    throw new ApiError(extractErrorMessage(err, `HTTP ${res.status}`), res.status);
   }
   return res.json();
 }

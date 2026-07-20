@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { Article, RelatedArticle } from "@/lib/types";
 import { SentimentBadge } from "./SentimentBadge";
 import { fetchRelated } from "@/lib/api";
 import { useSettings } from "@/lib/settings-context";
+import { useAuth } from "@/lib/auth-context";
 import { TOPIC_LABELS, UI } from "@/lib/i18n";
 
 function relTime(iso: string, lang: "TR" | "EN") {
@@ -18,7 +20,9 @@ function relTime(iso: string, lang: "TR" | "EN") {
 
 export function NewsCard({ article }: { article: Article }) {
   const { lang } = useSettings();
+  const { user } = useAuth();
   const t = UI[lang];
+  const isPro = user?.tier === "pro" || user?.tier === "enterprise";
   const [expanded, setExpanded] = useState(false);
   const [related, setRelated] = useState<RelatedArticle[] | null>(null);
   const [loadingRelated, setLoadingRelated] = useState(false);
@@ -26,6 +30,9 @@ export function NewsCard({ article }: { article: Article }) {
 
   async function toggleRelated() {
     if (expanded) { setExpanded(false); return; }
+    // Free tier: /api/v1/news/{id}/related sunucuda 403 döner (Pro+ özelliği) —
+    // boşuna istek atmak yerine doğrudan yükseltme çağrısı gösteririz.
+    if (!isPro) { setExpanded(true); return; }
     if (related !== null) { setExpanded(true); return; }
     setLoadingRelated(true);
     setRelatedError(false);
@@ -129,7 +136,15 @@ export function NewsCard({ article }: { article: Article }) {
           ) : expanded ? (
             <><span style={{ color: "var(--accent)" }}>▲</span> {t.hideRelated}</>
           ) : (
-            <><span style={{ color: "var(--accent)" }}>↗</span> {t.related}</>
+            <>
+              <span style={{ color: "var(--accent)" }}>↗</span> {t.related}
+              {!isPro && (
+                <span className="badge" style={{ background: "var(--accent-soft)", color: "var(--accent)",
+                                                  borderColor: "var(--accent-line)", fontSize: "0.6rem" }}>
+                  PRO
+                </span>
+              )}
+            </>
           )}
         </button>
 
@@ -145,7 +160,17 @@ export function NewsCard({ article }: { article: Article }) {
       {/* Related */}
       {expanded && (
         <div style={{ marginTop: 12, paddingTop: 4 }}>
-          {relatedError && (
+          {!isPro && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                          background: "var(--accent-soft)", border: "1px solid var(--accent-line)",
+                          borderRadius: 10 }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--text2)", flex: 1 }}>{t.relatedLocked}</span>
+              <Link href="/account" className="btn-secondary" style={{ fontSize: "0.72rem", padding: "4px 12px" }}>
+                {t.liveUpgrade}
+              </Link>
+            </div>
+          )}
+          {isPro && relatedError && (
             <p style={{ fontSize: "0.8rem", color: "var(--neg)", padding: "8px 0" }}>
               ⚠ {t.relatedError}
             </p>

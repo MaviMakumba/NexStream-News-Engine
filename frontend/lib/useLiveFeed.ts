@@ -18,19 +18,28 @@ export interface LiveArticle {
   created_at: string | null;
 }
 
-export type LiveStatus = "connecting" | "live" | "disconnected";
+// "locked": Pro+ gerektiren özellik, ya çağıran taraf hiç bağlanmadı (enabled=false)
+// ya da sunucu 1008 (policy violation — tier yetersiz) ile reddetti. İkisinde de
+// sonsuz yeniden-bağlanma döngüsüne girmeyiz.
+export type LiveStatus = "connecting" | "live" | "disconnected" | "locked";
 
 const MAX_ITEMS = 8;
 const RECONNECT_DELAY_MS = 4000;
+const POLICY_VIOLATION_CLOSE_CODE = 1008;
 
-export function useLiveFeed() {
+/** @param enabled Pro+ olmayan kullanıcılar için false geçilip bağlantı hiç denenmemeli. */
+export function useLiveFeed(enabled: boolean = true) {
   const [articles, setArticles] = useState<LiveArticle[]>([]);
-  const [status, setStatus] = useState<LiveStatus>("connecting");
+  const [status, setStatus] = useState<LiveStatus>(enabled ? "connecting" : "locked");
   const wsRef = useRef<WebSocket | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
 
   useEffect(() => {
+    if (!enabled) {
+      setStatus("locked");
+      return;
+    }
     unmountedRef.current = false;
 
     function connect() {
@@ -54,8 +63,13 @@ export function useLiveFeed() {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (unmountedRef.current) return;
+        if (event.code === POLICY_VIOLATION_CLOSE_CODE) {
+          // Sunucu tier yetersiz dedi — tekrar denemenin anlamı yok.
+          setStatus("locked");
+          return;
+        }
         setStatus("disconnected");
         timerRef.current = setTimeout(connect, RECONNECT_DELAY_MS);
       };
@@ -70,7 +84,7 @@ export function useLiveFeed() {
       if (timerRef.current) clearTimeout(timerRef.current);
       wsRef.current?.close();
     };
-  }, []);
+  }, [enabled]);
 
   return { articles, status };
 }

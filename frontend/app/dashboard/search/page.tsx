@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSettings } from "@/lib/settings-context";
+import { useAuth } from "@/lib/auth-context";
 import { searchNews } from "@/lib/api";
 import type { SearchResult } from "@/lib/types";
 import { SentimentBadge } from "@/components/SentimentBadge";
@@ -26,9 +27,16 @@ function relTime(iso: string) {
   return `${Math.round(d / 86400)}g`;
 }
 
+// Free/Pro/Enterprise sonuç tavanı — bkz. backend TIER_SEARCH_RESULT_CAP
+// (src/domain/models/user.py). Free 10'un üzerini isterse sunucu sessizce
+// kırpar; burada bunu önceden açıklayan bir ipucu gösteriyoruz.
+const FREE_RESULT_CAP = 10;
+
 export default function SearchPage() {
   const { lang } = useSettings();
+  const { user } = useAuth();
   const t = UI[lang];
+  const isPro = user?.tier === "pro" || user?.tier === "enterprise";
   const [query,    setQuery]    = useState("");
   const [nResults, setNResults] = useState(10);
   const [results,  setResults]  = useState<SearchResult[]>([]);
@@ -92,6 +100,12 @@ export default function SearchPage() {
           {loading ? "…" : t.searchBtn}
         </button>
       </form>
+
+      {!isPro && nResults > FREE_RESULT_CAP && (
+        <p style={{ fontSize: "0.78rem", color: "var(--text3)", marginTop: -10, marginBottom: 16 }}>
+          {t.searchResultCapHint}
+        </p>
+      )}
 
       {/* History */}
       {history.length > 0 && (
