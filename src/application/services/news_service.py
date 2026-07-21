@@ -449,6 +449,17 @@ class NewsService:
     def list_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None, min_quality: Optional[float] = None) -> List[Article]:
         return self.repository.get_news_paginated(limit, before_id, source, sentiment, topic, min_quality)
 
+    def export_articles(
+        self, limit: int,
+        source: Optional[str] = None,
+        sentiment: Optional[str] = None,
+        topic: Optional[str] = None,
+        min_quality: Optional[float] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+    ) -> List[Article]:
+        return self.repository.get_articles_for_export(limit, source, sentiment, topic, min_quality, date_from, date_to)
+
     def reanalyze_missed(self, limit: int = 5) -> int:
         """Entity'si NULL kalmış haberleri tamamlar — worker her çevrim sonunda çağırır."""
         articles = self.repository.get_unanalyzed_articles(limit)

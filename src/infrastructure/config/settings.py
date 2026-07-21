@@ -107,6 +107,10 @@ class Settings(BaseSettings):
     db_retention_days: int = 0           # 0 = kapalı
     retention_hour_utc: int = 4          # newsletter'dan (05:00 UTC) önce çalışır
 
+    # ── Ham veri export (v1.16, Enterprise özelliği) ────────────────────────
+    # Tek istekte döndürülen üst satır sınırı — runaway sorgudan/yanıttan korur.
+    export_max_rows: int = 20000
+
     @property
     def admin_email_set(self) -> set[str]:
         """ADMIN_EMAILS değerini normalize edilmiş (küçük harf) set'e çevirir."""

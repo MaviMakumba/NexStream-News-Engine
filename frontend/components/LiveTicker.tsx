@@ -2,19 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useLiveFeed } from "@/lib/useLiveFeed";
+import { useLiveFeedContext } from "@/lib/live-feed-context";
 import { useSettings } from "@/lib/settings-context";
-import { useAuth } from "@/lib/auth-context";
 import { UI } from "@/lib/i18n";
 
 const ROTATE_MS = 5000;
 
 export function LiveTicker() {
   const { lang } = useSettings();
-  const { user } = useAuth();
   const t = UI[lang];
-  const isPro = user?.tier === "pro" || user?.tier === "enterprise";
-  const { articles, status } = useLiveFeed(isPro);
+  const { articles, status } = useLiveFeedContext();
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const lastIdRef = useRef<number | null>(null);

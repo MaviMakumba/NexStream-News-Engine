@@ -8,7 +8,7 @@ Yazma hataları rollback + log ile yutulur (pipeline tek kayıt için durmaz).
 import logging
 import re
 from datetime import datetime, timezone, timedelta
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from src.domain.ports.news_repository_port import NewsRepositoryPort
@@ -184,6 +184,39 @@ class NewsRepository(NewsRepositoryPort):
             q = q.filter(NewsORM.topic == topic)
         if min_quality is not None:
             q = q.filter(NewsORM.quality_score >= min_quality)
+        rows = q.order_by(NewsORM.id.desc()).limit(limit).all()
+        return [self._to_domain(row) for row in rows]
+
+    def get_articles_for_export(
+        self, limit: int,
+        source: Optional[str] = None,
+        sentiment: Optional[str] = None,
+        topic: Optional[str] = None,
+        min_quality: Optional[float] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+    ) -> List[Article]:
+        """Ham veri export için toplu çekim — sayfalama yok, `limit`'e kadar tüm eşleşmeler.
+
+        Tarih filtresi `published_at`e uygulanır, NULL ise `created_at`e düşer
+        (ChromaDB metadata'sındaki `published_at or created_at` fallback'iyle
+        aynı desen — v1.4 öncesi scrape'lerde published_at boş olabilir).
+        """
+        q = self.db.query(NewsORM)
+        if source:
+            q = q.filter(NewsORM.source == source)
+        if sentiment:
+            q = q.filter(NewsORM.sentiment_label.ilike(f"%{sentiment}%"))
+        if topic:
+            q = q.filter(NewsORM.topic == topic)
+        if min_quality is not None:
+            q = q.filter(NewsORM.quality_score >= min_quality)
+        if date_from is not None or date_to is not None:
+            effective_date = func.coalesce(NewsORM.published_at, NewsORM.created_at)
+            if date_from is not None:
+                q = q.filter(effective_date >= date_from)
+            if date_to is not None:
+                q = q.filter(effective_date <= date_to)
         rows = q.order_by(NewsORM.id.desc()).limit(limit).all()
         return [self._to_domain(row) for row in rows]
 

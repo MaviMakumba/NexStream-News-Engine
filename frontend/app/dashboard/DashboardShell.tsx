@@ -7,6 +7,7 @@ import { Navbar } from "@/components/Navbar";
 import { LiveTicker } from "@/components/LiveTicker";
 import { AuthLoadingScreen } from "@/components/AuthLoadingScreen";
 import { EmailVerifyBanner } from "@/components/EmailVerifyBanner";
+import { LiveFeedProvider } from "@/lib/live-feed-context";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -21,13 +22,15 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   if (!user) return null;
 
   return (
-    <div style={{ minHeight: "100vh" }}>
-      <Navbar />
-      <LiveTicker />
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "28px 20px" }}>
-        <EmailVerifyBanner />
-        {children}
-      </main>
-    </div>
+    <LiveFeedProvider>
+      <div style={{ minHeight: "100vh" }}>
+        <Navbar />
+        <LiveTicker />
+        <main style={{ maxWidth: 1280, margin: "0 auto", padding: "28px 20px" }}>
+          <EmailVerifyBanner />
+          {children}
+        </main>
+      </div>
+    </LiveFeedProvider>
   );
 }

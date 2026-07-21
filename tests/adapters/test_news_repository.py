@@ -208,6 +208,55 @@ def test_get_news_paginated_min_quality_filter():
     assert "u2" not in urls
 
 
+# ── get_articles_for_export (v1.16 — ham veri export) ──────────────────────
+
+def test_get_articles_for_export_date_range_filter():
+    db = make_session()
+    repo = NewsRepository(db)
+    repo.save_article(Article(title="eski", source="BBC", url="u_old", content="c",
+                               published_at=datetime(2026, 1, 1, tzinfo=timezone.utc)))
+    repo.save_article(Article(title="yeni", source="BBC", url="u_new", content="c",
+                               published_at=datetime(2026, 6, 1, tzinfo=timezone.utc)))
+
+    urls = {a.url for a in repo.get_articles_for_export(limit=10, date_from=datetime(2026, 3, 1, tzinfo=timezone.utc))}
+    assert "u_new" in urls
+    assert "u_old" not in urls
+
+
+def test_get_articles_for_export_falls_back_to_created_at_when_published_at_null():
+    """published_at NULL (v1.4 öncesi scrape) — effective tarih created_at'e düşmeli."""
+    db = make_session()
+    repo = NewsRepository(db)
+    repo.save_article(Article(title="published_at yok", source="BBC", url="u_null_pub", content="c"))
+
+    included = {a.url for a in repo.get_articles_for_export(limit=10, date_from=datetime(2000, 1, 1, tzinfo=timezone.utc))}
+    assert "u_null_pub" in included
+
+    excluded = {a.url for a in repo.get_articles_for_export(limit=10, date_from=datetime(2099, 1, 1, tzinfo=timezone.utc))}
+    assert "u_null_pub" not in excluded
+
+
+def test_get_articles_for_export_respects_limit():
+    db = make_session()
+    repo = NewsRepository(db)
+    for i in range(5):
+        repo.save_article(Article(title=f"h{i}", source="BBC", url=f"u{i}", content="c"))
+
+    assert len(repo.get_articles_for_export(limit=2)) == 2
+
+
+def test_get_articles_for_export_topic_and_sentiment_filters():
+    db = make_session()
+    repo = NewsRepository(db)
+    repo.save_article(Article(title="a", source="BBC", url="u_tech", content="c",
+                               topic="Technology", sentiment_label="Positive"))
+    repo.save_article(Article(title="b", source="BBC", url="u_sport", content="c",
+                               topic="Sports", sentiment_label="Negative"))
+
+    urls = {a.url for a in repo.get_articles_for_export(limit=10, topic="Technology", sentiment="Positive")}
+    assert urls == {"u_tech"}
+
+
 # ── save_article id propagation (regression: ChromaDB indexleme bug'ı) ────────
 
 def test_save_article_sets_id_on_domain_object():
