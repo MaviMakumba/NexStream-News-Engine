@@ -30,9 +30,11 @@ _PAYLOAD = {
 
 
 def test_related_endpoint_returns_payload(app_client):
+    """Güvenlik denetimi (v1.17): legacy /news/{id}/related da artık Pro+ ister
+    — /api/v1 ile aynı kilit, herhangi bir tier atlatma yolu kalmadı."""
     mock_service = MagicMock()
     mock_service.get_related.return_value = _PAYLOAD
-    _override(app_client, mock_service)
+    _override_pro(app_client, mock_service)
     try:
         r = app_client.get("/news/1/related")
     finally:
@@ -45,10 +47,33 @@ def test_related_endpoint_returns_payload(app_client):
     assert data["related"][0]["overlap"] == 1
 
 
+def test_related_endpoint_blocked_for_free_tier(app_client):
+    mock_service = MagicMock()
+    _override(app_client, mock_service)
+    free = User(id=1, email="free@test.com", password_hash="h", tier=UserTier.FREE)
+    app_client.app.dependency_overrides[check_tier_limit] = lambda: free
+    try:
+        r = app_client.get("/news/1/related")
+    finally:
+        _clear(app_client)
+    assert r.status_code == 403
+
+
+def test_related_endpoint_blocked_for_anonymous(app_client):
+    mock_service = MagicMock()
+    _override(app_client, mock_service)
+    app_client.app.dependency_overrides[check_tier_limit] = lambda: None
+    try:
+        r = app_client.get("/news/1/related")
+    finally:
+        _clear(app_client)
+    assert r.status_code == 403
+
+
 def test_related_endpoint_passes_limit(app_client):
     mock_service = MagicMock()
     mock_service.get_related.return_value = {"article_id": 1, "related": []}
-    _override(app_client, mock_service)
+    _override_pro(app_client, mock_service)
     try:
         app_client.get("/news/1/related?limit=8")
     finally:
@@ -60,7 +85,7 @@ def test_related_endpoint_passes_limit(app_client):
 def test_related_endpoint_default_limit(app_client):
     mock_service = MagicMock()
     mock_service.get_related.return_value = {"article_id": 5, "related": []}
-    _override(app_client, mock_service)
+    _override_pro(app_client, mock_service)
     try:
         app_client.get("/news/5/related")
     finally:

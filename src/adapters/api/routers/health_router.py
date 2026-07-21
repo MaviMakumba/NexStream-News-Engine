@@ -8,10 +8,11 @@ verebiliyor olmak, kısmi hizmetin sinyalidir).
 import logging
 import socket
 from typing import Optional
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from sqlalchemy import text
 from src.infrastructure.config.database import SessionLocal
 from src.infrastructure.config.settings import settings
+from src.adapters.api.limiter import limiter
 import chromadb
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,12 @@ def _check_chromadb() -> tuple[str, int]:
 
 
 @router.get("/health")
-def health_check():
+# Kimliksiz ve ucuz görünen bu endpoint her istekte Postgres + Kafka + ChromaDB'ye
+# GERÇEK bağlantı açıyor — güvenlik denetimi bunu bir amplifikasyon vektörü olarak
+# işaretledi (tek istek 3 backend'e yük bindiriyor). Docker healthcheck'i 10-30sn'de
+# bir çağırdığı için 60/dk bol bir tavan, flood'u ise kesiyor.
+@limiter.limit("60/minute")
+def health_check(request: Request):
     db_status              = _check_db()
     kafka_status           = _check_kafka()
     chroma_status, indexed = _check_chromadb()

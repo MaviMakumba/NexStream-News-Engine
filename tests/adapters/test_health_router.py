@@ -2,6 +2,18 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 
+def _fake_request():
+    """slowapi rate limit decorator'ı (v1.17 güvenlik denetimi) gerçek bir
+    starlette Request bekliyor — handler'lar TestClient yerine doğrudan
+    çağrıldığı için (TestClient Kafka loop'u kırıyor) minimal bir scope ile
+    sahte Request üretilir."""
+    from starlette.requests import Request
+    return Request({
+        "type": "http", "method": "GET", "path": "/health",
+        "headers": [], "query_string": b"", "client": ("127.0.0.1", 1234),
+    })
+
+
 # ── /health endpoint — handler direkt çağrılıyor (TestClient Kafka loop'u kırar) ──
 
 def test_health_returns_ok_when_all_services_up():
@@ -9,7 +21,7 @@ def test_health_returns_ok_when_all_services_up():
     with patch("src.adapters.api.routers.health_router._check_db", return_value="ok"), \
          patch("src.adapters.api.routers.health_router._check_kafka", return_value="ok"), \
          patch("src.adapters.api.routers.health_router._check_chromadb", return_value=("ok", 42)):
-        result = health_check()
+        result = health_check(_fake_request())
     assert result["status"] == "ok"
     assert result["db"] == "ok"
     assert result["kafka"] == "ok"
@@ -22,7 +34,7 @@ def test_health_returns_degraded_when_db_down():
     with patch("src.adapters.api.routers.health_router._check_db", return_value="error"), \
          patch("src.adapters.api.routers.health_router._check_kafka", return_value="ok"), \
          patch("src.adapters.api.routers.health_router._check_chromadb", return_value=("ok", 0)):
-        result = health_check()
+        result = health_check(_fake_request())
     assert result["status"] == "degraded"
     assert result["db"] == "error"
 
@@ -32,7 +44,7 @@ def test_health_returns_degraded_when_kafka_down():
     with patch("src.adapters.api.routers.health_router._check_db", return_value="ok"), \
          patch("src.adapters.api.routers.health_router._check_kafka", return_value="error"), \
          patch("src.adapters.api.routers.health_router._check_chromadb", return_value=("ok", 0)):
-        result = health_check()
+        result = health_check(_fake_request())
     assert result["status"] == "degraded"
     assert result["kafka"] == "error"
 
@@ -42,7 +54,7 @@ def test_health_returns_degraded_when_chromadb_down():
     with patch("src.adapters.api.routers.health_router._check_db", return_value="ok"), \
          patch("src.adapters.api.routers.health_router._check_kafka", return_value="ok"), \
          patch("src.adapters.api.routers.health_router._check_chromadb", return_value=("error", 0)):
-        result = health_check()
+        result = health_check(_fake_request())
     assert result["status"] == "degraded"
     assert result["chromadb"] == "error"
     assert result["indexed_articles"] == 0
@@ -53,7 +65,7 @@ def test_health_response_has_all_required_fields():
     with patch("src.adapters.api.routers.health_router._check_db", return_value="ok"), \
          patch("src.adapters.api.routers.health_router._check_kafka", return_value="ok"), \
          patch("src.adapters.api.routers.health_router._check_chromadb", return_value=("ok", 100)):
-        result = health_check()
+        result = health_check(_fake_request())
     assert set(result.keys()) == {"status", "db", "kafka", "chromadb", "indexed_articles"}
 
 

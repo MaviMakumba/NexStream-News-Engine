@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from src.infrastructure.config.database import get_db
 from src.infrastructure.config.settings import settings
+from src.adapters.api.auth import api_key_matches
 from src.adapters.repositories.user_repository import UserRepository
 from src.domain.models.user import User, UserRole, role_at_least, TIER_DAILY_LIMITS
 
@@ -112,7 +113,7 @@ def require_admin(
     Paylaşımlı anahtar makine-makine entegrasyonları için korunur (v1.9);
     insan kullanıcılar v1.11'den itibaren rol tabanlı yetkiyle girer.
     """
-    if x_api_key and x_api_key == settings.api_key:
+    if api_key_matches(x_api_key):
         return
     if user and has_admin_role(user):
         return
@@ -131,7 +132,7 @@ def require_moderator(
     require_admin'den farkı: moderator rolü de geçer. Rol değiştirme ve sponsor
     CRUD gibi yazma işlemleri ayrıca route düzeyinde require_admin ister.
     """
-    if x_api_key and x_api_key == settings.api_key:
+    if api_key_matches(x_api_key):
         return
     if user and has_moderator_role(user):
         return

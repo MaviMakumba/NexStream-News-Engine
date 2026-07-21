@@ -9,11 +9,16 @@ Kullanım:
     settings.groq_api_key
 """
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # Prod deploy'da docker-compose.prod.yml ENVIRONMENT=production set eder —
+    # dev'de varsayılan "development" kalır, aşağıdaki güvenlik guard'ı devre dışı.
+    environment: str = "development"
 
     # ── Database (PostgreSQL) ──────────────────────────────────────────────
     db_host: str = "localhost"
@@ -115,6 +120,34 @@ class Settings(BaseSettings):
     def admin_email_set(self) -> set[str]:
         """ADMIN_EMAILS değerini normalize edilmiş (küçük harf) set'e çevirir."""
         return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}
+
+    @model_validator(mode="after")
+    def _reject_unsafe_production_config(self) -> "Settings":
+        """`ENVIRONMENT=production` iken bilinen dev-only/zayıf değerlerle açılmayı reddeder.
+
+        Güvenlik denetiminde bulunan dört madde tek yerde toplandı: unutulmuş
+        varsayılan API_KEY, açık kalmış billing dev-mode simülasyonu, wildcard
+        CORS ve HTTP üzerinden gönderilen session cookie. Dev/test ortamında
+        `environment` varsayılanı "development" olduğu için bu kontrol hiç
+        çalışmaz — sadece prod compose'un açıkça set ettiği ortamda devrededir.
+        """
+        if self.environment != "production":
+            return self
+        problems = []
+        if self.api_key in ("", "dev-key-change-me"):
+            problems.append("API_KEY varsayılan/boş bırakılmış")
+        if self.billing_dev_mode:
+            problems.append("BILLING_DEV_MODE açık kalmış (ücretsiz sınırsız yükseltme)")
+        if self.cors_origins.strip() == "*":
+            problems.append("CORS_ORIGINS wildcard (*) — gerçek domain'e sabitlenmeli")
+        if not self.session_cookie_secure:
+            problems.append("SESSION_COOKIE_SECURE=false — prod'da True olmalı")
+        if problems:
+            raise ValueError(
+                "Production güvenlik kontrolü başarısız, uygulama başlatılmıyor: "
+                + "; ".join(problems)
+            )
+        return self
 
 
 settings = Settings()

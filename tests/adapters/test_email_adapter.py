@@ -73,3 +73,43 @@ def test_get_email_adapter_returns_resend_with_api_key():
         mock_settings.email_from = "NexStream <x@y.com>"
         adapter = get_email_adapter()
     assert isinstance(adapter, ResendEmailAdapter)
+
+
+# ── HTML injection (güvenlik denetimi) ──────────────────────────────────────────
+
+def _malicious_article():
+    a = Article(
+        title='<script>alert(1)</script><a href="http://phish.example">tıkla</a>',
+        source="Kötücül Kaynak", url="http://test.com", content="içerik",
+    )
+    a.summary = '<img src=x onerror=alert(2)>'
+    a.sentiment_label = "Positive"
+    a.topic = "Sports"
+    a.id = 1
+    return a
+
+
+def test_digest_html_escapes_malicious_article_title():
+    from src.adapters.notifications.email_adapter import _digest_html
+    out = _digest_html("user@test.com", [_malicious_article()], "TR")
+    assert "<script>" not in out
+    assert "<img" not in out  # onerror='...' tetiklenmesi için gerçek bir <img> tag'i gerekir
+    assert "&lt;script&gt;" in out
+
+
+def test_alert_html_escapes_malicious_article_title():
+    from src.adapters.notifications.email_adapter import _alert_html
+    out = _alert_html(_malicious_article(), "keyword", "TR")
+    assert "<script>" not in out
+    assert "&lt;script&gt;" in out
+
+
+def test_sponsor_html_escapes_malicious_fields():
+    from src.adapters.notifications.email_adapter import _sponsor_html
+    sponsor = MagicMock()
+    sponsor.url = "http://ok.example"
+    sponsor.name = '<script>alert(3)</script>'
+    sponsor.message = '<img src=x onerror=alert(4)>'
+    out = _sponsor_html(sponsor, "TR")
+    assert "<script>" not in out
+    assert "<img" not in out  # onerror='...' tetiklenmesi için gerçek bir <img> tag'i gerekir

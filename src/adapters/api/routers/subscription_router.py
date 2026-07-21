@@ -5,7 +5,7 @@ X-API-Key gerektirir (başkasının aboneliğini kurcalamayı engeller).
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
@@ -16,6 +16,7 @@ from src.adapters.notifications.email_adapter import get_email_adapter
 from src.domain.models.subscriber import Subscriber
 from src.domain.models.user import UserTier, tier_at_least
 from src.adapters.api.auth import verify_api_key
+from src.adapters.api.limiter import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/subscriptions", tags=["Subscriptions"])
@@ -89,7 +90,9 @@ def _assert_instant_allowed(email: str, frequency: str, users: UserRepository) -
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 def subscribe(
+    request: Request,
     req: SubscribeRequest,
     repo: SubscriberRepository = Depends(_get_repo),
     users: UserRepository = Depends(_get_user_repo),
@@ -116,7 +119,8 @@ def subscribe(
 
 
 @router.get("/unsubscribe", response_class=HTMLResponse)
-def unsubscribe_via_link(email: str, lang: str = "TR", repo: SubscriberRepository = Depends(_get_repo)):
+@limiter.limit("20/minute")
+def unsubscribe_via_link(request: Request, email: str, lang: str = "TR", repo: SubscriberRepository = Depends(_get_repo)):
     """E-postadaki tıklanabilir 'aboneliği iptal et' linkinin hedefi — tarayıcıda
     açılan basit bir onay sayfası döner (JSON değil, çünkü doğrudan e-posta
     istemcisinden/tarayıcıdan tıklanır). Bu route `/{email}` parametreli
@@ -132,7 +136,8 @@ def unsubscribe_via_link(email: str, lang: str = "TR", repo: SubscriberRepositor
 
 
 @router.delete("/{email}", status_code=status.HTTP_200_OK)
-def unsubscribe(email: str, repo: SubscriberRepository = Depends(_get_repo)):
+@limiter.limit("20/minute")
+def unsubscribe(request: Request, email: str, repo: SubscriberRepository = Depends(_get_repo)):
     ok = repo.deactivate(email)
     if not ok:
         raise HTTPException(status_code=404, detail="Subscriber not found")

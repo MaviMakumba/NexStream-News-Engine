@@ -2,6 +2,11 @@ FROM python:3.11-slim
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 COPY requirements-light.txt .
-RUN pip install --no-cache-dir -r requirements-light.txt
+# BuildKit cache mount + retry — gerekçe ana Dockerfile'da açıklandı.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --retries 10 --timeout 120 -r requirements-light.txt
 COPY . .
+# Non-root kullanıcı (güvenlik denetimi) — bkz. ana Dockerfile'daki gerekçe.
+RUN useradd --create-home --shell /bin/bash appuser && chown -R appuser:appuser /app
+USER appuser
 CMD ["python", "main.py"]
