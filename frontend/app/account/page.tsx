@@ -14,7 +14,7 @@ import { TierBadge } from "@/components/TierBadge";
 import { AuthLoadingScreen } from "@/components/AuthLoadingScreen";
 import { EmailVerifyBanner } from "@/components/EmailVerifyBanner";
 import {
-  BASE, createCheckout, devDowngrade, fetchBillingConfig, fetchMyUsage,
+  BASE, createCheckout, devDowngrade, downloadExport, fetchBillingConfig, fetchMyUsage,
   generateApiKey, getBillingPortal, revokeApiKey,
 } from "@/lib/api";
 import type { AccountUsage, BillingConfig } from "@/lib/types";
@@ -32,6 +32,8 @@ export default function AccountPage() {
   const [keyBusy, setKeyBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [notice, setNotice] = useState("");
+  const [exportFormat, setExportFormat] = useState<"csv" | "json">("csv");
+  const [exportBusy, setExportBusy] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) router.replace("/auth/login");
@@ -118,6 +120,17 @@ export default function AccountPage() {
       alert(err instanceof Error ? err.message : t.errorOccurred);
     } finally {
       setKeyBusy(false);
+    }
+  }
+
+  async function handleExport() {
+    setExportBusy(true);
+    try {
+      await downloadExport(exportFormat);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : t.errorOccurred);
+    } finally {
+      setExportBusy(false);
     }
   }
 
@@ -305,6 +318,42 @@ export default function AccountPage() {
             )}
           </div>
         </div>
+
+        {/* Ham veri export (v1.16, Enterprise) */}
+        {user.tier === "enterprise" && (
+          <div className="card">
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text)" }}>
+                ⇩ {t.exportTitle}
+              </h2>
+              <span className="badge" style={{ background: "var(--accent-soft)", color: "var(--accent)",
+                                                borderColor: "var(--accent-line)", fontSize: "0.65rem" }}>
+                {t.exportBadge}
+              </span>
+            </div>
+            <p style={{ fontSize: "0.84rem", color: "var(--text2)", marginBottom: 16, lineHeight: 1.6 }}>
+              {t.exportDesc}
+            </p>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+              <span className="section-label">{t.exportFormatLabel}</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                {(["csv", "json"] as const).map((f) => (
+                  <button key={f} onClick={() => setExportFormat(f)}
+                          aria-pressed={exportFormat === f}
+                          className={exportFormat === f ? "btn-primary" : "btn-secondary"}
+                          style={{ fontSize: "0.78rem", padding: "6px 14px", textTransform: "uppercase" }}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+              <button onClick={handleExport} disabled={exportBusy} className="btn-primary"
+                      style={{ fontSize: "0.82rem" }}>
+                {exportBusy ? t.loading2 : `⇩ ${t.exportDownloadBtn}`}
+              </button>
+            </div>
+            <p style={{ fontSize: "0.74rem", color: "var(--text3)" }}>{t.exportRowCapNote}</p>
+          </div>
+        )}
 
         {/* Upgrade / billing */}
         {user.tier === "free" ? (

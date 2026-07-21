@@ -1,13 +1,23 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSettings } from "@/lib/settings-context";
 import { BASE, fetchNews, fetchTrending, fetchSources } from "@/lib/api";
+import { useLiveFeedContext } from "@/lib/live-feed-context";
+import type { LiveArticle } from "@/lib/useLiveFeed";
 import type { Article, TrendingEntity } from "@/lib/types";
 import { NewsCard } from "@/components/NewsCard";
 import { TrendingPills } from "@/components/TrendingPills";
 import { TOPIC_LABELS, SENTIMENT_LABELS, UI } from "@/lib/i18n";
+
+function liveToArticle(a: LiveArticle): Article {
+  return {
+    id: a.id, title: a.title, source: a.source, url: a.url, content: "",
+    summary: a.summary, sentiment_label: (a.sentiment_label ?? undefined) as Article["sentiment_label"],
+    topic: a.topic ?? undefined, created_at: a.created_at ?? new Date().toISOString(),
+  };
+}
 
 const TOPIC_VALUES    = ["", "Technology", "Sports", "Economy", "Politics", "Health", "Culture", "World", "Other"];
 const SENTIMENT_VALUES = ["", "Positive", "Negative", "Neutral"];
@@ -28,6 +38,22 @@ export default function DashboardPage() {
   const [topic,           setTopic]           = useState("");
   const [source,          setSource]          = useState("");
   const [minQuality,      setMinQuality]      = useState<number | undefined>(undefined);
+
+  // WebSocket'ten gelen yeni haberleri listenin başına canlı ekler (F5 gerektirmez).
+  const { articles: liveArticles } = useLiveFeedContext();
+  const seenLiveIds = useRef<Set<number>>(new Set(liveArticles.map((a) => a.id)));
+  useEffect(() => {
+    const newest = liveArticles[0];
+    if (!newest || seenLiveIds.current.has(newest.id)) return;
+    seenLiveIds.current.add(newest.id);
+    // min_quality WS payload'ında yok — doğrulayamadığımız bir filtreyi sessizce
+    // ihlal etmemek için bu durumda hiç enjekte etmiyoruz.
+    if (minQuality != null) return;
+    if (sentiment && newest.sentiment_label !== sentiment) return;
+    if (topic && newest.topic !== topic) return;
+    if (source && newest.source !== source) return;
+    setArticles((prev) => (prev.some((x) => x.id === newest.id) ? prev : [liveToArticle(newest), ...prev]));
+  }, [liveArticles, sentiment, topic, source, minQuality]);
 
   const load = useCallback(async (reset: boolean, cur: number | null) => {
     setLoading(true);

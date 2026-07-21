@@ -157,6 +157,12 @@ export const UI: Record<Lang, Record<string, string>> = {
     devModeBadge: "DEV MODE", devUpgraded: "Planınız yükseltildi (ödeme simülasyonu).",
     devDowngradeBtn: "Free'ye Dön (dev)", devDowngraded: "Planınız Free'ye düşürüldü.",
 
+    // ── Ham veri export (v1.16) ──
+    exportTitle: "Ham Veri Export", exportBadge: "KURUMSAL",
+    exportDesc: "Tüm haber verinizi CSV veya JSON olarak indirin — başlık, içerik, duygu analizi, entity ve kalite skorları dahil.",
+    exportFormatLabel: "Format", exportDownloadBtn: "İndir",
+    exportRowCapNote: "Tek indirmede en fazla 20.000 satır döner. Daha fazla filtreleme için /api/v1/news/export endpoint'ini doğrudan kullanın.",
+
     // ── Admin ──
     adminTitle: "🔧 Yönetim Paneli", adminSub: "Admin yetkisi veya API anahtarı gereklidir.",
     adminAsUser: "Admin oturumuyla görüntülüyorsunuz — anahtar gerekmez.",
@@ -322,6 +328,12 @@ export const UI: Record<Lang, Record<string, string>> = {
     noApiKey: "No key generated yet.",
     devModeBadge: "DEV MODE", devUpgraded: "Your plan was upgraded (payment simulation).",
     devDowngradeBtn: "Back to Free (dev)", devDowngraded: "Your plan was downgraded to Free.",
+
+    // ── Raw data export (v1.16) ──
+    exportTitle: "Raw Data Export", exportBadge: "ENTERPRISE",
+    exportDesc: "Download your entire news archive as CSV or JSON — title, content, sentiment, entities and quality scores included.",
+    exportFormatLabel: "Format", exportDownloadBtn: "Download",
+    exportRowCapNote: "A single download returns up to 20,000 rows. For more granular filtering, use the /api/v1/news/export endpoint directly.",
 
     // ── Admin ──
     adminTitle: "🔧 Admin Panel", adminSub: "Admin role or API key required.",

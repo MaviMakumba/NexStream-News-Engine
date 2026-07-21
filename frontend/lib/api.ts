@@ -164,6 +164,27 @@ export async function fetchSources(): Promise<string[]> {
   return req<string[]>(`${BASE}/api/v1/news/sources`);
 }
 
+/** Ham veri export (v1.16, Enterprise) — dosyayı indirir, tarayıcı hata sayfası yerine ApiError fırlatır. */
+export async function downloadExport(format: "csv" | "json"): Promise<void> {
+  const res = await fetch(`${BASE}/api/v1/news/export?format=${format}`, { credentials: "include" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new ApiError(extractErrorMessage(err, `HTTP ${res.status}`), res.status);
+  }
+  const disposition = res.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="([^"]+)"/);
+  const filename = match ? match[1] : `nexstream_export.${format}`;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ── Account (v1.11 self-service) ──────────────────────────────────────────────
 
 export async function fetchMyUsage(days = 7): Promise<AccountUsage> {
