@@ -2,11 +2,15 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
 from src.infrastructure.config.database import get_db
+from src.infrastructure.config.settings import settings
 from src.adapters.api.auth_utils import get_optional_user
 from src.domain.models.user import User, UserTier, UserRole
 
 
-_API_KEY = "dev-key-change-me"
+# Gerçek .env'deki API_KEY ne olursa olsun (güvenlik denetiminden sonra artık
+# "dev-key-change-me" değil, rastgele üretilmiş bir değer) settings ile aynı
+# değeri kullanır — hardcoded bir string, .env'in o anki içeriğine bağımlı olurdu.
+_API_KEY = settings.api_key
 _HEADERS = {"x-api-key": _API_KEY}
 
 

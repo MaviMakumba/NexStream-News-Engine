@@ -67,3 +67,38 @@ def test_settings_huggingface_defaults():
     s = _fresh_settings()
     assert s.huggingface_api_key == ""
     assert s.huggingface_model == "mistralai/Mistral-7B-Instruct-v0.3"
+
+
+# ── Production güvenlik guard'ı (v1.17 güvenlik denetimi) ──────────────────────
+
+def test_settings_development_ignores_unsafe_defaults():
+    """`environment` varsayılanı "development" iken guard hiç çalışmamalı."""
+    s = _fresh_settings(API_KEY="dev-key-change-me", BILLING_DEV_MODE="true", CORS_ORIGINS="*")
+    assert s.api_key == "dev-key-change-me"
+
+
+def test_settings_production_rejects_default_api_key():
+    with pytest.raises(ValueError, match="API_KEY"):
+        _fresh_settings(ENVIRONMENT="production", CORS_ORIGINS="https://example.com")
+
+
+def test_settings_production_rejects_billing_dev_mode():
+    with pytest.raises(ValueError, match="BILLING_DEV_MODE"):
+        _fresh_settings(ENVIRONMENT="production", API_KEY="real-key", CORS_ORIGINS="https://example.com",
+                         BILLING_DEV_MODE="true")
+
+
+def test_settings_production_rejects_wildcard_cors():
+    with pytest.raises(ValueError, match="CORS_ORIGINS"):
+        _fresh_settings(ENVIRONMENT="production", API_KEY="real-key", CORS_ORIGINS="*")
+
+
+def test_settings_production_rejects_insecure_session_cookie():
+    with pytest.raises(ValueError, match="SESSION_COOKIE_SECURE"):
+        _fresh_settings(ENVIRONMENT="production", API_KEY="real-key", CORS_ORIGINS="https://example.com",
+                         SESSION_COOKIE_SECURE="false")
+
+
+def test_settings_production_passes_with_safe_config():
+    s = _fresh_settings(ENVIRONMENT="production", API_KEY="real-key", CORS_ORIGINS="https://example.com")
+    assert s.environment == "production"

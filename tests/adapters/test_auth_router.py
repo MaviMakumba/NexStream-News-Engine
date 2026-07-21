@@ -238,6 +238,24 @@ def test_login_unknown_email_returns_401(client):
     assert "nxs_session" not in resp.cookies
 
 
+def test_login_unknown_email_still_runs_bcrypt_for_timing_safety(client):
+    """Güvenlik denetimi: kullanıcı bulunamadığında bcrypt ÇALIŞMAMASI, yanıt
+    süresinden kayıtlı e-postaların enumerate edilebildiği bir timing side-channel'dı.
+    `_verify_password` artık her durumda (dummy hash üzerinde) çağrılmalı."""
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
+         patch("src.adapters.api.routers.auth_router._verify_password") as mock_verify:
+        repo_instance = MagicMock()
+        repo_instance.get_by_email.return_value = None
+        MockRepo.return_value = repo_instance
+        mock_verify.return_value = False
+
+        client.post("/auth/login", json={"email": "ghost@example.com", "password": "pw"})
+
+    mock_verify.assert_called_once()
+    from src.adapters.api.routers.auth_router import _DUMMY_PASSWORD_HASH
+    assert mock_verify.call_args[0][1] == _DUMMY_PASSWORD_HASH
+
+
 def test_login_then_me_works_via_cookie_without_header(client):
     """Login'in verdiği cookie, tarayıcı gibi TestClient tarafından otomatik
     taşınır — /auth/me'ye ayrıca header eklemeden çağrılabilmeli (SSR/tarayıcı

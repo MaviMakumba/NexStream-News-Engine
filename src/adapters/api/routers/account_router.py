@@ -14,10 +14,11 @@ ile session yerine kullanılabilir (kota kullanıcının tier'ından uygulanır)
 import logging
 import secrets
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from src.adapters.api.auth_utils import get_current_user
+from src.adapters.api.limiter import limiter
 from src.adapters.repositories.user_repository import UserRepository
 from src.domain.models.user import User, TIER_DAILY_LIMITS
 from src.infrastructure.config.database import get_db
@@ -53,7 +54,9 @@ def my_usage(
 
 
 @router.post("/api-key", status_code=201)
+@limiter.limit("10/minute")
 def generate_api_key(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -69,7 +72,9 @@ def generate_api_key(
 
 
 @router.delete("/api-key")
+@limiter.limit("10/minute")
 def revoke_api_key(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

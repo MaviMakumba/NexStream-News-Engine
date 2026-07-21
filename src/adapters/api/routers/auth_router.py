@@ -18,7 +18,7 @@ import secrets
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Header, Request, Response, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from email_validator import validate_email, EmailNotValidError
 from sqlalchemy.orm import Session
 
@@ -36,14 +36,17 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str
-    name: str = ""
+    # bcrypt girdiyi zaten 72 byte'a kırpıyor; üst sınır olmaması sadece
+    # gereksiz CPU/bant genişliği tüketimine açık kapı bırakıyordu (güvenlik denetimi).
+    password: str = Field(..., max_length=128)
+    # DB kolonu VARCHAR(255) — sınırsız kabul edip Postgres'te patlamak yerine 422 dön.
+    name: str = Field("", max_length=255)
     language: str = "TR"
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., max_length=128)
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -52,8 +55,8 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
-    token: str
-    password: str
+    token: str = Field(..., max_length=256)
+    password: str = Field(..., max_length=128)
 
 
 class ResendVerificationRequest(BaseModel):
@@ -61,7 +64,7 @@ class ResendVerificationRequest(BaseModel):
 
 
 class VerifyEmailRequest(BaseModel):
-    token: str
+    token: str = Field(..., max_length=256)
 
 
 # ── Yardımcılar ────────────────────────────────────────────────────────────────
@@ -81,6 +84,13 @@ def _verify_password(plain: str, hashed: str) -> bool:
     except Exception:
         # Bozuk/eski hash formatı → güvenli taraf: reddet
         return False
+
+
+# Kayıtlı olmayan bir e-postayla login denendiğinde bcrypt'in ÇALIŞMAMASI
+# (kullanıcı bulunamazsa erken dönüş) yanıt süresinden kayıtlı/kayıtsız e-posta
+# ayrımı yapılabilmesine yol açan bir timing side-channel'dı (güvenlik denetimi).
+# Bu sabit hash üzerinde HER durumda bcrypt çalıştırılarak süre eşitlenir.
+_DUMMY_PASSWORD_HASH = bcrypt.hashpw(b"nexstream-timing-safe-dummy", bcrypt.gensalt()).decode()
 
 
 def _open_session(repo: UserRepository, user_id: int) -> str:
@@ -173,7 +183,8 @@ def _send_verification_email(repo: UserRepository, user: User, language: str) ->
 # ── Endpoint'ler ───────────────────────────────────────────────────────────────
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-def register(req: RegisterRequest, response: Response, db: Session = Depends(get_db)):
+@limiter.limit("15/minute")
+def register(request: Request, req: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     repo = UserRepository(db)
     if repo.get_by_email(req.email):
         raise HTTPException(status_code=409, detail="Email already registered")
@@ -195,11 +206,16 @@ def register(req: RegisterRequest, response: Response, db: Session = Depends(get
 
 
 @router.post("/login")
-def login(req: LoginRequest, response: Response, db: Session = Depends(get_db)):
+@limiter.limit("15/minute")
+def login(request: Request, req: LoginRequest, response: Response, db: Session = Depends(get_db)):
     repo = UserRepository(db)
     user = repo.get_by_email(req.email)
-    # E-posta bulunamadı ile yanlış parola aynı mesajı döner (user enumeration önlemi)
-    if not user or not _verify_password(req.password, user.password_hash):
+    # E-posta bulunamadı ile yanlış parola aynı mesajı döner (user enumeration önlemi).
+    # bcrypt HER durumda çalıştırılır (dummy hash üzerinde) — yoksa "kullanıcı yok"
+    # dalı erken dönüp yanıt süresinden kayıtlı e-postalar enumerate edilebilirdi.
+    password_hash = user.password_hash if user else _DUMMY_PASSWORD_HASH
+    password_ok = _verify_password(req.password, password_hash)
+    if not user or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is deactivated")
@@ -279,8 +295,12 @@ def reset_password(request: Request, req: ResetPasswordRequest, db: Session = De
     if expires < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
+    # Token ÖNCE atomik olarak tüketilir, şifre SONRA değiştirilir — eşzamanlı iki
+    # istekten yalnızca biri True alır (güvenlik denetimi: TOCTOU yarışı).
+    if not repo.mark_reset_token_used(req.token):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
     repo.update_password(reset_token.user_id, _hash_password(req.password))
-    repo.mark_reset_token_used(req.token)
     repo.delete_sessions_for_user(reset_token.user_id)
 
     logger.info("Şifre sıfırlandı: user_id=%s", reset_token.user_id)
@@ -328,8 +348,11 @@ def verify_email(request: Request, req: VerifyEmailRequest, db: Session = Depend
     if expires < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Invalid or expired verification token")
 
+    # Token ÖNCE atomik tüketilir (bkz. reset_password'daki aynı TOCTOU gerekçesi).
+    if not repo.mark_verification_token_used(req.token):
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+
     repo.mark_email_verified(verification_token.user_id)
-    repo.mark_verification_token_used(req.token)
 
     logger.info("E-posta doğrulandı: user_id=%s", verification_token.user_id)
     return {"message": "Email verified successfully"}

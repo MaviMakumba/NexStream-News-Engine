@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.adapters.api.auth_utils import get_current_user
+from src.adapters.api.limiter import limiter
 from src.adapters.repositories.user_repository import UserRepository
 from src.domain.models.user import User
 from src.infrastructure.config.database import get_db
@@ -70,7 +71,9 @@ def billing_config():
 # ── Checkout ───────────────────────────────────────────────────────────────────
 
 @router.post("/checkout")
+@limiter.limit("20/minute")
 def create_checkout(
+    request: Request,
     req: CheckoutRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -145,6 +148,7 @@ def dev_downgrade(
 # ── Stripe webhook ─────────────────────────────────────────────────────────────
 
 @router.post("/webhook")
+@limiter.limit("60/minute")
 async def stripe_webhook(request: Request, stripe_signature: str = Header(None)):
     """Stripe'tan gelen abonelik event'lerini işler (imza doğrulamalı)."""
     stripe = _require_stripe()

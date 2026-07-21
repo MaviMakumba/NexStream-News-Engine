@@ -52,6 +52,10 @@ services:
         condition: service_healthy
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2
     environment:
+      # Settings._reject_unsafe_production_config guard'ını aktive eder — API_KEY
+      # varsayılan kalmışsa, BILLING_DEV_MODE açıksa, CORS wildcard'saysa ya da
+      # session cookie Secure değilse uygulama AÇILMAYI REDDEDER (güvenlik denetimi).
+      - ENVIRONMENT=production
       - DB_HOST=db
       - DB_PORT=5432
       - DB_USER=${DB_USER}
@@ -65,6 +69,9 @@ services:
       - KAFKA_PORT=29092
       - API_KEY=${API_KEY}
       - LOG_FORMAT=json
+      # Gerçek domain'e sabitlenmeli (örn. https://nexstream.news) — boş/wildcard
+      # kalırsa yukarıdaki startup guard uygulamayı başlatmaz.
+      - CORS_ORIGINS=${CORS_ORIGINS}
       # v1.11: Stripe + admin bootstrap. BILLING_DEV_MODE prod'da daima false!
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
@@ -78,6 +85,7 @@ services:
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-NexStream <no-reply@nexstream.news>}
       - FRONTEND_URL=${FRONTEND_URL:-}
+      - SESSION_COOKIE_SECURE=true
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 30s
@@ -326,8 +334,13 @@ services:
     container_name: nexstream_grafana
     restart: always
     environment:
+      # Güvenlik denetimi: eski ":-nexstream" fallback'i .env'de GRAFANA_PASSWORD
+      # unutulursa herkesçe bilinen bir şifreyle prod'a çıkılmasına yol açıyordu.
+      # Boş bırakılırsa Grafana'nın KENDİ varsayılanı ("admin") devreye girer ki
+      # o daha da öngörülebilir — bu yüzden ":?..." ile docker compose'un derleme
+      # anında SERT HATA vermesi sağlandı, sessiz zayıf fallback'e izin verilmiyor.
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-nexstream}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?GRAFANA_PASSWORD .env icinde set edilmeli - guclu/rastgele bir sifre uretin}
       - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
     volumes:

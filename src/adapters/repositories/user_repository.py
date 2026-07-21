@@ -202,11 +202,21 @@ class UserRepository(UserRepositoryPort):
         )
         return self._to_reset_token(orm) if orm else None
 
-    def mark_reset_token_used(self, token: str) -> None:
-        orm = self.db.query(PasswordResetTokenORM).filter(PasswordResetTokenORM.token == token).first()
-        if orm:
-            orm.used = True
-            self.db.commit()
+    def mark_reset_token_used(self, token: str) -> bool:
+        """Token'ı ATOMİK olarak tüketir; ilk çağrı True, sonrakiler False döner.
+
+        Güvenlik denetimi: eskiden SELECT + ayrı UPDATE yapılıyordu, araya giren
+        eşzamanlı bir istek de `used=False` görüp aynı token'ı ikinci kez
+        kullanabiliyordu (TOCTOU). Tek `UPDATE ... WHERE used=false` ifadesi
+        yarışı veritabanına devrediyor — kazanan tek satır günceller.
+        """
+        updated = (
+            self.db.query(PasswordResetTokenORM)
+            .filter(PasswordResetTokenORM.token == token, PasswordResetTokenORM.used.is_(False))
+            .update({"used": True}, synchronize_session=False)
+        )
+        self.db.commit()
+        return updated > 0
 
     # ── E-posta doğrulama ──────────────────────────────────────────────────
 
@@ -229,11 +239,15 @@ class UserRepository(UserRepositoryPort):
         )
         return self._to_verification_token(orm) if orm else None
 
-    def mark_verification_token_used(self, token: str) -> None:
-        orm = self.db.query(EmailVerificationTokenORM).filter(EmailVerificationTokenORM.token == token).first()
-        if orm:
-            orm.used = True
-            self.db.commit()
+    def mark_verification_token_used(self, token: str) -> bool:
+        """Token'ı ATOMİK olarak tüketir — gerekçe mark_reset_token_used ile aynı."""
+        updated = (
+            self.db.query(EmailVerificationTokenORM)
+            .filter(EmailVerificationTokenORM.token == token, EmailVerificationTokenORM.used.is_(False))
+            .update({"used": True}, synchronize_session=False)
+        )
+        self.db.commit()
+        return updated > 0
 
     def mark_email_verified(self, user_id: int) -> bool:
         orm = self.db.query(UserORM).filter(UserORM.id == user_id).first()

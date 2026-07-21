@@ -10,6 +10,7 @@ sadece bu iki sözlüğe bir `"FR": {...}` bloğu eklemek demektir; hiçbir
 `if language == "TR" else ...` dallanmasına dokunulmaz.
 """
 
+import html
 import logging
 from typing import List
 from urllib.parse import quote
@@ -109,8 +110,8 @@ def _sponsor_html(sponsor, language: str) -> str:
     return (
         f"<div style='background:#f0f7ff;border-left:4px solid #1a73e8;padding:12px 16px;margin:16px 0'>"
         f"<small style='color:#888;text-transform:uppercase;letter-spacing:1px'>{label}</small><br>"
-        f"<b><a href='{sponsor.url}' style='color:#1a73e8;text-decoration:none'>{sponsor.name}</a></b><br>"
-        f"<span style='color:#444;font-size:14px'>{sponsor.message}</span>"
+        f"<b><a href='{html.escape(sponsor.url)}' style='color:#1a73e8;text-decoration:none'>{html.escape(sponsor.name)}</a></b><br>"
+        f"<span style='color:#444;font-size:14px'>{html.escape(sponsor.message)}</span>"
         f"</div>"
     )
 
@@ -121,12 +122,18 @@ def _digest_html(to: str, articles: List[Article], language: str, sponsor=None) 
     rows = ""
     for a in articles:
         icon = _SENTIMENT_ICON.get(a.sentiment_label or "Neutral", "⚪")
-        topic = _topic_label(a.topic, language)
-        summary = a.summary or ""
+        # a.title/a.summary/a.source dış kaynaklı (RSS feed'inden) — güvenlik denetimi:
+        # escape edilmeden HTML'e gömülüyordu, ele geçirilmiş bir kaynak phishing linki
+        # enjekte edip tüm abonelere gönderebilirdi.
+        topic = html.escape(_topic_label(a.topic, language))
+        title = html.escape(a.title)
+        source = html.escape(a.source)
+        url = html.escape(a.url)
+        summary = html.escape(a.summary or "")
         rows += (
             f"<tr><td style='padding:10px 0;border-bottom:1px solid #eee'>"
-            f"<b><a href='{a.url}' style='color:#1a73e8;text-decoration:none'>{a.title}</a></b><br>"
-            f"<small style='color:#666'>{icon} {a.source} · {topic}</small><br>"
+            f"<b><a href='{url}' style='color:#1a73e8;text-decoration:none'>{title}</a></b><br>"
+            f"<small style='color:#666'>{icon} {source} · {topic}</small><br>"
             f"<span style='color:#444;font-size:14px'>{summary}</span>"
             f"</td></tr>"
         )
@@ -170,12 +177,12 @@ padding:12px 24px;border-radius:6px;font-weight:600'>{cta}</a></p>
 
 def _alert_html(article: Article, keyword: str, language: str) -> str:
     label = _t(language, "alert_keyword_label")
-    topic = _topic_label(article.topic, language)
+    topic = html.escape(_topic_label(article.topic, language))
     return f"""<html><body style='font-family:sans-serif;max-width:640px;margin:auto'>
-<p style='color:#666'>{label}: <b>{keyword}</b></p>
-<h2><a href='{article.url}' style='color:#1a73e8;text-decoration:none'>{article.title}</a></h2>
-<p style='color:#555'>{article.source} · {topic}</p>
-<p>{article.summary or ''}</p>
+<p style='color:#666'>{label}: <b>{html.escape(keyword)}</b></p>
+<h2><a href='{html.escape(article.url)}' style='color:#1a73e8;text-decoration:none'>{html.escape(article.title)}</a></h2>
+<p style='color:#555'>{html.escape(article.source)} · {topic}</p>
+<p>{html.escape(article.summary or '')}</p>
 </body></html>"""
 
 
