@@ -92,6 +92,19 @@ export const UI: Record<Lang, Record<string, string>> = {
     invalidResetLink: "Sıfırlama bağlantısı geçersiz.",
     goToLogin: "Girişe git",
 
+    // ── E-posta doğrulama (v1.15) ──
+    verifyBannerText: "E-posta adresini doğrulamadın. Free tier'da tam erişimin var, ama Pro/Kurumsal'a yükseltmek için doğrulama gerekiyor.",
+    verifyBannerResend: "Doğrulama e-postası gönder",
+    verifyBannerSent: "Doğrulama e-postası gönderildi, gelen kutunu kontrol et.",
+    verifyBannerFailed: "Gönderilemedi, lütfen tekrar dene.",
+    verifyEmailTitle: "E-posta Doğrulanıyor", verifyEmailSub: "Bağlantı kontrol ediliyor…",
+    verifyEmailPending: "Doğrulanıyor…",
+    verifyEmailSuccess: "E-postan doğrulandı! Artık Pro/Kurumsal'a yükseltebilirsin.",
+    verifyEmailFailed: "Bu bağlantı geçersiz veya süresi dolmuş. Hesap sayfandan yenisini isteyebilirsin.",
+    verifyEmailMissingToken: "Doğrulama bağlantısı eksik.",
+    goToAccount: "Hesabıma git",
+    upgradeNeedsVerification: "Yükseltmeden önce e-postanı doğrulaman gerekiyor.",
+
     // ── Landing ──
     heroBadge: "Canlı — 825+ haber indekslendi, 17 kaynak aktif",
     heroPre: "Türkiye Haberlerini ", heroAccent: "Yapay Zeka", heroPost: " ile Keşfet",
@@ -244,6 +257,19 @@ export const UI: Record<Lang, Record<string, string>> = {
     passwordsDontMatch: "Passwords don't match.",
     invalidResetLink: "The reset link is invalid.",
     goToLogin: "Go to sign in",
+
+    // ── Email verification (v1.15) ──
+    verifyBannerText: "Your email isn't verified yet. You have full Free tier access, but verification is required to upgrade to Pro/Enterprise.",
+    verifyBannerResend: "Send verification email",
+    verifyBannerSent: "Verification email sent, check your inbox.",
+    verifyBannerFailed: "Couldn't send it, please try again.",
+    verifyEmailTitle: "Verifying Email", verifyEmailSub: "Checking your link…",
+    verifyEmailPending: "Verifying…",
+    verifyEmailSuccess: "Your email is verified! You can now upgrade to Pro/Enterprise.",
+    verifyEmailFailed: "This link is invalid or expired. You can request a new one from your account page.",
+    verifyEmailMissingToken: "Verification link is missing.",
+    goToAccount: "Go to my account",
+    upgradeNeedsVerification: "You need to verify your email before upgrading.",
 
     // ── Landing ──
     heroBadge: "Live — 825+ articles indexed, 17 sources active",

@@ -5,10 +5,10 @@ from src.domain.models.user import User, UserTier, UserSession
 from src.adapters.api.auth_utils import get_current_user, get_optional_user
 
 
-def _make_user(stripe_id=None, tier=UserTier.FREE):
+def _make_user(stripe_id=None, tier=UserTier.FREE, email_verified=True):
     return User(
         id=1, email="pay@test.com", password_hash="h",
-        tier=tier, stripe_customer_id=stripe_id
+        tier=tier, stripe_customer_id=stripe_id, email_verified=email_verified,
     )
 
 
@@ -47,6 +47,22 @@ def test_checkout_503_when_stripe_not_configured(app_client):
     finally:
         _clear_overrides(app_client)
     assert resp.status_code == 503
+
+
+def test_checkout_blocked_when_email_not_verified(app_client):
+    _override_user(app_client, _make_user(email_verified=False))
+    try:
+        with patch("src.adapters.api.routers.billing_router.settings") as ms:
+            ms.stripe_secret_key = "sk_test_xxx"
+            ms.billing_dev_mode = False
+            resp = app_client.post("/billing/checkout", json={
+                "tier": "pro",
+                "success_url": "https://example.com/s",
+                "cancel_url": "https://example.com/c",
+            })
+    finally:
+        _clear_overrides(app_client)
+    assert resp.status_code == 403
 
 
 def test_checkout_invalid_tier_returns_400(app_client):

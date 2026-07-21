@@ -7,7 +7,7 @@ Application katmanı kullanıcı/oturum/kullanım-logu işlemlerine bu soyutlama
 
 from abc import ABC, abstractmethod
 from typing import Optional, List
-from src.domain.models.user import User, UserSession, PasswordResetToken
+from src.domain.models.user import User, UserSession, PasswordResetToken, EmailVerificationToken
 
 
 class UserRepositoryPort(ABC):
@@ -75,6 +75,20 @@ class UserRepositoryPort(ABC):
 
     @abstractmethod
     def mark_reset_token_used(self, token: str) -> None: ...
+
+    # ── E-posta doğrulama ──────────────────────────────────────────────────
+
+    @abstractmethod
+    def create_verification_token(self, verification_token: EmailVerificationToken) -> EmailVerificationToken: ...
+
+    @abstractmethod
+    def get_verification_token(self, token: str) -> Optional[EmailVerificationToken]: ...
+
+    @abstractmethod
+    def mark_verification_token_used(self, token: str) -> None: ...
+
+    @abstractmethod
+    def mark_email_verified(self, user_id: int) -> bool: ...
 
     # ── Kullanım takibi (kota + istatistik) ────────────────────────────────
 

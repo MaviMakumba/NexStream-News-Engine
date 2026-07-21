@@ -69,6 +69,9 @@ class UserORM(Base):
     # v1.11: kullanıcıya özel public API anahtarı (X-User-Key ile kullanılır)
     api_key = Column(String(64), unique=True, nullable=True, index=True)
     stripe_customer_id = Column(String(255), nullable=True)
+    # v1.15: e-posta doğrulama — Free tier'da erişimi kısıtlamaz (yumuşak
+    # gating), sadece ücretli kademeye yükseltme bunu ister (billing_router).
+    email_verified = Column(Boolean, nullable=False, server_default=text("false"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -90,6 +93,20 @@ class PasswordResetTokenORM(Base):
     __tablename__ = "password_reset_tokens"
     __table_args__ = (
         Index("ix_reset_tokens_user_id", "user_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)
+    token = Column(String(128), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used = Column(Boolean, nullable=False, server_default=text("false"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class EmailVerificationTokenORM(Base):
+    __tablename__ = "email_verification_tokens"
+    __table_args__ = (
+        Index("ix_email_verify_tokens_user_id", "user_id"),
     )
 
     id = Column(Integer, primary_key=True, index=True)

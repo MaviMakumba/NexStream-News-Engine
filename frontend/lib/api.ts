@@ -66,10 +66,10 @@ async function req<T>(url: string, options?: RequestInit): Promise<T> {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-export async function apiRegister(email: string, password: string, name: string) {
+export async function apiRegister(email: string, password: string, name: string, language: string) {
   return req<{ user: User }>(`${BASE}/auth/register`, {
     method: "POST",
-    body: JSON.stringify({ email, password, name }),
+    body: JSON.stringify({ email, password, name, language }),
   });
 }
 
@@ -95,6 +95,20 @@ export async function apiResetPassword(token: string, password: string) {
   return req<{ message: string }>(`${BASE}/auth/reset-password`, {
     method: "POST",
     body: JSON.stringify({ token, password }),
+  });
+}
+
+export async function apiResendVerification(language: string) {
+  return req<{ message: string }>(`${BASE}/auth/resend-verification`, {
+    method: "POST",
+    body: JSON.stringify({ language }),
+  });
+}
+
+export async function apiVerifyEmail(token: string) {
+  return req<{ message: string }>(`${BASE}/auth/verify-email`, {
+    method: "POST",
+    body: JSON.stringify({ token }),
   });
 }
 

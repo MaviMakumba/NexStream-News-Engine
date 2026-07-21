@@ -1,12 +1,13 @@
 import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
-from src.domain.models.user import User, UserTier, UserSession, PasswordResetToken
+from src.domain.models.user import User, UserTier, UserSession, PasswordResetToken, EmailVerificationToken
 from src.infrastructure.config.settings import settings
 
 
-def _make_user(id=1, email="test@example.com", tier=UserTier.FREE, is_active=True):
-    return User(id=id, email=email, password_hash="$2b$12$hashed", name="Test User", tier=tier, is_active=is_active)
+def _make_user(id=1, email="test@example.com", tier=UserTier.FREE, is_active=True, email_verified=False):
+    return User(id=id, email=email, password_hash="$2b$12$hashed", name="Test User", tier=tier,
+                is_active=is_active, email_verified=email_verified)
 
 
 def _make_session(user_id=1, token="tok123", days=30):
@@ -39,6 +40,26 @@ def _make_reset_token(user_id=1, token="reset_tok", minutes=60, used=False):
 
 def _expired_reset_token(user_id=1, token="reset_tok_exp"):
     return PasswordResetToken(
+        id=2,
+        user_id=user_id,
+        token=token,
+        expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        used=False,
+    )
+
+
+def _make_verification_token(user_id=1, token="verify_tok", minutes=1440, used=False):
+    return EmailVerificationToken(
+        id=1,
+        user_id=user_id,
+        token=token,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=minutes),
+        used=used,
+    )
+
+
+def _expired_verification_token(user_id=1, token="verify_tok_exp"):
+    return EmailVerificationToken(
         id=2,
         user_id=user_id,
         token=token,
@@ -440,3 +461,143 @@ def test_reset_password_used_token_returns_400(client):
 
     assert resp.status_code == 400
     repo_instance.update_password.assert_not_called()
+
+
+# ── E-posta doğrulama (v1.15) ──────────────────────────────────────────────────
+
+def test_register_sends_verification_email(client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
+         patch("src.adapters.api.routers.auth_router.get_email_adapter") as mock_get_adapter:
+        repo_instance = MagicMock()
+        repo_instance.get_by_email.return_value = None
+        repo_instance.create_user.return_value = _make_user()
+        repo_instance.create_session.return_value = _make_session()
+        MockRepo.return_value = repo_instance
+        mock_adapter = MagicMock()
+        mock_adapter.send_verification.return_value = True
+        mock_get_adapter.return_value = mock_adapter
+
+        resp = client.post("/auth/register", json={"email": "test@example.com", "password": "secret123"})
+
+    assert resp.status_code == 201
+    repo_instance.create_verification_token.assert_called_once()
+    mock_adapter.send_verification.assert_called_once()
+
+
+def test_register_succeeds_even_if_verification_email_fails(client):
+    """Doğrulama maili gönderimi patlarsa bile kayıt akışı BOZULMAMALI (best-effort)."""
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
+         patch("src.adapters.api.routers.auth_router.get_email_adapter", side_effect=Exception("smtp down")):
+        repo_instance = MagicMock()
+        repo_instance.get_by_email.return_value = None
+        repo_instance.create_user.return_value = _make_user()
+        repo_instance.create_session.return_value = _make_session()
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/register", json={"email": "test@example.com", "password": "secret123"})
+
+    assert resp.status_code == 201
+
+
+def test_me_includes_email_verified_flag(client):
+    with patch("src.adapters.api.auth_utils.UserRepository") as MockRepo:
+        repo_instance = MagicMock()
+        repo_instance.get_session.return_value = _make_session()
+        repo_instance.get_by_id.return_value = _make_user(email_verified=True)
+        MockRepo.return_value = repo_instance
+
+        resp = client.get("/auth/me", headers={"x-session-token": "tok123"})
+
+    assert resp.status_code == 200
+    assert resp.json()["email_verified"] is True
+
+
+def test_resend_verification_requires_auth(client):
+    resp = client.post("/auth/resend-verification", json={})
+    assert resp.status_code == 401
+
+
+def test_resend_verification_sends_email_when_unverified(client):
+    with patch("src.adapters.api.auth_utils.UserRepository") as MockUtilsRepo, \
+         patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
+         patch("src.adapters.api.routers.auth_router.get_email_adapter") as mock_get_adapter:
+        utils_repo = MagicMock()
+        utils_repo.get_session.return_value = _make_session()
+        utils_repo.get_by_id.return_value = _make_user(email_verified=False)
+        MockUtilsRepo.return_value = utils_repo
+
+        repo_instance = MagicMock()
+        MockRepo.return_value = repo_instance
+        mock_adapter = MagicMock()
+        mock_adapter.send_verification.return_value = True
+        mock_get_adapter.return_value = mock_adapter
+
+        resp = client.post("/auth/resend-verification", json={}, headers={"x-session-token": "tok123"})
+
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "Verification email sent"
+    repo_instance.create_verification_token.assert_called_once()
+    mock_adapter.send_verification.assert_called_once()
+
+
+def test_resend_verification_noop_when_already_verified(client):
+    with patch("src.adapters.api.auth_utils.UserRepository") as MockUtilsRepo, \
+         patch("src.adapters.api.routers.auth_router.get_email_adapter") as mock_get_adapter:
+        utils_repo = MagicMock()
+        utils_repo.get_session.return_value = _make_session()
+        utils_repo.get_by_id.return_value = _make_user(email_verified=True)
+        MockUtilsRepo.return_value = utils_repo
+
+        resp = client.post("/auth/resend-verification", json={}, headers={"x-session-token": "tok123"})
+
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "Email already verified"
+    mock_get_adapter.assert_not_called()
+
+
+def test_verify_email_success(client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
+        repo_instance = MagicMock()
+        repo_instance.get_verification_token.return_value = _make_verification_token()
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/verify-email", json={"token": "verify_tok"})
+
+    assert resp.status_code == 200
+    repo_instance.mark_email_verified.assert_called_once_with(1)
+    repo_instance.mark_verification_token_used.assert_called_once_with("verify_tok")
+
+
+def test_verify_email_invalid_token_returns_400(client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
+        repo_instance = MagicMock()
+        repo_instance.get_verification_token.return_value = None
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/verify-email", json={"token": "bogus"})
+
+    assert resp.status_code == 400
+
+
+def test_verify_email_expired_token_returns_400(client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
+        repo_instance = MagicMock()
+        repo_instance.get_verification_token.return_value = _expired_verification_token()
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/verify-email", json={"token": "verify_tok_exp"})
+
+    assert resp.status_code == 400
+    repo_instance.mark_email_verified.assert_not_called()
+
+
+def test_verify_email_used_token_returns_400(client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
+        repo_instance = MagicMock()
+        repo_instance.get_verification_token.return_value = _make_verification_token(used=True)
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/verify-email", json={"token": "verify_tok"})
+
+    assert resp.status_code == 400
+    repo_instance.mark_email_verified.assert_not_called()

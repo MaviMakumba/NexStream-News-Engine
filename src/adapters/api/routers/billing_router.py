@@ -9,6 +9,10 @@
        production'da asla açılmamalıdır.
 
 Stripe yapılandırılmamış ve dev mode kapalıysa tüm endpoint'ler 503 döner.
+
+v1.15: Her iki mod da `current_user.email_verified=True` ister — Free tier
+erişimi etkilenmez, sadece ücretli kademeye yükseltme e-posta doğrulaması
+şart koşar (bkz. auth_router.py::verify_email).
 """
 
 import logging
@@ -74,6 +78,15 @@ def create_checkout(
     """Abonelik başlatır: Stripe Checkout URL'i veya dev modda anında yükseltme."""
     if req.tier not in _PURCHASABLE_TIERS:
         raise HTTPException(status_code=400, detail="Invalid tier. Use 'pro' or 'enterprise'")
+
+    # v1.15: DNS/MX kontrolü (v1.14) sahte kullanıcı adı + gerçek domain kombinasyonunu
+    # yakalayamıyordu — ücretli kademeye yükseltme artık e-posta doğrulaması ister.
+    # Free tier'da erişim etkilenmez (bkz. auth_router.py::_send_verification_email).
+    if not current_user.email_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="E-posta adresinizi doğrulamadan plan yükseltemezsiniz. Hesap sayfanızdan doğrulama e-postasını yeniden gönderebilirsiniz.",
+        )
 
     # Dev mode: ödeme simülasyonu — tier anında güncellenir, Stripe'a gidilmez.
     if settings.billing_dev_mode:

@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     # Şifre sıfırlama linkinin hedeflediği frontend origin'i (mail içindeki link).
     frontend_url: str = "http://localhost:3000"
     password_reset_ttl_minutes: int = 60
+    # E-posta doğrulama linkinin geçerlilik süresi (v1.15) — şifre sıfırlamadan
+    # daha uzun: kullanıcı kayıttan hemen sonra tıklamak zorunda değil (yumuşak
+    # gating, Free tier zaten tam erişimli).
+    email_verification_ttl_minutes: int = 1440
     # Backend API'nin dışarıdan erişilebilir kök adresi — mail içindeki "aboneliği
     # iptal et" linki gibi doğrudan API'ye giden bağlantılar için. Prod'da nginx
     # /api/ altında proxy'lediği için gerçek domain + /api olmalı (örn. https://nexstream.news/api).

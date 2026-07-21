@@ -28,7 +28,7 @@ from src.adapters.api.auth_utils import has_admin_role, has_moderator_role, effe
 from src.adapters.api.limiter import limiter
 from src.adapters.notifications.email_adapter import get_email_adapter
 from src.adapters.repositories.user_repository import UserRepository
-from src.domain.models.user import User, UserSession, UserTier, PasswordResetToken
+from src.domain.models.user import User, UserSession, UserTier, PasswordResetToken, EmailVerificationToken
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -38,6 +38,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     name: str = ""
+    language: str = "TR"
 
 
 class LoginRequest(BaseModel):
@@ -53,6 +54,14 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     password: str
+
+
+class ResendVerificationRequest(BaseModel):
+    language: str = "TR"
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
 
 
 # ── Yardımcılar ────────────────────────────────────────────────────────────────
@@ -105,10 +114,11 @@ def _assert_deliverable_email(email: str) -> None:
 
     Sadece kayıtta çalışır — "muz@muz.com" gibi hiç var olmayan/mail almayan
     domain'leri yakalar. Var olan gerçek bir domain + uydurma kullanıcı adını
-    (örn. rastgele123@gmail.com) YAKALAYAMAZ — bunun tek gerçek çözümü
-    e-posta doğrulama linkidir (ayrı bir iş, henüz yok). DNS sorgusunun
-    kendisi ağ/timeout yüzünden başarısız olursa KAYDI ENGELLEMEYİZ — sadece
-    definitif "bu domain mail almıyor" sonucunda 400 döneriz.
+    (örn. rastgele123@gmail.com) YAKALAYAMAZ — bunun gerçek çözümü kayıt
+    sonrası gönderilen e-posta doğrulama linkidir (v1.15, bkz.
+    `_send_verification_email`). DNS sorgusunun kendisi ağ/timeout yüzünden
+    başarısız olursa KAYDI ENGELLEMEYİZ — sadece definitif "bu domain mail
+    almıyor" sonucunda 400 döneriz.
     """
     try:
         validate_email(email, check_deliverability=True)
@@ -126,6 +136,8 @@ def _user_payload(user: User) -> dict:
     `role`: etkin yetki (user/moderator/admin, ADMIN_EMAILS bootstrap'i dahil) —
         frontend'in admin panel erişimini/rol yönetim kontrollerini göstermesi içindir.
     `is_admin`: geriye dönük uyumluluk için korunan türetilmiş alan (role == admin).
+    `email_verified`: v1.15 — Free tier'da erişimi kısıtlamaz, sadece ücretli
+        kademeye yükseltmede (billing checkout) şart koşulur.
     """
     return {
         "id": user.id,
@@ -135,7 +147,27 @@ def _user_payload(user: User) -> dict:
         "role": effective_role(user),
         "is_admin": has_admin_role(user),
         "is_moderator": has_moderator_role(user),
+        "email_verified": user.email_verified,
     }
+
+
+def _send_verification_email(repo: UserRepository, user: User, language: str) -> None:
+    """Yeni bir doğrulama token'ı üretip mail gönderir — register ve resend ortak kullanır.
+
+    Best-effort: gönderim başarısız olsa da (ağ hatası, Resend down) çağıran
+    akışı (register/resend) BOZMAZ — sadece loglanır. Kayıt/oturum açma email
+    servisine bağımlı olmamalı (forgot-password'daki desenle tutarlı).
+    """
+    token = _make_token()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.email_verification_ttl_minutes)
+    repo.create_verification_token(EmailVerificationToken(user_id=user.id, token=token, expires_at=expires_at))
+    verify_url = f"{settings.frontend_url}/auth/verify-email?token={token}"
+    try:
+        ok = get_email_adapter().send_verification(user.email, verify_url, language)
+        if not ok:
+            logger.error("Doğrulama e-postası gönderilemedi: %s", user.email)
+    except Exception as e:
+        logger.error("Doğrulama e-postası gönderilirken hata: %s (%s)", user.email, e)
 
 
 # ── Endpoint'ler ───────────────────────────────────────────────────────────────
@@ -156,6 +188,7 @@ def register(req: RegisterRequest, response: Response, db: Session = Depends(get
     saved = repo.create_user(user)
     token = _open_session(repo, saved.id)
     _set_session_cookie(response, token)
+    _send_verification_email(repo, saved, req.language)
 
     logger.info("Yeni kullanıcı: %s (tier=free)", saved.email)
     return {"user": _user_payload(saved)}
@@ -252,3 +285,51 @@ def reset_password(request: Request, req: ResetPasswordRequest, db: Session = De
 
     logger.info("Şifre sıfırlandı: user_id=%s", reset_token.user_id)
     return {"message": "Password updated successfully"}
+
+
+# ── E-posta doğrulama ────────────────────────────────────────────────────────
+
+@router.post("/resend-verification")
+@limiter.limit("5/minute")
+def resend_verification(
+    request: Request,
+    req: ResendVerificationRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Oturum açmış kullanıcı için yeni bir doğrulama e-postası tetikler.
+
+    Zaten doğrulanmışsa no-op (idempotent) — hata değil, aynı başarı mesajı döner.
+    """
+    if user.email_verified:
+        return {"message": "Email already verified"}
+    repo = UserRepository(db)
+    _send_verification_email(repo, user, req.language)
+    logger.info("Doğrulama e-postası yeniden gönderildi: %s", user.email)
+    return {"message": "Verification email sent"}
+
+
+@router.post("/verify-email")
+@limiter.limit("20/minute")
+def verify_email(request: Request, req: VerifyEmailRequest, db: Session = Depends(get_db)):
+    """Token'ı doğrulayıp kullanıcıyı `email_verified=true` işaretler.
+
+    Auth gerektirmez — mail linkine başka bir cihazda/tarayıcıda tıklansa da
+    çalışır (reset-password ile aynı desen).
+    """
+    repo = UserRepository(db)
+    verification_token = repo.get_verification_token(req.token)
+    if not verification_token or verification_token.used:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+
+    expires = verification_token.expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+
+    repo.mark_email_verified(verification_token.user_id)
+    repo.mark_verification_token_used(req.token)
+
+    logger.info("E-posta doğrulandı: user_id=%s", verification_token.user_id)
+    return {"message": "Email verified successfully"}
