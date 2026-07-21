@@ -83,6 +83,7 @@ class User:
     role: UserRole = UserRole.USER
     api_key: Optional[str] = None
     stripe_customer_id: Optional[str] = None
+    email_verified: bool = False
     id: Optional[int] = None
     created_at: Optional[datetime] = None
 
@@ -104,6 +105,26 @@ class PasswordResetToken:
 
     `used` işaretlendikten sonra (veya süresi dolduktan sonra) geçersizdir;
     session token'ların aksine kalıcı silinmez, denetim izi için tutulur.
+    """
+
+    user_id: int
+    token: str
+    expires_at: datetime
+    used: bool = False
+    id: Optional[int] = None
+    created_at: Optional[datetime] = None
+
+
+@dataclass
+class EmailVerificationToken:
+    """E-posta doğrulama token'ı — kayıtta gönderilen onay linkinin taşıyıcısı.
+
+    PasswordResetToken ile aynı şekil (tek kullanımlık, TTL'li, opak): DNS/MX
+    kontrolü (v1.14) gerçek bir domain + uydurma kullanıcı adını (örn.
+    rastgele123@gmail.com) yakalayamaz — bunun tek gerçek çözümü budur.
+    Doğrulanmamış kullanıcılar Free tier'da tam erişime sahiptir (yumuşak
+    gating); yalnızca ücretli kademeye yükseltme (billing checkout) bunu şart
+    koşar — bkz. billing_router.py::create_checkout.
     """
 
     user_id: int

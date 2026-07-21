@@ -12,6 +12,7 @@ export interface User {
   role?: Role;                 // v1.13: yetki hiyerarşisi (backend hesaplar, ADMIN_EMAILS dahil)
   is_admin?: boolean;          // geriye dönük uyumluluk — role === "admin" ile aynı
   is_moderator?: boolean;      // role moderator VEYA admin
+  email_verified?: boolean;    // v1.15: Free tier erişimini kısıtlamaz, sadece ücretli yükseltme ister
   created_at?: string;
 }
 

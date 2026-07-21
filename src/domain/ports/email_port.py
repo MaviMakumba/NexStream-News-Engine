@@ -1,4 +1,4 @@
-"""E-posta port'u — digest / keyword alert / hoş geldin mailleri sözleşmesi.
+"""E-posta port'u — digest / keyword alert / hoş geldin / doğrulama mailleri sözleşmesi.
 
 Somut implementasyonlar: ResendEmailAdapter (RESEND_API_KEY doluysa) ve
 ConsoleEmailAdapter (boşsa — mailler sadece loglanır, geliştirme modu).
@@ -21,3 +21,6 @@ class EmailPort(ABC):
 
     @abstractmethod
     def send_password_reset(self, to: str, reset_url: str, language: str) -> bool: ...
+
+    @abstractmethod
+    def send_verification(self, to: str, verify_url: str, language: str) -> bool: ...

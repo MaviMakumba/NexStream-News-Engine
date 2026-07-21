@@ -23,7 +23,7 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(""); setLoading(true);
     try {
-      const { user } = await apiRegister(email, password, name);
+      const { user } = await apiRegister(email, password, name, lang);
       login(user);
       router.push("/dashboard");
     } catch (err: unknown) {

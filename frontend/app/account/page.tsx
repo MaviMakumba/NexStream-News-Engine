@@ -12,6 +12,7 @@ import { useSettings } from "@/lib/settings-context";
 import { Navbar } from "@/components/Navbar";
 import { TierBadge } from "@/components/TierBadge";
 import { AuthLoadingScreen } from "@/components/AuthLoadingScreen";
+import { EmailVerifyBanner } from "@/components/EmailVerifyBanner";
 import {
   BASE, createCheckout, devDowngrade, fetchBillingConfig, fetchMyUsage,
   generateApiKey, getBillingPortal, revokeApiKey,
@@ -157,6 +158,8 @@ export default function AccountPage() {
           <p className="section-label" style={{ marginBottom: 6 }}>{t.accountLabel}</p>
           <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--text)" }}>{t.accountTitle}</h1>
         </div>
+
+        <EmailVerifyBanner />
 
         {notice && (
           <div style={{ background: "var(--pos-bg)", border: "1px solid var(--pos)", borderRadius: 12,
@@ -323,10 +326,14 @@ export default function AccountPage() {
             <p style={{ fontSize: "0.84rem", color: "var(--text2)", marginBottom: 16, lineHeight: 1.6 }}>
               {t.upgradeDesc}
             </p>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button onClick={() => handleUpgrade("pro")} className="btn-primary">{t.proCta}</button>
-              <button onClick={() => handleUpgrade("enterprise")} className="btn-secondary">{t.entCta}</button>
-            </div>
+            {user.email_verified ? (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button onClick={() => handleUpgrade("pro")} className="btn-primary">{t.proCta}</button>
+                <button onClick={() => handleUpgrade("enterprise")} className="btn-secondary">{t.entCta}</button>
+              </div>
+            ) : (
+              <p style={{ fontSize: "0.8rem", color: "var(--neu)" }}>{t.upgradeNeedsVerification}</p>
+            )}
           </div>
         ) : (
           <div className="card">

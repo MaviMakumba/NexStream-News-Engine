@@ -13,9 +13,11 @@ from typing import List, Optional
 from sqlalchemy import Date, func
 from sqlalchemy.orm import Session
 
-from src.domain.models.user import User, UserSession, UserTier, UserRole, PasswordResetToken
+from src.domain.models.user import User, UserSession, UserTier, UserRole, PasswordResetToken, EmailVerificationToken
 from src.domain.ports.user_port import UserRepositoryPort
-from src.adapters.repositories.orm_models import UserORM, UserSessionORM, UsageLogORM, PasswordResetTokenORM
+from src.adapters.repositories.orm_models import (
+    UserORM, UserSessionORM, UsageLogORM, PasswordResetTokenORM, EmailVerificationTokenORM,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,7 @@ class UserRepository(UserRepositoryPort):
             role=UserRole(getattr(orm, "role", None) or "user"),
             api_key=getattr(orm, "api_key", None),
             stripe_customer_id=orm.stripe_customer_id,
+            email_verified=getattr(orm, "email_verified", False) or False,
             created_at=orm.created_at,
         )
 
@@ -51,6 +54,16 @@ class UserRepository(UserRepositoryPort):
 
     def _to_reset_token(self, orm: PasswordResetTokenORM) -> PasswordResetToken:
         return PasswordResetToken(
+            id=orm.id,
+            user_id=orm.user_id,
+            token=orm.token,
+            expires_at=orm.expires_at,
+            used=orm.used,
+            created_at=orm.created_at,
+        )
+
+    def _to_verification_token(self, orm: EmailVerificationTokenORM) -> EmailVerificationToken:
+        return EmailVerificationToken(
             id=orm.id,
             user_id=orm.user_id,
             token=orm.token,
@@ -194,6 +207,41 @@ class UserRepository(UserRepositoryPort):
         if orm:
             orm.used = True
             self.db.commit()
+
+    # ── E-posta doğrulama ──────────────────────────────────────────────────
+
+    def create_verification_token(self, verification_token: EmailVerificationToken) -> EmailVerificationToken:
+        orm = EmailVerificationTokenORM(
+            user_id=verification_token.user_id,
+            token=verification_token.token,
+            expires_at=verification_token.expires_at,
+        )
+        self.db.add(orm)
+        self.db.commit()
+        self.db.refresh(orm)
+        return self._to_verification_token(orm)
+
+    def get_verification_token(self, token: str) -> Optional[EmailVerificationToken]:
+        orm = (
+            self.db.query(EmailVerificationTokenORM)
+            .filter(EmailVerificationTokenORM.token == token)
+            .first()
+        )
+        return self._to_verification_token(orm) if orm else None
+
+    def mark_verification_token_used(self, token: str) -> None:
+        orm = self.db.query(EmailVerificationTokenORM).filter(EmailVerificationTokenORM.token == token).first()
+        if orm:
+            orm.used = True
+            self.db.commit()
+
+    def mark_email_verified(self, user_id: int) -> bool:
+        orm = self.db.query(UserORM).filter(UserORM.id == user_id).first()
+        if not orm:
+            return False
+        orm.email_verified = True
+        self.db.commit()
+        return True
 
     # ── Kullanım takibi ────────────────────────────────────────────────────
 

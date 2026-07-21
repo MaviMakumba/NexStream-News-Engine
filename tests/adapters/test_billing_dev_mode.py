@@ -12,8 +12,8 @@ from src.domain.models.user import User, UserTier
 from src.infrastructure.config.database import get_db
 
 
-def _make_user(tier=UserTier.FREE):
-    return User(id=1, email="dev@test.com", password_hash="h", tier=tier)
+def _make_user(tier=UserTier.FREE, email_verified=True):
+    return User(id=1, email="dev@test.com", password_hash="h", tier=tier, email_verified=email_verified)
 
 
 def _override(app_client, user):
@@ -70,6 +70,19 @@ def test_dev_checkout_enterprise(app_client):
 
     assert resp.status_code == 200
     assert resp.json()["tier"] == "enterprise"
+
+
+def test_dev_checkout_blocked_when_email_not_verified(app_client):
+    """Dev mode ödeme simülasyonunu atlatmaz — doğrulama kontrolü checkout'un başında."""
+    _override(app_client, _make_user(email_verified=False))
+    try:
+        with patch("src.adapters.api.routers.billing_router.settings") as ms:
+            ms.billing_dev_mode = True
+            resp = app_client.post("/billing/checkout", json=_checkout_payload("pro"))
+    finally:
+        _clear(app_client)
+
+    assert resp.status_code == 403
 
 
 def test_dev_checkout_invalid_tier_still_400(app_client):

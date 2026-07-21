@@ -40,6 +40,11 @@ _STRINGS: dict = {
         "reset_body": "Hesabınız için bir şifre sıfırlama talebi aldık. Aşağıdaki butona tıklayarak yeni bir şifre belirleyebilirsiniz.",
         "reset_cta": "Şifremi Sıfırla",
         "reset_expiry": "Bu bağlantı 1 saat içinde geçerliliğini yitirir. Bu talebi siz yapmadıysanız bu maili yok sayabilirsiniz.",
+        "verify_subject": "NexStream E-posta Doğrulama",
+        "verify_title": "E-posta Adresini Doğrula",
+        "verify_body": "Hesabını kullanmaya devam edebilirsin, ama Pro/Kurumsal'a yükseltmeden önce e-posta adresini doğrulaman gerekiyor. Aşağıdaki butona tıkla.",
+        "verify_cta": "E-postamı Doğrula",
+        "verify_expiry": "Bu bağlantı 24 saat içinde geçerliliğini yitirir. Bu kaydı siz yapmadıysanız bu maili yok sayabilirsiniz.",
     },
     "EN": {
         "digest_subject": "NexStream Daily Digest",
@@ -56,6 +61,11 @@ _STRINGS: dict = {
         "reset_body": "We received a request to reset your password. Click the button below to choose a new one.",
         "reset_cta": "Reset Password",
         "reset_expiry": "This link expires in 1 hour. If you didn't request this, you can safely ignore this email.",
+        "verify_subject": "NexStream Email Verification",
+        "verify_title": "Verify Your Email",
+        "verify_body": "You can keep using your account, but verifying your email is required before upgrading to Pro/Enterprise. Click the button below.",
+        "verify_cta": "Verify My Email",
+        "verify_expiry": "This link expires in 24 hours. If you didn't create this account, you can safely ignore this email.",
     },
 }
 
@@ -144,6 +154,20 @@ padding:12px 24px;border-radius:6px;font-weight:600'>{cta}</a></p>
 </body></html>"""
 
 
+def _verification_html(verify_url: str, language: str) -> str:
+    title, body, cta, expiry = (
+        _t(language, "verify_title"), _t(language, "verify_body"),
+        _t(language, "verify_cta"), _t(language, "verify_expiry"),
+    )
+    return f"""<html><body style='font-family:sans-serif;max-width:640px;margin:auto'>
+<h2 style='color:#1a1a1a'>{title}</h2>
+<p style='color:#444'>{body}</p>
+<p><a href='{verify_url}' style='display:inline-block;background:#1a73e8;color:#fff;text-decoration:none;
+padding:12px 24px;border-radius:6px;font-weight:600'>{cta}</a></p>
+<p style='color:#999;font-size:12px;margin-top:24px'>{expiry}</p>
+</body></html>"""
+
+
 def _alert_html(article: Article, keyword: str, language: str) -> str:
     label = _t(language, "alert_keyword_label")
     topic = _topic_label(article.topic, language)
@@ -177,6 +201,10 @@ class ConsoleEmailAdapter(EmailPort):
 
     def send_password_reset(self, to: str, reset_url: str, language: str) -> bool:
         logger.info("📧 [CONSOLE] Password reset → %s | %s", to, reset_url)
+        return True
+
+    def send_verification(self, to: str, verify_url: str, language: str) -> bool:
+        logger.info("📧 [CONSOLE] Email verification → %s | %s", to, verify_url)
         return True
 
 
@@ -217,6 +245,9 @@ class ResendEmailAdapter(EmailPort):
 
     def send_password_reset(self, to: str, reset_url: str, language: str) -> bool:
         return self._post(to, _t(language, "reset_subject"), _password_reset_html(reset_url, language))
+
+    def send_verification(self, to: str, verify_url: str, language: str) -> bool:
+        return self._post(to, _t(language, "verify_subject"), _verification_html(verify_url, language))
 
 
 def get_email_adapter() -> EmailPort:
