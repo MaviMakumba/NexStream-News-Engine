@@ -7,7 +7,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      kafka:
+      redpanda:
         condition: service_healthy
       chromadb:
         condition: service_started
@@ -21,8 +21,8 @@ services:
       - GROQ_API_KEY=${GROQ_API_KEY}
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - KAFKA_HOST=kafka
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
+      - KAFKA_HOST=redpanda
       - KAFKA_PORT=29092
       - API_KEY=${API_KEY:-dev-key-change-me}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8000}
@@ -72,45 +72,29 @@ services:
       db:
         condition: service_healthy
 
-  # 4. KAFKA KOORDİNATÖRÜ (Zookeeper) — sadece internal ağda
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.4.0
-    container_name: nexstream_zookeeper
+  # 4. MESAJ KUYRUĞU (Redpanda) — Kafka wire-protokolüyle uyumlu, tek binary,
+  # arm64 destekli (Confluent'in Kafka+Zookeeper imajları amd64-only olduğu için
+  # v1.18'de değiştirildi — bkz. CLAUDE.md). aiokafka client'ı değişmeden çalışır.
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    container_name: nexstream_redpanda
     restart: unless-stopped
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=512M
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      - --kafka-addr internal://0.0.0.0:29092,external://0.0.0.0:9092
+      - --advertise-kafka-addr internal://redpanda:29092,external://localhost:9092
     healthcheck:
-      test: ["CMD-SHELL", "echo srvr | nc localhost 2181 || exit 1"]
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true' || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 10s
-
-  # 5. MESAJ KUYRUĞU (Kafka) — sadece internal ağda
-  kafka:
-    image: confluentinc/cp-kafka:7.4.0
-    container_name: nexstream_kafka
-    restart: unless-stopped
-    stop_grace_period: 30s
-    depends_on:
-      zookeeper:
-        condition: service_healthy
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_LOG_RETENTION_MS: 7200000
-      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
-    healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
-      interval: 10s
-      timeout: 10s
       retries: 15
-      start_period: 30s
+      start_period: 15s
 
   # 6. ARKA PLAN İŞÇİSİ (Consumer)
   worker:
@@ -118,7 +102,7 @@ services:
     container_name: nexstream_worker
     restart: unless-stopped
     depends_on:
-      kafka:
+      redpanda:
         condition: service_healthy
       db:
         condition: service_healthy
@@ -132,7 +116,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
       - GROQ_API_KEY=${GROQ_API_KEY}
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
     volumes:
@@ -146,11 +130,11 @@ services:
     container_name: nexstream_scheduler
     restart: unless-stopped
     depends_on:
-      kafka:
+      redpanda:
         condition: service_healthy
     command: python -m src.adapters.scheduling.scheduler_service
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
       - SCRAPE_SOURCES=TRT Haber,BBC Türkçe,Hürriyet,Hürriyet Spor,Sabah,CNN Türk,Sözcü,Habertürk,HT Spor,Anadolu Ajansı,AA Ekonomi,BBC Technology,BBC Sport,Guardian Tech,TechCrunch,Hacker News,The Verge
     volumes:
       - .:/app

@@ -100,7 +100,10 @@ async def lifespan(app: FastAPI):
     get_search_repository()
     log.info("SentenceTransformer modeli hazır.")
 
-    notifier = WebSocketNotifier()
+    notifier = WebSocketNotifier(
+        max_per_user=settings.ws_max_connections_per_user,
+        max_total=settings.ws_max_total_connections,
+    )
     set_notifier(notifier)
     broadcast_task = asyncio.create_task(_broadcast_new_articles(notifier))
     log.info("WebSocket broadcast poller başladı.")

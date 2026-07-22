@@ -311,6 +311,23 @@ def test_ws_feed_accepts_pro_tier(app_client):
         app_client.app.dependency_overrides.pop(get_notifier, None)
 
 
+def test_ws_feed_rejects_when_per_user_limit_reached(app_client):
+    from src.adapters.notifications.websocket_notifier import WebSocketNotifier
+    notifier = WebSocketNotifier(max_per_user=1, max_total=500)
+    app_client.app.dependency_overrides[get_optional_user] = lambda: _make_user(UserTier.PRO, uid=7)
+    app_client.app.dependency_overrides[get_notifier] = lambda: notifier
+    try:
+        with app_client.websocket_connect("/ws/feed"):
+            assert notifier.connection_count == 1
+            with app_client.websocket_connect("/ws/feed") as ws2:
+                with pytest.raises(WebSocketDisconnect) as exc_info:
+                    ws2.receive_text()
+            assert exc_info.value.code == 1013
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+        app_client.app.dependency_overrides.pop(get_notifier, None)
+
+
 # ── /subscriptions — anlık (instant) uyarı Pro+ özelliği ────────────────────
 
 def _mock_sub_repo():

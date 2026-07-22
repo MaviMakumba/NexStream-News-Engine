@@ -16,7 +16,7 @@ def test_settings_loads_defaults():
     assert s.db_port == 5432
     assert s.chroma_host == "localhost"
     assert s.chroma_port == 8001
-    assert s.kafka_bootstrap_servers == "kafka:29092"
+    assert s.kafka_bootstrap_servers == "redpanda:29092"
     assert s.api_key == "dev-key-change-me"
     assert s.log_level == "INFO"
     assert s.log_format == "json"

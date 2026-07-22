@@ -36,9 +36,11 @@ class Settings(BaseSettings):
     chroma_host: str = "localhost"
     chroma_port: int = 8001
 
-    # ── Kafka (scrape pipeline kuyruğu) ────────────────────────────────────
-    kafka_bootstrap_servers: str = "kafka:29092"
-    kafka_host: str = "kafka"
+    # ── Kafka-uyumlu mesajlaşma (Redpanda broker, v1.18'de Kafka+Zookeeper'ın
+    # yerine geçti — arm64 destek için, bkz. DEPLOY.md). Alan adları wire-
+    # protokolü tanımlıyor, broker yazılımını değil; bu yüzden korundu.
+    kafka_bootstrap_servers: str = "redpanda:29092"
+    kafka_host: str = "redpanda"
     kafka_port: int = 29092
 
     # ── Scheduler — taranacak kaynaklar (registry isimleriyle eşleşmeli) ───
@@ -115,6 +117,12 @@ class Settings(BaseSettings):
     # ── Ham veri export (v1.16, Enterprise özelliği) ────────────────────────
     # Tek istekte döndürülen üst satır sınırı — runaway sorgudan/yanıttan korur.
     export_max_rows: int = 20000
+
+    # ── WebSocket bağlantı tavanı (v1.18 güvenlik denetimi) ─────────────────
+    # Tek bir Pro+ hesabın (veya toplamda tüm istemcilerin) sınırsız /ws/feed
+    # bağlantısı açıp belleği/CPU'yu tüketmesini engeller.
+    ws_max_connections_per_user: int = 5
+    ws_max_total_connections: int = 500
 
     @property
     def admin_email_set(self) -> set[str]:

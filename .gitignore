@@ -13,6 +13,10 @@ __pycache__/
 .env.*
 !.env.example
 
+# Offsite backup credentials (v1.18) — gerçek rclone.conf sır içerir, sadece .example izinli
+infra/backup/rclone.conf
+!infra/backup/rclone.conf.example
+
 # IDE
 .vscode/
 .idea/
