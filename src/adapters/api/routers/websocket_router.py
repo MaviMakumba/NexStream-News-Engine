@@ -36,7 +36,15 @@ async def websocket_feed(
         await websocket.accept()
         await websocket.close(code=1008, reason="Pro plan required for live feed")
         return
-    await notifier.connect(websocket)
+
+    user_key = str(user.id)
+    if not notifier.can_accept(user_key):
+        # 1013 = "Try Again Later" — standart WS close code, rate/kapasite limiti için.
+        await websocket.accept()
+        await websocket.close(code=1013, reason="Too many concurrent connections")
+        return
+
+    await notifier.connect(websocket, user_key)
     try:
         while True:
             try:

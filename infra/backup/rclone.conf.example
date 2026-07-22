@@ -1,0 +1,19 @@
+# Offsite yedek hedefi (opt-in) — bu dosya sadece RCLONE_REMOTE env var'ı set
+# edildiğinde kullanılır. Boşken docker-compose.prod.yml'deki mount zararsızdır.
+#
+# Doldurmak için (örnek: Backblaze B2 — S3'ten ucuz, egress'siz):
+#   1. Host üzerinde: rclone config  (interaktif sihirbaz, "b2" tipini seçin)
+#   2. Üretilen [b2] bloğunu bu dosyaya kopyalayın (gerçek key'lerle)
+#   3. .env'e ekleyin: RCLONE_REMOTE=b2:nexstream-backups
+#   4. docker compose -f docker-compose.prod.yml up -d backup
+#
+# ⚠️ Gerçek key'lerle doldurduktan sonra bu dosyayı GIT'E COMMIT ETMEYİN
+#    (.gitignore'a zaten eklendi) — .env gibi bir sır dosyasıdır.
+#
+# Örnek S3-uyumlu blok (Backblaze B2, S3 API modu):
+# [b2]
+# type = s3
+# provider = Other
+# access_key_id = ...
+# secret_access_key = ...
+# endpoint = s3.us-west-002.backblazeb2.com

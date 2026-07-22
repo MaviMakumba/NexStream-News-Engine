@@ -139,9 +139,8 @@ docker-compose.prod.yml                    # Full production stack (16 services)
 | app | 8000 | FastAPI |
 | db | — (internal) | PostgreSQL 15 |
 | adminer | 8080 | DB yönetim UI |
-| zookeeper | — (internal) | Kafka koordinatör |
-| kafka | — (internal) | Mesaj kuyruğu |
-| worker | — | Kafka consumer + Groq analyzer |
+| redpanda | — (internal) | Mesaj kuyruğu (Kafka-uyumlu, tek binary — v1.18'de Kafka+Zookeeper'ın yerine geçti) |
+| worker | — | Kafka-uyumlu consumer + Groq analyzer |
 | scheduler | — | 10dk'da bir scrape tetikler |
 | frontend | 3000 | Next.js dashboard |
 | chromadb | — (internal) | Vektör DB |
@@ -155,9 +154,8 @@ docker-compose.prod.yml                    # Full production stack (16 services)
 | certbot | — | Let's Encrypt otomatik yenileme |
 | app | — (internal) | FastAPI + /metrics endpoint |
 | db | — (internal) | PostgreSQL 15 |
-| zookeeper | — (internal) | Kafka koordinatör |
-| kafka | — (internal) | Mesaj kuyruğu |
-| worker | — (internal) | Kafka consumer + Groq analyzer |
+| redpanda | — (internal) | Mesaj kuyruğu (Kafka-uyumlu, tek binary — v1.18'de Kafka+Zookeeper'ın yerine geçti) |
+| worker | — (internal) | Kafka-uyumlu consumer + Groq analyzer |
 | scheduler | — (internal) | 10dk'da bir scrape tetikler |
 | frontend | — (internal) | Next.js (nginx üzerinden) |
 | chromadb | — (internal) | Vektör DB |
@@ -246,7 +244,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 ### v1.3.0 — Foundation Hardening ✅ TAMAMLANDI
 1. **Pydantic Settings** — `src/infrastructure/config/settings.py` oluşturuldu, 5 dosyadaki os.getenv() kaldırıldı
 2. **Structured Logging** — `src/infrastructure/logging/logger.py` (JSON/text formatter), 24 print() → logger
-3. **Network isolation** — docker-compose.yml: db/kafka/zookeeper/chromadb port'ları kapatıldı
+3. **Network isolation** — docker-compose.yml: db/redpanda/chromadb port'ları kapatıldı
 4. **API Key Auth** — `src/adapters/api/auth.py`, `/scrape` ve `/reindex` → `Depends(verify_api_key)`
 5. **Rate limiting** — slowapi: search 30/dk, scrape 6/dk, news list 120/dk; `src/adapters/api/limiter.py`
 6. **Input validation** — SearchRequest.query max_length=200, ScrapeCommand validasyonu, sentiment pattern
@@ -475,7 +473,8 @@ cd frontend; npm install        # ilk kez / bağımlılık değiştiyse
 cd frontend; npm run dev        # http://localhost:3000 (hot reload)
 cd frontend; npm run build      # tip kontrolü + prod build doğrulama (DEĞİŞİKLİK SONRASI ÇALIŞTIR)
 
-# Temiz aç/kapa (stale kafka/zookeeper sorununu önler)
+# Temiz aç/kapa (v1.18'de Redpanda'ya geçildi — tek container, iki-katmanlı
+# zookeeper→kafka başlangıç bağımlılığı kalktı, ama yine de temiz aç/kapa iyi pratik)
 docker compose down
 docker compose up -d
 

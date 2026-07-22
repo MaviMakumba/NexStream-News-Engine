@@ -87,3 +87,33 @@ async def test_broadcast_multiple_clients():
 
     ws1.send_json.assert_called_once()
     ws2.send_json.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_can_accept_blocks_after_per_user_limit():
+    notifier = WebSocketNotifier(max_per_user=2, max_total=500)
+    for _ in range(2):
+        await notifier.connect(AsyncMock(), user_key="user-1")
+
+    assert notifier.can_accept("user-1") is False
+    assert notifier.can_accept("user-2") is True
+
+
+@pytest.mark.asyncio
+async def test_can_accept_blocks_after_global_limit():
+    notifier = WebSocketNotifier(max_per_user=100, max_total=2)
+    await notifier.connect(AsyncMock(), user_key="user-1")
+    await notifier.connect(AsyncMock(), user_key="user-2")
+
+    assert notifier.can_accept("user-3") is False
+
+
+@pytest.mark.asyncio
+async def test_disconnect_frees_per_user_slot():
+    notifier = WebSocketNotifier(max_per_user=1, max_total=500)
+    ws = AsyncMock()
+    await notifier.connect(ws, user_key="user-1")
+    assert notifier.can_accept("user-1") is False
+
+    notifier.disconnect(ws)
+    assert notifier.can_accept("user-1") is True

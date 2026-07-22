@@ -8,7 +8,7 @@
 ![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi)
 ![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=nextdotjs)
-![Kafka](https://img.shields.io/badge/Apache_Kafka-231F20?logo=apachekafka)
+![Redpanda](https://img.shields.io/badge/Redpanda-Kafka--compatible-E33237)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
 ![Tests](https://img.shields.io/badge/tests-373_passing-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -38,7 +38,7 @@ What started as a course project on enterprise architecture has grown into a pro
 - **User accounts** (session auth), **tiered API** (Free / Pro / Enterprise) with per-user rate limits and usage analytics, **Stripe billing** (with a no-Stripe dev mode for local demos), **Redis cache**
 - **Role-based admin** (`is_admin` + `ADMIN_EMAILS` bootstrap), **self-service usage dashboard**, and **personal API keys** (`X-User-Key`) for the public API
 - **Next.js frontend**: 9 cinematic themes with animated Canvas backgrounds, full TR/EN i18n
-- **Event-driven** via Apache Kafka; **fully containerized** with Docker Compose
+- **Event-driven** via Redpanda (Kafka-compatible); **fully containerized** with Docker Compose
 - **Observability**: Prometheus + Grafana + Loki, `/health` and `/metrics` endpoints
 - **373 tests**, all green, CI via GitHub Actions
 
@@ -70,9 +70,9 @@ NexStream is built on **Hexagonal Architecture (Ports & Adapters)**. The domain 
 |                                                              |
 |  Messaging       Scheduling          Vector Search   Auth    |
 |  ---------       ----------          -------------   ----    |
-|  Apache Kafka    APScheduler         ChromaDB +      Session |
-|  (producer +     (10-min trigger)    sentence-       + Redis |
-|   consumer)                          transformers    + tiers |
+|  Redpanda        APScheduler         ChromaDB +      Session |
+|  (Kafka-compat,  (10-min trigger)    sentence-       + Redis |
+|   producer+cons.)                    transformers    + tiers |
 +--------------------------------------------------------------+
 ```
 
@@ -82,7 +82,7 @@ NexStream is built on **Hexagonal Architecture (Ports & Adapters)**. The domain 
 Scheduler (every 10 min)
         |
         v
-Kafka topic: news_updates  ──>  Kafka worker (consumer)
+Redpanda topic: news_updates  ──>  Kafka-compatible worker (consumer)
                                         |
                     fetch ──> RSS scraper (17 sources)
                     analyze ─> Groq analyzer (sentiment/NER/topic/summary)
@@ -104,7 +104,7 @@ Kafka topic: news_updates  ──>  Kafka worker (consumer)
 | Frontend | Next.js 14 + React + TypeScript — 9 cinematic themes (pure CSS + Canvas) |
 | API | FastAPI + Uvicorn (REST + versioned `/api/v1`) |
 | Auth & limits | Session tokens (bcrypt), slowapi rate limiting, per-tier quotas |
-| Message broker | Apache Kafka + Zookeeper |
+| Message broker | Redpanda (Kafka-compatible, single-node) |
 | AI analyzer | Groq `llama-3.1-8b-instant` (+ optional Hugging Face fallback) |
 | Embeddings | `paraphrase-multilingual-MiniLM-L12-v2` (local, no API key) |
 | Vector search | ChromaDB (persistent) |
@@ -215,9 +215,9 @@ docker compose up -d
 
 #### First Run
 
-Once all containers are healthy, open the frontend at `http://localhost:3000`. The scheduler triggers scraping every 10 minutes and the Kafka worker processes articles through the AI analyzer automatically — no manual action needed. Confirm `http://localhost:8000/health` shows DB, Kafka, and ChromaDB all green.
+Once all containers are healthy, open the frontend at `http://localhost:3000`. The scheduler triggers scraping every 10 minutes and the Kafka-compatible worker processes articles through the AI analyzer automatically — no manual action needed. Confirm `http://localhost:8000/health` shows DB, Kafka, and ChromaDB all green.
 
-> **Clean start/stop:** use `docker compose down` then `docker compose up -d`. Kafka, Zookeeper, and ChromaDB run with `restart: unless-stopped`, so the stack self-heals even after an abrupt shutdown.
+> **Clean start/stop:** use `docker compose down` then `docker compose up -d`. Redpanda and ChromaDB run with `restart: unless-stopped`, so the stack self-heals even after an abrupt shutdown.
 
 #### Frontend development (optional, outside Docker)
 
@@ -288,7 +288,7 @@ The default `FallbackAnalyzer` chains Groq → Hugging Face → neutral fallback
 | `HUGGINGFACE_API_KEY` | Optional analyzer fallback (disabled if empty) | — |
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | PostgreSQL connection | `db` / `5432` / `nexstream_db` / … |
 | `CHROMA_HOST` / `CHROMA_PORT` | ChromaDB connection | `chromadb` / `8000` |
-| `KAFKA_BOOTSTRAP_SERVERS` | Kafka brokers | `kafka:29092` |
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka-compatible broker (Redpanda) | `redpanda:29092` |
 | `REDIS_URL` | Redis cache (null-cache if empty) | `redis://redis:6379/0` |
 | `API_KEY` | Shared admin/maintenance key | `dev-key-change-me` |
 | `SESSION_TTL_DAYS` | Session token lifetime | `30` |
@@ -365,7 +365,7 @@ Kurumsal mimari dersi için başlayan proje; kullanıcı hesapları, kullanım �
 - **Gerçek zamanlı WebSocket akışı**, **e-posta bülteni + anlık keyword alert**, **RSS/Atom feed**
 - **Kullanıcı hesapları** (session auth), **katmanlı API** (Free / Pro / Enterprise) kullanıcı bazlı limit + analytics, **Stripe ödeme**, **Redis cache**
 - **Next.js arayüzü**: animasyonlu Canvas arka planlı 9 sinematik tema, tam TR/EN i18n
-- Apache Kafka ile **olay güdümlü**; Docker Compose ile **tamamen konteynerli**
+- Redpanda (Kafka-uyumlu) ile **olay güdümlü**; Docker Compose ile **tamamen konteynerli**
 - **Gözlemlenebilirlik**: Prometheus + Grafana + Loki, `/health` ve `/metrics`
 - **373 test**, hepsi yeşil; GitHub Actions CI
 
@@ -379,7 +379,7 @@ NexStream, **Hexagonal Mimari (Ports & Adapters)** üzerine kuruludur. Domain ka
 Zamanlayıcı (her 10 dk)
         |
         v
-Kafka: news_updates  ──>  Kafka worker
+Redpanda: news_updates  ──>  Kafka-uyumlu worker
                                 |
             çek ──> RSS scraper (17 kaynak)
             analiz ─> Groq analyzer (duygu/varlık/konu/özet)
@@ -427,9 +427,9 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Konteynerler ayağa kalktıktan sonra `http://localhost:3000` arayüzünü aç. Scheduler her 10 dakikada bir scrape'i otomatik tetikler, Kafka worker haberleri AI analizinden geçirir — manuel işlem gerekmez. `http://localhost:8000/health` ile DB / Kafka / ChromaDB'nin yeşil olduğunu doğrula.
+Konteynerler ayağa kalktıktan sonra `http://localhost:3000` arayüzünü aç. Scheduler her 10 dakikada bir scrape'i otomatik tetikler, Kafka-uyumlu worker haberleri AI analizinden geçirir — manuel işlem gerekmez. `http://localhost:8000/health` ile DB / Kafka / ChromaDB'nin yeşil olduğunu doğrula.
 
-> **Temiz aç/kapa:** `docker compose down` ardından `docker compose up -d`. Kafka, Zookeeper ve ChromaDB `restart: unless-stopped` ile çalışır; ani kapanışta bile yığın kendini toparlar.
+> **Temiz aç/kapa:** `docker compose down` ardından `docker compose up -d`. Redpanda ve ChromaDB `restart: unless-stopped` ile çalışır; ani kapanışta bile yığın kendini toparlar.
 
 #### Frontend geliştirme (Docker dışı, opsiyonel)
 
@@ -495,6 +495,6 @@ Conventional Commits kullanılır: `feat:`, `fix:`, `chore:`, `ci:`, `refactor:`
 
 <div align="center">
 
-**NexStream** · Python · FastAPI · Kafka · Groq · ChromaDB · Next.js
+**NexStream** · Python · FastAPI · Redpanda · Groq · ChromaDB · Next.js
 
 </div>
