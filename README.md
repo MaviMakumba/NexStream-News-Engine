@@ -10,7 +10,8 @@
 ![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=nextdotjs)
 ![Redpanda](https://img.shields.io/badge/Redpanda-Kafka--compatible-E33237)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
-![Tests](https://img.shields.io/badge/tests-373_passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-522_passing-brightgreen)
+![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [English](#english) · [Türkçe](#turkce)
@@ -26,21 +27,35 @@
 
 NexStream is an event-driven news aggregation and intelligence platform. It continuously collects articles from **17 sources** in Turkish and English, runs them through an AI pipeline (sentiment, named-entity recognition, topic classification, summarization, plus quality and source-credibility scoring), enables hybrid semantic + keyword search, and surfaces everything through a **Next.js frontend with a cinematic, multi-theme UI**.
 
-What started as a course project on enterprise architecture has grown into a production-shaped SaaS: user accounts, a tiered public API with usage metering, Stripe billing, a real-time WebSocket feed, email newsletters, and a full observability stack.
+What started as a course project on enterprise architecture has grown into a production-shaped SaaS: user accounts with email verification, a **genuinely tier-gated** public API with usage metering, Stripe billing, a real-time WebSocket feed with per-connection limits, email newsletters, a full observability stack, and a security-hardened deployment path (rate limiting, secret rotation discipline, prod-config guardrails, automated dependency updates).
 
 **Key capabilities:**
 - **17 sources** (11 Turkish + 6 English), added declaratively via a scraper registry
 - **AI pipeline** on Groq `llama-3.1-8b-instant`: sentiment + entities (people/orgs/locations) + topic + summary in a single prompt, with an optional Hugging Face fallback
-- **Hybrid search**: ChromaDB semantic vectors + PostgreSQL keyword, combined-score ranked, with Turkish morphological stemming
-- **Trending engine**, **related-article graph** (entity overlap), and **semantic dedup**
+- **Hybrid search**: ChromaDB semantic vectors + PostgreSQL keyword, combined-score ranked with recency decay, Turkish morphological stemming
+- **Trending engine**, **related-article graph** (entity overlap, Pro+), and **semantic dedup**
 - **Quality + credibility scoring**: deterministic content-quality score and source-credibility / corroboration metrics
-- **Real-time WebSocket feed**, **email newsletter + instant keyword alerts**, **RSS/Atom feed**
-- **User accounts** (session auth), **tiered API** (Free / Pro / Enterprise) with per-user rate limits and usage analytics, **Stripe billing** (with a no-Stripe dev mode for local demos), **Redis cache**
-- **Role-based admin** (`is_admin` + `ADMIN_EMAILS` bootstrap), **self-service usage dashboard**, and **personal API keys** (`X-User-Key`) for the public API
-- **Next.js frontend**: 9 cinematic themes with animated Canvas backgrounds, full TR/EN i18n
-- **Event-driven** via Redpanda (Kafka-compatible); **fully containerized** with Docker Compose
+- **Real-time WebSocket feed** (Pro+, per-user + global connection caps), **email newsletter + instant keyword alerts**, **RSS/Atom feed**
+- **User accounts** with email verification, session auth (HttpOnly cookies), **tiered API** (Free / Pro / Enterprise) with per-user rate limits, per-tier search-result caps, and usage analytics
+- **Stripe billing** (with a no-Stripe dev mode for local demos), **raw data export** (CSV/JSON, Enterprise-only), **Redis cache**
+- **Role-based admin** (user / moderator / admin hierarchy + `ADMIN_EMAILS` bootstrap), **self-service usage dashboard**, and **personal API keys** (`X-User-Key`) for the public API
+- **Next.js 14 frontend**: 9 cinematic themes with animated Canvas backgrounds (low/high performance profiles), full TR/EN i18n, WCAG AA-checked contrast, installable **PWA**
+- **Event-driven** via Redpanda (Kafka-compatible, ARM-friendly); **fully containerized** with Docker Compose
 - **Observability**: Prometheus + Grafana + Loki, `/health` and `/metrics` endpoints
-- **373 tests**, all green, CI via GitHub Actions
+- **Security-hardened**: prod-startup config guard, timing-safe auth checks, HTML-escaped emails, per-route rate limits, encrypted + offsite-capable backups
+- **522 tests**, all green; CI via GitHub Actions with Dependabot-driven dependency updates
+
+**At a glance:**
+
+| Metric | Value |
+|--------|-------|
+| News sources | 17 (11 Turkish + 6 English) |
+| Backend tests | 522 — all green |
+| API endpoints | 49, across 13 routers |
+| Cinematic frontend themes | 9 |
+| API tiers | 3 (Free / Pro / Enterprise) — server-enforced |
+| Docker services | 9 (dev) / 15 (prod, incl. observability stack) |
+| Architecture | Hexagonal (Ports & Adapters), 3 layers |
 
 ---
 
@@ -48,51 +63,46 @@ What started as a course project on enterprise architecture has grown into a pro
 
 NexStream is built on **Hexagonal Architecture (Ports & Adapters)**. The domain layer has zero knowledge of external systems; adapters implement ports and are wired together in `dependencies.py`. Dependency direction is strictly **Adapter → Application → Domain**.
 
-```
-+--------------------------------------------------------------+
-|                        DOMAIN LAYER                          |
-|   Article model · Ports (ABCs) · Schemas · Scoring (pure)    |
-+--------------------------------------------------------------+
-                              |
-+--------------------------------------------------------------+
-|                     APPLICATION LAYER                        |
-|        NewsService — orchestration, metadata enrichment      |
-+--------------------------------------------------------------+
-                              |
-+--------------------------------------------------------------+
-|                       ADAPTERS LAYER                         |
-|                                                              |
-|  Scrapers        Analyzer            Repository      API     |
-|  --------        --------            ----------      ---     |
-|  17 RSS feeds    Groq + HF fallback  PostgreSQL      FastAPI |
-|  (registry)      (sentiment/NER/     SQLAlchemy      REST +  |
-|                   topic/summary)                     v1 API  |
-|                                                              |
-|  Messaging       Scheduling          Vector Search   Auth    |
-|  ---------       ----------          -------------   ----    |
-|  Redpanda        APScheduler         ChromaDB +      Session |
-|  (Kafka-compat,  (10-min trigger)    sentence-       + Redis |
-|   producer+cons.)                    transformers    + tiers |
-+--------------------------------------------------------------+
+```mermaid
+flowchart TB
+    subgraph Domain["Domain Layer — zero external dependencies"]
+        D1["Article Model"]
+        D2["Ports (ABCs)"]
+        D3["Pydantic Schemas"]
+        D4["Pure Scoring"]
+    end
+    subgraph Application["Application Layer"]
+        A1["NewsService<br/>orchestration + metadata enrichment"]
+    end
+    subgraph Adapters["Adapters Layer"]
+        AD1["Scrapers<br/>17 RSS feeds"]
+        AD2["Analyzer<br/>Groq + HF fallback"]
+        AD3["Repository<br/>PostgreSQL"]
+        AD4["API<br/>FastAPI REST + v1"]
+        AD5["Messaging<br/>Redpanda"]
+        AD6["Scheduling<br/>APScheduler"]
+        AD7["Vector Search<br/>ChromaDB"]
+        AD8["Auth<br/>Session + tiers"]
+    end
+    Adapters --> Application --> Domain
 ```
 
 **Event flow:**
 
-```
-Scheduler (every 10 min)
-        |
-        v
-Redpanda topic: news_updates  ──>  Kafka-compatible worker (consumer)
-                                        |
-                    fetch ──> RSS scraper (17 sources)
-                    analyze ─> Groq analyzer (sentiment/NER/topic/summary)
-                    score ──> quality + credibility + corroboration
-                    persist ─> PostgreSQL
-                    index ──> ChromaDB (embeddings, dedup)
-                    notify ─> WebSocket broadcast + keyword alerts
-                                        |
-                                        v
-                        Next.js frontend  ·  Public API v1  ·  RSS feed
+```mermaid
+flowchart LR
+    SCHED["Scheduler<br/>every 10 min"] --> TOPIC[("Redpanda<br/>news_updates")]
+    TOPIC --> WORKER["Kafka-compatible<br/>Worker"]
+    WORKER --> FETCH["Fetch<br/>RSS scraper (17 sources)"]
+    FETCH --> ANALYZE["Analyze<br/>Groq: sentiment/NER/topic"]
+    ANALYZE --> SCORE["Score<br/>quality + credibility"]
+    SCORE --> DB[("PostgreSQL")]
+    SCORE --> VEC[("ChromaDB")]
+    DB --> NOTIFY["Notify<br/>WebSocket + keyword alerts"]
+    VEC --> NOTIFY
+    NOTIFY --> FE["Next.js Frontend"]
+    NOTIFY --> API1["Public API v1"]
+    NOTIFY --> RSS["RSS Feed"]
 ```
 
 ---
@@ -101,7 +111,7 @@ Redpanda topic: news_updates  ──>  Kafka-compatible worker (consumer)
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 14 + React + TypeScript — 9 cinematic themes (pure CSS + Canvas) |
+| Frontend | Next.js 14 + React + TypeScript — 9 cinematic themes (pure CSS + Canvas), installable PWA |
 | API | FastAPI + Uvicorn (REST + versioned `/api/v1`) |
 | Auth & limits | Session tokens (bcrypt), slowapi rate limiting, per-tier quotas |
 | Message broker | Redpanda (Kafka-compatible, single-node) |
@@ -117,7 +127,8 @@ Redpanda topic: news_updates  ──>  Kafka-compatible worker (consumer)
 | Reverse proxy | Nginx + Let's Encrypt (production) |
 | Containerization | Docker + Docker Compose |
 | CI/CD | GitHub Actions |
-| Testing | pytest (373 tests) |
+| Testing | pytest (522 tests) |
+| Dependency updates | Dependabot (pip + npm + GitHub Actions, weekly) |
 
 ---
 
@@ -164,18 +175,22 @@ The original Streamlit dashboard was replaced by a **Next.js 14 + React** fronte
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/v1/news` | List articles — cursor pagination, `X-RateLimit-*` headers, tier-gated |
-| POST | `/api/v1/news/search` | Hybrid semantic + keyword search |
+| POST | `/api/v1/news/search` | Hybrid semantic + keyword search, result cap by tier (Free 10 / Pro 50 / Enterprise 200) |
 | GET | `/api/v1/news/trending` | Trending entities (last N hours) |
-| GET | `/api/v1/news/{id}/related` | Related articles via entity overlap |
+| GET | `/api/v1/news/{id}/related` | Related articles via entity overlap (Pro+) |
+| GET | `/api/v1/news/export` | Raw data export, CSV or JSON (Enterprise-only) |
 | GET | `/api/v1/news/sources` | Registered sources |
-| POST | `/auth/register` · `/auth/login` · `/auth/logout` | Session-based auth |
+| POST | `/auth/register` · `/auth/login` · `/auth/logout` | Session-based auth (HttpOnly cookie) |
+| POST | `/auth/resend-verification` · `/auth/verify-email` | Email verification flow |
+| POST | `/auth/forgot-password` · `/auth/reset-password` | Password reset |
+| GET/POST/DELETE | `/account/api-key` | Personal `X-User-Key` API key management |
 | GET/POST/PATCH/DELETE | `/subscriptions` | Newsletter / keyword-alert preferences |
 | POST | `/billing/checkout` · `/billing/portal` | Stripe Checkout & billing portal |
-| GET | `/admin/usage` · `/admin/sponsors` | Admin analytics & sponsor CRUD (`X-API-Key`) |
+| GET | `/admin/users` · `/admin/usage` · `/admin/sponsors` | Admin analytics, user/role & sponsor management |
 | GET | `/feed.xml` | RSS/Atom feed |
-| WS | `/ws/feed` | Real-time article stream |
+| WS | `/ws/feed` | Real-time article stream (Pro+, per-user + global connection caps) |
 | POST | `/news/scrape` · `/news/reindex` · `/news/reanalyze` | Maintenance (`X-API-Key`) |
-| GET | `/health` · `/metrics` | Health (DB/Kafka/ChromaDB) · Prometheus metrics |
+| GET | `/health` · `/metrics` | Health (DB/Redpanda/ChromaDB) · Prometheus metrics |
 | GET | `/docs` | Swagger UI |
 
 ---
@@ -237,7 +252,25 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-**Test coverage: 373 tests** across domain, application, and adapter layers. Every external call (Groq, Kafka, DB, ChromaDB) is mocked — no network access required.
+**Test coverage: 522 tests** across domain, application, and adapter layers. Every external call (Groq, Kafka, DB, ChromaDB) is mocked — no network access required.
+
+<details>
+<summary>Actual local run output</summary>
+
+```
+$ python -m pytest tests/ -q
+........................................................................ [ 13%]
+........................................................................ [ 27%]
+........................................................................ [ 41%]
+........................................................................ [ 55%]
+........................................................................ [ 69%]
+........................................................................ [ 82%]
+........................................................................ [ 96%]
+..................                                                        [100%]
+522 passed, 1 warning in 406.91s (0:06:46)
+```
+
+</details>
 
 ---
 
@@ -296,18 +329,25 @@ The default `FallbackAnalyzer` chains Groq → Hugging Face → neutral fallback
 | `RESEND_API_KEY` | Email newsletter (console adapter if empty) | — |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe billing (`/billing/*` returns 503 if unset) | — |
 | `STRIPE_PRO_PRICE_ID` / `STRIPE_ENTERPRISE_PRICE_ID` | Stripe price IDs | — |
+| `BILLING_DEV_MODE` | Skip Stripe, upgrade tiers instantly (local demo only — never in production) | `false` |
+| `ADMIN_EMAILS` | Comma-separated emails bootstrapped as admin, no DB write needed | — |
+| `ENVIRONMENT` | `production` enables a startup guard that refuses to boot with an unsafe config (default API key, `CORS_ORIGINS=*`, dev billing mode, insecure cookies) | `development` |
+| `EXPORT_MAX_ROWS` | Row ceiling for the raw data export endpoint | `20000` |
+| `WS_MAX_CONNECTIONS_PER_USER` / `WS_MAX_TOTAL_CONNECTIONS` | `/ws/feed` per-user / global connection caps | `5` / `500` |
+| `BACKUP_GPG_PASSPHRASE` | Encrypts backups with GPG AES256 if set (see `infra/backup/`) | — |
+| `RCLONE_REMOTE` | Offsite backup upload target (e.g. `b2:my-bucket`) if set | — |
 
 ---
 
 ### API Tiers
 
-| Tier | Price | Daily API quota | Highlights |
-|------|-------|-----------------|------------|
-| Free | $0 | 100 requests | News & semantic search, daily digest |
-| Pro | $9.99 / mo | 2,000 requests | WebSocket feed, 50 search results, keyword alerts, relation graph |
-| Enterprise | $49.99 / mo | Unlimited | Raw data export, custom sources, SLA, priority support |
+| Tier | Price | Daily API quota | Search result cap | Highlights |
+|------|-------|-----------------|--------------------|------------|
+| Free | $0 | 100 requests | 10 results | News & semantic search, daily digest |
+| Pro | $9.99 / mo | 2,000 requests | 50 results | WebSocket live feed, keyword alerts, related-article graph |
+| Enterprise | $49.99 / mo | Unlimited | 200 results | Raw data export (CSV/JSON), custom sources, SLA, priority support |
 
-> Billing requires Stripe configuration; without it the upgrade endpoints intentionally return `503`. Admin endpoints use the shared `API_KEY` (not per-user keys).
+> All of the above are **actually enforced server-side**, not just marketing copy — see `TIER_SEARCH_RESULT_CAP` and the `tier_at_least()` checks on `/ws/feed`, `/news/{id}/related`, and `/news/export`. Billing requires Stripe configuration; without it the upgrade endpoints intentionally return `503` (or `BILLING_DEV_MODE=true` for a no-Stripe local demo). Admin endpoints accept either the shared `API_KEY` or an admin/moderator user session.
 
 ---
 
@@ -317,8 +357,16 @@ Every push / PR to `main` triggers GitHub Actions:
 
 1. Spins up a PostgreSQL 15 service container
 2. Installs Python dependencies (incl. `pytest-asyncio`)
-3. Runs all 373 tests with `pytest`
+3. Runs all 522 tests with `pytest`
 4. Reports pass/fail status
+
+Dependabot also opens weekly PRs for pip, npm, and GitHub Actions dependency updates (review/merge/rebuild stays manual by design — no auto-merge).
+
+---
+
+### Contributing
+
+Uses Conventional Commits: `feat:`, `fix:`, `chore:`, `ci:`, `refactor:`, `test:`, `docs:`.
 
 ---
 
@@ -336,8 +384,15 @@ Every push / PR to `main` triggers GitHub Actions:
 | v1.9 | User accounts, tiered API, usage analytics, Stripe billing, Redis cache, sponsors | ✅ Done |
 | v1.10 | Cinematic-theme Next.js frontend (9 themes), full i18n, Kafka resilience | ✅ Done |
 | v1.11 | Billing dev mode, role-based admin, self-service usage panel, personal API keys, project-wide clean-code pass | ✅ Done |
-| v1.12 | Responsive UI, accessibility, SEO, theme polish | 🔜 Planned |
-| v2.0 | Public launch: domain + VPS, landing SEO, API docs portal, Product Hunt | 🔜 Planned |
+| v1.12 | Responsive UI, WCAG AA accessibility, SEO, theme performance profiles | ✅ Done |
+| v1.13 | Role hierarchy (user / moderator / admin) | ✅ Done |
+| v1.14 | Tier-gating actually enforced server-side (search caps, related graph, live feed) | ✅ Done |
+| v1.15 | Email verification flow | ✅ Done |
+| v1.16 | Raw data export (Enterprise), live dashboard feed injection | ✅ Done |
+| v1.17 | Full security audit & hardening (auth, injection, secrets, DoS, dependencies) | ✅ Done |
+| v1.18 | Kafka→Redpanda migration (ARM-ready), installable PWA, Dependabot, encrypted/offsite backups, WebSocket connection caps | ✅ Done |
+| v1.19 | Closed the last known rate-limit gap on the public search endpoint | ✅ Done |
+| v2.0 | Public launch: free-tier cloud VPS + domain, landing SEO, API docs portal | 🚧 In progress |
 
 ---
 
@@ -354,20 +409,35 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 NexStream, **17 kaynaktan** Türkçe ve İngilizce haber toplayan, bunları bir yapay zeka hattından (duygu, varlık tanıma, konu sınıflandırma, özetleme + kalite ve kaynak güvenilirliği skorlaması) geçiren, hibrit anlamsal + anahtar kelime araması sunan ve her şeyi **sinematik, çok temalı bir Next.js arayüzünde** gösteren olay güdümlü bir haber platformudur.
 
-Kurumsal mimari dersi için başlayan proje; kullanıcı hesapları, kullanım ölçümlü katmanlı bir API, Stripe ödeme, gerçek zamanlı WebSocket akışı, e-posta bülteni ve tam bir gözlemlenebilirlik yığını ile production'a yakın bir SaaS'a dönüştü.
+Kurumsal mimari dersi için başlayan proje; e-posta doğrulamalı kullanıcı hesapları, **gerçekten kilitli** katmanlı bir API, Stripe ödeme, bağlantı limitli gerçek zamanlı WebSocket akışı, e-posta bülteni, tam bir gözlemlenebilirlik yığını ve sertleştirilmiş bir deploy yolu (rate limiting, secret rotasyon disiplini, prod-config guard'ı, otomatik bağımlılık güncellemeleri) ile production'a yakın bir SaaS'a dönüştü.
 
 **Temel özellikler:**
 - **17 kaynak** (11 TR + 6 EN), scraper registry ile bildirimsel eklenir
 - **AI hattı** (Groq `llama-3.1-8b-instant`): tek prompt'ta duygu + varlıklar (kişi/kurum/yer) + konu + özet; opsiyonel Hugging Face yedeği
-- **Hibrit arama**: ChromaDB anlam vektörü + PostgreSQL anahtar kelime, birleşik skor; Türkçe morfolojik kök ayıklama
-- **Trending motoru**, **ilişki grafı** (varlık örtüşmesi) ve **anlamsal dedup**
+- **Hibrit arama**: ChromaDB anlam vektörü + PostgreSQL anahtar kelime, recency decay'li birleşik skor; Türkçe morfolojik kök ayıklama
+- **Trending motoru**, **ilişki grafı** (varlık örtüşmesi, Pro+) ve **anlamsal dedup**
 - **Kalite + güvenilirlik skorlaması**: deterministik içerik kalitesi + kaynak güvenilirliği / doğrulama metrikleri
-- **Gerçek zamanlı WebSocket akışı**, **e-posta bülteni + anlık keyword alert**, **RSS/Atom feed**
-- **Kullanıcı hesapları** (session auth), **katmanlı API** (Free / Pro / Enterprise) kullanıcı bazlı limit + analytics, **Stripe ödeme**, **Redis cache**
-- **Next.js arayüzü**: animasyonlu Canvas arka planlı 9 sinematik tema, tam TR/EN i18n
-- Redpanda (Kafka-uyumlu) ile **olay güdümlü**; Docker Compose ile **tamamen konteynerli**
+- **Gerçek zamanlı WebSocket akışı** (Pro+, kullanıcı başına + toplam bağlantı tavanı), **e-posta bülteni + anlık keyword alert**, **RSS/Atom feed**
+- **Kullanıcı hesapları** e-posta doğrulamalı, session auth (HttpOnly cookie), **katmanlı API** (Free / Pro / Enterprise) kullanıcı bazlı limit + arama sonucu tavanı + analytics
+- **Stripe ödeme** (lokal demo için Stripe'sız dev mode), **ham veri export** (CSV/JSON, sadece Enterprise), **Redis cache**
+- **Rol tabanlı admin** (user / moderator / admin hiyerarşisi + `ADMIN_EMAILS` bootstrap), **self-service kullanım paneli**, public API için **kişisel API anahtarı** (`X-User-Key`)
+- **Next.js 14 arayüzü**: animasyonlu Canvas arka planlı 9 sinematik tema (düşük/yüksek performans profili), tam TR/EN i18n, WCAG AA kontrast denetimli, kurulabilir **PWA**
+- Redpanda (Kafka-uyumlu, ARM-dostu) ile **olay güdümlü**; Docker Compose ile **tamamen konteynerli**
 - **Gözlemlenebilirlik**: Prometheus + Grafana + Loki, `/health` ve `/metrics`
-- **373 test**, hepsi yeşil; GitHub Actions CI
+- **Güvenlik sertleştirmesi**: prod-açılış config guard'ı, zamanlama-güvenli auth kontrolleri, HTML-escape'li e-postalar, route-bazlı rate limit'ler, şifrelenebilir + offsite yedekleme
+- **522 test**, hepsi yeşil; GitHub Actions CI + Dependabot ile otomatik bağımlılık güncellemesi
+
+**Bir bakışta:**
+
+| Metrik | Değer |
+|--------|-------|
+| Haber kaynağı | 17 (11 TR + 6 EN) |
+| Backend test | 522 — hepsi yeşil |
+| API endpoint'i | 49, 13 router'da |
+| Sinematik frontend teması | 9 |
+| API katmanı | 3 (Free / Pro / Enterprise) — sunucu tarafında zorunlu |
+| Docker servisi | 9 (dev) / 15 (prod, gözlemlenebilirlik yığını dahil) |
+| Mimari | Hexagonal (Ports & Adapters), 3 katman |
 
 ---
 
@@ -375,22 +445,72 @@ Kurumsal mimari dersi için başlayan proje; kullanıcı hesapları, kullanım �
 
 NexStream, **Hexagonal Mimari (Ports & Adapters)** üzerine kuruludur. Domain katmanı dış sistemleri tanımaz; adapter'lar port'ları implemente eder, `dependencies.py` bunları bağlar. Bağımlılık yönü kesinlikle **Adapter → Application → Domain**'dir.
 
+```mermaid
+flowchart TB
+    subgraph Domain["Domain Katmanı — dış bağımlılık yok"]
+        D1["Article Modeli"]
+        D2["Port'lar (ABC)"]
+        D3["Pydantic Şemaları"]
+        D4["Saf Skorlama"]
+    end
+    subgraph Application["Application Katmanı"]
+        A1["NewsService<br/>orkestrasyon + metadata zenginleştirme"]
+    end
+    subgraph Adapters["Adapters Katmanı"]
+        AD1["Scraper'lar<br/>17 RSS kaynağı"]
+        AD2["Analyzer<br/>Groq + HF yedek"]
+        AD3["Repository<br/>PostgreSQL"]
+        AD4["API<br/>FastAPI REST + v1"]
+        AD5["Messaging<br/>Redpanda"]
+        AD6["Scheduling<br/>APScheduler"]
+        AD7["Vector Search<br/>ChromaDB"]
+        AD8["Auth<br/>Session + tier'lar"]
+    end
+    Adapters --> Application --> Domain
 ```
-Zamanlayıcı (her 10 dk)
-        |
-        v
-Redpanda: news_updates  ──>  Kafka-uyumlu worker
-                                |
-            çek ──> RSS scraper (17 kaynak)
-            analiz ─> Groq analyzer (duygu/varlık/konu/özet)
-            skor ──> kalite + güvenilirlik + corroboration
-            kaydet ─> PostgreSQL
-            indexle ─> ChromaDB (embedding, dedup)
-            bildir ─> WebSocket yayını + keyword alert
-                                |
-                                v
-              Next.js arayüzü  ·  Public API v1  ·  RSS feed
+
+**Olay akışı:**
+
+```mermaid
+flowchart LR
+    SCHED["Zamanlayıcı<br/>her 10 dk"] --> TOPIC[("Redpanda<br/>news_updates")]
+    TOPIC --> WORKER["Kafka-uyumlu<br/>Worker"]
+    WORKER --> FETCH["Çek<br/>RSS scraper (17 kaynak)"]
+    FETCH --> ANALYZE["Analiz et<br/>Groq: duygu/varlık/konu"]
+    ANALYZE --> SCORE["Skorla<br/>kalite + güvenilirlik"]
+    SCORE --> DB[("PostgreSQL")]
+    SCORE --> VEC[("ChromaDB")]
+    DB --> NOTIFY["Bildir<br/>WebSocket + keyword alert"]
+    VEC --> NOTIFY
+    NOTIFY --> FE["Next.js Arayüzü"]
+    NOTIFY --> API1["Public API v1"]
+    NOTIFY --> RSS["RSS Feed"]
 ```
+
+---
+
+### Teknoloji Yığını
+
+| Katman | Teknoloji |
+|--------|-----------|
+| Frontend | Next.js 14 + React + TypeScript — 9 sinematik tema (saf CSS + Canvas), kurulabilir PWA |
+| API | FastAPI + Uvicorn (REST + sürümlü `/api/v1`) |
+| Auth & limit | Session token (bcrypt), slowapi rate limiting, tier bazlı kota |
+| Mesaj kuyruğu | Redpanda (Kafka-uyumlu, tek node) |
+| AI analyzer | Groq `llama-3.1-8b-instant` (+ opsiyonel Hugging Face yedeği) |
+| Embedding | `paraphrase-multilingual-MiniLM-L12-v2` (lokal, API key gerekmez) |
+| Vektör arama | ChromaDB (persistent) |
+| Veritabanı | PostgreSQL 15 + SQLAlchemy ORM |
+| Cache | Redis 7 (session / trending; boşsa null-cache) |
+| Ödeme | Stripe (Checkout + webhook + billing portal) |
+| E-posta | Resend API (bülten + keyword alert), dev'de console adapter |
+| Zamanlayıcı | APScheduler |
+| Gözlemlenebilirlik | Prometheus + Grafana + Loki + Promtail |
+| Reverse proxy | Nginx + Let's Encrypt (production) |
+| Konteynerleştirme | Docker + Docker Compose |
+| CI/CD | GitHub Actions |
+| Test | pytest (522 test) |
+| Bağımlılık güncellemesi | Dependabot (pip + npm + GitHub Actions, haftalık) |
 
 ---
 
@@ -398,6 +518,8 @@ Redpanda: news_updates  ──>  Kafka-uyumlu worker
 
 **Türkçe (11):** TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi
 **İngilizce (6):** BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge
+
+Yeni bir kaynak birkaç satırda eklenebilir — bkz. [Kaynak Ekleme](#kaynak-ekleme).
 
 ---
 
@@ -408,7 +530,33 @@ Streamlit panel, ayırt edici bir **sinematik tema sistemi** olan **Next.js 14 +
 - **9 sinematik tema** — Matrix, Godfather, Blade Runner, Dune, Star Wars, Spider-Man, Batman, Wolfenstein + sade **Day** modu. Her tema; renk, font, tam ekran animasyonlu **Canvas arka plan** (dijital yağmur, film greni, neon yağmur, kum fırtınası, yıldız alanı, örümcek ağı, bat-signal, közler) ve geçişte bir flash efekti getirir. **Saf CSS + Canvas — görsel/video asset yok.**
 - **Tema registry** (`lib/theme/registry.ts`): tek doğruluk noktası. Yeni tema = 1 kayıt + 1 CSS bloğu + 1 Canvas efekti, tüketici kodu değişmez (Open/Closed). Tüm efektler tek `requestAnimationFrame` döngüsünü paylaşır (`useCanvasScene`).
 - **Tam TR / EN i18n**: tüm metinler `lib/i18n.ts`'te; landing, dashboard, hesap ve admin sayfaları birlikte dil değiştirir.
+- **Kurulabilir PWA** (manifest + service worker) ve düşük/yüksek **performans profilleri** (canvas efekt yoğunluğu).
 - `prefers-reduced-motion`'a saygı gösterir; sekme gizliyken animasyonları duraklatır.
+
+---
+
+### API Endpoint'leri (seçili)
+
+| Metod | Endpoint | Açıklama |
+|-------|----------|----------|
+| GET | `/api/v1/news` | Haber listesi — cursor pagination, `X-RateLimit-*` header'ları, tier-gated |
+| POST | `/api/v1/news/search` | Hibrit anlamsal + anahtar kelime arama, tier bazlı sonuç tavanı (Free 10 / Pro 50 / Enterprise 200) |
+| GET | `/api/v1/news/trending` | Trend olan varlıklar (son N saat) |
+| GET | `/api/v1/news/{id}/related` | Varlık örtüşmesiyle ilişkili haberler (Pro+) |
+| GET | `/api/v1/news/export` | Ham veri export, CSV veya JSON (sadece Enterprise) |
+| GET | `/api/v1/news/sources` | Kayıtlı kaynaklar |
+| POST | `/auth/register` · `/auth/login` · `/auth/logout` | Session tabanlı auth (HttpOnly cookie) |
+| POST | `/auth/resend-verification` · `/auth/verify-email` | E-posta doğrulama akışı |
+| POST | `/auth/forgot-password` · `/auth/reset-password` | Şifre sıfırlama |
+| GET/POST/DELETE | `/account/api-key` | Kişisel `X-User-Key` API anahtarı yönetimi |
+| GET/POST/PATCH/DELETE | `/subscriptions` | Bülten / keyword-alert tercihleri |
+| POST | `/billing/checkout` · `/billing/portal` | Stripe Checkout & billing portal |
+| GET | `/admin/users` · `/admin/usage` · `/admin/sponsors` | Admin analytics, kullanıcı/rol & sponsor yönetimi |
+| GET | `/feed.xml` | RSS/Atom feed |
+| WS | `/ws/feed` | Gerçek zamanlı haber akışı (Pro+, kullanıcı başına + toplam bağlantı tavanı) |
+| POST | `/news/scrape` · `/news/reindex` · `/news/reanalyze` | Bakım işlemleri (`X-API-Key`) |
+| GET | `/health` · `/metrics` | Sağlık durumu (DB/Redpanda/ChromaDB) · Prometheus metrikleri |
+| GET | `/docs` | Swagger UI |
 
 ---
 
@@ -426,6 +574,15 @@ cp .env.example .env
 # 3. Tüm yığını başlat
 docker compose up -d
 ```
+
+#### Servisler
+
+| Servis | URL | Açıklama |
+|--------|-----|----------|
+| Frontend | http://localhost:3000 | Next.js arayüzü |
+| API | http://localhost:8000 | FastAPI REST |
+| API Docs | http://localhost:8000/docs | Swagger UI |
+| DB Admin | http://localhost:8080 | Adminer |
 
 Konteynerler ayağa kalktıktan sonra `http://localhost:3000` arayüzünü aç. Scheduler her 10 dakikada bir scrape'i otomatik tetikler, Kafka-uyumlu worker haberleri AI analizinden geçirir — manuel işlem gerekmez. `http://localhost:8000/health` ile DB / Kafka / ChromaDB'nin yeşil olduğunu doğrula.
 
@@ -449,7 +606,64 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-**373 test** — domain, application ve adapter katmanları. Her dış çağrı (Groq, Kafka, DB, ChromaDB) mock'lanır; ağ erişimi gerekmez.
+**522 test** — domain, application ve adapter katmanları. Her dış çağrı (Groq, Kafka, DB, ChromaDB) mock'lanır; ağ erişimi gerekmez.
+
+<details>
+<summary>Gerçek lokal çalıştırma çıktısı</summary>
+
+```
+$ python -m pytest tests/ -q
+........................................................................ [ 13%]
+........................................................................ [ 27%]
+........................................................................ [ 41%]
+........................................................................ [ 55%]
+........................................................................ [ 69%]
+........................................................................ [ 82%]
+........................................................................ [ 96%]
+..................                                                        [100%]
+522 passed, 1 warning in 406.91s (0:06:46)
+```
+
+</details>
+
+---
+
+### Kaynak Ekleme
+
+`BaseRssScraper` deseni ve source registry sayesinde yeni bir kaynak eklemek birkaç satır tutar:
+
+```python
+# src/adapters/scrapers/rss_scrapers.py
+class MyNewsScraper(BaseRssScraper):
+    def __init__(self):
+        self.url = "https://example.com/rss"
+        self.source_name = "My News"
+        self.limit = 25
+```
+
+Sonra `src/adapters/scrapers/registry.py`'de kaydet:
+
+```python
+SCRAPER_REGISTRY = {
+    ...
+    "My News": MyNewsScraper(),
+}
+```
+
+---
+
+### Yeni AI Analyzer Ekleme
+
+`AnalysisPort` arayüzünü implemente edip `adapters/analysis/factory.py` üzerinden bağla — iş mantığında hiçbir değişiklik gerekmez:
+
+```python
+# src/adapters/analysis/my_analyzer.py
+class MyAnalyzer(AnalysisPort):
+    def analyze_text(self, text: str) -> dict:
+        return {"sentiment_score": 0.8, "sentiment_label": "Positive", "summary": "..."}
+```
+
+Varsayılan `FallbackAnalyzer`, Groq → Hugging Face → nötr fallback zincirini uygular; tek bir sağlayıcının çökmesi worker'ı asla düşürmez.
 
 ---
 
@@ -465,6 +679,37 @@ python -m pytest tests/ -v
 | `SESSION_TTL_DAYS` | Session süresi (30) |
 | `RESEND_API_KEY` | E-posta bülteni (boşsa console adapter) |
 | `STRIPE_*` | Stripe ödeme (yoksa `/billing/*` → 503) |
+| `BILLING_DEV_MODE` | Stripe'sız anında tier yükseltme (sadece lokal demo — prod'da ASLA) |
+| `ADMIN_EMAILS` | Virgülle ayrılmış liste, DB yazmadan admin bootstrap eder |
+| `ENVIRONMENT` | `production` iken güvensiz config (varsayılan API key, `CORS_ORIGINS=*`, dev billing, güvensiz cookie) ile açılmayı reddeder |
+| `EXPORT_MAX_ROWS` | Ham veri export üst satır sınırı (varsayılan 20000) |
+| `WS_MAX_CONNECTIONS_PER_USER` / `WS_MAX_TOTAL_CONNECTIONS` | `/ws/feed` kullanıcı başına / toplam bağlantı tavanı |
+| `BACKUP_GPG_PASSPHRASE` / `RCLONE_REMOTE` | Yedek şifreleme (GPG) / offsite upload — ikisi de opt-in |
+
+---
+
+### API Katmanları
+
+| Tier | Fiyat | Günlük API kotası | Arama sonucu tavanı | Öne çıkanlar |
+|------|-------|--------------------|-----------------------|--------------|
+| Free | $0 | 100 istek | 10 sonuç | Haber & anlamsal arama, günlük digest |
+| Pro | $9.99 / ay | 2.000 istek | 50 sonuç | WebSocket canlı akış, keyword alert, ilişki grafı |
+| Enterprise | $49.99 / ay | Sınırsız | 200 sonuç | Ham veri export (CSV/JSON), özel kaynaklar, SLA, öncelikli destek |
+
+> Yukarıdakilerin hepsi **gerçekten sunucu tarafında zorunlu** — sadece pazarlama metni değil: bkz. `TIER_SEARCH_RESULT_CAP` ve `/ws/feed`, `/news/{id}/related`, `/news/export` üzerindeki `tier_at_least()` kontrolleri. Ödeme Stripe yapılandırması gerektirir; yoksa yükseltme endpoint'leri bilinçli olarak `503` döner (ya da lokal Stripe'sız demo için `BILLING_DEV_MODE=true`). Admin endpoint'leri paylaşımlı `API_KEY` veya admin/moderator kullanıcı oturumunu kabul eder.
+
+---
+
+### CI/CD
+
+`main`'e her push / PR, GitHub Actions'ı tetikler:
+
+1. Bir PostgreSQL 15 servis konteyneri ayağa kaldırır
+2. Python bağımlılıklarını kurar (`pytest-asyncio` dahil)
+3. `pytest` ile 522 testin tamamını çalıştırır
+4. Başarılı/başarısız durumunu raporlar
+
+Dependabot da pip, npm ve GitHub Actions bağımlılıkları için haftalık PR açar (review/merge/rebuild kararı bilinçli olarak kullanıcıda kalır — otomatik merge yok).
 
 ---
 
@@ -488,8 +733,21 @@ Conventional Commits kullanılır: `feat:`, `fix:`, `chore:`, `ci:`, `refactor:`
 | v1.9 | Kullanıcı hesapları, katmanlı API, analytics, Stripe, Redis, sponsor | ✅ |
 | v1.10 | Sinematik tema Next.js frontend (9 tema), tam i18n, Kafka dayanıklılığı | ✅ |
 | v1.11 | Billing dev mode, rol tabanlı admin, self-service kullanım paneli, kişisel API anahtarları, proje geneli clean-code | ✅ |
-| v1.12 | Responsive UI, erişilebilirlik, SEO, tema cilası | 🔜 |
-| v2.0 | Public launch: domain + VPS, landing SEO, API docs portalı, Product Hunt | 🔜 |
+| v1.12 | Responsive UI, WCAG AA erişilebilirlik, SEO, tema performans profilleri | ✅ |
+| v1.13 | Rol hiyerarşisi (user / moderator / admin) | ✅ |
+| v1.14 | Tier-gating sunucu tarafında gerçekten kilitli (arama tavanı, ilişki grafı, canlı akış) | ✅ |
+| v1.15 | E-posta doğrulama akışı | ✅ |
+| v1.16 | Ham veri export (Enterprise), canlı dashboard liste enjeksiyonu | ✅ |
+| v1.17 | Kapsamlı güvenlik denetimi & sertleştirme (auth, injection, secrets, DoS, bağımlılıklar) | ✅ |
+| v1.18 | Kafka→Redpanda geçişi (ARM-uyumlu), kurulabilir PWA, Dependabot, şifreli/offsite yedek, WebSocket bağlantı tavanı | ✅ |
+| v1.19 | Public arama endpoint'indeki son bilinen rate-limit boşluğu kapatıldı | ✅ |
+| v2.0 | Public launch: ücretsiz katman bulut VPS + domain, landing SEO, API docs portalı | 🚧 Devam ediyor |
+
+---
+
+### Lisans
+
+MIT Lisansı — detaylar için [LICENSE](LICENSE).
 
 ---
 
