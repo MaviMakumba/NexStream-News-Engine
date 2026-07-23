@@ -59,6 +59,21 @@ What started as a course project on enterprise architecture has grown into a pro
 
 ---
 
+### Screenshots
+
+| Landing — Matrix theme | Landing — Star Wars theme |
+|---|---|
+| ![Landing page in the Matrix theme](docs/screenshots/landing.png) | ![Landing page in the Star Wars theme](docs/screenshots/landing-starwars-theme.png) |
+
+| Dashboard (live data, trending, tier badges) | Semantic search (match % per result) |
+|---|---|
+| ![Dashboard with trending topics and news feed](docs/screenshots/dashboard.png) | ![Semantic search results with match percentages](docs/screenshots/search.png) |
+
+![Theme picker showing the 9 cinematic themes](docs/screenshots/theme-picker.png)
+<p align="center"><sub>All screenshots taken from a live local run against real scraped data.</sub></p>
+
+---
+
 ### Architecture
 
 NexStream is built on **Hexagonal Architecture (Ports & Adapters)**. The domain layer has zero knowledge of external systems; adapters implement ports and are wired together in `dependencies.py`. Dependency direction is strictly **Adapter → Application → Domain**.
@@ -438,6 +453,21 @@ Kurumsal mimari dersi için başlayan proje; e-posta doğrulamalı kullanıcı h
 | API katmanı | 3 (Free / Pro / Enterprise) — sunucu tarafında zorunlu |
 | Docker servisi | 9 (dev) / 15 (prod, gözlemlenebilirlik yığını dahil) |
 | Mimari | Hexagonal (Ports & Adapters), 3 katman |
+
+---
+
+### Ekran Görüntüleri
+
+| Landing — Matrix teması | Landing — Star Wars teması |
+|---|---|
+| ![Matrix temasında landing sayfası](docs/screenshots/landing.png) | ![Star Wars temasında landing sayfası](docs/screenshots/landing-starwars-theme.png) |
+
+| Dashboard (canlı veri, trend olan konular, tier rozetleri) | Anlamsal arama (sonuç başına eşleşme %'si) |
+|---|---|
+| ![Trend konular ve haber akışlı dashboard](docs/screenshots/dashboard.png) | ![Eşleşme yüzdeli anlamsal arama sonuçları](docs/screenshots/search.png) |
+
+![9 sinematik temayı gösteren tema seçici](docs/screenshots/theme-picker.png)
+<p align="center"><sub>Tüm ekran görüntüleri, gerçek scrape edilmiş veri üzerinden canlı bir lokal çalıştırmadan alındı.</sub></p>
 
 ---
 
