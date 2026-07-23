@@ -34,6 +34,10 @@ services:
       - BILLING_DEV_MODE=${BILLING_DEV_MODE:-true}   # dev compose: Stripe'sız demo açık
       - ADMIN_EMAILS=${ADMIN_EMAILS:-}
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}   # dev compose: HTTP üzerinden çalışır, Secure kapalı
+      # hf-xet (Hugging Face'in yeni "Xet" depolama backend'i) bu ortamda ilk
+      # SentenceTransformer indirmesinde birkaç KB'da tıkanıp kalıyordu (klasik
+      # HTTPS indirme sorunsuz çalışıyor) — klasik indirme yoluna zorluyoruz.
+      - HF_HUB_DISABLE_XET=1
     ports:
       - "8000:8000"
     volumes:
@@ -119,6 +123,7 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
+      - HF_HUB_DISABLE_XET=1
     volumes:
       - .:/app
 

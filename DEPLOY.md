@@ -199,6 +199,8 @@ docker compose -f docker-compose.prod.yml ps    # hepsi "healthy"/"running" olma
 varsayılan, `CORS_ORIGINS=*`, vb.) `app` container'ı **kasıtlı olarak**
 açılmayı reddedip loglayacak — bu bir bug değil, v1.17 güvenlik guard'ı.
 
+**⚠️ `app`/`worker` "unhealthy" kalıp `/health` hiç 200 dönmüyorsa (SentenceTransformer indirmesi takılmış olabilir):** 23 Temmuz 2026'da lokalde bulundu — `hf-xet` paketi (Hugging Face'in yeni "Xet" depolama backend'i) bazı ağlarda ilk model indirmesini birkaç KB'da tıkayıp kalıyor (`docker exec <container> sh -c "du -sh ~/.cache/huggingface/hub/models--*"` ile kontrol edilebilir — ilerlemesiz, deterministik takılma). `docker-compose.prod.yml`'de `app`+`worker`'a zaten `HF_HUB_DISABLE_XET=1` eklendi (klasik HTTPS indirmeye zorluyor), bu yüzden prod'da normalde sorun çıkmamalı — ama Oracle'ın ağı/ISP'si farklı davranırsa ve yine de takılırsa, bu env var'ın ikisinde de olduğunu doğrula, sonra `docker compose -f docker-compose.prod.yml restart app worker` ile tekrar dene.
+
 ## 11. Gerçek Let's Encrypt sertifikası
 
 ```bash
