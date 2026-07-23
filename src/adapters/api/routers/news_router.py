@@ -50,7 +50,7 @@ def get_news(
 
 
 @router.post("/search", response_model=List[SearchResult])
-@limiter.limit("30/minute")
+@limiter.limit("30/minute;200/day")
 def search_news(
     request: Request,
     body: SearchRequest,
@@ -58,7 +58,10 @@ def search_news(
 ):
     """Kimliksiz herkese açık arama (landing sayfası demosu) — her zaman
     Free tavanına (bkz. TIER_SEARCH_RESULT_CAP) sabitlenir; kayıtlı/kotalı
-    erişim için /api/v1/news/search kullanılmalı."""
+    erişim için /api/v1/news/search kullanılmalı. Günlük tavan (v1.19,
+    IP-bazlı) 30/dk'nın izin verdiği ~43k/gün'lük script kaçağını kapatır;
+    200 gerçek bir demo ziyaretçisinin asla ulaşamayacağı ama otomasyonu
+    engelleyen bir eşik — bkz. CLAUDE.md v1.17 "kota atlatma" notu."""
     n_results = min(body.n_results, TIER_SEARCH_RESULT_CAP[UserTier.FREE])
     start = time.time()
     results = service.hybrid_search(body.query, n_results, body.source, body.sentiment)

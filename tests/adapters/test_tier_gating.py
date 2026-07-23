@@ -120,6 +120,21 @@ def test_public_search_always_capped_to_free_regardless_of_request(app_client):
     assert mock_service.hybrid_search.call_args[0][1] == 10
 
 
+def test_public_search_has_daily_quota_cap_registered():
+    """v1.19: eski davranışta /news/search sadece 30/dk ile korunuyordu (~43k/gün
+    IP-bazlı script kaçağı mümkündü). Artık bir günlük tavan da var. Gerçek
+    HTTP döngüsüyle 200 isteği tüketmek yerine (slowapi'nin in-memory limiter
+    state'i TÜM test session'ı boyunca paylaşılır — bkz. CLAUDE.md v1.17 notu)
+    route'a kayıtlı limit tanımları doğrudan denetlenir."""
+    from src.adapters.api.limiter import limiter
+    import src.adapters.api.routers.news_router as news_router  # noqa: F401 — decorator side effect
+
+    key = "src.adapters.api.routers.news_router.search_news"
+    registered = {str(l.limit) for l in limiter._route_limits.get(key, [])}
+    assert "30 per 1 minute" in registered
+    assert "200 per 1 day" in registered
+
+
 # ── /api/v1/news/{id}/related — Pro+ özelliği ───────────────────────────────
 
 def test_v1_related_blocked_for_anonymous(app_client):
