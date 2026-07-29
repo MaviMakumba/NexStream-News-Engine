@@ -4,9 +4,12 @@ Model: paraphrase-multilingual-MiniLM-L12-v2 — Groq embedding API'si olmadığ
 için lokal model kullanılır. Singleton: model bir kez yüklenir (~100MB).
 """
 
-import os
 from sentence_transformers import SentenceTransformer
 from src.domain.ports.embedding_port import EmbeddingPort
+
+# Sabite çıkarıldı: embedder servisi /health'te hangi modeli yüklediğini
+# raporluyor, o yüzden tek doğruluk noktası burası.
+MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
 
 _model_instance: SentenceTransformer = None
 
@@ -14,7 +17,7 @@ _model_instance: SentenceTransformer = None
 def _get_model() -> SentenceTransformer:
     global _model_instance
     if _model_instance is None:
-        _model_instance = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2", device="cpu")
+        _model_instance = SentenceTransformer(MODEL_NAME, device="cpu")
     return _model_instance
 
 
