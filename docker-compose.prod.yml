@@ -272,7 +272,12 @@ services:
 
   # ─── CHROMADB ──────────────────────────────────────────────────
   chromadb:
-    image: chromadb/chroma:latest
+    # :latest DEĞİL — sessiz sürüm atlamaları healthcheck'i kırdı (28 Tem 2026).
+    # 1.5.9, 29 Tem 2026'da :latest ile BİREBİR aynı image (chroma sunucu 1.4.4).
+    # DİKKAT: :1.5.5 etiketi daha ESKİ bir sunucu (1.4.1) — pin ederken etiket
+    # numarasına değil `chroma --version` çıktısına bak, aksi halde mevcut veri
+    # hacmine karşı sessizce downgrade yaparsın.
+    image: chromadb/chroma:1.5.9
     container_name: nexstream_chromadb
     restart: always
     volumes:
@@ -281,7 +286,11 @@ services:
       - IS_PERSISTENT=TRUE
       - ANONYMIZED_TELEMETRY=FALSE
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/heartbeat', timeout=3)"]
+      # Bu imajda curl/wget/python/nc YOK — eski healthcheck `python` çağırdığı
+      # için container kalıcı olarak unhealthy kalıyordu (28 Tem 2026 deploy'u).
+      # Sadece bash var, o yüzden HTTP isteği /dev/tcp ile elle kuruluyor.
+      # Yol da /api/v1 → /api/v2: v1 chroma 1.x'te kaldırıldı.
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/localhost/8000 && printf "GET /api/v2/heartbeat HTTP/1.0\r\n\r\n" >&3 && head -1 <&3 | grep -q 200']
       interval: 15s
       timeout: 5s
       retries: 5

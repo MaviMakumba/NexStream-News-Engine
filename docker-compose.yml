@@ -164,13 +164,27 @@ services:
 
   # 9. VEKTÖR VERİTABANI (ChromaDB) — sadece internal ağda
   chromadb:
-    image: chromadb/chroma:latest
+    # :latest DEĞİL — sessiz sürüm atlamaları healthcheck'i kırdı (28 Tem 2026).
+    # 1.5.9, 29 Tem 2026'da :latest ile BİREBİR aynı image (chroma sunucu 1.4.4).
+    # DİKKAT: :1.5.5 etiketi daha ESKİ bir sunucu (1.4.1) — pin ederken etiket
+    # numarasına değil `chroma --version` çıktısına bak, aksi halde mevcut veri
+    # hacmine karşı sessizce downgrade yaparsın.
+    image: chromadb/chroma:1.5.9
     container_name: nexstream_chromadb
     restart: unless-stopped
     volumes:
       - chroma_data:/data
     environment:
       - ANONYMIZED_TELEMETRY=FALSE
+    healthcheck:
+      # Bu imajda curl/wget/python/nc YOK (28 Tem 2026'daki kalıcı unhealthy'nin
+      # kök nedeni: healthcheck `python` çağırıyordu). Sadece bash var, o yüzden
+      # HTTP isteği bash'in /dev/tcp sanal aygıtıyla elle kuruluyor.
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/localhost/8000 && printf "GET /api/v2/heartbeat HTTP/1.0\r\n\r\n" >&3 && head -1 <&3 | grep -q 200']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # 10. CACHE (Redis) — session'lar ve trending cache
   redis:
