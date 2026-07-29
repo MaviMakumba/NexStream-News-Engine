@@ -228,21 +228,14 @@ services:
     restart: always
     environment:
       - HF_HUB_DISABLE_XET=1
-    volumes:
-      # Model cache'i kalıcı: container yeniden kurulunca ~470MB tekrar inmesin.
-      # t3.small'da bu indirme dakikalar sürüyor.
-      - embedder_hf_cache:/home/appuser/.cache/huggingface
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
       interval: 15s
       timeout: 10s
       retries: 10
-      # UZUN start_period BİLİNÇLİ: ilk açılışta ~470MB model indiriliyor ve
-      # start_period boyunca başarısız yoklamalar unhealthy saydırmıyor.
-      # 60sn ile denendi, indirme bitmeden container unhealthy oldu ve ona
-      # bağlı app/worker hiç açılamadı (29 Tem 2026). Cache volume'u dolduktan
-      # sonraki açılışlar saniyeler sürüyor, yani bu süre sadece ilk sefer.
-      start_period: 900s
+      # Model image'a gömülü (bkz. Dockerfile.embedder) — indirme YOK, sadece
+      # diskten yükleme. t3.small'ın 2 vCPU'sunda bu ~30-60sn sürüyor.
+      start_period: 180s
     deploy:
       resources:
         limits:
@@ -489,7 +482,6 @@ volumes:
   loki_data:
   backup_data:
   certbot_webroot:
-  embedder_hf_cache:
 
 networks:
   frontend:
