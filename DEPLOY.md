@@ -1,6 +1,13 @@
 # NexStream — İlk Prod Deploy Kılavuzu ($0/ay — v2.0)
 
-> **⚠️ GÜNCEL DURUM (29 Temmuz 2026): Fiili deploy AWS'te, Oracle'da DEĞİL.**
+> **✅ 29 Temmuz 2026: BU KILAVUZ BAŞTAN SONA UYGULANDI, SİTE CANLI.**
+> **https://nexstreamnewsengine.duckdns.org** — gerçek Let's Encrypt sertifikası
+> (27 Ekim 2026'ya kadar, otomatik yenileniyor), 16 servis ayakta, boru hattı
+> uçtan uca çalışıyor. Aşağıdaki adımlar bundan sonraki kurulumlar (Oracle'a
+> taşıma, sıfırdan yeniden kurulum) için geçerliliğini koruyor ve canlı
+> deploy'da öğrenilenlerle güncellendi.
+>
+> **⚠️ Fiili deploy AWS'te, Oracle'da DEĞİL.**
 > Oracle'ın A1.Flex kapasitesi günlerce "Out of host capacity" verdi (bkz. §2) ve
 > beklemek yerine **AWS Free Plan ($100 kredi, 28 Ocak 2027'ye kadar) köprü olarak**
 > seçildi. Aşağıdaki §1, §3, §6-§12 adımları **aynen geçerli**; yalnızca sunucunun
@@ -143,6 +150,46 @@ AWS'te §4'teki Oracle VCN Security List'in karşılığı **Security Group**'tu
 80 ve 443 inbound açık olmalı. Yine `ufw`'den AYRI ve ONA EK — ikisi de
 açılmadan port dışarıdan erişilemez.
 
+### SSH çalışmıyorsa: SSM Session Manager (kurulu ve çalışıyor)
+
+Port 22 bu kurulumda hem geliştirme ortamından hem kullanıcının ISP'sinden
+kapalı. Kalıcı çözüm 29 Tem 2026'da kuruldu: **AWS Systems Manager**, 443
+üzerinden çalışır, SSH gerektirmez, tarayıcı terminaline de gerek bırakmaz.
+
+Kurulu olanlar (tekrar kurmaya gerek yok): IAM rolü `NexStreamSSMRole`
+(`AmazonSSMManagedInstanceCore` politikası) + instance profile
+`NexStreamSSMProfile`, instance'a bağlı.
+
+```bash
+# Kayıtlı mı?
+aws ssm describe-instance-information --region eu-central-1 \
+  --query "InstanceInformationList[*].{Id:InstanceId,Ping:PingStatus}"
+
+# Komut çalıştır
+aws ssm send-command --instance-ids i-0608c897a3d8ca3f3 --region eu-central-1 \
+  --document-name "AWS-RunShellScript" \
+  --parameters 'commands=["export HOME=/root","cd /home/ubuntu/NexStream-News-Engine","docker compose -f docker-compose.prod.yml ps"]' \
+  --query "Command.CommandId" --output text
+
+# Çıktıyı al
+aws ssm get-command-invocation --command-id <ID> \
+  --instance-id i-0608c897a3d8ca3f3 --region eu-central-1 \
+  --query "StandardOutputContent" --output text
+```
+
+**İki tuzak:**
+1. Instance profile ÇALIŞAN bir instance'a eklendiğinde SSM agent kimlik
+   bilgisini almaz ve kaydolmaz. `aws ec2 reboot-instances` sonrası 30 saniyede
+   Online oldu. Sıfırdan kurarken profili instance'ı başlatmadan önce ekle.
+2. SSM komutları **root olarak ve `$HOME` SET EDİLMEDEN** koşar — git komutları
+   `fatal: $HOME not set` verir. Her komut bloğunun başına `export HOME=/root`
+   koy. Ayrıca repo `ubuntu` kullanıcısının olduğu için bir kez
+   `git config --global --add safe.directory /home/ubuntu/NexStream-News-Engine`
+   gerekir (yapıldı).
+
+Alternatif (AWS hesabına dokunmak istemezsen): **EC2 Console → Instances →
+Connect → EC2 Instance Connect** tarayıcı terminali.
+
 ---
 
 ## 5. Sunucu hazırlığı (SSH ile)
@@ -270,48 +317,102 @@ docker compose -f docker-compose.prod.yml ps    # hepsi "healthy"/"running" olma
 varsayılan, `CORS_ORIGINS=*`, vb.) `app` container'ı **kasıtlı olarak**
 açılmayı reddedip loglayacak — bu bir bug değil, v1.17 güvenlik guard'ı.
 
-### İlk açılış: `embedder` her şeyi bekletir (normaldir)
+### `embedder` servisi — model image'a GÖMÜLÜ, indirme YOK
 
 v2.0'dan itibaren SentenceTransformer modeli `app`/`worker` içinde DEĞİL, ayrı
 bir **`embedder`** servisinde tek kopya duruyor (RAM'de ~600MB tasarruf). `app` ve
-worker` ona `depends_on: service_healthy` ile bağlı, yani **embedder healthy
+`worker` ona `depends_on: service_healthy` ile bağlı, yani **embedder healthy
 olana kadar ikisi de hiç başlamaz.**
 
-İlk açılışta embedder ~470MB'lık modeli indirir; t3.small'da bu **birkaç dakika**
-sürer. Bu yüzden healthcheck `start_period: 900s` ile geliyor — o pencere boyunca
-başarısız yoklamalar container'ı unhealthy saydırmaz. Panikleme, izle:
+**Model `Dockerfile.embedder` içinde BUILD ANINDA image'a gömülüyor** — runtime'da
+hiçbir indirme olmaz. Bu bir hız optimizasyonu değil, ZORUNLULUK: embedder yalnızca
+`backend` ağında ve o ağ `internal: true`, yani interneti YOK (bkz. aşağıdaki
+"egress" notu). Modeli çalışma anında indirmesi imkânsız.
+
+Pratik sonuçları:
+- Embedder ~30-60 saniyede healthy olur (sadece diskten yükleme). `start_period: 180s`.
+- `HF_HUB_OFFLINE=1` set — eksik bir dosya olursa sessizce internete uzanıp asılmak
+  yerine hemen ve net hata verir.
+- Model cache volume'ü YOK, gerek kalmadı. Embedder image'ı bu yüzden ~2.9GB.
+- Daha önce not düşülen `hf-xet` tıkanma riski tamamen ortadan kalktı (indirme
+  artık build makinesinde, bir kez oluyor).
 
 ```bash
-docker logs nexstream_embedder --tail 20
-docker exec nexstream_embedder du -sh /home/appuser/.cache/huggingface
+docker logs nexstream_embedder --tail 20     # "Application startup complete" bekle
 ```
 
-Boyut artıyorsa indirme sağlıklı ilerliyor demektir. `Application startup complete`
-satırını görünce embedder healthy olur ve arkasından app/worker/frontend açılır.
-Model cache'i `embedder_hf_cache` volume'unda kalıcıdır — **sonraki açılışlar
-saniyeler sürer**, bu bekleme yalnızca ilk seferdir.
+### ⚠️ `internal: true` ağ tuzağı — SESSİZ işlevsizlik
 
-**⚠️ İndirme birkaç KB'da takılıp HİÇ ilerlemiyorsa:** `hf-xet` paketi (Hugging
-Face'in yeni "Xet" depolama backend'i) bazı ağlarda ilk model indirmesini
-deterministik olarak tıkıyor (23 Temmuz 2026'da lokalde yaşandı). `embedder`
-servisinde zaten `HF_HUB_DISABLE_XET=1` var (hem compose'da hem
-`Dockerfile.embedder`'da) — yine de takılırsa env var'ın gerçekten geçtiğini
-`docker exec nexstream_embedder env | grep XET` ile doğrula ve
-`docker compose -f docker-compose.prod.yml restart embedder` ile tekrar dene.
+`backend` ağı `internal: true` (v1.6 ağ izolasyonu). O ağdaki bir container
+**dışarıya hiç çıkamaz, DNS bile çözemez**. 29 Tem 2026'da bunun bedeli ödendi:
+`worker` yalnızca `backend`'deydi, yani 17 RSS kaynağına da Groq API'sine de hiç
+ulaşamıyordu.
+
+Sinsi tarafı şu: yığın **tamamen sağlıklı görünüyordu** — tüm container'lar
+healthy, `/health` yeşil, nginx/TLS çalışıyor, arayüz açılıyor. Ama veritabanı
+sonsuza kadar boş kalıyordu, çünkü scraper exception'ı yutup `[]` dönüyor
+(bilinçli tasarım) ve hiçbir yerde alarm çalmıyor.
+
+Çözüm compose'da: dışarıya çıkması gereken servisler (`worker`, `backup`) ayrıca
+**`egress`** ağına da bağlı. `app` zaten `frontend` ağında (internal değil).
+
+**Bu yüzden deploy'u `/health` yeşil mi diye değil, İŞ ÇIKTISIYLA doğrula:**
+
+```bash
+docker exec nexstream_worker python -c "import socket; print(socket.gethostbyname('api.groq.com'))"
+docker compose -f docker-compose.prod.yml exec -T db \
+  psql -U "$DB_USER" -d "$DB_NAME" -tAc "select count(*) from news_articles"
+```
+
+İkincisi birkaç dakika sonra hâlâ `0` ise scrape akışı çalışmıyor demektir.
 
 ## 11. Gerçek Let's Encrypt sertifikası
 
-```bash
-docker compose -f docker-compose.prod.yml exec certbot certbot certonly \
-  --webroot -w /var/www/certbot -d nexstream.duckdns.org
+**Adım 11a — sertifikayı al.** `exec` DEĞİL `run --rm` kullan: certbot
+container'ının entrypoint'i sonsuz bir `renew` döngüsü, `exec` ile araya
+girmek yerine tek seferlik bir container çalıştırmak daha temiz.
 
+```bash
+docker compose -f docker-compose.prod.yml run --rm --entrypoint certbot certbot certonly \
+  --webroot -w /var/www/certbot \
+  -d nexstreamnewsengine.duckdns.org \
+  --email SENIN@EPOSTAN --agree-tos --no-eff-email --non-interactive
+```
+
+Not: sadece TEK `-d` — `www.` YOK, DuckDNS bir alt-alan adı için `www` desteği
+vermiyor. Let's Encrypt'in rate limitleri DuckDNS subdomain'lerinde satın alınmış
+bir domain gibi aynen çalışır.
+
+**Adım 11b — sertifikayı nginx'in baktığı yere bağla (ATLAMA).**
+nginx `/etc/nginx/ssl/fullchain.pem` ve `privkey.pem` dosyalarını **kökte**
+arıyor; certbot ise `live/<domain>/` altına yazıyor. Bu adım yapılmazsa
+**hiçbir hata görmezsin** — nginx sessizce eski self-signed sertifikayı sunmaya
+devam eder ve tarayıcı "güvenli değil" demeye devam eder.
+
+Domain'i `nginx.conf`'a hardcode ETMEMEK için symlink kullanılıyor (certbot
+yenileme yaptığında `live/` altındaki hedefler güncellenir, bu linkler geçerli
+kalır):
+
+```bash
+cd infra/nginx/ssl
+mv fullchain.pem self-signed-fullchain.pem.bak
+mv privkey.pem   self-signed-privkey.pem.bak
+ln -sfn live/nexstreamnewsengine.duckdns.org/fullchain.pem fullchain.pem
+ln -sfn live/nexstreamnewsengine.duckdns.org/privkey.pem  privkey.pem
+cd ../../..
+
+docker compose -f docker-compose.prod.yml exec nginx nginx -t   # "test is successful"
 docker compose -f docker-compose.prod.yml restart nginx
 ```
 
-Not: sadece TEK `-d` — `www.nexstream.duckdns.org` YOK, DuckDNS bir alt-alan
-adı için `www` desteği vermiyor. Let's Encrypt'in rate limitleri (haftada
-domain başına 50 sertifika vb.) DuckDNS subdomain'lerinde satın alınmış bir
-domain gibi aynen çalışır, özel bir ayar gerekmez.
+Doğrula — `-k` OLMADAN çalışmalı (yani sertifika gerçekten güvenilir):
+
+```bash
+curl -s https://nexstreamnewsengine.duckdns.org/api/health
+echo | openssl s_client -connect nexstreamnewsengine.duckdns.org:443 \
+  -servername nexstreamnewsengine.duckdns.org 2>/dev/null \
+  | openssl x509 -noout -issuer -dates
+```
 
 Certbot container zaten 12 saatte bir otomatik `renew` deniyor (bkz.
 `docker-compose.prod.yml` entrypoint) — manuel yenileme gerekmez.

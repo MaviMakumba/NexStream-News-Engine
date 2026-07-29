@@ -14,6 +14,10 @@
 ![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
+### 🚀 Live demo: **[nexstreamnewsengine.duckdns.org](https://nexstreamnewsengine.duckdns.org)**
+
+<sub>Running on a single AWS t3.small (2 vCPU / 1.9 GB) — the full 16-service production stack, observability included.</sub>
+
 [English](#english) · [Türkçe](#turkce)
 
 </div>
@@ -247,7 +251,7 @@ docker compose up -d
 
 #### First Run
 
-Once all containers are healthy, open the frontend at `http://localhost:3000`. The scheduler triggers scraping every 10 minutes and the Kafka-compatible worker processes articles through the AI analyzer automatically — no manual action needed. Confirm `http://localhost:8000/health` shows DB, Kafka, ChromaDB and the embedder service all green. On the very first run the embedder downloads a ~470MB model, so `app` and `worker` wait for it — this happens only once (the cache is a persistent volume).
+Once all containers are healthy, open the frontend at `http://localhost:3000`. The scheduler triggers scraping every 10 minutes and the Kafka-compatible worker processes articles through the AI analyzer automatically — no manual action needed. Confirm `http://localhost:8000/health` shows DB, Kafka, ChromaDB and the embedder service all green. The embedding model is baked into the `embedder` image at build time, so there is no first-run download — `app` and `worker` simply wait for the embedder to finish loading it from disk (~30-60s).
 
 > **Clean start/stop:** use `docker compose down` then `docker compose up -d`. Redpanda and ChromaDB run with `restart: unless-stopped`, so the stack self-heals even after an abrupt shutdown.
 
@@ -620,7 +624,7 @@ docker compose up -d
 | API Docs | http://localhost:8000/docs | Swagger UI |
 | DB Admin | http://localhost:8080 | Adminer |
 
-Konteynerler ayağa kalktıktan sonra `http://localhost:3000` arayüzünü aç. Scheduler her 10 dakikada bir scrape'i otomatik tetikler, Kafka-uyumlu worker haberleri AI analizinden geçirir — manuel işlem gerekmez. `http://localhost:8000/health` ile DB / Kafka / ChromaDB / embedder servisinin yeşil olduğunu doğrula. İlk çalıştırmada embedder ~470MB'lık modeli indirir ve `app` ile `worker` onu bekler — bu yalnızca ilk seferdir (cache kalıcı bir volume'da).
+Konteynerler ayağa kalktıktan sonra `http://localhost:3000` arayüzünü aç. Scheduler her 10 dakikada bir scrape'i otomatik tetikler, Kafka-uyumlu worker haberleri AI analizinden geçirir — manuel işlem gerekmez. `http://localhost:8000/health` ile DB / Kafka / ChromaDB / embedder servisinin yeşil olduğunu doğrula. Embedding modeli build anında `embedder` image'ına gömülü olduğu için ilk çalıştırmada indirme YOK — `app` ve `worker` sadece modelin diskten yüklenmesini bekler (~30-60sn).
 
 > **Temiz aç/kapa:** `docker compose down` ardından `docker compose up -d`. Redpanda ve ChromaDB `restart: unless-stopped` ile çalışır; ani kapanışta bile yığın kendini toparlar.
 
