@@ -11,10 +11,6 @@ beautifulsoup4==4.14.3
 lxml==6.1.0
 aiokafka==0.13.0
 apscheduler==3.11.2
-streamlit==1.55.0
-plotly==6.6.0
-pytest==9.0.3
-pytest-asyncio==1.4.0
 chromadb==1.5.5
 sentence-transformers==3.3.1
 slowapi==0.1.9
