@@ -192,6 +192,48 @@ def test_search_missing_published_at_defaults_empty():
     assert results[0]["published_at"] == ""
 
 
+# ── embedder servisi düşükken bozulma (degradation) ───────────────────────────
+#
+# Embedder artık AĞ bağımlılığı (ayrı container). Aşağıdaki davranışlar zaten
+# vardı (metotların kendi try/except'leri sayesinde) ama artık kritik hale
+# geldiler — regresyona karşı testle sabitleniyorlar.
+
+def test_embedder_olunce_arama_bos_liste_dondurur():
+    """hybrid_search bunu yakalayıp keyword aramasına düşer — 500 dönmez."""
+    from src.adapters.search.http_embedder import EmbeddingServiceError
+    repo, embedder = make_repo()
+    embedder.embed_text.side_effect = EmbeddingServiceError("servis yok")
+    assert repo.search("ekonomi") == []
+
+
+def test_embedder_olunce_indexleme_false_dondurur_ama_patlamaz():
+    """Haber Postgres'e zaten kaydedildi; indeksleme atlanır, veri kaybı yok.
+    retention_job son 7 günü yeniden indeksleyerek boşluğu kendiliğinden kapatır."""
+    from src.adapters.search.http_embedder import EmbeddingServiceError
+    repo, embedder = make_repo()
+    embedder.embed_text.side_effect = EmbeddingServiceError("servis yok")
+    assert repo.index_article(make_article()) is False
+
+
+def test_embedder_olunce_dedup_fail_open_davranir():
+    """Kopya olmadığı varsayılır — en kötü ihtimalle bir kopya haber geçer,
+    ki bu haberi tamamen kaybetmekten iyidir."""
+    from src.adapters.search.http_embedder import EmbeddingServiceError
+    repo, embedder = make_repo()
+    repo._mock_collection.count.return_value = 5
+    embedder.embed_text.side_effect = EmbeddingServiceError("servis yok")
+    assert repo.is_near_duplicate(make_article()) is False
+
+
+def test_embedder_olunce_toplu_indeksleme_de_patlamaz():
+    """Batch yolu da aynı güvenli varsayılana düşmeli."""
+    from src.adapters.search.http_embedder import EmbeddingServiceError
+    repo, embedder = make_repo()
+    embedder.embed_text.side_effect = EmbeddingServiceError("servis yok")
+    embedder.embed_batch.side_effect = EmbeddingServiceError("servis yok")
+    assert repo.index_article(make_article(id=7)) is False
+
+
 # ── delete_before (retention) ──────────────────────────────────────────────────
 
 def _page(ids, metadatas):
