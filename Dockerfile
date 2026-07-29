@@ -20,15 +20,18 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --retries 10 --timeout 120 -r requirements.txt
 
-# 5. Kodların Kopyalanması:
-# Bilgisayarındaki tüm kodları konteynırın içine atıyoruz.
-COPY . .
+# 5. Non-root kullanıcı (güvenlik denetimi): container escape sınıfı bir zafiyet
+# çıkarsa root-in-container host'ta root'a çok daha kısa bir yol demek.
+#
+# Kullanıcı kodu KOPYALAMADAN ÖNCE açılıyor ve kopyalama `--chown` ile yapılıyor.
+# Eskiden sıra tersti (`COPY . .` sonra `chown -R /app`) ve chown her dosyanın
+# metadata'sını değiştirdiği için Docker tüm ağacı İKİNCİ KEZ katmanlıyordu —
+# tek başına 407MB'lık boş yere ikizlenmiş bir katman (29 Tem 2026'da ölçüldü).
+RUN useradd --create-home --shell /bin/bash appuser
 
-# 6. Non-root kullanıcı (güvenlik denetimi): container escape sınıfı bir zafiyet
-# çıkarsa root-in-container host'ta root'a çok daha kısa bir yol demek. --create-home
-# ile gerçek bir HOME açılıyor ki SentenceTransformer'ın indirdiği model cache'i
-# (~/.cache/huggingface) bu kullanıcı altında sorunsuz yazılabilsin.
-RUN useradd --create-home --shell /bin/bash appuser && chown -R appuser:appuser /app
+# 6. Kodların Kopyalanması (.dockerignore frontend/tests/docs'u dışarıda bırakır).
+COPY --chown=appuser:appuser . .
+
 USER appuser
 
 # 7. Başlatma Komutu:

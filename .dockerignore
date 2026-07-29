@@ -24,5 +24,19 @@ htmlcov/
 
 # Docker'ın kendisi
 Dockerfile
+Dockerfile.*
 docker-compose.yml
 docker-compose.*.yml
+
+# Frontend — backend image'larının HİÇBİRİ buna ihtiyaç duymuyor ve node_modules
+# + .next ile birlikte ~356MB. Frontend kendi image'ını frontend/Dockerfile'dan
+# alıyor, onun build context'i ./frontend olduğu için bu satır onu ETKİLEMEZ.
+frontend/
+
+# Backend image'ında işi olmayanlar
+tests/
+docs/
+_archive/
+infra/
+.github/
+*.md
