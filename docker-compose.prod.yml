@@ -215,6 +215,10 @@ services:
       logging: "promtail"
     networks:
       - backend
+      # egress ZORUNLU: worker'in butun isi disariya ulasmak (17 RSS kaynagi,
+      # Groq API, Resend). backend internal oldugu icin tek basina DNS bile
+      # cozemez — bkz. asagidaki networks tanimi.
+      - egress
 
   # ─── EMBEDDER ──────────────────────────────────────────────────
   # SentenceTransformer modelini TEK kopya tutan servis. app ve worker modeli
@@ -472,6 +476,10 @@ services:
           cpus: "0.5"
     networks:
       - backend
+      # egress: RCLONE_REMOTE ile offsite yedek yuklemesi yapilandirildiysa
+      # disariya cikmasi gerekiyor. backend internal oldugu icin bu olmadan
+      # yukleme SESSIZCE basarisiz olurdu.
+      - egress
 
 volumes:
   postgres_data:
@@ -489,6 +497,20 @@ networks:
   backend:
     driver: bridge
     internal: true
+  # DIŞA ÇIKIŞ AĞI — `backend` internal:true olduğu için oradaki container'ların
+  # İNTERNETİ YOKTUR ve DNS bile çözemezler. Dış bir servise ulaşması gereken
+  # her container ayrıca BUNA da bağlanmalı.
+  #
+  # 29 Tem 2026'da canlıda yakalandı: `worker` yalnızca `backend`'deydi, yani
+  # RSS kaynaklarına ve Groq'a hiç ulaşamıyordu ("Temporary failure in name
+  # resolution"). Yığın sağlıklı görünüyor, /health yeşil dönüyor ama HİÇ HABER
+  # TOPLANMIYORDU — sessiz ve tam bir işlevsizlik. `backup` da aynı durumdaydı
+  # (RCLONE_REMOTE ile offsite yükleme yapılandırılmışsa sessizce başarısız olur).
+  #
+  # `app` bu ağa EKLENMEDİ çünkü zaten `frontend` ağında (nginx ona oradan
+  # ulaşıyor) ve o ağ internal DEĞİL — yani çıkışı var.
+  egress:
+    driver: bridge
   monitoring:
     driver: bridge
     internal: true
