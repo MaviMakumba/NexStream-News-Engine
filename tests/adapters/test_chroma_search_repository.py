@@ -33,6 +33,33 @@ def make_repo():
     return repo, mock_embedder
 
 
+# ── embedder kompozisyonu ─────────────────────────────────────────────────────
+
+def test_varsayilan_embedder_factory_uzerinden_kurulur():
+    """Varsayılan embedder build_embedder()'dan gelmeli.
+
+    SentenceTransformerEmbedder DOĞRUDAN kurulursa app/worker image'larında
+    (sentence-transformers kurulu DEĞİL) çalışma anında çöker.
+    """
+    fake_embedder = MagicMock()
+    with patch("src.adapters.search.chroma_search_repository.build_embedder",
+               return_value=fake_embedder) as mock_build:
+        with patch("src.adapters.search.chroma_search_repository.chromadb.HttpClient"):
+            repo = ChromaSearchRepository()
+    mock_build.assert_called_once()
+    assert repo.embedder is fake_embedder
+
+
+def test_modul_sentence_transformers_import_etmiyor():
+    """chroma_search_repository, sentence_transformers'ı modül seviyesinde
+    import ETMEMELİ — app/worker image'larında bu paket bulunmayacak."""
+    import inspect
+    from src.adapters.search import chroma_search_repository
+    source = inspect.getsource(chroma_search_repository)
+    assert "from src.adapters.search.sentence_transformer_embedder import" not in source
+    assert "import sentence_transformers" not in source
+
+
 # ── index_article ─────────────────────────────────────────────────────────────
 
 def test_index_article_success():
