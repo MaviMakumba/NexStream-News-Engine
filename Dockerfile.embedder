@@ -9,6 +9,10 @@ ENV PYTHONUNBUFFERED=1
 # tıkıyor (23 Tem 2026'da lokalde yaşandı). Klasik HTTPS indirmeye zorlar.
 ENV HF_HUB_DISABLE_XET=1
 
+# Model cache'i appuser'ın HOME'unda DEĞİL sabit bir yolda: model build anında
+# root olarak indiriliyor, sonra appuser'a devrediliyor (aşağıya bakın).
+ENV HF_HOME=/opt/hf-cache
+
 # 2 vCPU'da torch'un thread havuzu zaten çekişiyordu; tek thread hem RAM
 # hem context-switch tasarrufu sağlar. Tek cümlelik embedding ~10-30ms.
 ENV OMP_NUM_THREADS=1
@@ -26,19 +30,32 @@ COPY requirements-embedder.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --retries 10 --timeout 120 -r requirements-embedder.txt
 
-COPY src/ ./src/
-
-# --create-home şart: SentenceTransformer model cache'ini ~/.cache/huggingface'e yazar.
-#
-# Cache dizini burada AÇIKÇA oluşturulup appuser'a veriliyor. Compose bu yola
-# isimli bir volume bağlıyor; Docker boş bir named volume'u image'daki AYNI
-# yoldaki dizinin içeriği ve SAHİPLİĞİYLE başlatır. Dizin image'da yoksa volume
-# root'a ait boş bir dizin olarak doğar ve appuser yazamaz — servis açılışta
-# "PermissionError at /home/appuser/.cache/huggingface" ile ölür (29 Tem 2026'da
-# tam olarak bu yaşandı).
+# Non-root kullanıcı (güvenlik denetimi) MODEL İNDİRMEDEN ÖNCE açılıyor ve
+# indirme onun adına yapılıyor. Sıra tersken (`indir` → `chown -R`) chown tüm
+# cache'in metadata'sını değiştirdiği için Docker 458MB'lık model ağacını İKİNCİ
+# KEZ katmanlıyordu — tek başına 482MB'lık boş yere ikizlenmiş bir katman
+# (29 Tem 2026'da ölçüldü; ana Dockerfile'da da aynı hata vardı).
 RUN useradd --create-home --shell /bin/bash appuser \
-    && mkdir -p /home/appuser/.cache/huggingface \
-    && chown -R appuser:appuser /app /home/appuser
+    && mkdir -p /opt/hf-cache \
+    && chown -R appuser:appuser /app /opt/hf-cache
 USER appuser
+
+COPY --chown=appuser:appuser src/ ./src/
+
+# ─── MODELİ BUILD ANINDA GÖM ─────────────────────────────────────────────────
+# Bu ZORUNLU, bir optimizasyon değil: embedder prod'da YALNIZCA `backend` ağında
+# çalışıyor ve o ağ `internal: true` — yani internet YOK. Model runtime'da
+# indirilemez; denerse "Failed to resolve 'huggingface.co'" ile ölür (29 Tem 2026
+# AWS deploy'unda tam olarak bu yaşandı, container 6 kez restart etti).
+# Build'in interneti VAR, o yüzden model burada iniyor.
+#
+# İndirme `_get_model()` üzerinden yapılıyor ki image'a gömülen model ile
+# runtime'da yüklenecek model AYNI olsun — model adı tek yerden
+# (settings.embedder_model_name) geliyor, burada elle tekrarlanmıyor.
+RUN python -c "from src.adapters.search.sentence_transformer_embedder import _get_model; _get_model()"
+
+# Model image'da hazır — ağa hiç çıkma. Böylece eksik bir dosya olursa sessizce
+# internete uzanıp asılmak yerine hemen ve net biçimde hata verir.
+ENV HF_HUB_OFFLINE=1
 
 CMD ["uvicorn", "src.adapters.search.embedder_service:app", "--host", "0.0.0.0", "--port", "8000"]
