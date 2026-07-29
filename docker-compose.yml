@@ -11,6 +11,8 @@ services:
         condition: service_healthy
       chromadb:
         condition: service_started
+      embedder:
+        condition: service_healthy
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       - DB_HOST=db
@@ -34,10 +36,7 @@ services:
       - BILLING_DEV_MODE=${BILLING_DEV_MODE:-true}   # dev compose: Stripe'sız demo açık
       - ADMIN_EMAILS=${ADMIN_EMAILS:-}
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}   # dev compose: HTTP üzerinden çalışır, Secure kapalı
-      # hf-xet (Hugging Face'in yeni "Xet" depolama backend'i) bu ortamda ilk
-      # SentenceTransformer indirmesinde birkaç KB'da tıkanıp kalıyordu (klasik
-      # HTTPS indirme sorunsuz çalışıyor) — klasik indirme yoluna zorluyoruz.
-      - HF_HUB_DISABLE_XET=1
+      - EMBEDDER_URL=http://embedder:8000
     ports:
       - "8000:8000"
     volumes:
@@ -112,6 +111,8 @@ services:
         condition: service_healthy
       chromadb:
         condition: service_started
+      embedder:
+        condition: service_healthy
     command: python -m src.adapters.messaging.kafka_consumer
     environment:
       - DB_HOST=db
@@ -123,7 +124,7 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
-      - HF_HUB_DISABLE_XET=1
+      - EMBEDDER_URL=http://embedder:8000
     volumes:
       - .:/app
 
@@ -186,7 +187,35 @@ services:
       retries: 5
       start_period: 10s
 
-  # 10. CACHE (Redis) — session'lar ve trending cache
+  # 10. EMBEDDER — SentenceTransformer modelini TEK kopya tutan servis.
+  # app ve worker modeli kendi RAM'lerine ayrı ayrı yüklüyordu (~600MB israf);
+  # artık ikisi de embedding'i buraya HTTP ile soruyor. Dışarı port AÇILMAZ.
+  embedder:
+    build:
+      context: .
+      dockerfile: Dockerfile.embedder
+    container_name: nexstream_embedder
+    restart: unless-stopped
+    environment:
+      - HF_HUB_DISABLE_XET=1
+    volumes:
+      # Model cache'i kalıcı: container yeniden kurulunca ~470MB tekrar inmesin.
+      - embedder_hf_cache:/home/appuser/.cache/huggingface
+    healthcheck:
+      # python bu image'da MEVCUT (python:3.11-slim tabanı) — chromadb'nin
+      # aksine bu healthcheck çalışır.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      # UZUN start_period BİLİNÇLİ: ilk açılışta ~470MB model indiriliyor ve
+      # start_period boyunca başarısız yoklamalar unhealthy saydırmıyor.
+      # 60sn ile denendi, indirme bitmeden container unhealthy oldu ve ona
+      # bağlı app/worker hiç açılamadı (29 Tem 2026). Cache volume'u dolduktan
+      # sonraki açılışlar saniyeler sürüyor, yani bu süre sadece ilk sefer.
+      start_period: 900s
+
+  # 11. CACHE (Redis) — session'lar ve trending cache
   redis:
     image: redis:7-alpine
     container_name: nexstream_redis
@@ -205,3 +234,4 @@ volumes:
   chroma_data:
   redis_data:
   nexstream_node_modules:
+  embedder_hf_cache:

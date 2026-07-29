@@ -1,0 +1,39 @@
+# Embedder servisi — SentenceTransformer modelini tek kopya yükler.
+# app/worker image'ları artık torch İÇERMEZ; embedding'i bu servise sorarlar.
+FROM python:3.11-slim
+
+WORKDIR /app
+ENV PYTHONUNBUFFERED=1
+
+# hf-xet bazı ağlarda ilk model indirmesini birkaç KB'da deterministik olarak
+# tıkıyor (23 Tem 2026'da lokalde yaşandı). Klasik HTTPS indirmeye zorlar.
+ENV HF_HUB_DISABLE_XET=1
+
+# torch'u AYRI ve ÖNCE kur: PyPI'ın varsayılan Linux wheel'i CUDA build'idir ve
+# nvidia-* paketleriyle birlikte GB'larca yer kaplar. Sunucuda GPU YOK.
+# --index-url ile CPU wheel'i çekilir; sonraki adımda sentence-transformers
+# torch'u zaten kurulu bulur ve DEĞİŞTİRMEZ.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --retries 10 --timeout 120 \
+        --index-url https://download.pytorch.org/whl/cpu torch
+
+COPY requirements-embedder.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --retries 10 --timeout 120 -r requirements-embedder.txt
+
+COPY src/ ./src/
+
+# --create-home şart: SentenceTransformer model cache'ini ~/.cache/huggingface'e yazar.
+#
+# Cache dizini burada AÇIKÇA oluşturulup appuser'a veriliyor. Compose bu yola
+# isimli bir volume bağlıyor; Docker boş bir named volume'u image'daki AYNI
+# yoldaki dizinin içeriği ve SAHİPLİĞİYLE başlatır. Dizin image'da yoksa volume
+# root'a ait boş bir dizin olarak doğar ve appuser yazamaz — servis açılışta
+# "PermissionError at /home/appuser/.cache/huggingface" ile ölür (29 Tem 2026'da
+# tam olarak bu yaşandı).
+RUN useradd --create-home --shell /bin/bash appuser \
+    && mkdir -p /home/appuser/.cache/huggingface \
+    && chown -R appuser:appuser /app /home/appuser
+USER appuser
+
+CMD ["uvicorn", "src.adapters.search.embedder_service:app", "--host", "0.0.0.0", "--port", "8000"]
