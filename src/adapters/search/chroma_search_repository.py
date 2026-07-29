@@ -7,7 +7,8 @@ yeni haber mevcut bir vektöre bu kadar yakınsa is_duplicate işaretlenir.
 import logging
 import chromadb
 from src.domain.models.article import Article
-from src.adapters.search.sentence_transformer_embedder import SentenceTransformerEmbedder
+from src.adapters.search.embedder_factory import build_embedder
+from src.domain.ports.embedding_port import EmbeddingPort
 from src.infrastructure.config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -20,8 +21,10 @@ class ChromaSearchRepository:
     # Retention taramasının sayfa boyutu — bkz. _collect_stale_ids.
     RETENTION_SCAN_BATCH = 1000
 
-    def __init__(self, embedder: SentenceTransformerEmbedder = None):
-        self.embedder = embedder or SentenceTransformerEmbedder()
+    def __init__(self, embedder: EmbeddingPort = None):
+        # Varsayılan factory'den gelir (HTTP servisi). Somut sınıf DEĞİL port
+        # tip ipucu: bu sınıf hangi embedder olduğunu bilmemeli.
+        self.embedder = embedder or build_embedder()
         self.client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
         self.collection = self.client.get_or_create_collection(COLLECTION_NAME)
 

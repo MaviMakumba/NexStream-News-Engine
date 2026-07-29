@@ -95,10 +95,13 @@ async def lifespan(app: FastAPI):
     set_message_publisher(kafka_adapter)
     log.info("Message Publisher (Kafka) sisteme bağlandı.")
 
-    # İlk arama isteği model yüklemesini beklemesin diye startup'ta ısıtılır.
-    log.info("SentenceTransformer modeli yükleniyor...")
+    # Arama deposu startup'ta ısıtılır: ChromaDB bağlantısı + koleksiyon handle'ı
+    # ilk istekte kurulmasın. Model ARTIK BURADA YÜKLENMİYOR — ayrı `embedder`
+    # servisinde tek kopya duruyor (v2.0 RAM optimizasyonu), bu çağrı sadece
+    # HttpEmbedderAdapter kuruyor ve saniyeler değil milisaniyeler sürüyor.
+    log.info("Arama deposu hazırlanıyor (ChromaDB bağlantısı)...")
     get_search_repository()
-    log.info("SentenceTransformer modeli hazır.")
+    log.info("Arama deposu hazır.")
 
     notifier = WebSocketNotifier(
         max_per_user=settings.ws_max_connections_per_user,
