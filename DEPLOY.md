@@ -1,5 +1,12 @@
 # NexStream — İlk Prod Deploy Kılavuzu ($0/ay — v2.0)
 
+> **⚠️ GÜNCEL DURUM (29 Temmuz 2026): Fiili deploy AWS'te, Oracle'da DEĞİL.**
+> Oracle'ın A1.Flex kapasitesi günlerce "Out of host capacity" verdi (bkz. §2) ve
+> beklemek yerine **AWS Free Plan ($100 kredi, 28 Ocak 2027'ye kadar) köprü olarak**
+> seçildi. Aşağıdaki §1, §3, §6-§12 adımları **aynen geçerli**; yalnızca sunucunun
+> nereden geldiği değişiyor — bunun için §2 yerine **§2-AWS**'yi izle.
+> AWS'te kredi bitince kart çekilmez, hesap kapanır (doğrulandı).
+
 Bu dosya, hiçbir VPS/domain yokken ve bütçe **gerçekten $0/ay** iken sıfırdan
 canlıya çıkış için adım adım kontrol listesidir. Kod tarafı (`docker-compose.prod.yml`,
 nginx, güvenlik guard'ları, Redpanda mesajlaşma) v1.17/v1.18 denetiminden sonra
@@ -97,6 +104,47 @@ dışarıdan erişilebilir olmaz.
 
 ---
 
+## 2-AWS. AWS EC2 köprü sunucusu (Oracle kapasitesi yoksa bunu kullan)
+
+28 Temmuz 2026'da fiilen kurulan yol. Kurulmuş kaynak: instance
+`i-0608c897a3d8ca3f3`, Elastic IP `63.178.59.10`, domain
+`nexstreamnewsengine.duckdns.org`, bölge `eu-central-1a`.
+
+Sıfırdan kuracaksan dört tuzağı önceden bil:
+
+1. **ARM (`t4g.*`) seçme.** `t4g.micro`/`t4g.small` için `eu-central-1`'de
+   `InsufficientInstanceCapacity` alındı — birden çok denemede. x86 **`t3.small`**
+   (2 vCPU / 2GB) sorunsuz açıldı. Bu, ARM'ın Oracle'daki kapasite sorununun
+   AWS'teki karşılığı; ısrar etmeye değmiyor.
+2. **SSH (port 22) çalışmayabilir.** Hem geliştirme ortamından hem kullanıcının
+   kendi bağlantısından ISP seviyesinde kapalıydı. Çözüm:
+   **AWS Console → EC2 → Instances → Connect → EC2 Instance Connect**
+   (tarayıcı terminali, 443 üzerinden çalışır). Vakit kaybetmeden buna geç.
+3. **EBS'i 30GB'ta bırakma — 80GB yap.** `app` ve `worker` AYNI Dockerfile'ı
+   kullanıyor ve BuildKit ikisini paralel export ediyor; 30GB'ta build
+   `exporting to image` aşamasında BOŞ bir hatayla patlıyordu. İmzası:
+   `journald: No space left on device`. (v2.0 optimizasyonundan sonra backend
+   image'ları 1.55GB → 516MB'a indi, yani baskı çok azaldı — ama monitoring
+   yığını + model cache hâlâ yer istiyor.)
+4. **Elastic IP ayır.** Aksi halde instance her stop/start'ta public IP değişir
+   ve DuckDNS kaydın bozulur.
+
+**Maliyeti durdurma:** çalışmadığı sürede instance'ı durdur (compute faturası
+durur; EBS + Elastic IP devam eder, ~$10/ay).
+
+```bash
+aws ec2 describe-instances --instance-ids i-0608c897a3d8ca3f3 --region eu-central-1 \
+  --query "Reservations[0].Instances[0].State.Name" --output text
+aws ec2 start-instances --instance-ids i-0608c897a3d8ca3f3 --region eu-central-1
+aws ec2 stop-instances  --instance-ids i-0608c897a3d8ca3f3 --region eu-central-1
+```
+
+AWS'te §4'teki Oracle VCN Security List'in karşılığı **Security Group**'tur:
+80 ve 443 inbound açık olmalı. Yine `ufw`'den AYRI ve ONA EK — ikisi de
+açılmadan port dışarıdan erişilemez.
+
+---
+
 ## 5. Sunucu hazırlığı (SSH ile)
 
 ```bash
@@ -123,6 +171,29 @@ sudo usermod -aG docker ubuntu
 Not: Oracle'ın Ubuntu cloud image'ı bazı sürümlerde kendi `iptables` kurallarıyla
 gelir — `ufw enable` etkisiz görünüyorsa `sudo iptables -L` ile kontrol et ve
 çakışan bir kural varsa kaldır.
+
+### 5-B. Swap dosyası — `t3.small` (2GB) için ZORUNLU
+
+Optimizasyon sonrası yığın 2GB'a sığıyor ama tamponu dar. Swap, tepe anlarında
+(image build, ilk model indirmesi, eşzamanlı scrape) OOM killer'ın rastgele bir
+container'ı öldürmesi yerine sistemin yavaşlayarak devam etmesini sağlar. Bu bir
+performans ayarı değil, **çökme sigortası**:
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab   # reboot'ta kalıcı
+
+# Swap'a erken kaçmasın — sadece gerçekten sıkışınca kullansın
+sudo sysctl vm.swappiness=10
+echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf
+
+free -h    # Swap satırı 2.0Gi görünmeli
+```
+
+Oracle A1.Flex'e (24GB RAM) geçilirse bu adım gereksizdir.
 
 ---
 
@@ -199,7 +270,34 @@ docker compose -f docker-compose.prod.yml ps    # hepsi "healthy"/"running" olma
 varsayılan, `CORS_ORIGINS=*`, vb.) `app` container'ı **kasıtlı olarak**
 açılmayı reddedip loglayacak — bu bir bug değil, v1.17 güvenlik guard'ı.
 
-**⚠️ `app`/`worker` "unhealthy" kalıp `/health` hiç 200 dönmüyorsa (SentenceTransformer indirmesi takılmış olabilir):** 23 Temmuz 2026'da lokalde bulundu — `hf-xet` paketi (Hugging Face'in yeni "Xet" depolama backend'i) bazı ağlarda ilk model indirmesini birkaç KB'da tıkayıp kalıyor (`docker exec <container> sh -c "du -sh ~/.cache/huggingface/hub/models--*"` ile kontrol edilebilir — ilerlemesiz, deterministik takılma). `docker-compose.prod.yml`'de `app`+`worker`'a zaten `HF_HUB_DISABLE_XET=1` eklendi (klasik HTTPS indirmeye zorluyor), bu yüzden prod'da normalde sorun çıkmamalı — ama Oracle'ın ağı/ISP'si farklı davranırsa ve yine de takılırsa, bu env var'ın ikisinde de olduğunu doğrula, sonra `docker compose -f docker-compose.prod.yml restart app worker` ile tekrar dene.
+### İlk açılış: `embedder` her şeyi bekletir (normaldir)
+
+v2.0'dan itibaren SentenceTransformer modeli `app`/`worker` içinde DEĞİL, ayrı
+bir **`embedder`** servisinde tek kopya duruyor (RAM'de ~600MB tasarruf). `app` ve
+worker` ona `depends_on: service_healthy` ile bağlı, yani **embedder healthy
+olana kadar ikisi de hiç başlamaz.**
+
+İlk açılışta embedder ~470MB'lık modeli indirir; t3.small'da bu **birkaç dakika**
+sürer. Bu yüzden healthcheck `start_period: 900s` ile geliyor — o pencere boyunca
+başarısız yoklamalar container'ı unhealthy saydırmaz. Panikleme, izle:
+
+```bash
+docker logs nexstream_embedder --tail 20
+docker exec nexstream_embedder du -sh /home/appuser/.cache/huggingface
+```
+
+Boyut artıyorsa indirme sağlıklı ilerliyor demektir. `Application startup complete`
+satırını görünce embedder healthy olur ve arkasından app/worker/frontend açılır.
+Model cache'i `embedder_hf_cache` volume'unda kalıcıdır — **sonraki açılışlar
+saniyeler sürer**, bu bekleme yalnızca ilk seferdir.
+
+**⚠️ İndirme birkaç KB'da takılıp HİÇ ilerlemiyorsa:** `hf-xet` paketi (Hugging
+Face'in yeni "Xet" depolama backend'i) bazı ağlarda ilk model indirmesini
+deterministik olarak tıkıyor (23 Temmuz 2026'da lokalde yaşandı). `embedder`
+servisinde zaten `HF_HUB_DISABLE_XET=1` var (hem compose'da hem
+`Dockerfile.embedder`'da) — yine de takılırsa env var'ın gerçekten geçtiğini
+`docker exec nexstream_embedder env | grep XET` ile doğrula ve
+`docker compose -f docker-compose.prod.yml restart embedder` ile tekrar dene.
 
 ## 11. Gerçek Let's Encrypt sertifikası
 
@@ -222,7 +320,23 @@ Certbot container zaten 12 saatte bir otomatik `renew` deniyor (bkz.
 
 ```bash
 curl -I https://nexstream.duckdns.org                     # frontend
+curl https://nexstream.duckdns.org/api/health              # embedder DAHİL tüm bağımlılıklar
 curl https://nexstream.duckdns.org/api/api/v1/news         # bkz. bilinen /api prefix garipliği
+```
+
+`/api/health` şunu döndürmeli — **`embedder` alanı da `ok` olmalı**, aksi halde
+arama sonuçları sessizce keyword aramasına düşer (uygulama çalışmaya devam eder,
+ama semantik arama devre dışıdır):
+
+```json
+{"status":"ok","db":"ok","kafka":"ok","chromadb":"ok","embedder":"ok","indexed_articles":5190}
+```
+
+Bellek durumunu da bir kez kontrol et (t3.small'da tampon dar):
+
+```bash
+docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}"
+free -h    # swap kullanımı sürekli artıyorsa yığın sığmıyor demektir
 ```
 
 Tarayıcıdan: landing sayfası, `/dashboard`, kayıt ol → e-posta doğrulama
