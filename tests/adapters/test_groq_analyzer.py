@@ -127,7 +127,11 @@ def test_returns_neutral_on_connection_error():
     """Bağlantı hatası durumunda fallback Neutral döner, exception fırlatmaz."""
     analyzer = GroqAnalyzer()
 
-    with patch("requests.post", side_effect=Exception("Connection refused")):
+    # time.sleep patch'i ŞART: hata yolunda iki kez `time.sleep(5)` var, yani
+    # bu test gerçekten 10 saniye bekliyordu. Beklemeyi test etmiyoruz,
+    # fallback davranışını test ediyoruz.
+    with patch("requests.post", side_effect=Exception("Connection refused")), \
+         patch("src.adapters.analysis.groq_analyzer.time.sleep"):
         result = analyzer.analyze_text("Some news.")
 
     assert result["sentiment_label"] == "Neutral"

@@ -6,10 +6,12 @@ için lokal model kullanılır. Singleton: model bir kez yüklenir (~100MB).
 
 from sentence_transformers import SentenceTransformer
 from src.domain.ports.embedding_port import EmbeddingPort
+from src.infrastructure.config.settings import settings
 
-# Sabite çıkarıldı: embedder servisi /health'te hangi modeli yüklediğini
-# raporluyor, o yüzden tek doğruluk noktası burası.
-MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
+# Model adı ayarlardan gelir: embedder servisi /health'te hangi modeli
+# yüklediğini raporluyor ve bunu YAPMAK İÇİN bu modülü (dolayısıyla torch'u)
+# import etmek zorunda kalmamalı.
+MODEL_NAME = settings.embedder_model_name
 
 _model_instance: SentenceTransformer = None
 

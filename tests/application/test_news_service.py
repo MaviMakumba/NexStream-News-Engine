@@ -1,7 +1,7 @@
 import asyncio
 import pytest
 from datetime import datetime, timezone, timedelta
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 from src.application.services.news_service import NewsService
 from src.domain.models.article import Article
 
@@ -51,7 +51,10 @@ def test_update_multiple_articles():
     ])
     mock_repo.save_article.return_value = True
 
-    asyncio.run(service.update_news_from_source(mock_scraper))
+    # Haber başına 2sn'lik Groq throttle'ı bu testi 4 saniye bekletiyordu;
+    # test throttle'ı değil kaydetme sayısını doğruluyor.
+    with patch("src.application.services.news_service.asyncio.sleep", new=AsyncMock()):
+        asyncio.run(service.update_news_from_source(mock_scraper))
 
     assert mock_repo.save_article.call_count == 3
 
