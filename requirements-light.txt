@@ -4,5 +4,3 @@ python-dotenv==1.2.2
 requests==2.33.0
 aiokafka==0.13.0
 apscheduler==3.11.2
-streamlit==1.55.0
-plotly==6.6.0
