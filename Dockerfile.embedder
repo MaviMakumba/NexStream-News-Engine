@@ -9,6 +9,11 @@ ENV PYTHONUNBUFFERED=1
 # tıkıyor (23 Tem 2026'da lokalde yaşandı). Klasik HTTPS indirmeye zorlar.
 ENV HF_HUB_DISABLE_XET=1
 
+# 2 vCPU'da torch'un thread havuzu zaten çekişiyordu; tek thread hem RAM
+# hem context-switch tasarrufu sağlar. Tek cümlelik embedding ~10-30ms.
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+
 # torch'u AYRI ve ÖNCE kur: PyPI'ın varsayılan Linux wheel'i CUDA build'idir ve
 # nvidia-* paketleriyle birlikte GB'larca yer kaplar. Sunucuda GPU YOK.
 # --index-url ile CPU wheel'i çekilir; sonraki adımda sentence-transformers
