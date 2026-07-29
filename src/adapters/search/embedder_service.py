@@ -13,20 +13,29 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from src.adapters.search.sentence_transformer_embedder import (
-    MODEL_NAME,
-    SentenceTransformerEmbedder,
-)
+from src.domain.ports.embedding_port import EmbeddingPort
+from src.infrastructure.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-_embedder: SentenceTransformerEmbedder = None
+MODEL_NAME = settings.embedder_model_name
+
+_embedder: EmbeddingPort = None
 
 
-def _get_embedder() -> SentenceTransformerEmbedder:
-    """Singleton — model süreç ömrü boyunca bir kez yüklenir."""
+def _get_embedder() -> EmbeddingPort:
+    """Singleton — model süreç ömrü boyunca bir kez yüklenir.
+
+    Import BİLİNÇLİ olarak fonksiyon içinde: modül seviyesinde olsaydı bu
+    dosyayı import etmek (örneğin testte) sentence-transformers + torch'u da
+    yükletirdi — tek başına ~10 saniye. Servisin kendisi zaten lifespan'de bu
+    fonksiyonu çağırıyor, yani gerçek çalışmada hiçbir gecikme farkı yok.
+    """
     global _embedder
     if _embedder is None:
+        from src.adapters.search.sentence_transformer_embedder import (
+            SentenceTransformerEmbedder,
+        )
         logger.info("SentenceTransformer modeli yükleniyor: %s", MODEL_NAME)
         _embedder = SentenceTransformerEmbedder()
         logger.info("Model yüklendi.")

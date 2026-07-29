@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     # Model app/worker içinde DEĞİL, ayrı bir serviste tek kopya durur.
     # "local" mod modeli süreç içine yükler — yalnızca Docker'sız geliştirme için.
     embedder_mode: str = "http"                    # "http" | "local"
+    embedder_model_name: str = "paraphrase-multilingual-MiniLM-L12-v2"
     embedder_url: str = "http://embedder:8000"
     embedder_connect_timeout: float = 2.0          # aynı Docker ağı; aşılıyorsa servis yok
     embedder_read_timeout: float = 5.0             # tek embedding CPU'da ~10-30ms
