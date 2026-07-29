@@ -29,6 +29,18 @@ limits_config:
   reject_old_samples_max_age: 168h
   ingestion_rate_mb: 4
   ingestion_burst_size_mb: 6
+  # 7 gün — Prometheus'un retention penceresiyle aynı hizada. Öncesinde HİÇ
+  # retention tanımlı değildi, yani loglar sonsuza kadar birikiyordu; t3.small'ın
+  # (1.9GB RAM / paylaşılan disk) bunu taşıması mümkün değil. TEK ÖDÜN geriye
+  # bakış penceresi: Loki de Grafana'daki log panelleri de aynen çalışıyor.
+  retention_period: 168h
+
+# retention_period tek başına YETMEZ — silmeyi fiilen yapan compactor'dır ve
+# `retention_enabled: true` olmadan Loki süreyi yok sayar.
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
 
 analytics:
   reporting_enabled: false

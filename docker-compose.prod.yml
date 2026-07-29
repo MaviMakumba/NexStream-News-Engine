@@ -98,7 +98,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
+          # 4G idi — 1.9GB'lik bir makinede anlamsizdi (limit fiilen yoktu, tek
+          # bir sizinti tum kutuyu OOM'a surukleyebilirdi). Olculen: 132 MiB
+          # (tek uvicorn worker'i, 29 Tem 2026); prod iki worker calistiriyor
+          # ve model artik burada YUKLENMIYOR, o yuzden 768M ~3x tampon birakir.
+          memory: 768M
           cpus: "2.0"
     labels:
       logging: "promtail"
@@ -142,7 +146,14 @@ services:
       - redpanda
       - start
       - --smp=1
-      - --memory=768M
+      # KRİTİK: Seastar heap'i container limitine (aşağıda 768M) ASLA EŞİT
+      # OLMAMALI. 768M/768M ile denendiğinde Seastar cgroup içinde 724MiB görüp
+      # "insufficient physical memory: needed 805306368 available 759169024"
+      # ile hiç açılmıyordu (28 Tem 2026 AWS deploy'u; o gün sunucuda elle
+      # düzeltildi ama repo'ya girmemişti — 29 Tem'de burada yakalandı).
+      # 256M, t3.small bütçesi için ayrıca bilinçli bir kısma: bu iş yükünde
+      # (dakikada birkaç scrape mesajı) fazlasıyla yeterli.
+      - --memory=256M
       - --overprovisioned
       - --node-id=0
       - --check=false
@@ -196,7 +207,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
+          # 4G idi — bkz. app'teki gerekce. Olculen: 96 MiB (29 Tem 2026),
+          # model artik burada yuklenmiyor. 512M ~5x tampon.
+          memory: 512M
           cpus: "2.0"
     labels:
       logging: "promtail"
@@ -351,7 +364,12 @@ services:
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.retention.time=30d"
+      # t3.small (1.9GB) kısması: 30 gün → 7 gün + sert disk tavanı. Prometheus
+      # aktif TSDB bloklarını mmap'liyor, pencere daraldıkça yerleşik bellek de
+      # düşüyor. TEK ÖDÜN geriye bakış penceresi — servis de, paneller de,
+      # metrikler de aynen çalışmaya devam eder, hiçbiri kaldırılmadı.
+      - "--storage.tsdb.retention.time=7d"
+      - "--storage.tsdb.retention.size=512MB"
     deploy:
       resources:
         limits:

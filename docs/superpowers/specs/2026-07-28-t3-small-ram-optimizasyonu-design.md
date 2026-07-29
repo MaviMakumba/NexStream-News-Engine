@@ -147,6 +147,72 @@ Kaba tahminler (ölçülen 3.0GB'a kalibre edilmiş), Faz B bunları gerçek say
 1. Faz C madde 4 (ONNX int8) → ~%1-2 arama kalitesi ödünü, para maliyeti yok
 2. `t3.medium`'a çıkmak → kalite ödünü yok, kredi ömrü ~3.5 aydan ~2.2 aya iner
 
+### 6.2 Faz B — ÖLÇÜLEN sonuçlar (29 Temmuz 2026, lokal dev yığını)
+
+Faz A tamamlandıktan sonra, tüm container'lar healthy olduktan ~5 dk sonra
+`docker stats --no-stream` ile ölçüldü (Docker Desktop / Windows, 6.6GB'lık VM —
+yani hiçbir servis bellek baskısı altında değil, sayılar "rahat koşulda gerçek
+kullanım"ı gösteriyor).
+
+| Container | Ölçülen RSS | Not |
+|---|---|---|
+| embedder | **719,6 MiB** | torch CPU + model, tek kopya |
+| redpanda | 189,8 MiB | dev heap `--memory=512M` |
+| frontend | 154,1 MiB | **dev server** — prod standalone build daha küçük |
+| app (engine) | **132,1 MiB** | önceden modeli kendi yüklüyordu |
+| worker | **96,3 MiB** | önceden modeli kendi yüklüyordu |
+| db | 42,6 MiB | |
+| chromadb | 37,0 MiB | |
+| scheduler | 29,0 MiB | |
+| adminer | 9,5 MiB | sadece dev, prod'da YOK |
+| redis | 7,4 MiB | |
+| **TOPLAM (dev)** | **~1,38 GiB** | |
+
+**Asıl kazanç burada görünüyor:** app + worker birlikte **228 MiB**. Bu ikisi
+daha önce modeli AYRI AYRI yüklüyordu; embedder'ın tek kopyası 720 MiB olduğuna
+göre, önceki durumda bu iki container'ın tek başına ~1,4 GiB civarında olduğu
+anlaşılıyor. İkinci gözlemlenebilir kanıt: `nexstream_engine` artık **6 saniyede**
+healthy oluyor (önceden model yüklemesi yüzünden 1-2 dakika sürüyordu).
+
+**Ama dev yığını prod DEĞİL.** Prod'da ek olarak nginx, certbot, prometheus,
+grafana, loki, promtail, backup var (~500-600 MiB) ve `app` iki uvicorn worker'ı
+ile çalışıyor; buna karşılık adminer yok ve frontend standalone (daha küçük).
+Dürüst projeksiyon: **~1,9-2,0 GiB** → t3.small'ın 1,9GB'ına **sığmıyor ya da
+ucu ucuna sığıyor.**
+
+**Karar: Faz C madde 1-3 uygulanacak.** Üçü de kullanıcıya görünen hiçbir
+özelliği kaldırmıyor (madde 3 yalnızca metrik geçmişinin penceresini daraltıyor).
+Madde 4 (ONNX int8) uygulanmayacak — kullanıcı onayı gerektiriyor ve madde 1-3
+sonrası muhtemelen gerekmeyecek.
+
+**Nihai/otoriter ölçüm t3.small'ın kendisinde yapılacak** (Task 13): farklı
+çekirdek, farklı yük, gerçek prod compose. Yukarıdaki dev sayıları yön verir,
+son sözü söylemez.
+
+### 6.3 Faz C — UYGULANAN maddeler (29 Temmuz 2026)
+
+| Madde | Ne yapıldı | Ölçülen/beklenen etki | Ödün |
+|---|---|---|---|
+| 1 | Redpanda heap `768M` → `256M` (prod) | ~250-400 MiB | yok |
+| 2 | `OMP_NUM_THREADS=1` + `MKL_NUM_THREADS=1` (embedder) | **719,6 → 633 MiB (ölçüldü, −87 MiB)** | yok |
+| 3 | Prometheus retention 30g → 7g + 512MB tavan; Loki'ye 7 günlük retention + compactor | ~150-250 MiB (tahmin) | yalnızca geriye bakış penceresi |
+| 4 | ONNX int8 | **UYGULANMADI** | kullanıcı onayı gerektirir |
+
+Madde 1 uygulanırken **planda olmayan bir bug** çıktı: `docker-compose.prod.yml`'de
+Redpanda heap'i (`--memory=768M`) container limitiyle (`memory: 768M`) BİREBİR
+aynıydı — yani 28 Temmuz AWS deploy'unda Redpanda'yı hiç açılmaz yapan durumun ta
+kendisi. O gün sunucuda elle düzeltilmiş ama repo'ya girmemişti; taze bir deploy
+aynı çökmeyi tekrar üretirdi.
+
+Madde 3'te ayrıca keşfedildi: **Loki'de hiç retention tanımlı değildi**, loglar
+sonsuza kadar birikiyordu. `retention_period` tek başına yetmiyor — silmeyi
+compactor yapıyor ve `retention_enabled: true` olmadan Loki süreyi yok sayıyor.
+
+Ek olarak `app` (4G) ve `worker` (4G) bellek limitleri 1.9GB'lık bir makinede
+anlamsızdı (limit fiilen yoktu); ölçüme dayanarak 768M ve 512M'ye çekildi.
+
+**Yeni dev toplamı: ~1,30 GiB** (1,38'den).
+
 ## 7. Deploy sırasında bulunan gerçek repo bug'ları
 
 Bunlar 28 Temmuz 2026 canlı deploy'unda ortaya çıktı ve bu işin kapsamına dahildir.
