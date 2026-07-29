@@ -36,6 +36,17 @@ class Settings(BaseSettings):
     chroma_host: str = "localhost"
     chroma_port: int = 8001
 
+    # ── Embedder servisi (v2.0 RAM optimizasyonu) ──────────────────────────
+    # Model app/worker içinde DEĞİL, ayrı bir serviste tek kopya durur.
+    # "local" mod modeli süreç içine yükler — yalnızca Docker'sız geliştirme için.
+    embedder_mode: str = "http"                    # "http" | "local"
+    embedder_url: str = "http://embedder:8000"
+    embedder_connect_timeout: float = 2.0          # aynı Docker ağı; aşılıyorsa servis yok
+    embedder_read_timeout: float = 5.0             # tek embedding CPU'da ~10-30ms
+    embedder_batch_read_timeout: float = 30.0      # toplu indeksleme partileri
+    embedder_retries: int = 1                      # toplam 2 deneme — asılı servis
+                                                   # worker döngüsünü uzun bloklamamalı
+
     # ── Kafka-uyumlu mesajlaşma (Redpanda broker, v1.18'de Kafka+Zookeeper'ın
     # yerine geçti — arm64 destek için, bkz. DEPLOY.md). Alan adları wire-
     # protokolü tanımlıyor, broker yazılımını değil; bu yüzden korundu.
