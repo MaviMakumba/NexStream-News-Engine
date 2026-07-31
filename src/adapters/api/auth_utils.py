@@ -181,11 +181,12 @@ def check_tier_limit(
 ) -> Optional[User]:
     """Kullanıcının günlük /api/v1 kotasını kontrol eder; aşımda 429.
 
-    Anonim istekler kota dışıdır (None döner); Enterprise sınırsızdır.
+    Anonim istekler kota dışıdır (None döner); Enterprise ve owner sınırsızdır.
     """
     if user is None:
         return None
-    limit = TIER_DAILY_LIMITS.get(user.tier)
+    tier = user_effective_tier(user)
+    limit = TIER_DAILY_LIMITS.get(tier)
     if limit is None:
         return user
     repo = UserRepository(db)
@@ -194,6 +195,6 @@ def check_tier_limit(
         raise HTTPException(
             status_code=429,
             detail=f"Daily API limit reached ({limit} req/day). Upgrade your plan for higher limits.",
-            headers={"X-Tier": user.tier, "X-Daily-Limit": str(limit)},
+            headers={"X-Tier": tier, "X-Daily-Limit": str(limit)},
         )
     return user

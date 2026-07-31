@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock
-from src.domain.models.user import User, UserTier, UserSession, TIER_DAILY_LIMITS
+from src.domain.models.user import User, UserTier, UserRole, UserSession, TIER_DAILY_LIMITS
 from src.adapters.api.auth_utils import check_tier_limit, get_optional_user
 from src.dependencies import get_news_service
 from fastapi import HTTPException
@@ -93,6 +93,18 @@ def test_check_tier_limit_anonymous_returns_none():
     db = MagicMock()
     result = check_tier_limit(user=None, db=db)
     assert result is None
+
+
+def test_check_tier_limit_owner_never_blocked_despite_free_db_tier():
+    from unittest.mock import MagicMock, patch
+    owner = User(id=9, email="o@test.com", password_hash="h", tier=UserTier.FREE, role=UserRole.OWNER)
+    with patch("src.adapters.api.auth_utils.UserRepository") as MockRepo:
+        repo = MagicMock()
+        repo.get_daily_usage_count.return_value = 99999
+        MockRepo.return_value = repo
+        db = MagicMock()
+        result = check_tier_limit(user=owner, db=db)
+    assert result is owner
 
 
 def test_tier_limit_429_detail_message():
