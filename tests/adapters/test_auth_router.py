@@ -530,6 +530,38 @@ def test_me_includes_email_verified_flag(client):
     assert resp.json()["email_verified"] is True
 
 
+def test_me_reports_is_owner_and_effective_tier_for_owner(client):
+    from src.domain.models.user import UserRole
+    from src.adapters.api.auth_utils import get_optional_user
+    owner = User(id=1, email="o@test.com", password_hash="h", tier=UserTier.FREE,
+                 role=UserRole.OWNER, email_verified=False)
+    app_client = client.app
+    app_client.dependency_overrides[get_optional_user] = lambda: owner
+    try:
+        resp = client.get("/auth/me")
+    finally:
+        app_client.dependency_overrides.pop(get_optional_user, None)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["is_owner"] is True
+    assert data["effective_tier"] == "enterprise"
+    assert data["tier"] == "free"  # DB tier'ına dokunulmadı
+
+
+def test_me_reports_is_owner_false_for_regular_user(client):
+    from src.adapters.api.auth_utils import get_optional_user
+    user = User(id=2, email="u@test.com", password_hash="h", tier=UserTier.PRO)
+    app_client = client.app
+    app_client.dependency_overrides[get_optional_user] = lambda: user
+    try:
+        resp = client.get("/auth/me")
+    finally:
+        app_client.dependency_overrides.pop(get_optional_user, None)
+    data = resp.json()
+    assert data["is_owner"] is False
+    assert data["effective_tier"] == "pro"
+
+
 def test_resend_verification_requires_auth(client):
     resp = client.post("/auth/resend-verification", json={})
     assert resp.status_code == 401
