@@ -17,7 +17,7 @@ import secrets
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
-from src.adapters.api.auth_utils import get_current_user
+from src.adapters.api.auth_utils import get_current_user, user_effective_tier
 from src.adapters.api.limiter import limiter
 from src.adapters.repositories.user_repository import UserRepository
 from src.domain.models.user import User, TIER_DAILY_LIMITS
@@ -38,7 +38,7 @@ def my_usage(
 ):
     """Kullanıcının kendi kota ve kullanım özeti (hesap sayfası paneli)."""
     repo = UserRepository(db)
-    limit = TIER_DAILY_LIMITS.get(current_user.tier)          # None = sınırsız
+    limit = TIER_DAILY_LIMITS.get(user_effective_tier(current_user))    # None = sınırsız (owner dahil)
     used_today = repo.get_daily_usage_count(current_user.id)
     rows = repo.get_usage_stats(user_id=current_user.id, days=days)
     return {
