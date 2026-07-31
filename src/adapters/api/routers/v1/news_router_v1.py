@@ -25,7 +25,7 @@ from src.application.services.news_service import NewsService
 from src.dependencies import get_news_service
 from src.adapters.api.limiter import limiter
 from src.adapters.api.metrics import search_latency_seconds
-from src.adapters.api.auth_utils import check_tier_limit
+from src.adapters.api.auth_utils import check_tier_limit, user_effective_tier
 from src.adapters.scrapers.registry import SCRAPER_REGISTRY
 from src.infrastructure.config.settings import settings
 
@@ -89,7 +89,7 @@ def search_news_v1(
     Sonuç sayısı kademeye göre tavanlanır (bkz. TIER_SEARCH_RESULT_CAP) —
     anonim istekler Free tavanını alır.
     """
-    cap = TIER_SEARCH_RESULT_CAP[user.tier if user else UserTier.FREE]
+    cap = TIER_SEARCH_RESULT_CAP[user_effective_tier(user) if user else UserTier.FREE]
     n_results = min(body.n_results, cap)
     start = time.time()
     results = service.hybrid_search(body.query, n_results, body.source, body.sentiment)
@@ -136,7 +136,7 @@ def export_news_v1(
     sınırlıdır (tek export isteği yüzlerce/binlerce satıra denk gelir, diğer
     /api/v1 endpoint'leriyle karşılaştırılamaz).
     """
-    if not user or user.tier != UserTier.ENTERPRISE:
+    if not user or user_effective_tier(user) != UserTier.ENTERPRISE:
         raise HTTPException(
             status_code=403,
             detail="Ham veri export Enterprise plan gerektirir. / Raw data export requires an Enterprise plan.",
@@ -177,7 +177,7 @@ def get_related_v1(
     service: NewsService = Depends(get_news_service),
 ):
     """Entity kesişimine göre ilgili haberler (ilişki grafı) — Pro+ özelliği."""
-    if not user or not tier_at_least(user.tier, UserTier.PRO):
+    if not user or not tier_at_least(user_effective_tier(user), UserTier.PRO):
         raise HTTPException(
             status_code=403,
             detail="İlişki grafı Pro plan gerektirir. / Relation graph requires a Pro plan.",

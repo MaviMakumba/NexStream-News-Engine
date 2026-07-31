@@ -30,8 +30,8 @@ def test_effective_tier_non_owner_keeps_own_tier():
     assert effective_tier(UserTier.FREE, is_owner=False) == UserTier.FREE
 
 
-def _make_user(tier=UserTier.FREE, uid=1):
-    return User(id=uid, email="u@test.com", password_hash="h", tier=tier)
+def _make_user(tier=UserTier.FREE, uid=1, role=UserRole.USER):
+    return User(id=uid, email="u@test.com", password_hash="h", tier=tier, role=role)
 
 
 # ── tier_at_least helper ────────────────────────────────────────────────────
@@ -101,6 +101,19 @@ def test_v1_search_allows_enterprise_up_to_200(app_client):
     mock_service.hybrid_search.return_value = []
     app_client.app.dependency_overrides[get_news_service] = lambda: mock_service
     app_client.app.dependency_overrides[check_tier_limit] = lambda: _make_user(UserTier.ENTERPRISE)
+    try:
+        app_client.post("/api/v1/news/search", json={"query": "test", "n_results": 200})
+    finally:
+        app_client.app.dependency_overrides.pop(get_news_service, None)
+        app_client.app.dependency_overrides.pop(check_tier_limit, None)
+    assert mock_service.hybrid_search.call_args[0][1] == 200
+
+
+def test_v1_search_allows_owner_up_to_200_despite_free_db_tier(app_client):
+    mock_service = MagicMock()
+    mock_service.hybrid_search.return_value = []
+    app_client.app.dependency_overrides[get_news_service] = lambda: mock_service
+    app_client.app.dependency_overrides[check_tier_limit] = lambda: _make_user(UserTier.FREE, role=UserRole.OWNER)
     try:
         app_client.post("/api/v1/news/search", json={"query": "test", "n_results": 200})
     finally:
@@ -196,6 +209,19 @@ def test_v1_related_allowed_for_enterprise(app_client):
     assert resp.status_code == 200
 
 
+def test_v1_related_allowed_for_owner_despite_free_db_tier(app_client):
+    mock_service = MagicMock()
+    mock_service.get_related.return_value = {"article_id": 1, "related": []}
+    app_client.app.dependency_overrides[get_news_service] = lambda: mock_service
+    app_client.app.dependency_overrides[check_tier_limit] = lambda: _make_user(UserTier.FREE, role=UserRole.OWNER)
+    try:
+        resp = app_client.get("/api/v1/news/1/related")
+    finally:
+        app_client.app.dependency_overrides.pop(get_news_service, None)
+        app_client.app.dependency_overrides.pop(check_tier_limit, None)
+    assert resp.status_code == 200
+
+
 # ── /api/v1/news/export — Enterprise özelliği (v1.16) ───────────────────────
 
 def _make_export_article():
@@ -272,6 +298,19 @@ def test_v1_export_allowed_for_enterprise_json(app_client):
     assert len(data) == 1
     assert data[0]["title"] == "Test Haber"
     assert data[0]["entities"] == {"persons": ["Ali"]}
+
+
+def test_v1_export_allowed_for_owner_despite_free_db_tier(app_client):
+    mock_service = MagicMock()
+    mock_service.export_articles.return_value = []
+    app_client.app.dependency_overrides[get_news_service] = lambda: mock_service
+    app_client.app.dependency_overrides[check_tier_limit] = lambda: _make_user(UserTier.FREE, role=UserRole.OWNER)
+    try:
+        resp = app_client.get("/api/v1/news/export")
+    finally:
+        app_client.app.dependency_overrides.pop(get_news_service, None)
+        app_client.app.dependency_overrides.pop(check_tier_limit, None)
+    assert resp.status_code == 200
 
 
 def test_v1_export_invalid_format_returns_422(app_client):
