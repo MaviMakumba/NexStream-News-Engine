@@ -410,6 +410,19 @@ def test_ws_feed_rejects_when_per_user_limit_reached(app_client):
         app_client.app.dependency_overrides.pop(get_notifier, None)
 
 
+def test_ws_feed_accepts_owner_despite_free_db_tier(app_client):
+    from src.adapters.notifications.websocket_notifier import WebSocketNotifier
+    notifier = WebSocketNotifier()
+    app_client.app.dependency_overrides[get_optional_user] = lambda: _make_user(UserTier.FREE, role=UserRole.OWNER)
+    app_client.app.dependency_overrides[get_notifier] = lambda: notifier
+    try:
+        with app_client.websocket_connect("/ws/feed") as ws:
+            assert notifier.connection_count == 1
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+        app_client.app.dependency_overrides.pop(get_notifier, None)
+
+
 # ── /subscriptions — anlık (instant) uyarı Pro+ özelliği ────────────────────
 
 def _mock_sub_repo():
