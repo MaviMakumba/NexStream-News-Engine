@@ -10,9 +10,24 @@ from fastapi import HTTPException
 from starlette.websockets import WebSocketDisconnect
 
 from src.domain.models.user import User, UserTier, TIER_SEARCH_RESULT_CAP, tier_at_least
+from src.domain.models.user import UserRole, role_at_least, effective_tier
 from src.adapters.api.auth_utils import check_tier_limit, get_optional_user
 from src.dependencies import get_news_service, get_notifier
 from src.adapters.api.routers.subscription_router import _get_repo, _get_user_repo
+
+
+def test_owner_role_ranks_above_admin():
+    assert role_at_least(UserRole.OWNER, UserRole.ADMIN)
+    assert not role_at_least(UserRole.ADMIN, UserRole.OWNER)
+
+
+def test_effective_tier_owner_is_always_enterprise():
+    assert effective_tier(UserTier.FREE, is_owner=True) == UserTier.ENTERPRISE
+
+
+def test_effective_tier_non_owner_keeps_own_tier():
+    assert effective_tier(UserTier.PRO, is_owner=False) == UserTier.PRO
+    assert effective_tier(UserTier.FREE, is_owner=False) == UserTier.FREE
 
 
 def _make_user(tier=UserTier.FREE, uid=1):
