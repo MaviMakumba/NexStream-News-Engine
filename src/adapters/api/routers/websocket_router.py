@@ -9,7 +9,7 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from src.adapters.notifications.websocket_notifier import WebSocketNotifier
-from src.adapters.api.auth_utils import get_optional_user
+from src.adapters.api.auth_utils import get_optional_user, user_effective_tier
 from src.domain.models.user import User, UserTier, tier_at_least
 from src.dependencies import get_notifier
 
@@ -27,7 +27,7 @@ async def websocket_feed(
     Canlı haber akışı — Pro+ özelliği. Bağlantı kurulunca mevcut son haberler
     gönderilir, ardından her yeni haber DB poller aracılığıyla push edilir.
     """
-    if not user or not tier_at_least(user.tier, UserTier.PRO):
+    if not user or not tier_at_least(user_effective_tier(user), UserTier.PRO):
         # ÖNCE accept(), SONRA close(code=...) — handshake tamamlanmadan (101
         # Switching Protocols hiç dönmeden) close çağrılırsa Starlette
         # TestClient close code'u doğru taşır ama GERÇEK tarayıcılar açılış
