@@ -222,6 +222,19 @@ def test_v1_related_allowed_for_owner_despite_free_db_tier(app_client):
     assert resp.status_code == 200
 
 
+def test_legacy_related_allowed_for_owner_despite_free_db_tier(app_client):
+    mock_service = MagicMock()
+    mock_service.get_related.return_value = {"article_id": 1, "related": []}
+    app_client.app.dependency_overrides[get_news_service] = lambda: mock_service
+    app_client.app.dependency_overrides[check_tier_limit] = lambda: _make_user(UserTier.FREE, role=UserRole.OWNER)
+    try:
+        resp = app_client.get("/news/1/related")
+    finally:
+        app_client.app.dependency_overrides.pop(get_news_service, None)
+        app_client.app.dependency_overrides.pop(check_tier_limit, None)
+    assert resp.status_code == 200
+
+
 # ── /api/v1/news/export — Enterprise özelliği (v1.16) ───────────────────────
 
 def _make_export_article():
