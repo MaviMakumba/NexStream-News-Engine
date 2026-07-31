@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     # Virgülle ayrılmış e-posta listesi; eşleşen kullanıcılar otomatik admin
     # sayılır (DB'ye yazmadan, okuma anında). Örn: "ben@mail.com,sen@mail.com"
     admin_emails: str = ""
+    # Virgülle ayrılmış e-posta listesi; eşleşen kullanıcılar owner sayılır
+    # (DB'ye dokunmadan). Owner rolü API'den ASLA atanamaz — tek kaynak bu env
+    # (veya DB'ye elle yazılan role='owner'). Bkz. auth_utils.has_owner_role.
+    owner_emails: str = ""
 
     # ── Logging ────────────────────────────────────────────────────────────
     log_level: str = "INFO"
@@ -77,10 +81,21 @@ class Settings(BaseSettings):
     # ── CORS ───────────────────────────────────────────────────────────────
     cors_origins: str = "*"             # virgülle ayrılmış origin listesi
 
-    # ── Email (newsletter / keyword alert) ─────────────────────────────────
-    resend_api_key: str = ""            # boşsa console adapter (sadece log)
+    # ── Email (newsletter / keyword alert / doğrulama) ─────────────────────
+    # email_provider: auto (varsayılan) SMTP kimlikleri doluysa SMTP → RESEND_API_KEY
+    # doluysa Resend → Console. Açık değerler (smtp/resend/console) test/hata
+    # ayıklama için zorlama sağlar. Resend'in aksine SMTP domain doğrulaması
+    # istemez ve TÜM alıcılara ulaşır (Resend sandbox'ı sadece hesap sahibine izin verir).
+    email_provider: str = "auto"
+    resend_api_key: str = ""            # boşsa (auto modda) SMTP'ye, o da boşsa console'a düşer
     email_from: str = "NexStream <no-reply@nexstream.news>"
     newsletter_hour_utc: int = 6        # günlük digest saati (06:00 UTC = 09:00 TR)
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""                 # boşsa email_from kullanılır
+    smtp_starttls: bool = True
 
     # ── Auth / Sessions ────────────────────────────────────────────────────
     session_ttl_days: int = 30
@@ -140,6 +155,11 @@ class Settings(BaseSettings):
     def admin_email_set(self) -> set[str]:
         """ADMIN_EMAILS değerini normalize edilmiş (küçük harf) set'e çevirir."""
         return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}
+
+    @property
+    def owner_email_set(self) -> set[str]:
+        """OWNER_EMAILS değerini normalize edilmiş (küçük harf) set'e çevirir."""
+        return {e.strip().lower() for e in self.owner_emails.split(",") if e.strip()}
 
     @model_validator(mode="after")
     def _reject_unsafe_production_config(self) -> "Settings":
