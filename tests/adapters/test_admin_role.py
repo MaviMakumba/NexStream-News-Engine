@@ -108,6 +108,75 @@ def test_require_admin_rejects_wrong_api_key():
     assert exc.value.status_code == 401
 
 
+from src.adapters.api.auth_utils import has_owner_role, effective_role, user_effective_tier, require_owner
+from src.domain.models.user import UserTier
+
+
+# ── has_owner_role / effective_role (owner) ─────────────────────────────────
+
+def test_owner_role_flag_grants_owner():
+    assert has_owner_role(_make_user(role=UserRole.OWNER)) is True
+
+
+def test_owner_emails_env_bootstraps_owner_without_db_role():
+    user = _make_user(email="Boss@Company.com")  # role stays USER in DB
+    with patch.object(settings, "owner_emails", "boss@company.com"):
+        assert has_owner_role(user) is True
+
+
+def test_regular_admin_is_not_owner():
+    assert has_owner_role(_make_user(is_admin=True)) is False
+
+
+def test_has_admin_role_covers_owner():
+    """owner ⊃ admin — owner'ın admin endpoint'lerine erişimi kesilmemeli."""
+    assert has_admin_role(_make_user(role=UserRole.OWNER)) is True
+
+
+def test_effective_role_reports_owner():
+    assert effective_role(_make_user(role=UserRole.OWNER)) == "owner"
+
+
+def test_effective_role_owner_emails_bootstrap_reports_owner_not_admin():
+    user = _make_user(email="boss@company.com")
+    with patch.object(settings, "owner_emails", "boss@company.com"):
+        assert effective_role(user) == "owner"
+
+
+# ── user_effective_tier ──────────────────────────────────────────────────────
+
+def test_user_effective_tier_owner_is_enterprise_regardless_of_db_tier():
+    owner = User(id=1, email="o@test.com", password_hash="h", tier=UserTier.FREE, role=UserRole.OWNER)
+    assert user_effective_tier(owner) == UserTier.ENTERPRISE
+
+
+def test_user_effective_tier_non_owner_keeps_db_tier():
+    user = User(id=2, email="u@test.com", password_hash="h", tier=UserTier.PRO, role=UserRole.USER)
+    assert user_effective_tier(user) == UserTier.PRO
+
+
+# ── require_owner ────────────────────────────────────────────────────────────
+
+def test_require_owner_accepts_valid_api_key():
+    require_owner(x_api_key=settings.api_key, user=None)
+
+
+def test_require_owner_accepts_owner_session():
+    require_owner(x_api_key=None, user=_make_user(role=UserRole.OWNER))
+
+
+def test_require_owner_rejects_admin_with_403():
+    with pytest.raises(HTTPException) as exc:
+        require_owner(x_api_key=None, user=_make_user(is_admin=True))
+    assert exc.value.status_code == 403
+
+
+def test_require_owner_rejects_anonymous_with_401():
+    with pytest.raises(HTTPException) as exc:
+        require_owner(x_api_key=None, user=None)
+    assert exc.value.status_code == 401
+
+
 # ── require_admin (integration — /admin/usage) ────────────────────────────────
 
 def test_admin_endpoint_accessible_with_admin_session(app_client):
