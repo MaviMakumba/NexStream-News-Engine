@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from src.infrastructure.config.database import get_db
 from src.infrastructure.config.settings import settings
-from src.adapters.api.auth_utils import has_admin_role, has_moderator_role, effective_role, get_current_user, SESSION_COOKIE_NAME
+from src.adapters.api.auth_utils import has_admin_role, has_moderator_role, has_owner_role, effective_role, user_effective_tier, get_current_user, SESSION_COOKIE_NAME
 from src.adapters.api.limiter import limiter
 from src.adapters.notifications.email_adapter import get_email_adapter
 from src.adapters.repositories.user_repository import UserRepository
@@ -143,20 +143,24 @@ def _assert_deliverable_email(email: str) -> None:
 def _user_payload(user: User) -> dict:
     """API yanıtlarındaki kullanıcı gösterimi — parola hash'i asla sızmaz.
 
-    `role`: etkin yetki (user/moderator/admin, ADMIN_EMAILS bootstrap'i dahil) —
-        frontend'in admin panel erişimini/rol yönetim kontrollerini göstermesi içindir.
+    `role`: etkin yetki (user/moderator/admin/owner, ADMIN_EMAILS bootstrap'i dahil).
     `is_admin`: geriye dönük uyumluluk için korunan türetilmiş alan (role == admin).
+    `is_owner`: owner muafiyetleri için (doğrulama banner'ı, yükseltme kartı, checkout gate).
+    `effective_tier`: owner için her zaman "enterprise", diğerlerinde `tier` ile aynı —
+        DB'deki `tier` kolonu owner için asla değiştirilmez (bkz. user_effective_tier).
     `email_verified`: v1.15 — Free tier'da erişimi kısıtlamaz, sadece ücretli
-        kademeye yükseltmede (billing checkout) şart koşulur.
+        kademeye yükseltmede (billing checkout) şart koşulur; owner muaftır.
     """
     return {
         "id": user.id,
         "email": user.email,
         "name": user.name,
         "tier": user.tier,
+        "effective_tier": user_effective_tier(user).value,
         "role": effective_role(user),
         "is_admin": has_admin_role(user),
         "is_moderator": has_moderator_role(user),
+        "is_owner": has_owner_role(user),
         "email_verified": user.email_verified,
     }
 
