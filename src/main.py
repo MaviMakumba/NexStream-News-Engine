@@ -37,6 +37,7 @@ from src.adapters.api.routers.admin_router import router as admin_router
 from src.adapters.api.routers.billing_router import router as billing_router
 from src.adapters.messaging.kafka_publisher import KafkaPublisherAdapter
 from src.adapters.notifications.websocket_notifier import WebSocketNotifier
+from src.adapters.notifications.email_adapter import get_email_adapter, ConsoleEmailAdapter
 from src.adapters.scheduling.newsletter_job import run_newsletter_job
 from src.adapters.scheduling.retention_job import run_retention_job
 from src.dependencies import set_message_publisher, get_search_repository, set_notifier
@@ -48,6 +49,27 @@ log = logging.getLogger(__name__)
 Base.metadata.create_all(bind=engine)
 
 kafka_adapter = KafkaPublisherAdapter(bootstrap_servers=settings.kafka_bootstrap_servers)
+
+
+def warn_if_email_disabled(environment: str, adapter) -> None:
+    """Prod'da e-posta adapter'ı Console'a düşerse artık sessiz kalmaz.
+
+    Kök nedeni bulunan sorun: RESEND_API_KEY boş bırakılınca get_email_adapter()
+    sessizce ConsoleEmailAdapter'a düşüyordu ve hiçbir yerde iz kalmıyordu —
+    doğrulama, şifre sıfırlama, digest, keyword alert'lerin TAMAMI etkileniyordu.
+    Uygulama durdurulmaz (mail altyapısı çökünce site de çökmemeli, mevcut
+    fail-open felsefesiyle tutarlı) — sadece net bir hata logu bırakılır.
+    """
+    if environment != "production":
+        return
+    if isinstance(adapter, ConsoleEmailAdapter):
+        log.error(
+            "E-posta adapter'ı Console'a düştü — production'da HİÇBİR mail gönderilmiyor "
+            "(SMTP_USER/SMTP_PASSWORD veya RESEND_API_KEY eksik/hatalı)."
+        )
+
+
+warn_if_email_disabled(settings.environment, get_email_adapter())
 
 
 async def _broadcast_new_articles(notifier: WebSocketNotifier) -> None:
