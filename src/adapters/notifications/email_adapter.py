@@ -12,6 +12,9 @@ sadece bu iki sözlüğe bir `"FR": {...}` bloğu eklemek demektir; hiçbir
 
 import html
 import logging
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import List
 from urllib.parse import quote
 import requests
@@ -269,7 +272,56 @@ class ResendEmailAdapter(_HtmlEmailAdapter):
             return False
 
 
+class SmtpEmailAdapter(_HtmlEmailAdapter):
+    """Gmail (veya herhangi bir STARTTLS destekleyen SMTP sağlayıcısı) ile gerçek gönderim.
+
+    Resend'in aksine domain doğrulaması istemez, TÜM alıcılara ulaşır — günlük
+    limit Gmail'in kendi kotasından gelir (app password ile ~500 mail/gün).
+    """
+
+    def __init__(self):
+        self._host = settings.smtp_host
+        self._port = settings.smtp_port
+        self._user = settings.smtp_user
+        self._password = settings.smtp_password
+        self._from = settings.smtp_from or settings.email_from
+        self._starttls = settings.smtp_starttls
+
+    def _deliver(self, to: str, subject: str, html: str) -> bool:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = self._from
+        msg["To"] = to
+        msg.attach(MIMEText(html, "html", "utf-8"))
+
+        try:
+            with smtplib.SMTP(self._host, self._port, timeout=10) as server:
+                if self._starttls:
+                    server.starttls()
+                server.login(self._user, self._password)
+                server.sendmail(self._user, [to], msg.as_string())
+            return True
+        except Exception as e:
+            logger.error("SMTP e-posta gönderilemedi (%s): %s", to, e)
+            return False
+
+
 def get_email_adapter() -> EmailPort:
+    """Hangi adapter'ın kullanılacağını seçer — EMAIL_PROVIDER ile yönlendirilebilir.
+
+    auto (varsayılan): SMTP kimlikleri doluysa SMTP → RESEND_API_KEY doluysa
+    Resend → Console. Açık değerler (smtp/resend/console) test/hata ayıklama
+    için zorlama sağlar.
+    """
+    provider = (settings.email_provider or "auto").lower()
+    if provider == "console":
+        return ConsoleEmailAdapter()
+    if provider == "smtp":
+        return SmtpEmailAdapter()
+    if provider == "resend":
+        return ResendEmailAdapter()
+    if settings.smtp_user and settings.smtp_password:
+        return SmtpEmailAdapter()
     if settings.resend_api_key:
         return ResendEmailAdapter()
     return ConsoleEmailAdapter()

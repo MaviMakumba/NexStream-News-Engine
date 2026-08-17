@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from src.adapters.notifications.email_adapter import ConsoleEmailAdapter, ResendEmailAdapter, get_email_adapter
+from src.adapters.notifications.email_adapter import ConsoleEmailAdapter, ResendEmailAdapter, SmtpEmailAdapter, get_email_adapter
 from src.domain.models.article import Article
 
 
@@ -62,15 +62,21 @@ def test_resend_adapter_returns_false_on_error():
 
 def test_get_email_adapter_returns_console_without_api_key():
     with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.email_provider = "auto"
         mock_settings.resend_api_key = ""
+        mock_settings.smtp_user = ""
+        mock_settings.smtp_password = ""
         adapter = get_email_adapter()
     assert isinstance(adapter, ConsoleEmailAdapter)
 
 
 def test_get_email_adapter_returns_resend_with_api_key():
     with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.email_provider = "auto"
         mock_settings.resend_api_key = "re_prod_key"
         mock_settings.email_from = "NexStream <x@y.com>"
+        mock_settings.smtp_user = ""
+        mock_settings.smtp_password = ""
         adapter = get_email_adapter()
     assert isinstance(adapter, ResendEmailAdapter)
 
@@ -113,3 +119,94 @@ def test_sponsor_html_escapes_malicious_fields():
     out = _sponsor_html(sponsor, "TR")
     assert "<script>" not in out
     assert "<img" not in out  # onerror='...' tetiklenmesi için gerçek bir <img> tag'i gerekir
+
+
+# ── SmtpEmailAdapter + EMAIL_PROVIDER seçim matrisi ─────────────────────────────
+
+def test_smtp_adapter_sends_via_starttls_and_login():
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.smtp_host = "smtp.gmail.com"
+        mock_settings.smtp_port = 587
+        mock_settings.smtp_user = "me@gmail.com"
+        mock_settings.smtp_password = "app-password"
+        mock_settings.smtp_from = ""
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        mock_settings.smtp_starttls = True
+        adapter = SmtpEmailAdapter()
+
+        mock_server = MagicMock()
+        mock_smtp_cm = MagicMock()
+        mock_smtp_cm.__enter__.return_value = mock_server
+        with patch("smtplib.SMTP", return_value=mock_smtp_cm) as mock_smtp:
+            result = adapter.send_welcome("user@test.com", "TR")
+
+    assert result is True
+    mock_smtp.assert_called_once_with("smtp.gmail.com", 587, timeout=10)
+    mock_server.starttls.assert_called_once()
+    mock_server.login.assert_called_once_with("me@gmail.com", "app-password")
+    mock_server.sendmail.assert_called_once()
+    call_args = mock_server.sendmail.call_args[0]
+    assert call_args[0] == "me@gmail.com"
+    assert call_args[1] == ["user@test.com"]
+
+
+def test_smtp_adapter_skips_starttls_when_disabled():
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.smtp_host = "localhost"
+        mock_settings.smtp_port = 25
+        mock_settings.smtp_user = "me@test.com"
+        mock_settings.smtp_password = "x"
+        mock_settings.smtp_from = ""
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        mock_settings.smtp_starttls = False
+        adapter = SmtpEmailAdapter()
+        mock_server = MagicMock()
+        mock_smtp_cm = MagicMock()
+        mock_smtp_cm.__enter__.return_value = mock_server
+        with patch("smtplib.SMTP", return_value=mock_smtp_cm):
+            adapter.send_welcome("user@test.com", "TR")
+    mock_server.starttls.assert_not_called()
+
+
+def test_smtp_adapter_returns_false_on_exception_not_raises():
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.smtp_host = "smtp.gmail.com"
+        mock_settings.smtp_port = 587
+        mock_settings.smtp_user = "me@gmail.com"
+        mock_settings.smtp_password = "bad"
+        mock_settings.smtp_from = ""
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        mock_settings.smtp_starttls = True
+        adapter = SmtpEmailAdapter()
+        with patch("smtplib.SMTP", side_effect=Exception("auth failed")):
+            result = adapter.send_welcome("user@test.com", "TR")
+    assert result is False
+
+
+def test_get_email_adapter_auto_prefers_smtp_over_resend_when_both_configured():
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.email_provider = "auto"
+        mock_settings.smtp_user = "me@gmail.com"
+        mock_settings.smtp_password = "app-password"
+        mock_settings.resend_api_key = "re_also_set"
+        adapter = get_email_adapter()
+    assert isinstance(adapter, SmtpEmailAdapter)
+
+
+def test_get_email_adapter_explicit_provider_forces_console():
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.email_provider = "console"
+        mock_settings.smtp_user = "me@gmail.com"
+        mock_settings.smtp_password = "app-password"
+        mock_settings.resend_api_key = "re_set"
+        adapter = get_email_adapter()
+    assert isinstance(adapter, ConsoleEmailAdapter)
+
+
+def test_get_email_adapter_explicit_provider_forces_smtp():
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.email_provider = "smtp"
+        mock_settings.smtp_user = ""
+        mock_settings.smtp_password = ""
+        adapter = get_email_adapter()
+    assert isinstance(adapter, SmtpEmailAdapter)
