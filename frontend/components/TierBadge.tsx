@@ -1,4 +1,5 @@
 import type { Tier } from "@/lib/types";
+import { UI } from "@/lib/i18n";
 
 const MAP: Record<Tier, { labelTR: string; labelEN: string; style: React.CSSProperties }> = {
   free:       { labelTR: "Ücretsiz", labelEN: "Free",       style: { background: "rgba(120,130,150,.12)", color: "var(--text2)",  borderColor: "var(--border2)",   borderWidth: 1 } },
@@ -8,7 +9,14 @@ const MAP: Record<Tier, { labelTR: string; labelEN: string; style: React.CSSProp
 
 const ICONS: Record<Tier, string> = { free: "○", pro: "◈", enterprise: "◆" };
 
-export function TierBadge({ tier, lang = "TR" }: { tier: Tier; lang?: "TR" | "EN" }) {
+export function TierBadge({ tier, lang = "TR", isOwner = false }: { tier: Tier; lang?: "TR" | "EN"; isOwner?: boolean }) {
+  if (isOwner) {
+    return (
+      <span className="badge" style={{ background: "var(--accent-soft)", color: "var(--accent)", borderColor: "var(--accent-line)", borderWidth: 1 }}>
+        ★ {UI[lang].ownerBadge}
+      </span>
+    );
+  }
   const t = MAP[tier] ?? MAP.free;
   return (
     <span className="badge" style={t.style}>
