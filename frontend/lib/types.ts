@@ -2,7 +2,7 @@
 // Alan adları Pydantic şemalarıyla birebir aynıdır (snake_case korunur).
 
 export type Tier = "free" | "pro" | "enterprise";
-export type Role = "user" | "moderator" | "admin";
+export type Role = "user" | "moderator" | "admin" | "owner";
 
 export interface User {
   id: number;
@@ -11,7 +11,9 @@ export interface User {
   tier: Tier;
   role?: Role;                 // v1.13: yetki hiyerarşisi (backend hesaplar, ADMIN_EMAILS dahil)
   is_admin?: boolean;          // geriye dönük uyumluluk — role === "admin" ile aynı
-  is_moderator?: boolean;      // role moderator VEYA admin
+  is_moderator?: boolean;      // role moderator VEYA admin VEYA owner
+  is_owner?: boolean;          // v2.1: OWNER_EMAILS bootstrap veya role="owner"
+  effective_tier?: Tier;       // v2.1: owner için her zaman "enterprise", diğerlerinde tier ile aynı
   email_verified?: boolean;    // v1.15: Free tier erişimini kısıtlamaz, sadece ücretli yükseltme ister
   created_at?: string;
 }
