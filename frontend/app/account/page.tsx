@@ -52,7 +52,7 @@ export default function AccountPage() {
   if (isLoading) return <AuthLoadingScreen />;
   if (!user) return null;
 
-  const info = TIER_DETAILS[lang][user.tier] ?? TIER_DETAILS[lang].free;
+  const info = TIER_DETAILS[lang][user.effective_tier ?? user.tier] ?? TIER_DETAILS[lang].free;
   const devMode = billing?.dev_mode ?? false;
 
   async function handleUpgrade(tier: "pro" | "enterprise") {
@@ -320,7 +320,7 @@ export default function AccountPage() {
         </div>
 
         {/* Ham veri export (v1.16, Enterprise) */}
-        {user.tier === "enterprise" && (
+        {(user.effective_tier ?? user.tier) === "enterprise" && (
           <div className="card">
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text)" }}>
