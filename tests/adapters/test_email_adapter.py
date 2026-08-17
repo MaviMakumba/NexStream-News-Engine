@@ -183,6 +183,75 @@ def test_smtp_adapter_returns_false_on_exception_not_raises():
     assert result is False
 
 
+def test_smtp_adapter_from_header_falls_back_to_smtp_user_when_smtp_from_unset():
+    """SMTP_FROM boşsa From header'ı genel EMAIL_FROM yerine gerçek kimlik
+    doğrulanan hesaba (SMTP_USER) düşmeli — Gmail'in SMTP relay'i From header'ı
+    kimlik doğrulanan hesapla eşleşmezse sessizce yeniden yazar ya da sıkı
+    DMARC altında reddeder (Finding 4)."""
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.smtp_host = "smtp.gmail.com"
+        mock_settings.smtp_port = 587
+        mock_settings.smtp_user = "me@gmail.com"
+        mock_settings.smtp_password = "app-password"
+        mock_settings.smtp_from = ""
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        mock_settings.smtp_starttls = True
+        adapter = SmtpEmailAdapter()
+
+        mock_server = MagicMock()
+        mock_smtp_cm = MagicMock()
+        mock_smtp_cm.__enter__.return_value = mock_server
+        with patch("smtplib.SMTP", return_value=mock_smtp_cm):
+            adapter.send_welcome("user@test.com", "TR")
+
+    sent_message = mock_server.sendmail.call_args[0][2]
+    assert "From: me@gmail.com" in sent_message
+    assert "no-reply@test.com" not in sent_message
+
+
+def test_smtp_adapter_from_header_uses_smtp_from_when_explicitly_set():
+    """SMTP_FROM açıkça verilmişse (örn. doğrulanmış bir alias) o kullanılır —
+    SMTP_USER fallback'i sadece SMTP_FROM boşken devreye girer."""
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.smtp_host = "smtp.gmail.com"
+        mock_settings.smtp_port = 587
+        mock_settings.smtp_user = "me@gmail.com"
+        mock_settings.smtp_password = "app-password"
+        mock_settings.smtp_from = "NexStream <alias@nexstream.news>"
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        mock_settings.smtp_starttls = True
+        adapter = SmtpEmailAdapter()
+
+        mock_server = MagicMock()
+        mock_smtp_cm = MagicMock()
+        mock_smtp_cm.__enter__.return_value = mock_server
+        with patch("smtplib.SMTP", return_value=mock_smtp_cm):
+            adapter.send_welcome("user@test.com", "TR")
+
+    sent_message = mock_server.sendmail.call_args[0][2]
+    assert "alias@nexstream.news" in sent_message
+
+
+def test_smtp_adapter_is_configured_true_with_credentials():
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.smtp_user = "me@gmail.com"
+        mock_settings.smtp_password = "app-password"
+        mock_settings.smtp_from = ""
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        adapter = SmtpEmailAdapter()
+    assert adapter.is_configured() is True
+
+
+def test_smtp_adapter_is_configured_false_without_credentials():
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.smtp_user = ""
+        mock_settings.smtp_password = ""
+        mock_settings.smtp_from = ""
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        adapter = SmtpEmailAdapter()
+    assert adapter.is_configured() is False
+
+
 def test_get_email_adapter_auto_prefers_smtp_over_resend_when_both_configured():
     with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
         mock_settings.email_provider = "auto"

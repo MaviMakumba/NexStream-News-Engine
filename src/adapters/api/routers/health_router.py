@@ -69,10 +69,13 @@ def _check_embedder() -> str:
 
 def _check_email() -> str:
     """Hangi e-posta adapter'ının aktif olduğunu raporlar — sessiz Console
-    düşüşünün artık /health'te tek bakışta görünür olması için (v2.1)."""
+    düşüşünün ve kimliksiz SMTP'nin artık /health'te tek bakışta görünür
+    olması için (v2.1, Finding 3: EMAIL_PROVIDER=smtp seçilip SMTP_USER/
+    SMTP_PASSWORD boş bırakılırsa adapter yine SMTP döner ama her gönderim
+    sessizce başarısız olur — bunu da Console kadar açık işaretle)."""
     adapter = get_email_adapter()
     if isinstance(adapter, SmtpEmailAdapter):
-        return "smtp"
+        return "smtp" if adapter.is_configured() else "smtp (kimlik eksik)"
     if isinstance(adapter, ResendEmailAdapter):
         return "resend"
     return "console (mail gönderilmiyor)"
