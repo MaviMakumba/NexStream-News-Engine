@@ -16,7 +16,7 @@ def _fake_request():
 
 # ── /health endpoint — handler direkt çağrılıyor (TestClient Kafka loop'u kırar) ──
 
-def _call_health(db="ok", kafka="ok", chromadb=("ok", 42), embedder="ok"):
+def _call_health(db="ok", kafka="ok", chromadb=("ok", 42), embedder="ok", email="console (mail gönderilmiyor)"):
     """Tüm bağımlılık kontrollerini mock'layarak health_check'i çağırır.
 
     HEPSİ mock'lanmalı — biri açıkta kalırsa test gerçek bir bağlantı
@@ -28,7 +28,8 @@ def _call_health(db="ok", kafka="ok", chromadb=("ok", 42), embedder="ok"):
     with patch(base + "_check_db", return_value=db), \
          patch(base + "_check_kafka", return_value=kafka), \
          patch(base + "_check_chromadb", return_value=chromadb), \
-         patch(base + "_check_embedder", return_value=embedder):
+         patch(base + "_check_embedder", return_value=embedder), \
+         patch(base + "_check_email", return_value=email):
         return health_check(_fake_request())
 
 
@@ -63,7 +64,7 @@ def test_health_returns_degraded_when_chromadb_down():
 def test_health_response_has_all_required_fields():
     result = _call_health(chromadb=("ok", 100))
     assert set(result.keys()) == {
-        "status", "db", "kafka", "chromadb", "embedder", "indexed_articles"
+        "status", "db", "kafka", "chromadb", "embedder", "email", "indexed_articles"
     }
 
 
@@ -96,6 +97,35 @@ def test_check_embedder_down_on_exception():
     from src.adapters.api.routers.health_router import _check_embedder
     with patch("httpx.get", side_effect=Exception("baglanti yok")):
         assert _check_embedder() == "down"
+
+
+# ── E-posta adapter'ı ────────────────────────────────────────────────────────
+
+def test_check_email_reports_smtp():
+    from src.adapters.api.routers.health_router import _check_email
+    from src.adapters.notifications.email_adapter import SmtpEmailAdapter
+    with patch("src.adapters.api.routers.health_router.get_email_adapter", return_value=SmtpEmailAdapter()):
+        assert _check_email() == "smtp"
+
+
+def test_check_email_reports_resend():
+    from src.adapters.api.routers.health_router import _check_email
+    from src.adapters.notifications.email_adapter import ResendEmailAdapter
+    with patch("src.adapters.api.routers.health_router.get_email_adapter", return_value=ResendEmailAdapter()):
+        assert _check_email() == "resend"
+
+
+def test_check_email_reports_console_with_warning_suffix():
+    from src.adapters.api.routers.health_router import _check_email
+    from src.adapters.notifications.email_adapter import ConsoleEmailAdapter
+    with patch("src.adapters.api.routers.health_router.get_email_adapter", return_value=ConsoleEmailAdapter()):
+        assert _check_email() == "console (mail gönderilmiyor)"
+
+
+def test_health_includes_email_field_without_affecting_status():
+    """email alanı bilgilendirici — dev'de console olması status'u degrade etmemeli."""
+    result = _call_health(chromadb=("ok", 1))
+    assert "email" in result
 
 
 # ── Dahili kontrol fonksiyonları ──────────────────────────────────────────────

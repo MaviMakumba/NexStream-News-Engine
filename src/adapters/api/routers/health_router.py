@@ -14,6 +14,7 @@ from sqlalchemy import text
 from src.infrastructure.config.database import SessionLocal
 from src.infrastructure.config.settings import settings
 from src.adapters.api.limiter import limiter
+from src.adapters.notifications.email_adapter import get_email_adapter, SmtpEmailAdapter, ResendEmailAdapter
 import chromadb
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,17 @@ def _check_embedder() -> str:
         return "down"
 
 
+def _check_email() -> str:
+    """Hangi e-posta adapter'ının aktif olduğunu raporlar — sessiz Console
+    düşüşünün artık /health'te tek bakışta görünür olması için (v2.1)."""
+    adapter = get_email_adapter()
+    if isinstance(adapter, SmtpEmailAdapter):
+        return "smtp"
+    if isinstance(adapter, ResendEmailAdapter):
+        return "resend"
+    return "console (mail gönderilmiyor)"
+
+
 def _check_chromadb() -> tuple[str, int]:
     global _chroma_client
     try:
@@ -90,6 +102,7 @@ def health_check(request: Request):
     chroma_status, indexed = _check_chromadb()
 
     embedder_status        = _check_embedder()
+    email_status            = _check_email()
 
     all_ok = all(s == "ok" for s in [db_status, kafka_status, chroma_status, embedder_status])
 
@@ -99,5 +112,6 @@ def health_check(request: Request):
         "kafka":            kafka_status,
         "chromadb":         chroma_status,
         "embedder":         embedder_status,
+        "email":            email_status,
         "indexed_articles": indexed,
     }
