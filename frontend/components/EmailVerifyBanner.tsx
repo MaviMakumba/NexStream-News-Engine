@@ -18,7 +18,7 @@ export function EmailVerifyBanner() {
   const [notice, setNotice] = useState<"sent" | "failed" | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
-  if (!user || user.email_verified || dismissed) return null;
+  if (!user || user.email_verified || user.is_owner || dismissed) return null;
 
   async function handleResend() {
     setSending(true);
