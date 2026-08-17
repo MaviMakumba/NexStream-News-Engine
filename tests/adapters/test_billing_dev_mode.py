@@ -8,12 +8,12 @@ da eski (Stripe) davranışını korur.
 from unittest.mock import patch, MagicMock
 
 from src.adapters.api.auth_utils import get_current_user, get_optional_user
-from src.domain.models.user import User, UserTier
+from src.domain.models.user import User, UserTier, UserRole
 from src.infrastructure.config.database import get_db
 
 
-def _make_user(tier=UserTier.FREE, email_verified=True):
-    return User(id=1, email="dev@test.com", password_hash="h", tier=tier, email_verified=email_verified)
+def _make_user(tier=UserTier.FREE, email_verified=True, role=UserRole.USER):
+    return User(id=1, email="dev@test.com", password_hash="h", tier=tier, email_verified=email_verified, role=role)
 
 
 def _override(app_client, user):
@@ -95,6 +95,22 @@ def test_dev_checkout_invalid_tier_still_400(app_client):
     finally:
         _clear(app_client)
 
+    assert resp.status_code == 400
+
+
+def test_checkout_rejects_owner_with_400_even_when_unverified(app_client):
+    """Owner'ın satın alacağı bir şey yok; email_verified=False olsa da 403
+    yerine anlamlı bir 400 alır (unrelated doğrulama gate'ine hiç girmemeli)."""
+    owner = _make_user(role=UserRole.OWNER, email_verified=False)
+    _override(app_client, owner)
+    try:
+        with patch("src.adapters.api.routers.billing_router.settings") as ms:
+            ms.billing_dev_mode = True
+            resp = app_client.post("/billing/checkout", json={
+                "tier": "pro", "success_url": "http://x", "cancel_url": "http://x",
+            })
+    finally:
+        _clear(app_client)
     assert resp.status_code == 400
 
 
