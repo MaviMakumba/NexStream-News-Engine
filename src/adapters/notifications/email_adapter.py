@@ -215,7 +215,35 @@ class ConsoleEmailAdapter(EmailPort):
         return True
 
 
-class ResendEmailAdapter(EmailPort):
+class _HtmlEmailAdapter(EmailPort):
+    """ResendEmailAdapter ve SmtpEmailAdapter'ın paylaştığı gövde.
+
+    Beş send_* metodunu bir kez tanımlar, somut sınıflar sadece _deliver()'ı
+    implemente eder — v2.1 refactor, önceden her adapter kendi beş metodunu
+    ayrı ayrı tanımlıyordu (Resend'de _post'a yönlendiren tekrar eden kod).
+    """
+
+    def _deliver(self, to: str, subject: str, html: str) -> bool:
+        raise NotImplementedError
+
+    def send_digest(self, to: str, articles: List[Article], language: str, sponsor=None) -> bool:
+        return self._deliver(to, _t(language, "digest_subject"), _digest_html(to, articles, language, sponsor))
+
+    def send_alert(self, to: str, article: Article, matched_keyword: str, language: str) -> bool:
+        subject = f"{_t(language, 'alert_subject_prefix')}: {matched_keyword}"
+        return self._deliver(to, subject, _alert_html(article, matched_keyword, language))
+
+    def send_welcome(self, to: str, language: str) -> bool:
+        return self._deliver(to, _t(language, "welcome_subject"), _welcome_html(language))
+
+    def send_password_reset(self, to: str, reset_url: str, language: str) -> bool:
+        return self._deliver(to, _t(language, "reset_subject"), _password_reset_html(reset_url, language))
+
+    def send_verification(self, to: str, verify_url: str, language: str) -> bool:
+        return self._deliver(to, _t(language, "verify_subject"), _verification_html(verify_url, language))
+
+
+class ResendEmailAdapter(_HtmlEmailAdapter):
     """Production adapter using Resend (https://resend.com)."""
 
     _API_URL = "https://api.resend.com/emails"
@@ -224,7 +252,7 @@ class ResendEmailAdapter(EmailPort):
         self._api_key = settings.resend_api_key
         self._from = settings.email_from
 
-    def _post(self, to: str, subject: str, html: str) -> bool:
+    def _deliver(self, to: str, subject: str, html: str) -> bool:
         try:
             r = requests.post(
                 self._API_URL,
@@ -239,22 +267,6 @@ class ResendEmailAdapter(EmailPort):
         except Exception as e:
             logger.error("Email gönderilemedi (%s): %s", to, e)
             return False
-
-    def send_digest(self, to: str, articles: List[Article], language: str, sponsor=None) -> bool:
-        return self._post(to, _t(language, "digest_subject"), _digest_html(to, articles, language, sponsor))
-
-    def send_alert(self, to: str, article: Article, matched_keyword: str, language: str) -> bool:
-        subject = f"{_t(language, 'alert_subject_prefix')}: {matched_keyword}"
-        return self._post(to, subject, _alert_html(article, matched_keyword, language))
-
-    def send_welcome(self, to: str, language: str) -> bool:
-        return self._post(to, _t(language, "welcome_subject"), _welcome_html(language))
-
-    def send_password_reset(self, to: str, reset_url: str, language: str) -> bool:
-        return self._post(to, _t(language, "reset_subject"), _password_reset_html(reset_url, language))
-
-    def send_verification(self, to: str, verify_url: str, language: str) -> bool:
-        return self._post(to, _t(language, "verify_subject"), _verification_html(verify_url, language))
 
 
 def get_email_adapter() -> EmailPort:
