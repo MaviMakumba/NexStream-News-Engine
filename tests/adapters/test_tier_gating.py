@@ -481,6 +481,23 @@ def test_subscribe_instant_allowed_for_pro_tier_email(app_client):
     assert r.status_code == 201
 
 
+def test_subscribe_instant_allowed_for_owner_email(app_client):
+    mock_repo = _mock_sub_repo()
+    mock_users = MagicMock()
+    mock_users.get_by_email.return_value = _make_user(UserTier.FREE, role=UserRole.OWNER)
+    app_client.app.dependency_overrides[_get_repo] = lambda: mock_repo
+    app_client.app.dependency_overrides[_get_user_repo] = lambda: mock_users
+    try:
+        from unittest.mock import patch
+        with patch("src.adapters.api.routers.subscription_router.get_email_adapter") as mock_email:
+            mock_email.return_value.send_welcome.return_value = True
+            r = app_client.post("/subscriptions/", json={"email": "owner@example.com", "frequency": "instant"})
+    finally:
+        app_client.app.dependency_overrides.pop(_get_repo, None)
+        app_client.app.dependency_overrides.pop(_get_user_repo, None)
+    assert r.status_code == 201
+
+
 def test_subscribe_daily_allowed_without_any_user_account(app_client):
     """daily/never her zaman serbest — sadece instant Pro gerektirir."""
     mock_repo = _mock_sub_repo()

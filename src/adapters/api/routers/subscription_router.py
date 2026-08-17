@@ -16,6 +16,7 @@ from src.adapters.notifications.email_adapter import get_email_adapter
 from src.domain.models.subscriber import Subscriber
 from src.domain.models.user import UserTier, tier_at_least
 from src.adapters.api.auth import verify_api_key
+from src.adapters.api.auth_utils import user_effective_tier
 from src.adapters.api.limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -81,7 +82,7 @@ def _assert_instant_allowed(email: str, frequency: str, users: UserRepository) -
     if frequency != "instant":
         return
     user = users.get_by_email(email)
-    if not user or not tier_at_least(user.tier, UserTier.PRO):
+    if not user or not tier_at_least(user_effective_tier(user), UserTier.PRO):
         raise HTTPException(
             status_code=403,
             detail="Anlık uyarılar Pro plan gerektirir — bu e-postayla kayıtlı bir Pro/Kurumsal hesap gerekli. "
