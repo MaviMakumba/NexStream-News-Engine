@@ -102,10 +102,40 @@ def test_check_embedder_down_on_exception():
 # ── E-posta adapter'ı ────────────────────────────────────────────────────────
 
 def test_check_email_reports_smtp():
+    """Kimlik bilgileri dolu bir SmtpEmailAdapter — sade "smtp" raporlanmalı."""
     from src.adapters.api.routers.health_router import _check_email
     from src.adapters.notifications.email_adapter import SmtpEmailAdapter
-    with patch("src.adapters.api.routers.health_router.get_email_adapter", return_value=SmtpEmailAdapter()):
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.smtp_host = "smtp.gmail.com"
+        mock_settings.smtp_port = 587
+        mock_settings.smtp_user = "me@gmail.com"
+        mock_settings.smtp_password = "app-password"
+        mock_settings.smtp_from = ""
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        mock_settings.smtp_starttls = True
+        adapter = SmtpEmailAdapter()
+    with patch("src.adapters.api.routers.health_router.get_email_adapter", return_value=adapter):
         assert _check_email() == "smtp"
+
+
+def test_check_email_reports_smtp_missing_credentials():
+    """EMAIL_PROVIDER=smtp seçilip SMTP_USER/SMTP_PASSWORD boş bırakılırsa
+    (get_email_adapter yine de bir SmtpEmailAdapter döner — bilinçli) /health
+    bunu sade "smtp" yerine ayırt edilebilir bir uyarıyla raporlamalı (Finding 3):
+    aksi halde her gönderim sessizce _deliver()'ın except'inde başarısız olurdu."""
+    from src.adapters.api.routers.health_router import _check_email
+    from src.adapters.notifications.email_adapter import SmtpEmailAdapter
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.smtp_host = "smtp.gmail.com"
+        mock_settings.smtp_port = 587
+        mock_settings.smtp_user = ""
+        mock_settings.smtp_password = ""
+        mock_settings.smtp_from = ""
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        mock_settings.smtp_starttls = True
+        adapter = SmtpEmailAdapter()
+    with patch("src.adapters.api.routers.health_router.get_email_adapter", return_value=adapter):
+        assert _check_email() == "smtp (kimlik eksik)"
 
 
 def test_check_email_reports_resend():

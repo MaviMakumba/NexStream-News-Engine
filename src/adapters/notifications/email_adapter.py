@@ -284,8 +284,25 @@ class SmtpEmailAdapter(_HtmlEmailAdapter):
         self._port = settings.smtp_port
         self._user = settings.smtp_user
         self._password = settings.smtp_password
-        self._from = settings.smtp_from or settings.email_from
+        # smtp_from boşsa SMTP_USER'a (gerçek kimlik doğrulanan hesap) düşer,
+        # o da boşsa genel email_from'a — Gmail'in SMTP relay'i From header'ı
+        # kimlik doğrulanan hesapla (ya da doğrulanmış bir alias'la) eşleşmezse
+        # sessizce yeniden yazar ya da sıkı DMARC altında reddeder/spam'e düşürür
+        # (güvenlik/deliverability denetimi, Finding 4).
+        self._from = settings.smtp_from or settings.smtp_user or settings.email_from
         self._starttls = settings.smtp_starttls
+
+    def is_configured(self) -> bool:
+        """SMTP kimlik bilgileri (kullanıcı+şifre) dolu mu.
+
+        `EMAIL_PROVIDER=smtp` açıkça seçilse bile SMTP_USER/SMTP_PASSWORD boş
+        bırakılırsa `get_email_adapter()` yine de bir SmtpEmailAdapter döner
+        (bilinçli — bkz. get_email_adapter docstring'i) ama her gönderim
+        `_deliver()`'ın kendi except'inde sessizce başarısız olur. main.py'deki
+        `warn_if_email_disabled` ve health_router'daki `_check_email` bu durumu
+        artık Console'a düşüş kadar açık şekilde raporluyor (v2.1, Finding 3).
+        """
+        return bool(self._user and self._password)
 
     def _deliver(self, to: str, subject: str, html: str) -> bool:
         msg = MIMEMultipart("alternative")
