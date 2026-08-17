@@ -189,13 +189,20 @@ def _send_verification_email(repo: UserRepository, user: User, language: str) ->
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 @limiter.limit("15/minute")
 def register(request: Request, req: RegisterRequest, response: Response, db: Session = Depends(get_db)):
+    # E-posta normalize edilir (strip + lowercase) — hem uniqueness kontrolünden
+    # hem de kaydedilen değerden ÖNCE. has_owner_role/has_admin_role (auth_utils)
+    # OWNER_EMAILS/ADMIN_EMAILS karşılaştırmasını hep lowercase yapıyor; burada
+    # normalize edilmezse case-variant bir kayıt (örn. "Erenk897@gmail.com")
+    # case-sensitive uniqueness/DB lookup'ı atlatıp bootstrap listesiyle eşleşip
+    # owner/admin ayrıcalığı kazanabilirdi (güvenlik denetimi).
+    normalized_email = req.email.strip().lower()
     repo = UserRepository(db)
-    if repo.get_by_email(req.email):
+    if repo.get_by_email(normalized_email):
         raise HTTPException(status_code=409, detail="Email already registered")
-    _assert_deliverable_email(req.email)
+    _assert_deliverable_email(normalized_email)
 
     user = User(
-        email=req.email,
+        email=normalized_email,
         password_hash=_hash_password(req.password),
         name=req.name,
         tier=UserTier.FREE,

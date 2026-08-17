@@ -197,6 +197,28 @@ def test_register_duplicate_email_skips_dns_check(client):
     mock_validate.assert_not_called()
 
 
+def test_register_normalizes_email_case_before_uniqueness_check_and_storage(client):
+    """Case-variant kayıt (örn. 'Boss@Company.com') strip+lowercase edilip HEM
+    uniqueness kontrolünde HEM kaydedilen kullanıcıda kullanılmalı — aksi halde
+    case-sensitive uniqueness/DB lookup'ı atlatan bir kayıt, has_owner_role/
+    has_admin_role'ün (auth_utils) hep lowercase karşılaştırdığı OWNER_EMAILS/
+    ADMIN_EMAILS bootstrap listesiyle eşleşip ayrıcalık kazanabilirdi
+    (güvenlik denetimi bulgusu)."""
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo:
+        repo_instance = MagicMock()
+        repo_instance.get_by_email.return_value = None
+        repo_instance.create_user.return_value = _make_user(email="boss@company.com")
+        repo_instance.create_session.return_value = _make_session()
+        MockRepo.return_value = repo_instance
+
+        resp = client.post("/auth/register", json={"email": "Boss@Company.com", "password": "secret123"})
+
+    assert resp.status_code == 201
+    repo_instance.get_by_email.assert_called_once_with("boss@company.com")
+    created_user = repo_instance.create_user.call_args[0][0]
+    assert created_user.email == "boss@company.com"
+
+
 # ── Login ─────────────────────────────────────────────────────────────────────
 
 def test_login_success_sets_session_cookie(client):
