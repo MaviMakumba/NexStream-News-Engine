@@ -81,11 +81,22 @@ services:
       - STRIPE_ENTERPRISE_PRICE_ID=${STRIPE_ENTERPRISE_PRICE_ID:-}
       - BILLING_DEV_MODE=false
       - ADMIN_EMAILS=${ADMIN_EMAILS:-}
+      # v2.1: owner rolü — sadece app'te gerekli (route-level yetki kontrolü burada yapılır)
+      - OWNER_EMAILS=${OWNER_EMAILS:-}
       - REDIS_URL=redis://redis:6379/0
       # v1.12: şifre sıfırlama maili. FRONTEND_URL gerçek domain ile set edilmeli,
       # yoksa reset linki yanlışlıkla localhost:3000'e gider!
+      # v2.1: EMAIL_PROVIDER=auto ise SMTP kimlikleri doluysa SMTP, yoksa Resend,
+      # o da yoksa Console'a düşer (artık sessizce değil — bkz. warn_if_email_disabled).
+      - EMAIL_PROVIDER=${EMAIL_PROVIDER:-auto}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-NexStream <no-reply@nexstream.news>}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - SMTP_STARTTLS=${SMTP_STARTTLS:-true}
       - FRONTEND_URL=${FRONTEND_URL:-}
       - SESSION_COOKIE_SECURE=true
       - EMBEDDER_URL=http://embedder:8000
@@ -201,8 +212,15 @@ services:
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
       - REDIS_URL=redis://redis:6379/0
+      - EMAIL_PROVIDER=${EMAIL_PROVIDER:-auto}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-NexStream <no-reply@nexstream.news>}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - SMTP_STARTTLS=${SMTP_STARTTLS:-true}
       - EMBEDDER_URL=http://embedder:8000
     deploy:
       resources:
