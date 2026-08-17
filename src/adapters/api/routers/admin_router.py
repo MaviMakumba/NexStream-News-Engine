@@ -1,10 +1,14 @@
 """Admin endpoint'leri (/admin) — kullanım istatistikleri, kullanıcı/rol yönetimi + sponsor CRUD.
 
-Yetkilendirme (v1.13, iki seviyeli):
-    require_moderator — router genelinde: GÖRÜNTÜLEME (kullanım/kullanıcı/sponsor
-        listeleri). X-API-Key VEYA moderator/admin rolündeki kullanıcı oturumu.
-    require_admin — YAZMA işlemleri (rol değiştirme, sponsor CRUD) route
-        düzeyinde ayrıca ister. X-API-Key VEYA role="admin" (veya ADMIN_EMAILS'teki).
+Yetkilendirme (v1.13, iki seviyeli; rol değiştirme v2.1'de kademeliye geçti):
+    require_moderator — router genelinde: hem GÖRÜNTÜLEME (kullanım/kullanıcı/
+        sponsor listeleri) hem de rol değiştirme (`PATCH /users/{id}/role`)
+        için giriş kapısı. X-API-Key VEYA moderator/admin/owner rolündeki
+        kullanıcı oturumu. Rol değiştirmede asıl yetki sınırlaması route
+        düzeyinde DEĞİL, handler içindeki rank-comparison (`role_at_least`)
+        mantığıyla uygulanır — bkz. `update_user_role` docstring'i.
+    require_admin — YAZMA işlemleri (sponsor CRUD) route düzeyinde ayrıca
+        ister. X-API-Key VEYA role="admin" (veya ADMIN_EMAILS'teki).
 
 Sponsor yönetimi kasıtlı olarak basit tutuldu (tek tablo, soft-delete):
 silme yerine `is_active=false` yazılır ki geçmiş kampanyalar raporlanabilsin.
@@ -23,7 +27,7 @@ from src.adapters.api.auth_utils import require_admin, require_moderator, get_cu
 from src.adapters.repositories.user_repository import UserRepository
 from src.adapters.repositories.orm_models import SponsorORM
 from src.domain.models.sponsor import Sponsor
-from src.domain.models.user import User, UserRole
+from src.domain.models.user import User, UserRole, role_at_least
 from src.infrastructure.config.database import get_db
 
 logger = logging.getLogger(__name__)
@@ -83,22 +87,45 @@ class RoleUpdateRequest(BaseModel):
     role: str
 
 
-@router.patch("/users/{user_id}/role", dependencies=[Depends(require_admin)])
+_ASSIGNABLE_ROLES = (UserRole.USER.value, UserRole.MODERATOR.value, UserRole.ADMIN.value)
+
+
+@router.patch("/users/{user_id}/role")
 def update_user_role(
     user_id: int,
     req: RoleUpdateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Başka bir kullanıcının rolünü değiştirir — sadece admin.
+    """Başka bir kullanıcının rolünü değiştirir — kademeli yetki (v2.1).
 
-    Kendi rolünüzü admin'den düşüremezsiniz (yanlışlıkla kilitlenmeyi önler).
+    Kurallar: (1) owner rolü asla atanamaz — tek kaynak OWNER_EMAILS env;
+    (2) kimse kendi rolünü kendisi değiştiremez; (3) hedefin mevcut rolü
+    istek sahibinden KESİNLİKLE düşük olmalı (eşit/üst roldekine dokunulamaz);
+    (4) atanacak yeni rol istek sahibinin rolünü AŞAMAZ. Owner herkesi
+    yönetir, kendisine kimse dokunamaz (rank'i herkesten yüksek olduğu için
+    kural 3 otomatik sağlanır).
     """
-    if req.role not in (UserRole.USER.value, UserRole.MODERATOR.value, UserRole.ADMIN.value):
+    if req.role not in _ASSIGNABLE_ROLES:
         raise HTTPException(status_code=400, detail="role must be user, moderator or admin")
-    if user_id == current_user.id and req.role != UserRole.ADMIN.value:
-        raise HTTPException(status_code=400, detail="Kendi admin rolünüzü kendiniz düşüremezsiniz.")
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Kendi rolünüzü kendiniz değiştiremezsiniz.")
+
     repo = UserRepository(db)
+    target = repo.get_by_id(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    actor_role = effective_role(current_user)
+    target_role = effective_role(target)
+    # Hedefin rolü actor'dan KESİNLİKLE düşük olmalı — role_at_least(target, actor)
+    # true ise hedef actor'a eşit/üst demektir, izin verilmez.
+    if role_at_least(target_role, actor_role):
+        raise HTTPException(status_code=403, detail="Bu kullanıcının rolünü değiştirme yetkiniz yok")
+    # Atanacak rol actor'un rolünü aşamaz — role_at_least(actor, new_role) false ise reddedilir.
+    if not role_at_least(actor_role, req.role):
+        raise HTTPException(status_code=403, detail="Bu kullanıcının rolünü değiştirme yetkiniz yok")
+
     if not repo.update_role(user_id, req.role):
         raise HTTPException(status_code=404, detail="User not found")
     logger.info("Rol değişti: user_id=%s → %s (işlemi yapan: %s)", user_id, req.role, current_user.email)
