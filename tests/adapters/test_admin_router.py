@@ -324,6 +324,41 @@ def test_owner_can_demote_an_admin(app_client):
     assert resp.status_code == 200
 
 
+def test_moderator_cannot_assign_admin_role(app_client):
+    """Kural 4 (atanacak rol actor'un rolünü aşamaz) — kural 3'ten AYRI ve
+    onun yakalayamadığı bir eskalasyon vektörünü kapatır: hedefin rolü
+    (user, rank 0) actor'dan (moderator, rank 1) kesinlikle düşük olduğu için
+    kural 3 tek başına bu isteğe izin verirdi; sadece kural 4 (moderator
+    admin, rank 2, atayamaz) bunu engeller."""
+    moderator = _make_user(id=1, role=UserRole.MODERATOR)
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_optional_user] = lambda: moderator
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_id.return_value = _target(2, UserRole.USER)
+            MockRepo.return_value = repo
+            resp = app_client.patch("/admin/users/2/role", json={"role": "admin"})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+        app_client.app.dependency_overrides.pop(get_db, None)
+    assert resp.status_code == 403
+    repo.update_role.assert_not_called()
+
+
+def test_owner_actor_cannot_change_own_role(app_client):
+    """Kendi rolünü değiştirememe guard'ı role'den bağımsız — owner actor için
+    de doğrulanmalı (kod ortak ama daha önce sadece admin actor'la test edilmişti)."""
+    owner = _make_user(id=1, role=UserRole.OWNER)
+    app_client.app.dependency_overrides[get_optional_user] = lambda: owner
+    try:
+        resp = app_client.patch("/admin/users/1/role", json={"role": "admin"})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+    assert resp.status_code == 400
+
+
 def test_owner_role_can_never_be_assigned(app_client):
     admin = _make_user(id=1, role=UserRole.ADMIN)
     app_client.app.dependency_overrides[get_optional_user] = lambda: admin
