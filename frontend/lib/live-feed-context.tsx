@@ -18,7 +18,8 @@ const LiveFeedContext = createContext<LiveFeedCtx>({ articles: [], status: "lock
 
 export function LiveFeedProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const isPro = user?.tier === "pro" || user?.tier === "enterprise";
+  const et = user?.effective_tier ?? user?.tier;
+  const isPro = et === "pro" || et === "enterprise";
   const feed = useLiveFeed(isPro);
   return <LiveFeedContext.Provider value={feed}>{children}</LiveFeedContext.Provider>;
 }

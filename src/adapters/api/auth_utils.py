@@ -30,7 +30,7 @@ from src.infrastructure.config.database import get_db
 from src.infrastructure.config.settings import settings
 from src.adapters.api.auth import api_key_matches
 from src.adapters.repositories.user_repository import UserRepository
-from src.domain.models.user import User, UserRole, role_at_least, TIER_DAILY_LIMITS
+from src.domain.models.user import User, UserRole, UserTier, role_at_least, effective_tier, TIER_DAILY_LIMITS
 
 # Oturum cookie'sinin adı — auth_router.py (set/delete) ile paylaşılır.
 SESSION_COOKIE_NAME = "nxs_session"
@@ -54,12 +54,21 @@ def resolve_session_user(repo: UserRepository, token: str) -> Optional[User]:
     return repo.get_by_id(session.user_id)
 
 
-def has_admin_role(user: User) -> bool:
-    """Etkin admin kontrolü: DB'deki role="admin" VEYA ADMIN_EMAILS bootstrap listesi.
+def has_owner_role(user: User) -> bool:
+    """Etkin owner kontrolü: DB'deki role="owner" VEYA OWNER_EMAILS bootstrap listesi.
 
-    Env listesi sayesinde ilk admin, veritabanına dokunmadan atanabilir.
+    Owner rolü API'den asla atanamaz — tek kaynak bu env değişkeni ya da elle
+    yazılan bir DB satırı. `tier` alanına dokunmaz, bkz. user_effective_tier.
     """
-    return user.role == UserRole.ADMIN or (user.email or "").lower() in settings.admin_email_set
+    return user.role == UserRole.OWNER or (user.email or "").lower() in settings.owner_email_set
+
+
+def has_admin_role(user: User) -> bool:
+    """Etkin admin kontrolü: role>=admin (owner dahil) VEYA ADMIN_EMAILS bootstrap.
+
+    owner ⊃ admin ⊃ moderator — owner hiçbir admin endpoint'inden dışlanmaz.
+    """
+    return role_at_least(user.role, UserRole.ADMIN) or (user.email or "").lower() in settings.admin_email_set or has_owner_role(user)
 
 
 def has_moderator_role(user: User) -> bool:
@@ -72,8 +81,19 @@ def has_moderator_role(user: User) -> bool:
 
 
 def effective_role(user: User) -> str:
-    """Frontend'e dönülen etkin rol — ADMIN_EMAILS bootstrap'i "admin" olarak yansıtır."""
+    """Frontend'e dönülen etkin rol — ADMIN_EMAILS/OWNER_EMAILS bootstrap'lerini yansıtır."""
+    if has_owner_role(user):
+        return UserRole.OWNER.value
     return UserRole.ADMIN.value if has_admin_role(user) else UserRole(user.role).value
+
+
+def user_effective_tier(user: User) -> UserTier:
+    """Owner tespitini (OWNER_EMAILS) çözüp saf domain fonksiyonuna devreden sarmalayıcı.
+
+    Domain katmanı settings import edemediği için bu ayrım burada yaşar — tüm
+    tier-gating çağrı noktaları `user.tier` yerine bunu okumalı.
+    """
+    return effective_tier(user.tier, has_owner_role(user))
 
 
 def get_optional_user(
@@ -123,6 +143,20 @@ def require_admin(
     raise HTTPException(status_code=401, detail="Admin authentication required")
 
 
+def require_owner(
+    x_api_key: Optional[str] = Header(None),
+    user: Optional[User] = Depends(get_optional_user),
+) -> None:
+    """Owner-only endpoint koruması — geçerli X-API-Key VEYA owner kullanıcı oturumu."""
+    if api_key_matches(x_api_key):
+        return
+    if user and has_owner_role(user):
+        return
+    if user:
+        raise HTTPException(status_code=403, detail="Owner privileges required")
+    raise HTTPException(status_code=401, detail="Admin authentication required")
+
+
 def require_moderator(
     x_api_key: Optional[str] = Header(None),
     user: Optional[User] = Depends(get_optional_user),
@@ -147,11 +181,12 @@ def check_tier_limit(
 ) -> Optional[User]:
     """Kullanıcının günlük /api/v1 kotasını kontrol eder; aşımda 429.
 
-    Anonim istekler kota dışıdır (None döner); Enterprise sınırsızdır.
+    Anonim istekler kota dışıdır (None döner); Enterprise ve owner sınırsızdır.
     """
     if user is None:
         return None
-    limit = TIER_DAILY_LIMITS.get(user.tier)
+    tier = user_effective_tier(user)
+    limit = TIER_DAILY_LIMITS.get(tier)
     if limit is None:
         return user
     repo = UserRepository(db)
@@ -160,6 +195,6 @@ def check_tier_limit(
         raise HTTPException(
             status_code=429,
             detail=f"Daily API limit reached ({limit} req/day). Upgrade your plan for higher limits.",
-            headers={"X-Tier": user.tier, "X-Daily-Limit": str(limit)},
+            headers={"X-Tier": tier, "X-Daily-Limit": str(limit)},
         )
     return user

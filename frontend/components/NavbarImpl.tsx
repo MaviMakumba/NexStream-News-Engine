@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/settings-context";
+import type { Tier } from "@/lib/types";
 import { TierBadge } from "./TierBadge";
 import { UI } from "@/lib/i18n";
 import { THEME_LIST } from "@/lib/theme/registry";
@@ -255,7 +256,7 @@ export function Navbar() {
                                  maxWidth: 100, flexShrink: 1, color: "var(--text)" }}>
                     {user.name || user.email}
                   </span>
-                  <TierBadge tier={user.tier} lang={lang} />
+                  <TierBadge tier={(user.effective_tier ?? user.tier) as Tier} lang={lang} isOwner={user.is_owner} />
                   <span style={{ color: "var(--text3)", fontSize: "0.6rem", flexShrink: 0 }}>▾</span>
                 </button>
 
@@ -411,7 +412,7 @@ export function Navbar() {
                                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                   {user.name || user.email}
                 </span>
-                <TierBadge tier={user.tier} lang={lang} />
+                <TierBadge tier={(user.effective_tier ?? user.tier) as Tier} lang={lang} isOwner={user.is_owner} />
               </Link>
               <button onClick={handleLogout} style={{
                 textAlign: "left", padding: "11px 14px", borderRadius: 10, fontSize: "0.9rem",

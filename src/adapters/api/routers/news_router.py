@@ -16,7 +16,7 @@ from src.domain.ports.messaging_port import MessagePublisherPort
 from src.application.services.news_service import NewsService
 from src.dependencies import get_news_service, get_message_publisher
 from src.adapters.api.auth import verify_api_key
-from src.adapters.api.auth_utils import check_tier_limit
+from src.adapters.api.auth_utils import check_tier_limit, user_effective_tier
 from src.adapters.api.limiter import limiter
 from src.adapters.api.metrics import search_latency_seconds
 from src.adapters.scrapers.registry import SCRAPER_REGISTRY
@@ -95,7 +95,7 @@ def get_related(
     — /api/v1/news/{id}/related zaten 403 dönerken bu aynı işlevi gören eski
     route herkese bedava erişim veriyordu. İkisi de aynı kontrolü uygulamalı.
     """
-    if not user or not tier_at_least(user.tier, UserTier.PRO):
+    if not user or not tier_at_least(user_effective_tier(user), UserTier.PRO):
         raise HTTPException(
             status_code=403,
             detail="İlişki grafı Pro plan gerektirir. / Relation graph requires a Pro plan.",

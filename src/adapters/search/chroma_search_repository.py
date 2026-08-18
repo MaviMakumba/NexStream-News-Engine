@@ -7,7 +7,8 @@ yeni haber mevcut bir vektöre bu kadar yakınsa is_duplicate işaretlenir.
 import logging
 import chromadb
 from src.domain.models.article import Article
-from src.adapters.search.sentence_transformer_embedder import SentenceTransformerEmbedder
+from src.adapters.search.embedder_factory import build_embedder
+from src.domain.ports.embedding_port import EmbeddingPort
 from src.infrastructure.config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -17,8 +18,13 @@ COLLECTION_NAME = "news_articles"
 
 class ChromaSearchRepository:
 
-    def __init__(self, embedder: SentenceTransformerEmbedder = None):
-        self.embedder = embedder or SentenceTransformerEmbedder()
+    # Retention taramasının sayfa boyutu — bkz. _collect_stale_ids.
+    RETENTION_SCAN_BATCH = 1000
+
+    def __init__(self, embedder: EmbeddingPort = None):
+        # Varsayılan factory'den gelir (HTTP servisi). Somut sınıf DEĞİL port
+        # tip ipucu: bu sınıf hangi embedder olduğunu bilmemeli.
+        self.embedder = embedder or build_embedder()
         self.client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
         self.collection = self.client.get_or_create_collection(COLLECTION_NAME)
 
@@ -101,15 +107,54 @@ class ChromaSearchRepository:
         """Belirtilen ISO tarihinden eski vektörleri koleksiyondan kaldırır.
 
         Postgres'e dokunmaz — geri dönüşü `reindex_all()` ile mümkündür.
+
+        NEDEN `where={"published_at": {"$lt": ...}}` DEĞİL: ChromaDB `$lt`
+        operatörünü yalnızca int/float için kabul eder, ISO tarih string'i
+        verilince `ValueError` fırlatır. Eski kod bunu yapıyor, hata da
+        aşağıdaki `except`'te yutuluyordu — retention job'ı her gece sessizce
+        0 vektör siliyordu (29 Tem 2026'da gerçek ChromaDB'ye karşı yakalandı;
+        mock'lu test geçersiz `where`'i sorunsuz kabul ettiği için gizlenmişti).
+        Doğru yol: metadata taranır, eskiler Python'da seçilir, id ile silinir.
         """
         try:
-            result = self.collection.delete(where={"published_at": {"$lt": cutoff_iso}})
-            deleted = result.get("deleted", 0) if isinstance(result, dict) else 0
-            logger.info("ChromaDB retention: %d vektör silindi (cutoff=%s)", deleted, cutoff_iso)
-            return deleted
+            stale = self._collect_stale_ids(cutoff_iso)
+            if not stale:
+                logger.info("ChromaDB retention: silinecek vektör yok (cutoff=%s)", cutoff_iso)
+                return 0
+            self.collection.delete(ids=stale)
+            logger.info("ChromaDB retention: %d vektör silindi (cutoff=%s)", len(stale), cutoff_iso)
+            return len(stale)
         except Exception as e:
             logger.error("ChromaDB retention silme hatası: %s", e)
             return 0
+
+    def _collect_stale_ids(self, cutoff_iso: str) -> list[str]:
+        """Cutoff'tan eski vektörlerin id'lerini sayfalayarak toplar.
+
+        Koleksiyon tek seferde çekilmez: t3.small'da (1.9GB RAM) on binlerce
+        metadata kaydını aynı anda belleğe almak istemiyoruz.
+
+        `published_at` boş olan vektörler ATLANIR — boş string her cutoff'tan
+        küçük sayılır ve tarihi bilinmeyen her vektör sessizce silinirdi.
+        """
+        stale: list[str] = []
+        offset = 0
+        while True:
+            page = self.collection.get(
+                include=["metadatas"], limit=self.RETENTION_SCAN_BATCH, offset=offset
+            )
+            ids = page.get("ids") or []
+            if not ids:
+                break
+            metadatas = page.get("metadatas") or []
+            for doc_id, meta in zip(ids, metadatas):
+                published_at = (meta or {}).get("published_at") or ""
+                if published_at and published_at < cutoff_iso:
+                    stale.append(doc_id)
+            if len(ids) < self.RETENTION_SCAN_BATCH:
+                break
+            offset += len(ids)
+        return stale
 
     @staticmethod
     def _build_where(source: str = None, sentiment: str = None) -> dict | None:

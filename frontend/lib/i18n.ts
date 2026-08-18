@@ -190,7 +190,8 @@ export const UI: Record<Lang, Record<string, string>> = {
     payingReal: "✓ Stripe", payingDev: "Dev-mode", inactiveStatus: "Pasif",
     totalUsers: "Toplam Kullanıcı", payingUsers: "Gerçek Ödeyen",
     noUsers: "Kullanıcı bulunamadı.",
-    roleUser: "Kullanıcı", roleModerator: "Moderatör", roleAdmin: "Admin",
+    roleUser: "Kullanıcı", roleModerator: "Moderatör", roleAdmin: "Admin", roleOwner: "Kurucu",
+    ownerBadge: "Kurucu",
     roleUpdateError: "Rol değiştirilemedi.",
   },
   EN: {
@@ -362,7 +363,8 @@ export const UI: Record<Lang, Record<string, string>> = {
     payingReal: "✓ Stripe", payingDev: "Dev-mode", inactiveStatus: "Inactive",
     totalUsers: "Total Users", payingUsers: "Real Paying",
     noUsers: "No users found.",
-    roleUser: "User", roleModerator: "Moderator", roleAdmin: "Admin",
+    roleUser: "User", roleModerator: "Moderator", roleAdmin: "Admin", roleOwner: "Owner",
+    ownerBadge: "Founder",
     roleUpdateError: "Could not update role.",
   },
 };

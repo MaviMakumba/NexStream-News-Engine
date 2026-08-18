@@ -12,6 +12,9 @@ sadece bu iki sözlüğe bir `"FR": {...}` bloğu eklemek demektir; hiçbir
 
 import html
 import logging
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import List
 from urllib.parse import quote
 import requests
@@ -215,7 +218,35 @@ class ConsoleEmailAdapter(EmailPort):
         return True
 
 
-class ResendEmailAdapter(EmailPort):
+class _HtmlEmailAdapter(EmailPort):
+    """ResendEmailAdapter ve SmtpEmailAdapter'ın paylaştığı gövde.
+
+    Beş send_* metodunu bir kez tanımlar, somut sınıflar sadece _deliver()'ı
+    implemente eder — v2.1 refactor, önceden her adapter kendi beş metodunu
+    ayrı ayrı tanımlıyordu (Resend'de _post'a yönlendiren tekrar eden kod).
+    """
+
+    def _deliver(self, to: str, subject: str, html: str) -> bool:
+        raise NotImplementedError
+
+    def send_digest(self, to: str, articles: List[Article], language: str, sponsor=None) -> bool:
+        return self._deliver(to, _t(language, "digest_subject"), _digest_html(to, articles, language, sponsor))
+
+    def send_alert(self, to: str, article: Article, matched_keyword: str, language: str) -> bool:
+        subject = f"{_t(language, 'alert_subject_prefix')}: {matched_keyword}"
+        return self._deliver(to, subject, _alert_html(article, matched_keyword, language))
+
+    def send_welcome(self, to: str, language: str) -> bool:
+        return self._deliver(to, _t(language, "welcome_subject"), _welcome_html(language))
+
+    def send_password_reset(self, to: str, reset_url: str, language: str) -> bool:
+        return self._deliver(to, _t(language, "reset_subject"), _password_reset_html(reset_url, language))
+
+    def send_verification(self, to: str, verify_url: str, language: str) -> bool:
+        return self._deliver(to, _t(language, "verify_subject"), _verification_html(verify_url, language))
+
+
+class ResendEmailAdapter(_HtmlEmailAdapter):
     """Production adapter using Resend (https://resend.com)."""
 
     _API_URL = "https://api.resend.com/emails"
@@ -224,7 +255,7 @@ class ResendEmailAdapter(EmailPort):
         self._api_key = settings.resend_api_key
         self._from = settings.email_from
 
-    def _post(self, to: str, subject: str, html: str) -> bool:
+    def _deliver(self, to: str, subject: str, html: str) -> bool:
         try:
             r = requests.post(
                 self._API_URL,
@@ -240,24 +271,74 @@ class ResendEmailAdapter(EmailPort):
             logger.error("Email gönderilemedi (%s): %s", to, e)
             return False
 
-    def send_digest(self, to: str, articles: List[Article], language: str, sponsor=None) -> bool:
-        return self._post(to, _t(language, "digest_subject"), _digest_html(to, articles, language, sponsor))
 
-    def send_alert(self, to: str, article: Article, matched_keyword: str, language: str) -> bool:
-        subject = f"{_t(language, 'alert_subject_prefix')}: {matched_keyword}"
-        return self._post(to, subject, _alert_html(article, matched_keyword, language))
+class SmtpEmailAdapter(_HtmlEmailAdapter):
+    """Gmail (veya herhangi bir STARTTLS destekleyen SMTP sağlayıcısı) ile gerçek gönderim.
 
-    def send_welcome(self, to: str, language: str) -> bool:
-        return self._post(to, _t(language, "welcome_subject"), _welcome_html(language))
+    Resend'in aksine domain doğrulaması istemez, TÜM alıcılara ulaşır — günlük
+    limit Gmail'in kendi kotasından gelir (app password ile ~500 mail/gün).
+    """
 
-    def send_password_reset(self, to: str, reset_url: str, language: str) -> bool:
-        return self._post(to, _t(language, "reset_subject"), _password_reset_html(reset_url, language))
+    def __init__(self):
+        self._host = settings.smtp_host
+        self._port = settings.smtp_port
+        self._user = settings.smtp_user
+        self._password = settings.smtp_password
+        # smtp_from boşsa SMTP_USER'a (gerçek kimlik doğrulanan hesap) düşer,
+        # o da boşsa genel email_from'a — Gmail'in SMTP relay'i From header'ı
+        # kimlik doğrulanan hesapla (ya da doğrulanmış bir alias'la) eşleşmezse
+        # sessizce yeniden yazar ya da sıkı DMARC altında reddeder/spam'e düşürür
+        # (güvenlik/deliverability denetimi, Finding 4).
+        self._from = settings.smtp_from or settings.smtp_user or settings.email_from
+        self._starttls = settings.smtp_starttls
 
-    def send_verification(self, to: str, verify_url: str, language: str) -> bool:
-        return self._post(to, _t(language, "verify_subject"), _verification_html(verify_url, language))
+    def is_configured(self) -> bool:
+        """SMTP kimlik bilgileri (kullanıcı+şifre) dolu mu.
+
+        `EMAIL_PROVIDER=smtp` açıkça seçilse bile SMTP_USER/SMTP_PASSWORD boş
+        bırakılırsa `get_email_adapter()` yine de bir SmtpEmailAdapter döner
+        (bilinçli — bkz. get_email_adapter docstring'i) ama her gönderim
+        `_deliver()`'ın kendi except'inde sessizce başarısız olur. main.py'deki
+        `warn_if_email_disabled` ve health_router'daki `_check_email` bu durumu
+        artık Console'a düşüş kadar açık şekilde raporluyor (v2.1, Finding 3).
+        """
+        return bool(self._user and self._password)
+
+    def _deliver(self, to: str, subject: str, html: str) -> bool:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = self._from
+        msg["To"] = to
+        msg.attach(MIMEText(html, "html", "utf-8"))
+
+        try:
+            with smtplib.SMTP(self._host, self._port, timeout=10) as server:
+                if self._starttls:
+                    server.starttls()
+                server.login(self._user, self._password)
+                server.sendmail(self._user, [to], msg.as_string())
+            return True
+        except Exception as e:
+            logger.error("SMTP e-posta gönderilemedi (%s): %s", to, e)
+            return False
 
 
 def get_email_adapter() -> EmailPort:
+    """Hangi adapter'ın kullanılacağını seçer — EMAIL_PROVIDER ile yönlendirilebilir.
+
+    auto (varsayılan): SMTP kimlikleri doluysa SMTP → RESEND_API_KEY doluysa
+    Resend → Console. Açık değerler (smtp/resend/console) test/hata ayıklama
+    için zorlama sağlar.
+    """
+    provider = (settings.email_provider or "auto").lower()
+    if provider == "console":
+        return ConsoleEmailAdapter()
+    if provider == "smtp":
+        return SmtpEmailAdapter()
+    if provider == "resend":
+        return ResendEmailAdapter()
+    if settings.smtp_user and settings.smtp_password:
+        return SmtpEmailAdapter()
     if settings.resend_api_key:
         return ResendEmailAdapter()
     return ConsoleEmailAdapter()

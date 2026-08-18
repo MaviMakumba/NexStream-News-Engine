@@ -5,8 +5,9 @@ COPY requirements-light.txt .
 # BuildKit cache mount + retry — gerekçe ana Dockerfile'da açıklandı.
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --retries 10 --timeout 120 -r requirements-light.txt
-COPY . .
-# Non-root kullanıcı (güvenlik denetimi) — bkz. ana Dockerfile'daki gerekçe.
-RUN useradd --create-home --shell /bin/bash appuser && chown -R appuser:appuser /app
+# Non-root kullanıcı + --chown'lu kopyalama — sıralamanın gerekçesi (katmanın
+# gereksiz yere ikizlenmesi) ana Dockerfile'da açıklandı.
+RUN useradd --create-home --shell /bin/bash appuser
+COPY --chown=appuser:appuser . .
 USER appuser
 CMD ["python", "main.py"]

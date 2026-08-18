@@ -22,7 +22,8 @@ export function NewsCard({ article }: { article: Article }) {
   const { lang } = useSettings();
   const { user } = useAuth();
   const t = UI[lang];
-  const isPro = user?.tier === "pro" || user?.tier === "enterprise";
+  const et = user?.effective_tier ?? user?.tier;
+  const isPro = et === "pro" || et === "enterprise";
   const [expanded, setExpanded] = useState(false);
   const [related, setRelated] = useState<RelatedArticle[] | null>(null);
   const [loadingRelated, setLoadingRelated] = useState(false);

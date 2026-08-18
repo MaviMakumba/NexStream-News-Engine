@@ -1,7 +1,7 @@
 import asyncio
 import pytest
 from datetime import datetime, timezone, timedelta
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 from src.application.services.news_service import NewsService
 from src.domain.models.article import Article
 
@@ -51,7 +51,10 @@ def test_update_multiple_articles():
     ])
     mock_repo.save_article.return_value = True
 
-    asyncio.run(service.update_news_from_source(mock_scraper))
+    # Haber başına 2sn'lik Groq throttle'ı bu testi 4 saniye bekletiyordu;
+    # test throttle'ı değil kaydetme sayısını doğruluyor.
+    with patch("src.application.services.news_service.asyncio.sleep", new=AsyncMock()):
+        asyncio.run(service.update_news_from_source(mock_scraper))
 
     assert mock_repo.save_article.call_count == 3
 
@@ -381,6 +384,53 @@ def test_keyword_relevance_content_only_match():
 def test_keyword_relevance_empty_terms():
     article = make_article()
     assert NewsService._keyword_relevance(article, []) == 0.0
+
+
+# ── _canonical_terms + skor seyreltme regresyonu (18 Ağu 2026'da canlıda bulundu) ──
+
+
+def test_canonical_terms_uses_stem_not_both_forms():
+    """`_tokenize`'ın aksine tek terim/kelime döner — kelime+kök ikisi birden DEĞİL."""
+    assert NewsService._canonical_terms("beşiktaşın hocası") == ["beşiktaş", "hoca"]
+
+
+def test_canonical_terms_no_suffix_unchanged():
+    assert NewsService._canonical_terms("yapay zeka") == ["yapay", "zeka"]
+
+
+def test_keyword_relevance_turkish_suffix_does_not_dilute_score():
+    """Ekli tek kelimelik sorgu ("beşiktaşın"), kökü ("beşiktaş") ile AYNI skoru vermeli.
+
+    Kök regresyonu: `_tokenize()`'ın ["beşiktaşın","beşiktaş"] çıktısı doğrudan
+    `_keyword_relevance`'a verilirse coverage böleni (n=2) şişer, sadece kök
+    eşleştiği için skor yapay olarak yarıya düşerdi (0.9 yerine 0.45) — bu da
+    canlıda aramayı alakasız sonuçlarla dolduruyordu. `_canonical_terms` ile
+    (n=1) skor korunmalı.
+    """
+    article = make_article()
+    article.title = "Beşiktaş'tan flaş transfer kararı"
+    article.summary = None
+
+    bare_relevance = NewsService._keyword_relevance(article, NewsService._canonical_terms("beşiktaş"))
+    suffixed_relevance = NewsService._keyword_relevance(article, NewsService._canonical_terms("beşiktaşın"))
+
+    assert bare_relevance == suffixed_relevance == 0.9  # 1/1 × 0.9
+
+
+def test_hybrid_search_turkish_suffixed_query_matches_like_bare_form():
+    """Uçtan uca: "beşiktaşın" araması "beşiktaş" ile aynı makaleyi aynı skorla bulmalı."""
+    service, mock_repo, mock_search = make_service_with_search()
+    mock_search.search.return_value = []
+
+    article = make_article("https://bbc.com/1")
+    article.id = 1
+    article.title = "Beşiktaş'tan flaş transfer kararı"
+    mock_repo.keyword_search.return_value = [article]
+
+    bare = service.hybrid_search("beşiktaş", n_results=5)
+    suffixed = service.hybrid_search("beşiktaşın", n_results=5)
+
+    assert bare[0]["score"] == suffixed[0]["score"]
 
 
 def test_hybrid_search_ranks_by_coverage():

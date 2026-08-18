@@ -102,3 +102,33 @@ def test_settings_production_rejects_insecure_session_cookie():
 def test_settings_production_passes_with_safe_config():
     s = _fresh_settings(ENVIRONMENT="production", API_KEY="real-key", CORS_ORIGINS="https://example.com")
     assert s.environment == "production"
+
+
+# ── Owner email + SMTP/EMAIL_PROVIDER (Task 2) ────────────────────────────────────
+
+def test_owner_email_set_normalizes_case_and_whitespace():
+    from src.infrastructure.config.settings import Settings
+    s = Settings(owner_emails=" Boss@Company.com ,other@x.com", _env_file=None)
+    assert s.owner_email_set == {"boss@company.com", "other@x.com"}
+
+
+def test_owner_email_set_empty_by_default():
+    from src.infrastructure.config.settings import Settings
+    s = Settings(owner_emails="", _env_file=None)
+    assert s.owner_email_set == set()
+
+
+def test_email_provider_defaults_to_auto():
+    from src.infrastructure.config.settings import Settings
+    assert Settings(_env_file=None).email_provider == "auto"
+
+
+def test_smtp_defaults():
+    from src.infrastructure.config.settings import Settings
+    s = Settings(_env_file=None)
+    assert s.smtp_host == "smtp.gmail.com"
+    assert s.smtp_port == 587
+    assert s.smtp_user == ""
+    assert s.smtp_password == ""
+    assert s.smtp_from == ""
+    assert s.smtp_starttls is True

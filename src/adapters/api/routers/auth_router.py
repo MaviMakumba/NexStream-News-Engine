@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from src.infrastructure.config.database import get_db
 from src.infrastructure.config.settings import settings
-from src.adapters.api.auth_utils import has_admin_role, has_moderator_role, effective_role, get_current_user, SESSION_COOKIE_NAME
+from src.adapters.api.auth_utils import has_admin_role, has_moderator_role, has_owner_role, effective_role, user_effective_tier, get_current_user, SESSION_COOKIE_NAME
 from src.adapters.api.limiter import limiter
 from src.adapters.notifications.email_adapter import get_email_adapter
 from src.adapters.repositories.user_repository import UserRepository
@@ -143,20 +143,24 @@ def _assert_deliverable_email(email: str) -> None:
 def _user_payload(user: User) -> dict:
     """API yanıtlarındaki kullanıcı gösterimi — parola hash'i asla sızmaz.
 
-    `role`: etkin yetki (user/moderator/admin, ADMIN_EMAILS bootstrap'i dahil) —
-        frontend'in admin panel erişimini/rol yönetim kontrollerini göstermesi içindir.
+    `role`: etkin yetki (user/moderator/admin/owner, ADMIN_EMAILS bootstrap'i dahil).
     `is_admin`: geriye dönük uyumluluk için korunan türetilmiş alan (role == admin).
+    `is_owner`: owner muafiyetleri için (doğrulama banner'ı, yükseltme kartı, checkout gate).
+    `effective_tier`: owner için her zaman "enterprise", diğerlerinde `tier` ile aynı —
+        DB'deki `tier` kolonu owner için asla değiştirilmez (bkz. user_effective_tier).
     `email_verified`: v1.15 — Free tier'da erişimi kısıtlamaz, sadece ücretli
-        kademeye yükseltmede (billing checkout) şart koşulur.
+        kademeye yükseltmede (billing checkout) şart koşulur; owner muaftır.
     """
     return {
         "id": user.id,
         "email": user.email,
         "name": user.name,
         "tier": user.tier,
+        "effective_tier": user_effective_tier(user).value,
         "role": effective_role(user),
         "is_admin": has_admin_role(user),
         "is_moderator": has_moderator_role(user),
+        "is_owner": has_owner_role(user),
         "email_verified": user.email_verified,
     }
 
@@ -185,13 +189,20 @@ def _send_verification_email(repo: UserRepository, user: User, language: str) ->
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 @limiter.limit("15/minute")
 def register(request: Request, req: RegisterRequest, response: Response, db: Session = Depends(get_db)):
+    # E-posta normalize edilir (strip + lowercase) — hem uniqueness kontrolünden
+    # hem de kaydedilen değerden ÖNCE. has_owner_role/has_admin_role (auth_utils)
+    # OWNER_EMAILS/ADMIN_EMAILS karşılaştırmasını hep lowercase yapıyor; burada
+    # normalize edilmezse case-variant bir kayıt (örn. "Erenk897@gmail.com")
+    # case-sensitive uniqueness/DB lookup'ı atlatıp bootstrap listesiyle eşleşip
+    # owner/admin ayrıcalığı kazanabilirdi (güvenlik denetimi).
+    normalized_email = req.email.strip().lower()
     repo = UserRepository(db)
-    if repo.get_by_email(req.email):
+    if repo.get_by_email(normalized_email):
         raise HTTPException(status_code=409, detail="Email already registered")
-    _assert_deliverable_email(req.email)
+    _assert_deliverable_email(normalized_email)
 
     user = User(
-        email=req.email,
+        email=normalized_email,
         password_hash=_hash_password(req.password),
         name=req.name,
         tier=UserTier.FREE,

@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.adapters.api.auth_utils import get_current_user
+from src.adapters.api.auth_utils import get_current_user, has_owner_role
 from src.adapters.api.limiter import limiter
 from src.adapters.repositories.user_repository import UserRepository
 from src.domain.models.user import User
@@ -82,9 +82,16 @@ def create_checkout(
     if req.tier not in _PURCHASABLE_TIERS:
         raise HTTPException(status_code=400, detail="Invalid tier. Use 'pro' or 'enterprise'")
 
+    if has_owner_role(current_user):
+        raise HTTPException(
+            status_code=400,
+            detail="Owner hesabı zaten sınırsız erişime sahip, satın alma gerekmez. / Owner accounts already have unlimited access.",
+        )
+
     # v1.15: DNS/MX kontrolü (v1.14) sahte kullanıcı adı + gerçek domain kombinasyonunu
     # yakalayamıyordu — ücretli kademeye yükseltme artık e-posta doğrulaması ister.
     # Free tier'da erişim etkilenmez (bkz. auth_router.py::_send_verification_email).
+    # Owner bu şarttan muaftır (yukarıda zaten reddedildi, buraya hiç ulaşmaz).
     if not current_user.email_verified:
         raise HTTPException(
             status_code=403,

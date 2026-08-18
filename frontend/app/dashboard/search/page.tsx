@@ -36,7 +36,8 @@ export default function SearchPage() {
   const { lang } = useSettings();
   const { user } = useAuth();
   const t = UI[lang];
-  const isPro = user?.tier === "pro" || user?.tier === "enterprise";
+  const et = user?.effective_tier ?? user?.tier;
+  const isPro = et === "pro" || et === "enterprise";
   const [query,    setQuery]    = useState("");
   const [nResults, setNResults] = useState(10);
   const [results,  setResults]  = useState<SearchResult[]>([]);
