@@ -119,4 +119,15 @@ async def consume():
 
 
 if __name__ == "__main__":
+    # v2.1.1 (18 Ağu 2026): worker'ın kendi HTTP sunucusu yoktu (kafka_consumer
+    # ASGI değil, düz bir Python script) — `articles_processed_total` gibi asıl
+    # pipeline sayaçları BURADA artıyor ama Prometheus SADECE app:8000/metrics'i
+    # tarıyordu, worker'ın sayaçlarına HİÇ erişemiyordu. Bu, bugün eklenen
+    # "1 saattir yeni haber işlenmedi" alert kuralının ilk kez tetiklenmesiyle
+    # (yanlış pozitif — DatasourceNoData) bulundu: metrik prod'da HİÇ VERİ
+    # ÜRETMEMİŞ, muhtemelen v1.6'dan beri. prometheus_client'ın kendi hafif
+    # HTTP sunucusu (uvicorn/FastAPI gerekmez) 9100'de açılıyor; prometheus.yml
+    # yeni bir scrape job'u ile tarıyor.
+    from prometheus_client import start_http_server
+    start_http_server(9100)
     asyncio.run(consume())

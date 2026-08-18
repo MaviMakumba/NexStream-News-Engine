@@ -10,6 +10,17 @@ scrape_configs:
         labels:
           service: "nexstream-api"
 
+  # v2.1.1 (18 Ağu 2026): worker kendi prometheus_client HTTP sunucusunu 9100'de
+  # açıyor (bkz. kafka_consumer.py) — articles_processed_total/analysis_fallback_total
+  # gibi ASIL pipeline sayaçları worker'da artıyor, bu job olmadan Prometheus'a
+  # hiç ulaşmıyorlardı (alert kuralı yazılana kadar fark edilmemişti).
+  - job_name: "nexstream-worker"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["worker:9100"]
+        labels:
+          service: "nexstream-worker"
+
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]
