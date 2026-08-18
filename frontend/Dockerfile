@@ -9,6 +9,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ARG NEXT_PUBLIC_API_URL=/api
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# 18 Ağu 2026'da bulundu: bu ARG hiç geçirilmiyordu, SITE_URL kodda
+# "https://nexstream.news" (satın alınmamış, kimseye ait olmayan bir domain)
+# varsayılanına düşüyordu — robots.txt/sitemap.xml/OG meta hepsi YANLIŞ
+# domain'e işaret ediyordu, canlıda hiç fark edilmemişti.
+ARG NEXT_PUBLIC_SITE_URL=https://nexstreamnewsengine.duckdns.org
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 RUN npm run build
 
 FROM node:20-alpine AS runner
