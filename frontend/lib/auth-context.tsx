@@ -59,6 +59,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
   }, []);
 
+  // bfcache (back-forward cache) düzeltmesi: tarayıcı geri/ileri tuşuyla bu
+  // sayfaya dönerse, sayfa yeniden mount OLMADAN önceki JS durumu dondurulup
+  // aynen geri getiriliyor — yani logout() sonrası `user`'ı null yapıp
+  // localStorage'ı temizlesek bile, kullanıcı çıkış yapıp başka bir sayfaya
+  // gidip GERİ tuşuna basınca bfcache eski (giriş yapılmış) React durumunu
+  // aynen gösteriyordu; mount effect'i tekrar çalışmadığı için `/auth/me`
+  // hiç yeniden sorulmuyordu (18 Ağu 2026'da kullanıcı bulgusu). Gerçek bir
+  // yetki açığı değil — çerez sunucuda zaten geçersiz, herhangi bir API isteği
+  // 401 alır — ama kullanıcıya YANLIŞ ŞEKİLDE hâlâ giriş yapılmış gösteriyordu.
+  // `pageshow`'un `persisted` bayrağı tam bu durumu (bfcache restore) yakalar.
+  useEffect(() => {
+    function handlePageShow(event: PageTransitionEvent) {
+      if (!event.persisted) return;
+      fetchMe()
+        .then((fresh) => { setUser(fresh); persistUser(fresh); })
+        .catch(() => {
+          localStorage.removeItem(USER_KEY);
+          setUser(null);
+        });
+    }
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
   const login = (user: User) => {
     persistUser(user);
     setUser(user);
