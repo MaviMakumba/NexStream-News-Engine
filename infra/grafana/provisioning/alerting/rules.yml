@@ -1,0 +1,106 @@
+apiVersion: 1
+
+# İş-çıktısı bazlı alertler — health-check DEĞİL (bkz. CLAUDE.md/CHANGELOG
+# "Deploy'u /health yeşil mi diye doğrulama, İŞ ÇIKTISIYLA doğrula" dersi,
+# 29 Temmuz 2026 ve 18 Ağustos 2026'da iki ayrı olayda bulunan sessiz
+# işlevsizlik deseni). İkisi de mevcut Prometheus custom metriklerini
+# kullanıyor (src/adapters/api/metrics.py).
+#
+# datasourceUid DEĞERİ BİLEREK SABİT YAZILI (PBFA97CFB590B2093) — Grafana'nın
+# KENDİ ürettiği, canlıda haftalardır kayıtlı gerçek UID (GET /api/datasources
+# ile doğrulandı). datasources.yml'e elle `uid: prometheus` eklemeyi DENEDİK,
+# bu Grafana'nın var olan (auto-generated uid'li) kaydıyla çakışıp
+# "Datasource provisioning error: data source not found" ile Grafana'yı
+# TAMAMEN çökertti (crash-loop) — geri alındı. **Genel kural: zaten haftalardır
+# çalışan, provisioning ile yönetilen bir Grafana datasource'unun uid'ini
+# SONRADAN elle sabitlemeye çalışma; alert kuralların gerçek/mevcut uid'i API'den
+# okuyup onu kullansın.**
+groups:
+  - orgId: 1
+    name: nexstream-pipeline-alerts
+    folder: NexStream
+    interval: 5m
+    rules:
+      - uid: nexstream-no-new-articles
+        title: "1 saattir yeni haber işlenmedi"
+        condition: C
+        for: 15m
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            model:
+              refId: A
+              expr: sum(increase(nexstream_articles_processed_total[1h]))
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: "__expr__"
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: C
+              type: classic_conditions
+              datasource:
+                type: __expr__
+                uid: "__expr__"
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+                  operator:
+                    type: and
+                  query:
+                    params: ["A"]
+                  reducer:
+                    type: last
+                  type: query
+        labels:
+          severity: critical
+        annotations:
+          summary: "Worker son 1 saatte tek bir haber bile işlemedi (yeni kaydetmese bile duplicate/skip dahil sıfır) — scraping veya worker/redpanda bağlantısı kopmuş olabilir. 29 Temmuz 2026'da worker'ın internet erişimi olmadığı için TAM olarak bu durum yaşanmıştı, /health yeşil kalıyordu."
+
+      - uid: nexstream-analysis-fallback-spike
+        title: "Analiz sürekli nötr fallback'e düşüyor"
+        condition: C
+        for: 10m
+        data:
+          - refId: A
+            datasourceUid: PBFA97CFB590B2093
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              refId: A
+              expr: sum(increase(nexstream_analysis_fallback_total[15m]))
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: "__expr__"
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: C
+              type: classic_conditions
+              datasource:
+                type: __expr__
+                uid: "__expr__"
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [5]
+                  operator:
+                    type: and
+                  query:
+                    params: ["A"]
+                  reducer:
+                    type: last
+                  type: query
+        labels:
+          severity: warning
+        annotations:
+          summary: "Son 15 dakikada 5'ten fazla haber analizi TÜM analyzer'ları (Groq + varsa HF yedeği) atlayıp nötr varsayılana düştü — Groq API key geçersiz/kota bitmiş olabilir ya da (18 Ağustos 2026'da olduğu gibi) kullanılan model Groq tarafından kaldırılmış olabilir. GET https://api.groq.com/openai/v1/models ile model listesini kontrol et."

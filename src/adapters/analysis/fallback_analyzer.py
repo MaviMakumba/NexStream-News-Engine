@@ -8,6 +8,7 @@ import logging
 from typing import List
 from src.domain.ports.analysis_port import AnalysisPort, AnalysisError
 from src.adapters.analysis.common import neutral_result
+from src.adapters.api.metrics import analysis_fallback_total
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class FallbackAnalyzer(AnalysisPort):
             return self.analyze_or_raise(text)
         except AnalysisError:
             logger.error("Tüm analyzer'lar başarısız, nötr fallback dönülüyor.")
+            analysis_fallback_total.inc()
             return neutral_result(text)
 
     def analyze_or_raise(self, text: str) -> dict:
