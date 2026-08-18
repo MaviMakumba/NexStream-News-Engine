@@ -33,6 +33,33 @@ def make_repo():
     return repo, mock_embedder
 
 
+# ── embedder kompozisyonu ─────────────────────────────────────────────────────
+
+def test_varsayilan_embedder_factory_uzerinden_kurulur():
+    """Varsayılan embedder build_embedder()'dan gelmeli.
+
+    SentenceTransformerEmbedder DOĞRUDAN kurulursa app/worker image'larında
+    (sentence-transformers kurulu DEĞİL) çalışma anında çöker.
+    """
+    fake_embedder = MagicMock()
+    with patch("src.adapters.search.chroma_search_repository.build_embedder",
+               return_value=fake_embedder) as mock_build:
+        with patch("src.adapters.search.chroma_search_repository.chromadb.HttpClient"):
+            repo = ChromaSearchRepository()
+    mock_build.assert_called_once()
+    assert repo.embedder is fake_embedder
+
+
+def test_modul_sentence_transformers_import_etmiyor():
+    """chroma_search_repository, sentence_transformers'ı modül seviyesinde
+    import ETMEMELİ — app/worker image'larında bu paket bulunmayacak."""
+    import inspect
+    from src.adapters.search import chroma_search_repository
+    source = inspect.getsource(chroma_search_repository)
+    assert "from src.adapters.search.sentence_transformer_embedder import" not in source
+    assert "import sentence_transformers" not in source
+
+
 # ── index_article ─────────────────────────────────────────────────────────────
 
 def test_index_article_success():
@@ -165,21 +192,127 @@ def test_search_missing_published_at_defaults_empty():
     assert results[0]["published_at"] == ""
 
 
+# ── embedder servisi düşükken bozulma (degradation) ───────────────────────────
+#
+# Embedder artık AĞ bağımlılığı (ayrı container). Aşağıdaki davranışlar zaten
+# vardı (metotların kendi try/except'leri sayesinde) ama artık kritik hale
+# geldiler — regresyona karşı testle sabitleniyorlar.
+
+def test_embedder_olunce_arama_bos_liste_dondurur():
+    """hybrid_search bunu yakalayıp keyword aramasına düşer — 500 dönmez."""
+    from src.adapters.search.http_embedder import EmbeddingServiceError
+    repo, embedder = make_repo()
+    embedder.embed_text.side_effect = EmbeddingServiceError("servis yok")
+    assert repo.search("ekonomi") == []
+
+
+def test_embedder_olunce_indexleme_false_dondurur_ama_patlamaz():
+    """Haber Postgres'e zaten kaydedildi; indeksleme atlanır, veri kaybı yok.
+    retention_job son 7 günü yeniden indeksleyerek boşluğu kendiliğinden kapatır."""
+    from src.adapters.search.http_embedder import EmbeddingServiceError
+    repo, embedder = make_repo()
+    embedder.embed_text.side_effect = EmbeddingServiceError("servis yok")
+    assert repo.index_article(make_article()) is False
+
+
+def test_embedder_olunce_dedup_fail_open_davranir():
+    """Kopya olmadığı varsayılır — en kötü ihtimalle bir kopya haber geçer,
+    ki bu haberi tamamen kaybetmekten iyidir."""
+    from src.adapters.search.http_embedder import EmbeddingServiceError
+    repo, embedder = make_repo()
+    repo._mock_collection.count.return_value = 5
+    embedder.embed_text.side_effect = EmbeddingServiceError("servis yok")
+    assert repo.is_near_duplicate(make_article()) is False
+
+
+def test_embedder_olunce_toplu_indeksleme_de_patlamaz():
+    """Batch yolu da aynı güvenli varsayılana düşmeli."""
+    from src.adapters.search.http_embedder import EmbeddingServiceError
+    repo, embedder = make_repo()
+    embedder.embed_text.side_effect = EmbeddingServiceError("servis yok")
+    embedder.embed_batch.side_effect = EmbeddingServiceError("servis yok")
+    assert repo.index_article(make_article(id=7)) is False
+
+
 # ── delete_before (retention) ──────────────────────────────────────────────────
 
-def test_delete_before_calls_collection_delete_with_where():
+def _page(ids, metadatas):
+    """collection.get() yanıtı taklidi."""
+    return {"ids": ids, "metadatas": metadatas}
+
+
+def test_delete_before_metadatayi_tarayip_id_ile_siler():
+    """`where={"published_at": {"$lt": ...}}` KULLANILAMAZ.
+
+    ChromaDB `$lt` operatörünü yalnızca int/float için kabul eder; ISO tarih
+    string'i verilince `ValueError` fırlatır. Eski kod tam olarak bunu yapıyordu
+    ve hata `except` bloğunda yutulduğu için retention job'ı her gece sessizce
+    0 vektör silmişti. Bu test doğru yolu kilitler: metadata taranır, eskiler
+    Python'da seçilir, `delete(ids=...)` ile silinir.
+    """
     repo, _ = make_repo()
-    repo._mock_collection.delete.return_value = {"deleted": 3}
-    deleted = repo.delete_before("2026-04-01T00:00:00+00:00")
-    repo._mock_collection.delete.assert_called_once_with(
-        where={"published_at": {"$lt": "2026-04-01T00:00:00+00:00"}}
+    repo._mock_collection.get.return_value = _page(
+        ["1", "2", "3"],
+        [
+            {"published_at": "2026-01-01T00:00:00"},   # eski → silinecek
+            {"published_at": "2026-07-01T00:00:00"},   # yeni → kalacak
+            {"published_at": "2026-02-15T00:00:00"},   # eski → silinecek
+        ],
     )
-    assert deleted == 3
+    deleted = repo.delete_before("2026-04-01T00:00:00")
+
+    repo._mock_collection.delete.assert_called_once_with(ids=["1", "3"])
+    assert deleted == 2
+
+
+def test_delete_before_tarihsiz_vektorleri_silmez():
+    """`published_at` boşsa vektör KORUNUR.
+
+    Boş string her cutoff'tan küçük sayılırdı ve tarihi bilinmeyen her vektör
+    sessizce silinirdi. Bilmediğimiz bir şeyi silmektense tutuyoruz.
+    """
+    repo, _ = make_repo()
+    repo._mock_collection.get.return_value = _page(
+        ["1", "2"],
+        [{"published_at": ""}, {"source": "TRT"}],
+    )
+    deleted = repo.delete_before("2026-04-01T00:00:00")
+
+    repo._mock_collection.delete.assert_not_called()
+    assert deleted == 0
+
+
+def test_delete_before_silinecek_yoksa_delete_cagirmaz():
+    repo, _ = make_repo()
+    repo._mock_collection.get.return_value = _page(
+        ["1"], [{"published_at": "2026-07-01T00:00:00"}]
+    )
+    assert repo.delete_before("2026-04-01T00:00:00") == 0
+    repo._mock_collection.delete.assert_not_called()
+
+
+def test_delete_before_koleksiyonu_sayfalayarak_tarar():
+    """Tüm metadata tek seferde RAM'e çekilmez — t3.small'da (1.9GB) bu iş
+    bilerek sayfalanır."""
+    repo, _ = make_repo()
+    batch = ChromaSearchRepository.RETENTION_SCAN_BATCH
+    first = _page(
+        [str(i) for i in range(batch)],
+        [{"published_at": "2026-01-01T00:00:00"}] * batch,
+    )
+    second = _page(["son"], [{"published_at": "2026-01-02T00:00:00"}])
+    repo._mock_collection.get.side_effect = [first, second]
+
+    deleted = repo.delete_before("2026-04-01T00:00:00")
+
+    assert deleted == batch + 1
+    assert repo._mock_collection.get.call_count == 2
+    assert repo._mock_collection.get.call_args_list[1][1]["offset"] == batch
 
 
 def test_delete_before_returns_zero_on_error():
     repo, _ = make_repo()
-    repo._mock_collection.delete.side_effect = Exception("bağlantı hatası")
+    repo._mock_collection.get.side_effect = Exception("bağlantı hatası")
     deleted = repo.delete_before("2026-04-01T00:00:00+00:00")
     assert deleted == 0
 

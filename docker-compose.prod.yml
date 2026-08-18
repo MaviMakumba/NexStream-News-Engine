@@ -50,6 +50,8 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
+      embedder:
+        condition: service_healthy
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2
     environment:
       # Settings._reject_unsafe_production_config guard'ını aktive eder — API_KEY
@@ -79,17 +81,25 @@ services:
       - STRIPE_ENTERPRISE_PRICE_ID=${STRIPE_ENTERPRISE_PRICE_ID:-}
       - BILLING_DEV_MODE=false
       - ADMIN_EMAILS=${ADMIN_EMAILS:-}
+      # v2.1: owner rolü — sadece app'te gerekli (route-level yetki kontrolü burada yapılır)
+      - OWNER_EMAILS=${OWNER_EMAILS:-}
       - REDIS_URL=redis://redis:6379/0
       # v1.12: şifre sıfırlama maili. FRONTEND_URL gerçek domain ile set edilmeli,
       # yoksa reset linki yanlışlıkla localhost:3000'e gider!
+      # v2.1: EMAIL_PROVIDER=auto ise SMTP kimlikleri doluysa SMTP, yoksa Resend,
+      # o da yoksa Console'a düşer (artık sessizce değil — bkz. warn_if_email_disabled).
+      - EMAIL_PROVIDER=${EMAIL_PROVIDER:-auto}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-NexStream <no-reply@nexstream.news>}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - SMTP_STARTTLS=${SMTP_STARTTLS:-true}
       - FRONTEND_URL=${FRONTEND_URL:-}
       - SESSION_COOKIE_SECURE=true
-      # hf-xet (Hugging Face'in yeni "Xet" depolama backend'i) klasik HTTPS
-      # indirmenin sorunsuz çalıştığı ağlarda bile birkaç KB'da tıkanabiliyor —
-      # SentenceTransformer ilk indirmesini klasik yola zorluyoruz.
-      - HF_HUB_DISABLE_XET=1
+      - EMBEDDER_URL=http://embedder:8000
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 30s
@@ -99,7 +109,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
+          # 4G idi — 1.9GB'lik bir makinede anlamsizdi (limit fiilen yoktu, tek
+          # bir sizinti tum kutuyu OOM'a surukleyebilirdi). Olculen: 132 MiB
+          # (tek uvicorn worker'i, 29 Tem 2026); prod iki worker calistiriyor
+          # ve model artik burada YUKLENMIYOR, o yuzden 768M ~3x tampon birakir.
+          memory: 768M
           cpus: "2.0"
     labels:
       logging: "promtail"
@@ -143,7 +157,14 @@ services:
       - redpanda
       - start
       - --smp=1
-      - --memory=768M
+      # KRİTİK: Seastar heap'i container limitine (aşağıda 768M) ASLA EŞİT
+      # OLMAMALI. 768M/768M ile denendiğinde Seastar cgroup içinde 724MiB görüp
+      # "insufficient physical memory: needed 805306368 available 759169024"
+      # ile hiç açılmıyordu (28 Tem 2026 AWS deploy'u; o gün sunucuda elle
+      # düzeltildi ama repo'ya girmemişti — 29 Tem'de burada yakalandı).
+      # 256M, t3.small bütçesi için ayrıca bilinçli bir kısma: bu iş yükünde
+      # (dakikada birkaç scrape mesajı) fazlasıyla yeterli.
+      - --memory=256M
       - --overprovisioned
       - --node-id=0
       - --check=false
@@ -177,6 +198,8 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
+      embedder:
+        condition: service_healthy
     command: python -m src.adapters.messaging.kafka_consumer
     environment:
       - DB_HOST=db
@@ -189,14 +212,57 @@ services:
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
       - REDIS_URL=redis://redis:6379/0
+      - EMAIL_PROVIDER=${EMAIL_PROVIDER:-auto}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-NexStream <no-reply@nexstream.news>}
-      - HF_HUB_DISABLE_XET=1
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - SMTP_STARTTLS=${SMTP_STARTTLS:-true}
+      - EMBEDDER_URL=http://embedder:8000
     deploy:
       resources:
         limits:
-          memory: 4G
+          # 4G idi — bkz. app'teki gerekce. Olculen: 96 MiB (29 Tem 2026),
+          # model artik burada yuklenmiyor. 512M ~5x tampon.
+          memory: 512M
           cpus: "2.0"
+    labels:
+      logging: "promtail"
+    networks:
+      - backend
+      # egress ZORUNLU: worker'in butun isi disariya ulasmak (17 RSS kaynagi,
+      # Groq API, Resend). backend internal oldugu icin tek basina DNS bile
+      # cozemez — bkz. asagidaki networks tanimi.
+      - egress
+
+  # ─── EMBEDDER ──────────────────────────────────────────────────
+  # SentenceTransformer modelini TEK kopya tutan servis. app ve worker modeli
+  # kendi RAM'lerine ayrı ayrı yüklüyordu (~600MB israf) — artık ikisi de
+  # embedding'i buraya HTTP ile soruyor. Sadece backend ağında, dışarı kapalı.
+  embedder:
+    build:
+      context: .
+      dockerfile: Dockerfile.embedder
+    container_name: nexstream_embedder
+    restart: always
+    environment:
+      - HF_HUB_DISABLE_XET=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      # Model image'a gömülü (bkz. Dockerfile.embedder) — indirme YOK, sadece
+      # diskten yükleme. t3.small'ın 2 vCPU'sunda bu ~30-60sn sürüyor.
+      start_period: 180s
+    deploy:
+      resources:
+        limits:
+          memory: 900M
+          cpus: "1.0"
     labels:
       logging: "promtail"
     networks:
@@ -272,7 +338,12 @@ services:
 
   # ─── CHROMADB ──────────────────────────────────────────────────
   chromadb:
-    image: chromadb/chroma:latest
+    # :latest DEĞİL — sessiz sürüm atlamaları healthcheck'i kırdı (28 Tem 2026).
+    # 1.5.9, 29 Tem 2026'da :latest ile BİREBİR aynı image (chroma sunucu 1.4.4).
+    # DİKKAT: :1.5.5 etiketi daha ESKİ bir sunucu (1.4.1) — pin ederken etiket
+    # numarasına değil `chroma --version` çıktısına bak, aksi halde mevcut veri
+    # hacmine karşı sessizce downgrade yaparsın.
+    image: chromadb/chroma:1.5.9
     container_name: nexstream_chromadb
     restart: always
     volumes:
@@ -281,7 +352,11 @@ services:
       - IS_PERSISTENT=TRUE
       - ANONYMIZED_TELEMETRY=FALSE
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/heartbeat', timeout=3)"]
+      # Bu imajda curl/wget/python/nc YOK — eski healthcheck `python` çağırdığı
+      # için container kalıcı olarak unhealthy kalıyordu (28 Tem 2026 deploy'u).
+      # Sadece bash var, o yüzden HTTP isteği /dev/tcp ile elle kuruluyor.
+      # Yol da /api/v1 → /api/v2: v1 chroma 1.x'te kaldırıldı.
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/localhost/8000 && printf "GET /api/v2/heartbeat HTTP/1.0\r\n\r\n" >&3 && head -1 <&3 | grep -q 200']
       interval: 15s
       timeout: 5s
       retries: 5
@@ -304,7 +379,12 @@ services:
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.retention.time=30d"
+      # t3.small (1.9GB) kısması: 30 gün → 7 gün + sert disk tavanı. Prometheus
+      # aktif TSDB bloklarını mmap'liyor, pencere daraldıkça yerleşik bellek de
+      # düşüyor. TEK ÖDÜN geriye bakış penceresi — servis de, paneller de,
+      # metrikler de aynen çalışmaya devam eder, hiçbiri kaldırılmadı.
+      - "--storage.tsdb.retention.time=7d"
+      - "--storage.tsdb.retention.size=512MB"
     deploy:
       resources:
         limits:
@@ -414,6 +494,10 @@ services:
           cpus: "0.5"
     networks:
       - backend
+      # egress: RCLONE_REMOTE ile offsite yedek yuklemesi yapilandirildiysa
+      # disariya cikmasi gerekiyor. backend internal oldugu icin bu olmadan
+      # yukleme SESSIZCE basarisiz olurdu.
+      - egress
 
 volumes:
   postgres_data:
@@ -431,6 +515,20 @@ networks:
   backend:
     driver: bridge
     internal: true
+  # DIŞA ÇIKIŞ AĞI — `backend` internal:true olduğu için oradaki container'ların
+  # İNTERNETİ YOKTUR ve DNS bile çözemezler. Dış bir servise ulaşması gereken
+  # her container ayrıca BUNA da bağlanmalı.
+  #
+  # 29 Tem 2026'da canlıda yakalandı: `worker` yalnızca `backend`'deydi, yani
+  # RSS kaynaklarına ve Groq'a hiç ulaşamıyordu ("Temporary failure in name
+  # resolution"). Yığın sağlıklı görünüyor, /health yeşil dönüyor ama HİÇ HABER
+  # TOPLANMIYORDU — sessiz ve tam bir işlevsizlik. `backup` da aynı durumdaydı
+  # (RCLONE_REMOTE ile offsite yükleme yapılandırılmışsa sessizce başarısız olur).
+  #
+  # `app` bu ağa EKLENMEDİ çünkü zaten `frontend` ağında (nginx ona oradan
+  # ulaşıyor) ve o ağ internal DEĞİL — yani çıkışı var.
+  egress:
+    driver: bridge
   monitoring:
     driver: bridge
     internal: true

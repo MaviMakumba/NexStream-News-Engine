@@ -10,9 +10,13 @@
 ![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=nextdotjs)
 ![Redpanda](https://img.shields.io/badge/Redpanda-Kafka--compatible-E33237)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
-![Tests](https://img.shields.io/badge/tests-522_passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-553_passing-brightgreen)
 ![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa)
 ![License](https://img.shields.io/badge/License-MIT-green)
+
+### 🚀 Live demo: **[nexstreamnewsengine.duckdns.org](https://nexstreamnewsengine.duckdns.org)**
+
+<sub>Running on a single AWS t3.small (2 vCPU / 1.9 GB) — the full 16-service production stack, observability included.</sub>
 
 [English](#english) · [Türkçe](#turkce)
 
@@ -43,18 +47,18 @@ What started as a course project on enterprise architecture has grown into a pro
 - **Event-driven** via Redpanda (Kafka-compatible, ARM-friendly); **fully containerized** with Docker Compose
 - **Observability**: Prometheus + Grafana + Loki, `/health` and `/metrics` endpoints
 - **Security-hardened**: prod-startup config guard, timing-safe auth checks, HTML-escaped emails, per-route rate limits, encrypted + offsite-capable backups
-- **522 tests**, all green; CI via GitHub Actions with Dependabot-driven dependency updates
+- **553 tests**, all green; CI via GitHub Actions with Dependabot-driven dependency updates
 
 **At a glance:**
 
 | Metric | Value |
 |--------|-------|
 | News sources | 17 (11 Turkish + 6 English) |
-| Backend tests | 522 — all green |
+| Backend tests | 553 — all green |
 | API endpoints | 49, across 13 routers |
 | Cinematic frontend themes | 9 |
 | API tiers | 3 (Free / Pro / Enterprise) — server-enforced |
-| Docker services | 9 (dev) / 15 (prod, incl. observability stack) |
+| Docker services | 10 (dev) / 16 (prod, incl. observability stack) |
 | Architecture | Hexagonal (Ports & Adapters), 3 layers |
 
 ---
@@ -98,6 +102,7 @@ flowchart TB
         AD6["Scheduling<br/>APScheduler"]
         AD7["Vector Search<br/>ChromaDB"]
         AD8["Auth<br/>Session + tiers"]
+        AD9["Embedder<br/>HTTP → model service"]
     end
     Adapters --> Application --> Domain
 ```
@@ -112,7 +117,8 @@ flowchart LR
     FETCH --> ANALYZE["Analyze<br/>Groq: sentiment/NER/topic"]
     ANALYZE --> SCORE["Score<br/>quality + credibility"]
     SCORE --> DB[("PostgreSQL")]
-    SCORE --> VEC[("ChromaDB")]
+    SCORE --> EMB["Embedder service<br/>model, single copy"]
+    EMB --> VEC[("ChromaDB")]
     DB --> NOTIFY["Notify<br/>WebSocket + keyword alerts"]
     VEC --> NOTIFY
     NOTIFY --> FE["Next.js Frontend"]
@@ -142,7 +148,7 @@ flowchart LR
 | Reverse proxy | Nginx + Let's Encrypt (production) |
 | Containerization | Docker + Docker Compose |
 | CI/CD | GitHub Actions |
-| Testing | pytest (522 tests) |
+| Testing | pytest (553 tests) |
 | Dependency updates | Dependabot (pip + npm + GitHub Actions, weekly) |
 
 ---
@@ -245,7 +251,7 @@ docker compose up -d
 
 #### First Run
 
-Once all containers are healthy, open the frontend at `http://localhost:3000`. The scheduler triggers scraping every 10 minutes and the Kafka-compatible worker processes articles through the AI analyzer automatically — no manual action needed. Confirm `http://localhost:8000/health` shows DB, Kafka, and ChromaDB all green.
+Once all containers are healthy, open the frontend at `http://localhost:3000`. The scheduler triggers scraping every 10 minutes and the Kafka-compatible worker processes articles through the AI analyzer automatically — no manual action needed. Confirm `http://localhost:8000/health` shows DB, Kafka, ChromaDB and the embedder service all green. The embedding model is baked into the `embedder` image at build time, so there is no first-run download — `app` and `worker` simply wait for the embedder to finish loading it from disk (~30-60s).
 
 > **Clean start/stop:** use `docker compose down` then `docker compose up -d`. Redpanda and ChromaDB run with `restart: unless-stopped`, so the stack self-heals even after an abrupt shutdown.
 
@@ -267,7 +273,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-**Test coverage: 522 tests** across domain, application, and adapter layers. Every external call (Groq, Kafka, DB, ChromaDB) is mocked — no network access required.
+**Test coverage: 553 tests** across domain, application, and adapter layers. Every external call (Groq, Kafka, DB, ChromaDB) is mocked — no network access required.
 
 <details>
 <summary>Actual local run output</summary>
@@ -282,7 +288,7 @@ $ python -m pytest tests/ -q
 ........................................................................ [ 82%]
 ........................................................................ [ 96%]
 ..................                                                        [100%]
-522 passed, 1 warning in 406.91s (0:06:46)
+553 passed, 1 warning in 16.56s
 ```
 
 </details>
@@ -336,6 +342,8 @@ The default `FallbackAnalyzer` chains Groq → Hugging Face → neutral fallback
 | `HUGGINGFACE_API_KEY` | Optional analyzer fallback (disabled if empty) | — |
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | PostgreSQL connection | `db` / `5432` / `nexstream_db` / … |
 | `CHROMA_HOST` / `CHROMA_PORT` | ChromaDB connection | `chromadb` / `8000` |
+| `EMBEDDER_URL` | Embedding service — the model lives there as a single copy, `app`/`worker` ask over HTTP | `http://embedder:8000` |
+| `EMBEDDER_MODE` | `http` (default) or `local` (loads the model in-process; Docker-less development only) | `http` |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka-compatible broker (Redpanda) | `redpanda:29092` |
 | `REDIS_URL` | Redis cache (null-cache if empty) | `redis://redis:6379/0` |
 | `API_KEY` | Shared admin/maintenance key | `dev-key-change-me` |
@@ -372,7 +380,7 @@ Every push / PR to `main` triggers GitHub Actions:
 
 1. Spins up a PostgreSQL 15 service container
 2. Installs Python dependencies (incl. `pytest-asyncio`)
-3. Runs all 522 tests with `pytest`
+3. Runs all 553 tests with `pytest`
 4. Reports pass/fail status
 
 Dependabot also opens weekly PRs for pip, npm, and GitHub Actions dependency updates (review/merge/rebuild stays manual by design — no auto-merge).
@@ -440,18 +448,18 @@ Kurumsal mimari dersi için başlayan proje; e-posta doğrulamalı kullanıcı h
 - Redpanda (Kafka-uyumlu, ARM-dostu) ile **olay güdümlü**; Docker Compose ile **tamamen konteynerli**
 - **Gözlemlenebilirlik**: Prometheus + Grafana + Loki, `/health` ve `/metrics`
 - **Güvenlik sertleştirmesi**: prod-açılış config guard'ı, zamanlama-güvenli auth kontrolleri, HTML-escape'li e-postalar, route-bazlı rate limit'ler, şifrelenebilir + offsite yedekleme
-- **522 test**, hepsi yeşil; GitHub Actions CI + Dependabot ile otomatik bağımlılık güncellemesi
+- **553 test**, hepsi yeşil; GitHub Actions CI + Dependabot ile otomatik bağımlılık güncellemesi
 
 **Bir bakışta:**
 
 | Metrik | Değer |
 |--------|-------|
 | Haber kaynağı | 17 (11 TR + 6 EN) |
-| Backend test | 522 — hepsi yeşil |
+| Backend test | 553 — hepsi yeşil |
 | API endpoint'i | 49, 13 router'da |
 | Sinematik frontend teması | 9 |
 | API katmanı | 3 (Free / Pro / Enterprise) — sunucu tarafında zorunlu |
-| Docker servisi | 9 (dev) / 15 (prod, gözlemlenebilirlik yığını dahil) |
+| Docker servisi | 10 (dev) / 16 (prod, gözlemlenebilirlik yığını dahil) |
 | Mimari | Hexagonal (Ports & Adapters), 3 katman |
 
 ---
@@ -495,6 +503,7 @@ flowchart TB
         AD6["Scheduling<br/>APScheduler"]
         AD7["Vector Search<br/>ChromaDB"]
         AD8["Auth<br/>Session + tier'lar"]
+        AD9["Embedder<br/>HTTP → model servisi"]
     end
     Adapters --> Application --> Domain
 ```
@@ -509,7 +518,8 @@ flowchart LR
     FETCH --> ANALYZE["Analiz et<br/>Groq: duygu/varlık/konu"]
     ANALYZE --> SCORE["Skorla<br/>kalite + güvenilirlik"]
     SCORE --> DB[("PostgreSQL")]
-    SCORE --> VEC[("ChromaDB")]
+    SCORE --> EMB["Embedder servisi<br/>model, tek kopya"]
+    EMB --> VEC[("ChromaDB")]
     DB --> NOTIFY["Bildir<br/>WebSocket + keyword alert"]
     VEC --> NOTIFY
     NOTIFY --> FE["Next.js Arayüzü"]
@@ -539,7 +549,7 @@ flowchart LR
 | Reverse proxy | Nginx + Let's Encrypt (production) |
 | Konteynerleştirme | Docker + Docker Compose |
 | CI/CD | GitHub Actions |
-| Test | pytest (522 test) |
+| Test | pytest (553 test) |
 | Bağımlılık güncellemesi | Dependabot (pip + npm + GitHub Actions, haftalık) |
 
 ---
@@ -614,7 +624,7 @@ docker compose up -d
 | API Docs | http://localhost:8000/docs | Swagger UI |
 | DB Admin | http://localhost:8080 | Adminer |
 
-Konteynerler ayağa kalktıktan sonra `http://localhost:3000` arayüzünü aç. Scheduler her 10 dakikada bir scrape'i otomatik tetikler, Kafka-uyumlu worker haberleri AI analizinden geçirir — manuel işlem gerekmez. `http://localhost:8000/health` ile DB / Kafka / ChromaDB'nin yeşil olduğunu doğrula.
+Konteynerler ayağa kalktıktan sonra `http://localhost:3000` arayüzünü aç. Scheduler her 10 dakikada bir scrape'i otomatik tetikler, Kafka-uyumlu worker haberleri AI analizinden geçirir — manuel işlem gerekmez. `http://localhost:8000/health` ile DB / Kafka / ChromaDB / embedder servisinin yeşil olduğunu doğrula. Embedding modeli build anında `embedder` image'ına gömülü olduğu için ilk çalıştırmada indirme YOK — `app` ve `worker` sadece modelin diskten yüklenmesini bekler (~30-60sn).
 
 > **Temiz aç/kapa:** `docker compose down` ardından `docker compose up -d`. Redpanda ve ChromaDB `restart: unless-stopped` ile çalışır; ani kapanışta bile yığın kendini toparlar.
 
@@ -636,7 +646,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-**522 test** — domain, application ve adapter katmanları. Her dış çağrı (Groq, Kafka, DB, ChromaDB) mock'lanır; ağ erişimi gerekmez.
+**553 test** — domain, application ve adapter katmanları. Her dış çağrı (Groq, Kafka, DB, ChromaDB) mock'lanır; ağ erişimi gerekmez.
 
 <details>
 <summary>Gerçek lokal çalıştırma çıktısı</summary>
@@ -651,7 +661,7 @@ $ python -m pytest tests/ -q
 ........................................................................ [ 82%]
 ........................................................................ [ 96%]
 ..................                                                        [100%]
-522 passed, 1 warning in 406.91s (0:06:46)
+553 passed, 1 warning in 16.56s
 ```
 
 </details>
@@ -736,7 +746,7 @@ Varsayılan `FallbackAnalyzer`, Groq → Hugging Face → nötr fallback zinciri
 
 1. Bir PostgreSQL 15 servis konteyneri ayağa kaldırır
 2. Python bağımlılıklarını kurar (`pytest-asyncio` dahil)
-3. `pytest` ile 522 testin tamamını çalıştırır
+3. `pytest` ile 553 testin tamamını çalıştırır
 4. Başarılı/başarısız durumunu raporlar
 
 Dependabot da pip, npm ve GitHub Actions bağımlılıkları için haftalık PR açar (review/merge/rebuild kararı bilinçli olarak kullanıcıda kalır — otomatik merge yok).

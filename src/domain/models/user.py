@@ -41,12 +41,27 @@ def tier_at_least(tier: "UserTier", minimum: "UserTier") -> bool:
     return _TIER_RANK[UserTier(tier)] >= _TIER_RANK[UserTier(minimum)]
 
 
+def effective_tier(tier: "UserTier", is_owner: bool) -> "UserTier":
+    """Owner için her zaman Enterprise döner, aksi halde `tier` aynen geçer.
+
+    Saf domain fonksiyonu — owner tespiti (OWNER_EMAILS env) burada YAPILMAZ,
+    çağıran katman (auth_utils.user_effective_tier) zaten çözüp bool geçirir.
+    DB'deki `tier` kolonu asla `enterprise` olarak YAZILMAZ — bu sadece
+    okuma-zamanı bir projeksiyon (admin panelindeki `is_paying` ayrımının
+    kirlenmemesi için, bkz. CLAUDE.md v2.1 notu).
+    """
+    return UserTier.ENTERPRISE if is_owner else UserTier(tier)
+
+
 class UserRole(str, Enum):
-    """Yetki hiyerarşisi (v1.13) — user < moderator < admin.
+    """Yetki hiyerarşisi — user < moderator < admin < owner (v2.1'de owner eklendi).
 
     moderator: admin panelini GÖREBİLİR (kullanım/kullanıcı/sponsor listeleri)
         ama rol değiştiremez, sponsor CRUD yapamaz — destek/gözlem amaçlı.
-    admin: tam yetki, diğer kullanıcıların rolünü değiştirebilir.
+    admin: rol değiştirebilir (kademeli — kendinden düşük roldekilere), sponsor CRUD.
+    owner: sınırsız erişim (effective_tier ile Enterprise muamelesi), kimse
+        rolünü değiştiremez. API'den ASLA atanamaz — tek kaynak OWNER_EMAILS
+        env değişkeni (veya DB'ye elle yazılan role='owner').
     ADMIN_EMAILS bootstrap listesi DB'ye dokunmadan "admin" muamelesi görür
     (bkz. auth_utils.has_admin_role) — role kolonu bundan bağımsızdır.
     """
@@ -54,9 +69,10 @@ class UserRole(str, Enum):
     USER = "user"
     MODERATOR = "moderator"
     ADMIN = "admin"
+    OWNER = "owner"
 
 
-_ROLE_RANK = {UserRole.USER: 0, UserRole.MODERATOR: 1, UserRole.ADMIN: 2}
+_ROLE_RANK = {UserRole.USER: 0, UserRole.MODERATOR: 1, UserRole.ADMIN: 2, UserRole.OWNER: 3}
 
 
 def role_at_least(role: "UserRole", minimum: "UserRole") -> bool:

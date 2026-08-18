@@ -30,3 +30,7 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Superpowers (worktrees + subagent-driven-development scratch state)
+.worktrees/
+.superpowers/

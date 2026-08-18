@@ -17,7 +17,7 @@ import {
   BASE, createCheckout, devDowngrade, downloadExport, fetchBillingConfig, fetchMyUsage,
   generateApiKey, getBillingPortal, revokeApiKey,
 } from "@/lib/api";
-import type { AccountUsage, BillingConfig } from "@/lib/types";
+import type { AccountUsage, BillingConfig, Tier } from "@/lib/types";
 import { UI, TIER_DETAILS } from "@/lib/i18n";
 
 export default function AccountPage() {
@@ -52,7 +52,7 @@ export default function AccountPage() {
   if (isLoading) return <AuthLoadingScreen />;
   if (!user) return null;
 
-  const info = TIER_DETAILS[lang][user.tier] ?? TIER_DETAILS[lang].free;
+  const info = TIER_DETAILS[lang][user.effective_tier ?? user.tier] ?? TIER_DETAILS[lang].free;
   const devMode = billing?.dev_mode ?? false;
 
   async function handleUpgrade(tier: "pro" | "enterprise") {
@@ -202,7 +202,7 @@ export default function AccountPage() {
                         borderTop: "1px solid var(--border)" }}>
             <div>
               <div className="section-label" style={{ marginBottom: 6 }}>{t.planLabel}</div>
-              <TierBadge tier={user.tier} lang={lang} />
+              <TierBadge tier={(user.effective_tier ?? user.tier) as Tier} lang={lang} isOwner={user.is_owner} />
             </div>
             <div>
               <div className="section-label" style={{ marginBottom: 6 }}>{t.apiLimitLabel}</div>
@@ -320,7 +320,7 @@ export default function AccountPage() {
         </div>
 
         {/* Ham veri export (v1.16, Enterprise) */}
-        {user.tier === "enterprise" && (
+        {(user.effective_tier ?? user.tier) === "enterprise" && (
           <div className="card">
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text)" }}>
@@ -355,8 +355,9 @@ export default function AccountPage() {
           </div>
         )}
 
-        {/* Upgrade / billing */}
-        {user.tier === "free" ? (
+        {/* Upgrade / billing — owner'a hiç gösterilmez, satın alınacak/yönetilecek bir şeyi yok */}
+        {!user.is_owner && (
+          user.tier === "free" ? (
           <div className="gradient-border" style={{
             borderRadius: "var(--radius)", padding: 24,
             background: "var(--surface)", backdropFilter: "blur(14px)",
@@ -399,6 +400,7 @@ export default function AccountPage() {
               )}
             </div>
           </div>
+          )
         )}
 
         {/* Quick links */}

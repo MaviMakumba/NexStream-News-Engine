@@ -45,8 +45,24 @@ export function useLiveFeed(enabled: boolean = true) {
     function connect() {
       if (unmountedRef.current) return;
       setStatus("connecting");
-      const wsUrl = BASE.replace(/^http/, "ws") + "/ws/feed";
-      const ws = new WebSocket(wsUrl);
+      // BASE prod'da göreli bir yol olabilir (`/api`, bkz. NEXT_PUBLIC_API_URL —
+      // nginx aynı origin üzerinden proxy'liyor). Göreli bir string doğrudan
+      // `new WebSocket()`'e verilirse tarayıcı sayfanın şemasını (https) miras
+      // alır ve "scheme ws/wss olmalı" SyntaxError'ı ATAR (senkron, try/catch'siz
+      // yakalanmazsa efekt sessizce çöker) — 18 Ağu 2026'da canlıda böyle bulundu,
+      // /ws/feed hiç bağlanamıyordu. BASE mutlak (http/https) değilse
+      // window.location'dan ws(s):// açıkça inşa ediyoruz.
+      const wsUrl = /^https?:\/\//.test(BASE)
+        ? BASE.replace(/^http/, "ws") + "/ws/feed"
+        : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}${BASE}/ws/feed`;
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch {
+        setStatus("disconnected");
+        timerRef.current = setTimeout(connect, RECONNECT_DELAY_MS);
+        return;
+      }
       wsRef.current = ws;
 
       ws.onopen = () => setStatus("live");

@@ -168,7 +168,8 @@ class NewsService:
         Taraflardan biri hata verirse diğeri tek başına sonuç döndürür.
         """
         candidate_size = min(max(n_results * _CANDIDATE_MULTIPLIER, _MIN_CANDIDATES), _MAX_CANDIDATES)
-        query_terms = self._tokenize(query)  # includes Turkish stems for better recall
+        query_terms = self._tokenize(query)  # includes Turkish stems for better recall (SQL adayı)
+        relevance_terms = self._canonical_terms(query)  # coverage skoru için — bkz. docstring
 
         semantic_by_id: dict = {}
         if self.search_repository:
@@ -187,7 +188,7 @@ class NewsService:
             keyword_articles = []
         keyword_by_id: dict = {}
         for article in keyword_articles:
-            relevance = self._keyword_relevance(article, query_terms)
+            relevance = self._keyword_relevance(article, relevance_terms)
             if relevance > 0:
                 keyword_by_id[str(article.id)] = (relevance, article)
 
@@ -276,7 +277,13 @@ class NewsService:
 
     @staticmethod
     def _tokenize(query: str) -> List[str]:
-        """Sorguyu kelimelere böler ve her kelimenin TR kökünü de havuza ekler."""
+        """Sorguyu kelimelere böler ve her kelimenin TR kökünü de havuza ekler.
+
+        SADECE SQL aday havuzunu genişletmek içindir (`keyword_search(terms=...)`)
+        — hem çekimli hem kök haliyle OR koşulu kurmak zarar vermez, aday
+        kümesini büyütür. Coverage/relevans skoru için BUNU KULLANMA, bkz.
+        `_canonical_terms` (18 Ağu 2026'da bulunan skor seyreltme bug'ı).
+        """
         tokens = [w for w in re.findall(r"\w+", query.lower()) if len(w) >= 2]
         seen: set = set(tokens)
         expanded = list(tokens)
@@ -288,11 +295,35 @@ class NewsService:
         return expanded
 
     @staticmethod
+    def _canonical_terms(query: str) -> List[str]:
+        """Coverage/relevans skoru için TEK terim/kelime — `_tokenize`'ın aksine
+
+        kelimeyi VE kökünü ayrı ayrı tutmaz, sadece kökü (varsa) kullanır.
+        Neden: `_stem_tr` bir SUFFIX kırpması olduğu için kök her zaman orijinal
+        kelimenin bir ÖN EKİdir — kökle eşleşen her metin, orijinal kelimeyle de
+        potansiyel eşleşir (substring ilişkisi). İkisini de ayrı terim sayıp
+        `_keyword_relevance`'daki coverage bölenine (n) eklemek hiçbir ek bilgi
+        katmadan böleni şişiriyordu: "beşiktaşın" gibi tek kelimelik ekli bir
+        sorgu 2 terime (["beşiktaşın","beşiktaş"]) genişliyor, metinde SADECE
+        kök eşleştiği için kapsama %50'de kalıp skor yapay olarak yarıya
+        düşüyordu (0.9 yerine ~0.45) — bu da embedding aramasının ürettiği
+        alakasız ama görece yüksek skorlu (~0.5) sonuçların altına düşmesine,
+        yani aramanın komple alakasız sonuçlarla dolmasına yol açıyordu
+        (18 Ağu 2026'da canlıda `"beşiktaşın"` ile bulundu — bkz. CLAUDE.md).
+        """
+        tokens = [w for w in re.findall(r"\w+", query.lower()) if len(w) >= 2]
+        return [NewsService._stem_tr(t) for t in tokens]
+
+    @staticmethod
     def _keyword_relevance(article: Article, query_terms: List[str]) -> float:
         """Coverage tabanlı keyword skoru: terimlerin yüzde kaçı hangi alanda geçiyor.
 
         Alanlar ayrı puanlanır ve en iyisi alınır — başlıkta tam eşleşme,
         içerikte kısmi eşleşmeden her zaman üstündür (_FIELD_WEIGHTS).
+
+        `query_terms` burada `_canonical_terms()`'ın çıktısı olmalı (bir orijinal
+        kelime = bir terim) — `_tokenize()`'ın çıktısını (kelime+kök ayrı ayrı)
+        VERME, coverage bölenini yapay şişirir (bkz. `_canonical_terms` docstring).
         """
         if not query_terms:
             return 0.0

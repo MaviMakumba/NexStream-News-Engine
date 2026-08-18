@@ -7,12 +7,12 @@ yönetimini doğrular. Gerçek DB yok — repository mock'lanır.
 from unittest.mock import patch, MagicMock
 
 from src.adapters.api.auth_utils import get_current_user, get_optional_user
-from src.domain.models.user import User, UserTier
+from src.domain.models.user import User, UserTier, UserRole
 from src.infrastructure.config.database import get_db
 
 
-def _make_user(tier=UserTier.FREE, api_key=None, uid=1):
-    return User(id=uid, email="me@test.com", password_hash="h", tier=tier, api_key=api_key)
+def _make_user(tier=UserTier.FREE, api_key=None, uid=1, role=UserRole.USER):
+    return User(id=uid, email="me@test.com", password_hash="h", tier=tier, api_key=api_key, role=role)
 
 
 def _override(app_client, user):
@@ -70,6 +70,25 @@ def test_usage_enterprise_has_unlimited_quota(app_client):
     finally:
         _clear(app_client)
 
+    data = resp.json()
+    assert data["daily_limit"] is None
+    assert data["remaining_today"] is None
+
+
+def test_usage_owner_shows_unlimited_despite_free_db_tier(app_client):
+    """Owner rolü Free DB tier'ına rağmen sınırsız kota gösterir."""
+    _override(app_client, _make_user(UserTier.FREE, role=UserRole.OWNER))
+    try:
+        with patch("src.adapters.api.routers.account_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_daily_usage_count.return_value = 500
+            repo.get_usage_stats.return_value = []
+            MockRepo.return_value = repo
+            resp = app_client.get("/account/usage")
+    finally:
+        _clear(app_client)
+
+    assert resp.status_code == 200
     data = resp.json()
     assert data["daily_limit"] is None
     assert data["remaining_today"] is None

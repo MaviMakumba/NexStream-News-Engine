@@ -1,5 +1,12 @@
 fastapi==0.139.2
 uvicorn==0.41.0
+# uvicorn[standard] DEĞİL — bilinçli minimal seçim (o extras httptools/uvloop/
+# watchfiles de getirir). /ws/feed'in ASGI seviyesinde çalışması için gereken
+# TEK şey websockets (veya wsproto); 18 Ağu 2026'da prod'da bulundu: bu paket
+# hiç pinlenmemişti, o yüzden canlı WebSocket hep sessizce 404 veriyordu — local
+# venv'de google-genai (Gemini döneminden kalma, requirements.txt'te YOK) onu
+# transitive getirdiği için sorun hiç fark edilmemişti.
+websockets==16.0
 sqlalchemy==2.0.46
 psycopg2-binary==2.9.11
 pydantic==2.12.5
@@ -11,12 +18,11 @@ beautifulsoup4==4.14.3
 lxml==6.1.0
 aiokafka==0.13.0
 apscheduler==3.11.2
-streamlit==1.55.0
-plotly==6.6.0
-pytest==9.0.3
-pytest-asyncio==1.4.0
-chromadb==1.5.5
-sentence-transformers==3.3.1
+chromadb-client==1.5.5
+# sentence-transformers BURADA YOK: model ayrı `embedder` servisinde tek kopya
+# duruyor (requirements-embedder.txt). app/worker embedding'i HTTP ile soruyor,
+# bu yüzden torch da kurulmuyor. httpx AŞAĞIDA KALMALI — HttpEmbedderAdapter onu
+# kullanıyor.
 slowapi==0.1.9
 prometheus-client==0.22.1
 prometheus-fastapi-instrumentator==8.0.2

@@ -1,8 +1,17 @@
-"""Groq LLM adapter'ı — birincil analyzer (llama-3.1-8b-instant).
+"""Groq LLM adapter'ı — birincil analyzer (openai/gpt-oss-20b, v2.1.1'de değişti).
 
 Tek prompt'ta sentiment + entities + topic + summary üretir (maliyet: 1 istek/haber).
 Rate limit (429) yanıtında Retry-After header'ına uyar; 5 deneme sonrası
 AnalysisError fırlatır (FallbackAnalyzer yedeğe geçsin diye).
+
+v2.1.1 (18 Ağu 2026): `llama-3.1-8b-instant` Groq'un model listesinden tamamen
+kaldırılmış (`model_not_found`, HTTP 404) — canlıda 17 Ağustos ~08:35 UTC'den
+beri her haber sessizce nötr fallback'e düşüyordu (bkz. CLAUDE.md). Yerine
+`openai/gpt-oss-20b` geçti: Groq'taki reasoning modelleri `content`'i
+`reasoning`'den AYRI bir alanda döner (qwen3.6 gibi `<think>` etiketini content
+içine gömen modellerin aksine), bu yüzden JSON parse'ı bozmuyor.
+`reasoning_effort="low"` reasoning token bütçesini küçük tutuyor (~50 token);
+`max_tokens` bu yüzden 350'den 600'e çıkarıldı (reasoning + JSON çıktısı için).
 """
 
 import json
@@ -19,7 +28,7 @@ logger = logging.getLogger(__name__)
 class GroqAnalyzer(AnalysisPort):
     def __init__(self):
         self.api_key = settings.groq_api_key
-        self.model = "llama-3.1-8b-instant"
+        self.model = "openai/gpt-oss-20b"
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
 
     def analyze_text(self, text: str) -> dict:
@@ -39,8 +48,9 @@ class GroqAnalyzer(AnalysisPort):
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 350,
+            "max_tokens": 600,
             "temperature": 0.1,
+            "reasoning_effort": "low",
         }
 
         for attempt in range(5):

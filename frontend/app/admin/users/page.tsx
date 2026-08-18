@@ -18,21 +18,22 @@ import { TierBadge } from "@/components/TierBadge";
 import { UI } from "@/lib/i18n";
 
 const TIER_VALUES = ["", "free", "pro", "enterprise"];
-const ROLE_VALUES: Role[] = ["user", "moderator", "admin"];
+const ROLE_RANK: Record<Role, number> = { user: 0, moderator: 1, admin: 2, owner: 3 };
+const ASSIGNABLE_ROLES: Role[] = ["user", "moderator", "admin"]; // owner asla atanamaz
 
 const ROLE_STYLE: Record<Role, React.CSSProperties> = {
   user:      { background: "rgba(120,130,150,.12)", color: "var(--text2)", borderColor: "var(--border2)" },
   moderator: { background: "var(--neu-bg)",          color: "var(--neu)",  borderColor: "var(--neu)" },
   admin:     { background: "var(--accent-soft)",     color: "var(--accent)", borderColor: "var(--accent-line)" },
+  owner:     { background: "var(--accent-soft)",     color: "var(--accent2)", borderColor: "var(--accent-line)" },
 };
 
 export default function AdminUsersPage() {
   const { user } = useAuth();
   const { lang } = useSettings();
   const t = UI[lang];
-  const roleLabel: Record<Role, string> = { user: t.roleUser, moderator: t.roleModerator, admin: t.roleAdmin };
+  const roleLabel: Record<Role, string> = { user: t.roleUser, moderator: t.roleModerator, admin: t.roleAdmin, owner: t.roleOwner };
   const isModerator = Boolean(user?.is_moderator);
-  const isAdmin = Boolean(user?.is_admin);
 
   const [apiKey,   setApiKey]   = useState("");
   const [tier,     setTier]     = useState("");
@@ -79,6 +80,9 @@ export default function AdminUsersPage() {
   }
 
   const payingCount = users.filter((u) => u.is_paying).length;
+
+  const actorRank = ROLE_RANK[(user?.role ?? "user") as Role] ?? 0;
+  const assignableForActor = ASSIGNABLE_ROLES.filter((r) => ROLE_RANK[r] <= actorRank);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -157,23 +161,26 @@ export default function AdminUsersPage() {
                         <TierBadge tier={u.tier as "free" | "pro" | "enterprise"} lang={lang} />
                       </td>
                       <td style={{ padding: "12px 20px" }}>
-                        {isAdmin ? (
-                          <select
-                            value={u.role}
-                            disabled={savingId === u.id || u.id === user?.id}
-                            onChange={(e) => handleRoleChange(u.id, e.target.value as Role)}
-                            className="input"
-                            style={{
-                              width: "auto", padding: "4px 10px", fontSize: "0.76rem", fontWeight: 600,
-                              ...ROLE_STYLE[u.role],
-                            }}
-                            title={u.id === user?.id ? t.roleUpdateError : undefined}
-                          >
-                            {ROLE_VALUES.map((r) => <option key={r} value={r}>{roleLabel[r]}</option>)}
-                          </select>
-                        ) : (
-                          <span className="badge" style={ROLE_STYLE[u.role]}>{roleLabel[u.role]}</span>
-                        )}
+                        {(() => {
+                          const targetRank = ROLE_RANK[u.role] ?? 0;
+                          const canEdit = u.role !== "owner" && targetRank < actorRank && u.id !== user?.id;
+                          return canEdit ? (
+                            <select
+                              value={u.role}
+                              disabled={savingId === u.id}
+                              onChange={(e) => handleRoleChange(u.id, e.target.value as Role)}
+                              className="input"
+                              style={{
+                                width: "auto", padding: "4px 10px", fontSize: "0.76rem", fontWeight: 600,
+                                ...ROLE_STYLE[u.role],
+                              }}
+                            >
+                              {assignableForActor.map((r) => <option key={r} value={r}>{roleLabel[r]}</option>)}
+                            </select>
+                          ) : (
+                            <span className="badge" style={ROLE_STYLE[u.role]}>{roleLabel[u.role]}</span>
+                          );
+                        })()}
                       </td>
                       <td style={{ padding: "12px 20px" }}>
                         {u.is_active ? (

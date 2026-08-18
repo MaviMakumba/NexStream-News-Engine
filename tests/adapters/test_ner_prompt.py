@@ -88,7 +88,10 @@ def test_entities_partial_keys_filled():
 
 def test_fallback_includes_entities_and_topic():
     analyzer = GroqAnalyzer()
-    with patch("requests.post", side_effect=Exception("Connection refused")):
+    # time.sleep patch'i ŞART — bkz. test_groq_analyzer.py'deki aynı desen:
+    # hata yolundaki iki `time.sleep(5)` bu testi 10 saniye bekletiyordu.
+    with patch("requests.post", side_effect=Exception("Connection refused")), \
+         patch("src.adapters.analysis.groq_analyzer.time.sleep"):
         result = analyzer.analyze_text("Some news.")
 
     assert result["entities"] == {"persons": [], "organizations": [], "locations": []}
