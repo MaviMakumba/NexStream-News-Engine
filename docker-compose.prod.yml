@@ -52,7 +52,17 @@ services:
         condition: service_healthy
       embedder:
         condition: service_healthy
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2
+    # --root-path /api: nginx bu servise proxy'lerken /api/ prefix'ini SIYIRIYOR
+    # (bkz. nginx.conf location /api/), yani uvicorn kendi rotalarını hâlâ
+    # /docs, /openapi.json vb. olarak tanımlıyor — DOĞRU. Ama --root-path
+    # olmadan Swagger UI'ın HTML'i openapi_url'i "/openapi.json" (kök-mutlak)
+    # yazıyordu; tarayıcı nginx'in /api/ prefix'ini bilmediği için isteği
+    # https://domain/openapi.json'a atıyordu (nginx'te o yol için location
+    # yok) → "Fetch error Not Found /openapi.json". --root-path SADECE
+    # Swagger UI'ın gösterdiği/ürettiği URL'leri düzeltir, gerçek iç routing'i
+    # DEĞİŞTİRMEZ (18 Ağu 2026'da bulundu — CSP düzeltmesi beyaz sayfayı
+    # açınca altındaki bu ikinci katman ortaya çıktı).
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2 --root-path /api
     environment:
       # Settings._reject_unsafe_production_config guard'ını aktive eder — API_KEY
       # varsayılan kalmışsa, BILLING_DEV_MODE açıksa, CORS wildcard'saysa ya da
