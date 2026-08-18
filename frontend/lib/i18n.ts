@@ -106,7 +106,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     upgradeNeedsVerification: "Yükseltmeden önce e-postanı doğrulaman gerekiyor.",
 
     // ── Landing ──
-    heroBadge: "Canlı — 825+ haber indekslendi, 17 kaynak aktif",
+    heroBadge: "Canlı — 17 kaynaktan sürekli güncelleniyor",
     heroPre: "Türkiye Haberlerini ", heroAccent: "Yapay Zeka", heroPost: " ile Keşfet",
     heroSub: "17 kaynaktan gerçek zamanlı akış. Duygu analizi, entity tanıma, semantik arama ve ilişki grafı — tek platformda.",
     ctaPrimary: "Ücretsiz Başla →", ctaSecondary: "Demo Görüntüle",
@@ -154,6 +154,14 @@ export const UI: Record<Lang, Record<string, string>> = {
     generateKey: "◈ Anahtar Üret", regenerateKey: "Yenile", revokeKey: "İptal Et",
     copyKey: "Kopyala", copied: "Kopyalandı ✓",
     noApiKey: "Henüz anahtar üretilmedi.",
+    newsletterTitle: "Bülten Tercihleri",
+    newsletterDesc: "Seçtiğin kaynak/konulara göre günlük özet e-postası al, ya da anahtar kelime eşleştiğinde anında haber olsun.",
+    newsletterFreqLabel: "Sıklık", newsletterFreqDaily: "Günlük özet", newsletterFreqInstant: "Anlık uyarı", newsletterFreqNever: "Kapalı",
+    newsletterFreqInstantLocked: "Anlık uyarı Pro plan gerektirir",
+    newsletterTopicsLabel: "Konular (boş = hepsi)", newsletterSourcesLabel: "Kaynaklar (boş = hepsi)", newsletterKeywordsLabel: "Anahtar kelimeler (virgülle ayır)",
+    newsletterKeywordsPlaceholder: "örn. deprem, seçim, Beşiktaş",
+    newsletterSave: "Kaydet", newsletterSaved: "Kaydedildi ✓", newsletterUnsubscribe: "Aboneliği İptal Et",
+    newsletterSubscribedNote: "Şu an abonesin.", newsletterNotSubscribedNote: "Henüz abone değilsin.",
     devModeBadge: "DEV MODE", devUpgraded: "Planınız yükseltildi (ödeme simülasyonu).",
     devDowngradeBtn: "Free'ye Dön (dev)", devDowngraded: "Planınız Free'ye düşürüldü.",
 
@@ -279,7 +287,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     upgradeNeedsVerification: "You need to verify your email before upgrading.",
 
     // ── Landing ──
-    heroBadge: "Live — 825+ articles indexed, 17 sources active",
+    heroBadge: "Live — continuously updated from 17 sources",
     heroPre: "Discover the News with ", heroAccent: "Artificial Intelligence", heroPost: "",
     heroSub: "Real-time stream from 17 sources. Sentiment analysis, entity recognition, semantic search and a relation graph — all in one platform.",
     ctaPrimary: "Start Free →", ctaSecondary: "View Demo",
@@ -327,6 +335,14 @@ export const UI: Record<Lang, Record<string, string>> = {
     generateKey: "◈ Generate Key", regenerateKey: "Rotate", revokeKey: "Revoke",
     copyKey: "Copy", copied: "Copied ✓",
     noApiKey: "No key generated yet.",
+    newsletterTitle: "Newsletter Preferences",
+    newsletterDesc: "Get a daily digest based on your chosen sources/topics, or instant alerts when a keyword matches.",
+    newsletterFreqLabel: "Frequency", newsletterFreqDaily: "Daily digest", newsletterFreqInstant: "Instant alerts", newsletterFreqNever: "Off",
+    newsletterFreqInstantLocked: "Instant alerts require a Pro plan",
+    newsletterTopicsLabel: "Topics (empty = all)", newsletterSourcesLabel: "Sources (empty = all)", newsletterKeywordsLabel: "Keywords (comma-separated)",
+    newsletterKeywordsPlaceholder: "e.g. earthquake, election, Beşiktaş",
+    newsletterSave: "Save", newsletterSaved: "Saved ✓", newsletterUnsubscribe: "Unsubscribe",
+    newsletterSubscribedNote: "You're currently subscribed.", newsletterNotSubscribedNote: "You're not subscribed yet.",
     devModeBadge: "DEV MODE", devUpgraded: "Your plan was upgraded (payment simulation).",
     devDowngradeBtn: "Back to Free (dev)", devDowngraded: "Your plan was downgraded to Free.",
 
@@ -404,7 +420,7 @@ export const PRICING: Record<Lang, Plan[]> = {
     { tier: "Pro", price: "$9.99", period: "/ay", highlight: true, href: "/auth/register", cta: "Pro'ya Geç",
       features: ["2.000 API isteği / gün", "WebSocket canlı akış", "50 arama sonucu", "Anlık keyword alert", "İlişki grafı"] },
     { tier: "Kurumsal", price: "$49.99", period: "/ay", highlight: false, href: "/auth/register", cta: "İletişime Geç",
-      features: ["Sınırsız API isteği", "Ham veri export", "Özel kaynak ekleme", "SLA garantisi", "Öncelikli destek"] },
+      features: ["Sınırsız API isteği", "Ham veri export", "Özel kaynak talebi (bize ulaşın)", "SLA garantisi", "Öncelikli destek"] },
   ],
   EN: [
     { tier: "Free", price: "$0", period: "", highlight: false, href: "/auth/register", cta: "Get Started",
@@ -412,7 +428,7 @@ export const PRICING: Record<Lang, Plan[]> = {
     { tier: "Pro", price: "$9.99", period: "/mo", highlight: true, href: "/auth/register", cta: "Go Pro",
       features: ["2,000 API requests / day", "WebSocket live stream", "50 search results", "Instant keyword alerts", "Relation graph"] },
     { tier: "Enterprise", price: "$49.99", period: "/mo", highlight: false, href: "/auth/register", cta: "Contact Us",
-      features: ["Unlimited API requests", "Raw data export", "Custom source ingestion", "SLA guarantee", "Priority support"] },
+      features: ["Unlimited API requests", "Raw data export", "Custom source requests (contact us)", "SLA guarantee", "Priority support"] },
   ],
 };
 
@@ -424,11 +440,11 @@ export const TIER_DETAILS: Record<Lang, Record<string, TierDetail>> = {
   TR: {
     free:       { limit: "100 istek / gün",   icon: "○", color: "var(--text2)",   features: ["Haberler & arama", "10 arama sonucu", "Günlük digest e-posta"] },
     pro:        { limit: "2.000 istek / gün", icon: "◈", color: "var(--accent)",  features: ["Tüm Ücretsiz özellikler", "WebSocket canlı akış", "50 arama sonucu", "İlişki grafı"] },
-    enterprise: { limit: "Sınırsız",          icon: "◆", color: "var(--accent2)", features: ["Tüm Pro özellikler", "Ham veri export", "Özel kaynak ekleme", "SLA garantisi"] },
+    enterprise: { limit: "Sınırsız",          icon: "◆", color: "var(--accent2)", features: ["Tüm Pro özellikler", "Ham veri export", "Özel kaynak talebi (bize ulaşın)", "SLA garantisi"] },
   },
   EN: {
     free:       { limit: "100 req / day",     icon: "○", color: "var(--text2)",   features: ["News & search", "10 search results", "Daily digest email"] },
     pro:        { limit: "2,000 req / day",   icon: "◈", color: "var(--accent)",  features: ["All Free features", "WebSocket live stream", "50 search results", "Relation graph"] },
-    enterprise: { limit: "Unlimited",         icon: "◆", color: "var(--accent2)", features: ["All Pro features", "Raw data export", "Custom source ingestion", "SLA guarantee"] },
+    enterprise: { limit: "Unlimited",         icon: "◆", color: "var(--accent2)", features: ["All Pro features", "Raw data export", "Custom source requests (contact us)", "SLA guarantee"] },
   },
 };

@@ -14,11 +14,14 @@ import { TierBadge } from "@/components/TierBadge";
 import { AuthLoadingScreen } from "@/components/AuthLoadingScreen";
 import { EmailVerifyBanner } from "@/components/EmailVerifyBanner";
 import {
-  BASE, createCheckout, devDowngrade, downloadExport, fetchBillingConfig, fetchMyUsage,
-  generateApiKey, getBillingPortal, revokeApiKey,
+  BASE, createCheckout, devDowngrade, downloadExport, fetchBillingConfig, fetchMyNewsletter, fetchMyUsage,
+  fetchSources, generateApiKey, getBillingPortal, revokeApiKey, saveNewsletter, unsubscribeNewsletter,
 } from "@/lib/api";
 import type { AccountUsage, BillingConfig, Tier } from "@/lib/types";
-import { UI, TIER_DETAILS } from "@/lib/i18n";
+import type { NewsletterPrefs } from "@/lib/api";
+import { UI, TIER_DETAILS, TOPIC_LABELS } from "@/lib/i18n";
+
+const NEWSLETTER_TOPICS = ["Technology", "Sports", "Economy", "Politics", "Health", "Culture", "World", "Other"];
 
 export default function AccountPage() {
   const { user, isLoading, refreshUser } = useAuth();
@@ -35,6 +38,18 @@ export default function AccountPage() {
   const [exportFormat, setExportFormat] = useState<"csv" | "json">("csv");
   const [exportBusy, setExportBusy] = useState(false);
 
+  // Bülten tercihleri (v2.1.1) — backend zaten hazırdı, hesap sayfasında hiç
+  // UI'ı yoktu (kullanıcı gerçek hesabında abone kaydı olmadığını fark edince
+  // ortaya çıktı — bkz. CLAUDE.md/CHANGELOG).
+  const [sources, setSources] = useState<string[]>([]);
+  const [nlFrequency, setNlFrequency] = useState<"daily" | "instant" | "never">("never");
+  const [nlTopics, setNlTopics] = useState<string[]>([]);
+  const [nlSources, setNlSources] = useState<string[]>([]);
+  const [nlKeywords, setNlKeywords] = useState("");
+  const [nlBusy, setNlBusy] = useState(false);
+  const [nlSaved, setNlSaved] = useState(false);
+  const [nlSubscribed, setNlSubscribed] = useState(false);
+
   useEffect(() => {
     if (!isLoading && !user) router.replace("/auth/login");
   }, [isLoading, user, router]);
@@ -47,6 +62,16 @@ export default function AccountPage() {
   useEffect(() => {
     loadUsage();
     fetchBillingConfig().then(setBilling).catch(() => {});
+    fetchSources().then(setSources).catch(() => {});
+    fetchMyNewsletter().then((prefs: NewsletterPrefs) => {
+      setNlSubscribed(prefs.subscribed);
+      if (prefs.subscribed) {
+        setNlFrequency(prefs.frequency ?? "daily");
+        setNlTopics(prefs.preferred_topics ?? []);
+        setNlSources(prefs.preferred_sources ?? []);
+        setNlKeywords((prefs.keywords ?? []).join(", "));
+      }
+    }).catch(() => {});
   }, [loadUsage]);
 
   if (isLoading) return <AuthLoadingScreen />;
@@ -120,6 +145,52 @@ export default function AccountPage() {
       alert(err instanceof Error ? err.message : t.errorOccurred);
     } finally {
       setKeyBusy(false);
+    }
+  }
+
+  function toggleNlTopic(topic: string) {
+    setNlSaved(false);
+    setNlTopics((cur) => (cur.includes(topic) ? cur.filter((x) => x !== topic) : [...cur, topic]));
+  }
+
+  function toggleNlSource(source: string) {
+    setNlSaved(false);
+    setNlSources((cur) => (cur.includes(source) ? cur.filter((x) => x !== source) : [...cur, source]));
+  }
+
+  async function handleSaveNewsletter() {
+    if (!user) return;
+    setNlBusy(true);
+    setNlSaved(false);
+    try {
+      await saveNewsletter(user.email, {
+        frequency: nlFrequency,
+        keywords: nlKeywords.split(",").map((k) => k.trim()).filter(Boolean),
+        preferred_sources: nlSources,
+        preferred_topics: nlTopics,
+        language: lang,
+      });
+      setNlSubscribed(nlFrequency !== "never");
+      setNlSaved(true);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : t.errorOccurred);
+    } finally {
+      setNlBusy(false);
+    }
+  }
+
+  async function handleUnsubscribeNewsletter() {
+    if (!user) return;
+    setNlBusy(true);
+    try {
+      await unsubscribeNewsletter(user.email);
+      setNlSubscribed(false);
+      setNlFrequency("never");
+      setNlSaved(false);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : t.errorOccurred);
+    } finally {
+      setNlBusy(false);
     }
   }
 
@@ -314,6 +385,97 @@ export default function AccountPage() {
               <button onClick={handleRevokeKey} disabled={keyBusy} className="btn-danger"
                       style={{ fontSize: "0.82rem", padding: "8px 16px" }}>
                 {t.revokeKey}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Bülten tercihleri (v2.1.1) */}
+        <div className="card">
+          <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>
+            ✉ {t.newsletterTitle}
+          </h2>
+          <p style={{ fontSize: "0.84rem", color: "var(--text2)", marginBottom: 6, lineHeight: 1.6 }}>
+            {t.newsletterDesc}
+          </p>
+          <p style={{ fontSize: "0.78rem", color: nlSubscribed ? "var(--accent)" : "var(--text3)", marginBottom: 16 }}>
+            {nlSubscribed ? t.newsletterSubscribedNote : t.newsletterNotSubscribedNote}
+          </p>
+
+          <div style={{ marginBottom: 14 }}>
+            <span className="section-label" style={{ display: "block", marginBottom: 8 }}>{t.newsletterFreqLabel}</span>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {([
+                ["daily", t.newsletterFreqDaily, true],
+                ["instant", t.newsletterFreqInstant, (user.effective_tier ?? user.tier) !== "free"],
+                ["never", t.newsletterFreqNever, true],
+              ] as [typeof nlFrequency, string, boolean][]).map(([value, label, enabled]) => (
+                <button key={value} type="button"
+                  onClick={() => { if (enabled) { setNlFrequency(value); setNlSaved(false); } }}
+                  disabled={!enabled}
+                  title={!enabled ? t.newsletterFreqInstantLocked : undefined}
+                  className={nlFrequency === value ? "btn-primary" : "btn-secondary"}
+                  style={{ fontSize: "0.78rem", padding: "7px 14px", opacity: enabled ? 1 : 0.45,
+                           cursor: enabled ? "pointer" : "not-allowed" }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <span className="section-label" style={{ display: "block", marginBottom: 8 }}>{t.newsletterTopicsLabel}</span>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {NEWSLETTER_TOPICS.map((topic) => (
+                <button key={topic} type="button" onClick={() => toggleNlTopic(topic)}
+                  className="badge" style={{
+                    cursor: "pointer", fontSize: "0.75rem",
+                    background: nlTopics.includes(topic) ? "var(--accent-soft)" : "var(--surface)",
+                    color: nlTopics.includes(topic) ? "var(--accent)" : "var(--text3)",
+                    borderColor: nlTopics.includes(topic) ? "var(--accent-line)" : "var(--border)",
+                  }}>
+                  {TOPIC_LABELS[lang][topic] ?? topic}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <span className="section-label" style={{ display: "block", marginBottom: 8 }}>{t.newsletterSourcesLabel}</span>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {sources.map((source) => (
+                <button key={source} type="button" onClick={() => toggleNlSource(source)}
+                  className="badge" style={{
+                    cursor: "pointer", fontSize: "0.75rem",
+                    background: nlSources.includes(source) ? "var(--accent-soft)" : "var(--surface)",
+                    color: nlSources.includes(source) ? "var(--accent)" : "var(--text3)",
+                    borderColor: nlSources.includes(source) ? "var(--accent-line)" : "var(--border)",
+                  }}>
+                  {source}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 18 }}>
+            <span className="section-label" style={{ display: "block", marginBottom: 8 }}>{t.newsletterKeywordsLabel}</span>
+            <input type="text" value={nlKeywords}
+              onChange={(e) => { setNlKeywords(e.target.value); setNlSaved(false); }}
+              placeholder={t.newsletterKeywordsPlaceholder}
+              style={{
+                width: "100%", padding: "9px 12px", fontSize: "0.84rem", borderRadius: 8,
+                background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)",
+              }} />
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button onClick={handleSaveNewsletter} disabled={nlBusy} className="btn-primary" style={{ fontSize: "0.82rem" }}>
+              {nlSaved ? t.newsletterSaved : t.newsletterSave}
+            </button>
+            {nlSubscribed && (
+              <button onClick={handleUnsubscribeNewsletter} disabled={nlBusy} className="btn-danger"
+                      style={{ fontSize: "0.82rem", padding: "8px 16px" }}>
+                {t.newsletterUnsubscribe}
               </button>
             )}
           </div>

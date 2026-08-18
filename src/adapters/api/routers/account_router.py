@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from src.adapters.api.auth_utils import get_current_user, user_effective_tier
 from src.adapters.api.limiter import limiter
+from src.adapters.repositories.subscriber_repository import SubscriberRepository
 from src.adapters.repositories.user_repository import UserRepository
 from src.domain.models.user import User, TIER_DAILY_LIMITS
 from src.infrastructure.config.database import get_db
@@ -88,3 +89,29 @@ def revoke_api_key(
 def get_api_key(current_user: User = Depends(get_current_user)):
     """Mevcut anahtarı döner (hesap sayfasında 'kopyala' için)."""
     return {"api_key": current_user.api_key, "has_api_key": bool(current_user.api_key)}
+
+
+# v2.1.1 (18 Ağu 2026): /subscriptions/{email} GET/PATCH X-API-Key (paylaşımlı
+# admin anahtarı) gerektiriyor — normal bir kullanıcının TARAYICIDAN kendi
+# abonelik durumunu okuyamaması anlamına geliyordu. Hesap sayfası kendi
+# oturumuyla çalışsın diye burada, /account'un "kendi verin" desenini izleyen
+# ayrı bir salt-okunur uç. Kaydetme/güncelleme için hâlâ mevcut PUBLIC
+# `POST /subscriptions/` kullanılıyor (zaten upsert, admin anahtarı istemiyor,
+# e-posta gövdede geliyor) — burada sadece ÖN-DOLDURMA için okuma eklendi.
+@router.get("/newsletter")
+def my_newsletter_subscription(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Kendi bülten abonelik tercihlerin (varsa) — hesap sayfası formunu ön doldurur."""
+    sub = SubscriberRepository(db).get_by_email(current_user.email)
+    if not sub or not sub.is_active:
+        return {"subscribed": False}
+    return {
+        "subscribed": True,
+        "frequency": sub.frequency,
+        "keywords": sub.keywords,
+        "preferred_sources": sub.preferred_sources,
+        "preferred_topics": sub.preferred_topics,
+        "language": sub.language,
+    }

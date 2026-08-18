@@ -203,6 +203,39 @@ export async function fetchApiKey(): Promise<{ api_key: string | null; has_api_k
   return req(`${BASE}/account/api-key`);
 }
 
+// ── Bülten aboneliği ─────────────────────────────────────────────────────────
+// /subscriptions/{email} GET/PATCH paylaşımlı X-API-Key ister (admin uçları),
+// bu yüzden okuma /account/newsletter üzerinden (kendi oturumunla) yapılıyor;
+// kaydetme hâlâ mevcut PUBLIC POST /subscriptions/ (zaten upsert, e-posta
+// gövdede geliyor, admin anahtarı istemiyor).
+
+export interface NewsletterPrefs {
+  subscribed: boolean;
+  frequency?: "daily" | "instant" | "never";
+  keywords?: string[];
+  preferred_sources?: string[];
+  preferred_topics?: string[];
+  language?: string;
+}
+
+export async function fetchMyNewsletter(): Promise<NewsletterPrefs> {
+  return req(`${BASE}/account/newsletter`);
+}
+
+export async function saveNewsletter(email: string, prefs: {
+  frequency: "daily" | "instant" | "never";
+  keywords: string[];
+  preferred_sources: string[];
+  preferred_topics: string[];
+  language: string;
+}): Promise<void> {
+  await req(`${BASE}/subscriptions/`, { method: "POST", body: JSON.stringify({ email, ...prefs }) });
+}
+
+export async function unsubscribeNewsletter(email: string): Promise<void> {
+  await req(`${BASE}/subscriptions/${encodeURIComponent(email)}`, { method: "DELETE" });
+}
+
 // ── Admin ─────────────────────────────────────────────────────────────────────
 
 export async function fetchUsage(creds: AdminCreds, userId?: number, days = 30): Promise<UsageRow[]> {
