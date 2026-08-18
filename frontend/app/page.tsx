@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { useSettings } from "@/lib/settings-context";
 import { useAuth } from "@/lib/auth-context";
@@ -19,9 +20,31 @@ export default function LandingPage() {
   const primaryHref = user ? "/dashboard" : "/auth/register";
   const primaryLabel = user ? t.ctaAuthed : t.ctaPrimary;
 
+  // "825+" idi — bu bir ölçüm değil, çok eski (v1.11 öncesi) bir hata anındaki
+  // ChromaDB indeks sayısıydı, koda sabit yazılmış kalmıştı (18 Ağu 2026'da
+  // kullanıcı "bu sayılar ne zamandan kalma" diye sorunca fark edildi). İkisi de
+  // public/auth'suz uçlar — kayıt/giriş gerektirmiyor.
+  const [liveArticleCount, setLiveArticleCount] = useState<number | null>(null);
+  const [liveSourceCount, setLiveSourceCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch(`${BASE}/health`)
+      .then((r) => r.json())
+      .then((d) => typeof d.indexed_articles === "number" && setLiveArticleCount(d.indexed_articles))
+      .catch(() => {});
+    fetch(`${BASE}/news/sources`)
+      .then((r) => r.json())
+      .then((d) => Array.isArray(d) && setLiveSourceCount(d.length))
+      .catch(() => {});
+  }, []);
+
+  const formattedArticles = liveArticleCount != null
+    ? `${liveArticleCount.toLocaleString(lang === "TR" ? "tr-TR" : "en-US")}+`
+    : "—";
+
   const stats = [
-    { value: "825+", label: t.statArticles },
-    { value: "17",   label: t.statSources },
+    { value: formattedArticles, label: t.statArticles },
+    { value: liveSourceCount ?? "—", label: t.statSources },
     { value: "<2s",  label: t.statSpeed },
     { value: "100%", label: t.statFree },
   ];
@@ -84,9 +107,13 @@ export default function LandingPage() {
             <Link href={primaryHref} className="btn-primary" style={{ fontSize: "0.95rem", padding: "11px 28px" }}>
               {primaryLabel}
             </Link>
-            <Link href="/dashboard" className="btn-secondary" style={{ fontSize: "0.95rem", padding: "11px 28px" }}>
+            {/* Kayıt/giriş gerektirmez — sayfanın altındaki canlı arama demosuna kaydırır.
+                Önceden ikisi de /dashboard'a gidiyordu (giriş yapmış kullanıcıda hem
+                birincil hem ikincil buton aynı yere), "Demo Görüntüle" fiilen "Panele
+                Git"in kopyasıydı — 18 Ağu 2026'da kullanıcı bulgusu. */}
+            <a href="#demo" className="btn-secondary" style={{ fontSize: "0.95rem", padding: "11px 28px" }}>
               {t.ctaSecondary}
-            </Link>
+            </a>
           </div>
         </div>
 
@@ -112,7 +139,7 @@ export default function LandingPage() {
       </section>
 
       {/* Canlı arama demosu — kayıt olmadan denenebilir */}
-      <section style={{ padding: "0 20px 80px" }}>
+      <section id="demo" style={{ padding: "0 20px 80px", scrollMarginTop: 80 }}>
         <LandingSearchDemo />
       </section>
 
