@@ -5,6 +5,16 @@ apiVersion: 1
 # 29 Temmuz 2026 ve 18 Ağustos 2026'da iki ayrı olayda bulunan sessiz
 # işlevsizlik deseni). İkisi de mevcut Prometheus custom metriklerini
 # kullanıyor (src/adapters/api/metrics.py).
+#
+# datasourceUid DEĞERİ BİLEREK SABİT YAZILI (PBFA97CFB590B2093) — Grafana'nın
+# KENDİ ürettiği, canlıda haftalardır kayıtlı gerçek UID (GET /api/datasources
+# ile doğrulandı). datasources.yml'e elle `uid: prometheus` eklemeyi DENEDİK,
+# bu Grafana'nın var olan (auto-generated uid'li) kaydıyla çakışıp
+# "Datasource provisioning error: data source not found" ile Grafana'yı
+# TAMAMEN çökertti (crash-loop) — geri alındı. **Genel kural: zaten haftalardır
+# çalışan, provisioning ile yönetilen bir Grafana datasource'unun uid'ini
+# SONRADAN elle sabitlemeye çalışma; alert kuralların gerçek/mevcut uid'i API'den
+# okuyup onu kullansın.**
 groups:
   - orgId: 1
     name: nexstream-pipeline-alerts
@@ -17,7 +27,7 @@ groups:
         for: 15m
         data:
           - refId: A
-            datasourceUid: prometheus
+            datasourceUid: PBFA97CFB590B2093
             relativeTimeRange:
               from: 3600
               to: 0
@@ -59,7 +69,7 @@ groups:
         for: 10m
         data:
           - refId: A
-            datasourceUid: prometheus
+            datasourceUid: PBFA97CFB590B2093
             relativeTimeRange:
               from: 900
               to: 0
