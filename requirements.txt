@@ -1,5 +1,12 @@
 fastapi==0.139.2
 uvicorn==0.41.0
+# uvicorn[standard] DEĞİL — bilinçli minimal seçim (o extras httptools/uvloop/
+# watchfiles de getirir). /ws/feed'in ASGI seviyesinde çalışması için gereken
+# TEK şey websockets (veya wsproto); 18 Ağu 2026'da prod'da bulundu: bu paket
+# hiç pinlenmemişti, o yüzden canlı WebSocket hep sessizce 404 veriyordu — local
+# venv'de google-genai (Gemini döneminden kalma, requirements.txt'te YOK) onu
+# transitive getirdiği için sorun hiç fark edilmemişti.
+websockets==16.0
 sqlalchemy==2.0.46
 psycopg2-binary==2.9.11
 pydantic==2.12.5
