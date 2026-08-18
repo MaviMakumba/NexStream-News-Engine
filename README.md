@@ -214,6 +214,8 @@ The original Streamlit dashboard was replaced by a **Next.js 14 + React** fronte
 | GET | `/health` · `/metrics` | Health (DB/Redpanda/ChromaDB) · Prometheus metrics |
 | GET | `/docs` | Swagger UI |
 
+**Full interactive reference:** [nexstreamnewsengine.duckdns.org/api/docs](https://nexstreamnewsengine.duckdns.org/api/docs) — every endpoint, request/response schema, and a "Try it out" button. A ready-to-import [Postman collection](docs/NexStream.postman_collection.json) covers the endpoints above with example requests.
+
 ---
 
 ### Getting Started
@@ -603,6 +605,8 @@ Streamlit panel, ayırt edici bir **sinematik tema sistemi** olan **Next.js 14 +
 | POST | `/news/scrape` · `/news/reindex` · `/news/reanalyze` | Bakım işlemleri (`X-API-Key`) |
 | GET | `/health` · `/metrics` | Sağlık durumu (DB/Redpanda/ChromaDB) · Prometheus metrikleri |
 | GET | `/docs` | Swagger UI |
+
+**Tam interaktif referans:** [nexstreamnewsengine.duckdns.org/api/docs](https://nexstreamnewsengine.duckdns.org/api/docs) — her endpoint, istek/cevap şeması, "Try it out" butonuyla doğrudan test. Yukarıdaki endpoint'leri örnek isteklerle kapsayan, doğrudan içe aktarılabilir bir [Postman koleksiyonu](docs/NexStream.postman_collection.json) da var.
 
 ---
 
