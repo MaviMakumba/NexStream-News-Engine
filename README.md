@@ -142,14 +142,79 @@ flowchart LR
 | Database | PostgreSQL 15 + SQLAlchemy ORM |
 | Cache | Redis 7 (sessions / trending; null-cache fallback) |
 | Payments | Stripe (Checkout + webhook + billing portal) |
-| Email | Resend API (newsletter + keyword alerts), console adapter for dev |
+| Email | SMTP (Gmail) primary, Resend API fallback, console adapter for dev |
 | Scheduler | APScheduler |
-| Observability | Prometheus + Grafana + Loki + Promtail |
+| Observability | Prometheus + Grafana (provisioned alerting) + Loki + Promtail |
 | Reverse proxy | Nginx + Let's Encrypt (production) |
 | Containerization | Docker + Docker Compose |
 | CI/CD | GitHub Actions |
-| Testing | pytest (553 tests) |
+| Testing | pytest (618 tests, ~22s) |
 | Dependency updates | Dependabot (pip + npm + GitHub Actions, weekly) |
+
+---
+
+### How It Works — Scoring & Search Algorithms
+
+The interesting parts of this project aren't "call an LLM" — they're what happens around
+it: deterministic scoring that costs no API calls, a search ranking formula that
+blends two very different retrieval methods, and the bugs found (and fixed) by
+actually measuring the results instead of assuming they were correct.
+
+**Sentiment + entities + topic + summary — one Groq call per article.** A single
+prompt asks for all four at once (not four separate calls): a sentiment score in
+`[-1.0, 1.0]` mapped to Positive/Negative/Neutral at the `±0.2` thresholds, named
+entities (persons/organizations/locations), a topic classification, and a 1-2
+sentence summary in the article's own language. Model: `openai/gpt-oss-20b` on
+Groq's free tier — swapped in August 2026 after Groq fully retired the previous
+model (`llama-3.1-8b-instant`), which silently degraded every analysis to a
+neutral default for about a day before anyone noticed (the fail-open design that
+keeps the pipeline from crashing on a bad API response also means a dead model
+doesn't announce itself — worth knowing if you build on top of an LLM API you
+don't control).
+
+**Quality score — no LLM, fully deterministic.** A weighted sum of four signals,
+computed in pure Python (`domain/scoring/quality.py`), each capped at its own weight:
+
+```
+quality = 0.40 · min(content_length / 600, 1)       # longer articles score higher, capped
+        + 0.35 · min(entity_count / 5, 1)            # more named entities = more substantive
+        + 0.15 · (1 if summary_len >= 20 else 0)      # has a real summary
+        + 0.10 · (1 if 15 <= title_len <= 200 else 0) # sane title length
+```
+
+**Credibility score — a base rating plus cross-source corroboration.** Each source
+has a hand-seeded base credibility (`domain/scoring/credibility.py`, 0.50–0.90,
+e.g. BBC 0.90, Hacker News 0.60) that nudges up by `0.05` per *independent* source
+reporting overlapping entities for the same story (capped at `+0.20`) — a rough
+approximation of "did more than one outlet cover this."
+
+**Hybrid search — semantic + keyword, blended and recency-weighted.**
+`hybrid_search()` runs a ChromaDB vector query and a PostgreSQL keyword query in
+parallel, scores each candidate as `max(semantic_score, keyword_score)` with a
+`+0.10` bonus for articles that hit *both*, then multiplies the result by a
+recency factor (today = ×1.0, decaying linearly to ×0.5 at the 30-day mark). The
+keyword side does coverage scoring per field (title `0.9` > summary `0.7` >
+content `0.5`) with basic Turkish suffix-stripping for recall (`"beşiktaşın"`
+also matches `"Beşiktaş"`). **A real bug found this way, in production, on 18
+Aug 2026:** the stemmer added *both* the raw word and its stem as separate terms
+in the coverage denominator, so any single-word query with a Turkish suffix had
+its score cut roughly in half — enough to fall below ChromaDB's noise floor and
+get pushed out of the results entirely by unrelated matches. Fixed by scoring
+against canonical (stem-only) terms while still searching Postgres with the
+wider raw+stem set.
+
+**Semantic deduplication.** Before indexing, a new article's embedding is
+compared against ChromaDB's existing vectors; anything above a `0.92` cosine
+similarity threshold is flagged as a near-duplicate rather than indexed twice.
+
+**Measured, not claimed** (pulled from the live Prometheus instance, not
+estimated): Groq analysis latency averages **~0.5s**, p95 **~2.1s** per article.
+17 sources scraped every 10 minutes, ~25 articles/source/run. Moving the
+embedding model into its own service cut the `app`/`worker` Docker images from
+1.55GB to **516MB** and startup from 1-2 minutes to **~6 seconds**. The test
+suite (618 tests) runs in **~22 seconds**, down from ~400s after finding and
+fixing a test fixture that was silently attempting a real (2-second-timeout)
+database connection on every request.
 
 ---
 
@@ -551,14 +616,77 @@ flowchart LR
 | Veritabanı | PostgreSQL 15 + SQLAlchemy ORM |
 | Cache | Redis 7 (session / trending; boşsa null-cache) |
 | Ödeme | Stripe (Checkout + webhook + billing portal) |
-| E-posta | Resend API (bülten + keyword alert), dev'de console adapter |
+| E-posta | SMTP (Gmail) birincil, Resend API yedek, dev'de console adapter |
 | Zamanlayıcı | APScheduler |
-| Gözlemlenebilirlik | Prometheus + Grafana + Loki + Promtail |
+| Gözlemlenebilirlik | Prometheus + Grafana (provisioned alerting) + Loki + Promtail |
 | Reverse proxy | Nginx + Let's Encrypt (production) |
 | Konteynerleştirme | Docker + Docker Compose |
 | CI/CD | GitHub Actions |
-| Test | pytest (553 test) |
+| Test | pytest (618 test, ~22sn) |
 | Bağımlılık güncellemesi | Dependabot (pip + npm + GitHub Actions, haftalık) |
+
+---
+
+### Nasıl Çalışır — Skorlama & Arama Algoritmaları
+
+Bu projenin ilginç kısmı "bir LLM'e sor" değil — onun etrafında olan şey: API çağrısı
+gerektirmeyen deterministik skorlama, iki farklı arama yöntemini birleştiren bir
+sıralama formülü, ve sonuçları GERÇEKTEN ÖLÇEREK bulunan (ve düzeltilen) bug'lar.
+
+**Duygu + varlık + konu + özet — haber başına TEK Groq çağrısı.** Dört ayrı istek
+yerine tek bir prompt hepsini birden istiyor: `[-1.0, 1.0]` aralığında bir duygu
+skoru (`±0.2` eşiğinde Pozitif/Negatif/Nötr'e eşleniyor), varlıklar (kişi/kurum/yer),
+konu sınıflandırması ve haberin kendi dilinde 1-2 cümlelik özet. Model: Groq'un
+ücretsiz katmanındaki `openai/gpt-oss-20b` — Ağustos 2026'da, Groq önceki modeli
+(`llama-3.1-8b-instant`) tamamen kaldırdıktan sonra değiştirildi; bu model kaybı
+kimse fark etmeden ~1 gün boyunca HER analizi sessizce nötr varsayılana düşürdü
+(pipeline'ın kötü bir API yanıtında çökmesini önleyen "hata yut, devam et" tasarımı,
+aynı zamanda ölü bir modelin kendini hiç haber vermemesi anlamına da geliyor —
+kontrolünde olmayan bir LLM API'sinin üzerine bir şey inşa ediyorsan bilmekte fayda var).
+
+**Kalite skoru — LLM yok, tamamen deterministik.** Saf Python'da hesaplanan
+(`domain/scoring/quality.py`), her biri kendi ağırlığında tavanlanan 4 sinyalin
+ağırlıklı toplamı:
+
+```
+kalite = 0.40 · min(içerik_uzunluğu / 600, 1)     # uzun haber daha yüksek puan, tavanlı
+       + 0.35 · min(varlık_sayısı / 5, 1)          # daha çok isimlendirilmiş varlık = daha dolu içerik
+       + 0.15 · (özet_uzunluğu >= 20 ise 1, değilse 0)   # gerçek bir özet var mı
+       + 0.10 · (15 <= başlık_uzunluğu <= 200 ise 1, değilse 0)  # makul başlık uzunluğu
+```
+
+**Güvenilirlik skoru — taban puan + çapraz kaynak doğrulaması.** Her kaynağın elle
+belirlenmiş bir taban güvenilirliği var (`domain/scoring/credibility.py`, 0.50-0.90
+arası — mesela BBC 0.90, Hacker News 0.60), aynı olayı (örtüşen varlıklarla) raporlayan
+her BAĞIMSIZ kaynak için `+0.05` artıyor (en fazla `+0.20`) — "birden fazla mecra bunu
+haber yaptı mı" sorusunun kaba bir yaklaşıklığı.
+
+**Hibrit arama — semantik + anahtar kelime, tazelikle ağırlıklandırılmış.**
+`hybrid_search()` ChromaDB'de bir vektör sorgusu ile PostgreSQL'de bir anahtar
+kelime sorgusunu paralel çalıştırır, her adayı `max(semantik_skor, keyword_skor)`
+olarak puanlar (ikisinde de eşleşene `+0.10` bonus), sonra sonucu bir tazelik
+çarpanıyla çarpar (bugün = ×1.0, 30 gün sonunda lineer olarak ×0.5'e iner).
+Anahtar kelime tarafı alan bazlı kapsama puanı kullanır (başlık `0.9` > özet `0.7`
+> içerik `0.5`) ve geri çağırma için basit bir Türkçe ek kırpması yapar
+(`"beşiktaşın"` da `"Beşiktaş"`i eşleştirir). **Bu yöntemle canlıda bulunan gerçek
+bir bug (18 Ağu 2026):** kök ayıklayıcı, kapsama bölenine hem ham kelimeyi HEM
+kökünü ayrı ayrı terim olarak ekliyordu, yani Türkçe ekli tek kelimelik her sorgu
+skorunun kabaca yarısını kaybediyordu — bu da ChromaDB'nin gürültü tabanının altına
+düşüp sonuçlardan tamamen elenmesine yetiyordu. Çözüm: Postgres'i hâlâ geniş
+ham+kök kümesiyle ararken, puanlamayı sadece kanonik (kök) terimlere göre yapmak.
+
+**Semantik tekrar tespiti.** İndekslemeden önce yeni bir haberin embedding'i
+ChromaDB'deki mevcut vektörlerle karşılaştırılır; `0.92` kosinüs benzerliğinin
+üzerindeki her şey iki kez indekslenmek yerine near-duplicate olarak işaretlenir.
+
+**Tahmin değil, ÖLÇÜLMÜŞ** (canlı Prometheus'tan çekildi, tahmini değil): Groq
+analiz gecikmesi ortalama **~0.5sn**, p95 **~2.1sn**/haber. 17 kaynak her 10
+dakikada bir taranıyor, ~25 haber/kaynak/çalışma. Embedding modelini ayrı bir
+servise taşımak `app`/`worker` Docker imajlarını 1.55GB'den **516MB**'a, açılış
+süresini 1-2 dakikadan **~6 saniyeye** indirdi. Test paketi (618 test) **~22
+saniyede** koşuyor — her istekte sessizce gerçek (2 saniye timeout'lu) bir
+veritabanı bağlantısı deneyen bir test fixture'ı bulunup düzeltilmeden önce
+~400sn'di.
 
 ---
 
