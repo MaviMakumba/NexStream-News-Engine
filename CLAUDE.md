@@ -178,7 +178,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## KRİTİK KARARLAR VE GEREKÇELERİ
 
-**Neden Groq?** Gemini'den taşındı. 14.400 req/gün ücretsiz, llama-3.1-8b-instant TR+EN destekler, requests kütüphanesi yeterli (SDK yok). Model: `llama-3.1-8b-instant` (70B'den düşürüldü — sentiment + NER + topic extraction için 8B yeterli, TPM limiti 3× daha yüksek). Rate limit: `Retry-After` header kullanılıyor. v1.5'ten itibaren tek prompt'ta sentiment + entities + topic çıkarılıyor (max_tokens=350).
+**Neden Groq?** Gemini'den taşındı. 14.400 req/gün ücretsiz, requests kütüphanesi yeterli (SDK yok). Rate limit: `Retry-After` header kullanılıyor. v1.5'ten itibaren tek prompt'ta sentiment + entities + topic çıkarılıyor. **Model: `openai/gpt-oss-20b`** (18 Ağu 2026'da `llama-3.1-8b-instant`'tan değişti — Groq o modeli tamamen kaldırdı, bkz. "v2.1.1" bloğu aşağıda). `reasoning_effort="low"` + `max_tokens=600` (reasoning modeli, `message.reasoning` alanı `content`'ten ayrı döner — JSON parse'ı bozmuyor). **Groq'un model listesi zamanla değişiyor/modeller kaldırılıyor** — `GET https://api.groq.com/openai/v1/models` ile periyodik kontrol faydalı; 404 + `model_not_found` görürsen model kaldırılmış demektir (rate limit/kota DEĞİL).
 
 **Neden sentence-transformers?** Groq'un embedding API'si yok. `paraphrase-multilingual-MiniLM-L12-v2` modeli TR+EN destekler, tamamen local çalışır, API key gerektirmez. Kurulu versiyon: 3.3.1, torch: 2.10.0 (CPU wheel).
 
@@ -198,7 +198,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v2.0.0 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (29 Temmuz 2026 — AWS t3.small, gerçek Let's Encrypt, 16 servis, boru hattı uçtan uca çalışıyor). Öncesi: v1.19.0 public `/news/search` kota atlatma kapatıldı (canlıya çıkış o tarihte Oracle kayıt sorunuyla BLOKE'ydi, AWS köprüsüyle aşıldı — bkz. "SIRADAKİ GÖREVLER" v1.18/v1.19 blokları ve v2.0 madde 1). Önceki büyük dönüm noktası: v1.11.0 Monetizasyon & Erişim (billing dev-mode, rol tabanlı admin, self-service kullanım paneli, kullanıcı başına API key) + proje geneli clean-code refactoring — v1.12 → v1.19 arası TÜM işler "SIRADAKİ GÖREVLER" bölümünde madde madde kayıtlı.
+- **Versiyon:** v2.1.1 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 18 Ağustos 2026 — AWS t3.small, gerçek Let's Encrypt, 16 servis, boru hattı uçtan uca çalışıyor + owner rolü + gerçek SMTP e-posta + 3 canlı bug düzeltmesi prod'da doğrulandı, detay "SIRADAKİ GÖREVLER" v2.1.1 bloğu). İlk canlıya çıkış: 29 Temmuz 2026. Öncesi: v1.19.0 public `/news/search` kota atlatma kapatıldı (canlıya çıkış o tarihte Oracle kayıt sorunuyla BLOKE'ydi, AWS köprüsüyle aşıldı — bkz. "SIRADAKİ GÖREVLER" v1.18/v1.19 blokları ve v2.0 madde 1). Önceki büyük dönüm noktası: v1.11.0 Monetizasyon & Erişim (billing dev-mode, rol tabanlı admin, self-service kullanım paneli, kullanıcı başına API key) + proje geneli clean-code refactoring — v1.12 → v1.19 arası TÜM işler "SIRADAKİ GÖREVLER" bölümünde madde madde kayıtlı.
 - **v1.11 sonrası ekler (v1.12 öncesi ara işler — tarihsel):**
   1. **Şifremi unuttum / şifre sıfırlama** — `POST /auth/forgot-password` + `POST /auth/reset-password`, `password_reset_tokens` tablosu (`migrations/v1_12_password_reset_tokens.sql`), `EmailPort.send_password_reset` (Console + Resend), şifre değişince tüm oturumlar düşürülür.
   2. **Prod deploy tutarlılık düzeltmesi** — `docker-compose.prod.yml`'den silinmiş Streamlit `dashboard` servisi kaldırıldı, yerine `frontend` (Next.js, `frontend/Dockerfile` standalone build) eklendi; `redis` servisi prod'a eklendi; nginx `dashboard:8501` yerine `frontend:3000`'e yönlendiriyor; CI'a frontend `npm run build` job'u eklendi.
@@ -359,12 +359,57 @@ bağlanmıyordu; (c) `EMAIL_PROVIDER=smtp` ama kimlik bilgisi boşsa hiçbir yer
 yalancı "smtp" diyordu — artık `"smtp (kimlik eksik)"`; (d) Gmail SMTP `From` başlığı `smtp_user`dan
 farklı bir varsayılana düşüyordu (Gmail relay reddedebilir/değiştirebilir) — fallback artık
 `smtp_from or smtp_user or email_from`; (e) kademeli rol yönetiminin asıl kuralı (atanan rol aktörün
-kendi rütbesini aşamaz) hiç test edilmemişti. **Kalan manuel adımlar (kullanıcı onayı gerektirir,
-detay [[project_nexstream_owner_email_pending]]):** prod `.env`'e `OWNER_EMAILS`/`EMAIL_PROVIDER=smtp`/
-`SMTP_*` eklenip `docker compose -f docker-compose.prod.yml up -d app worker`, canlı doğrulama
-(rozet "Kurucu", gerçek mail `boeingb747.800@gmail.com`'a düşüyor mu, `/health.email=="smtp"`).
+kendi rütbesini aşamaz) hiç test edilmemişti. **18 Ağustos 2026'da prod'a DEPLOY EDİLDİ** — bkz.
+aşağıdaki "v2.1.1" bloğu (manuel adımlar tamamlandı: `OWNER_EMAILS=erenk897@gmail.com`,
+`SMTP_USER`/`SMTP_PASSWORD` prod `.env`'e yazıldı, `/health.email=="smtp"` doğrulandı).
 
-**Tamamlananlar:** v1.2 → v1.11 (detaylar yukarıdaki milestone'larda) + v1.11 sonrası 6 ara iş (şifre sıfırlama, prod deploy tutarlılığı, kritik ChromaDB indeksleme bug fix, arama recency sıralaması, retention job, cookie tabanlı session auth — detay MEVCUT DURUM'da) + go-live hazırlığı + admin paneli/rol hiyerarşisi + sponsor/email/digest düzeltmeleri (8 Temmuz 2026) + v1.12 (responsive/erişilebilirlik/SEO/tema perf, TAMAMLANDI) + WebSocket canlı ticker + v1.14 tier-gating gerçek yapıldı + canlı testte bulunan auth bug'ları (20 Temmuz 2026) + v1.15 e-posta doğrulama akışı + v1.16 ham veri export + dashboard canlı liste enjeksiyonu + v1.17 kapsamlı güvenlik denetimi & sertleştirme (21 Temmuz 2026) + v1.18 Kafka→Redpanda + PWA + ücretsiz deploy hazırlığı + Dependabot + `/ws/feed` bağlantı limiti + yedek şifreleme/offsite (22 Temmuz 2026) + **v1.19 public `/news/search` kota atlatma kapatıldı** (23 Temmuz 2026, detay aşağıda) + v2.0 RAM optimizasyonu/canlıya çıkış (29 Temmuz 2026) + **v2.1 owner rolü + kademeli rol yönetimi + gerçek e-posta gönderimi** (17 Ağustos 2026, detay yukarıda, henüz main'e/origin'e push edilmedi). 612 backend test, lokalde TAM çalışır (billing dahil — `BILLING_DEV_MODE=true` ile Stripe'sız demo). Gerçek Stripe entegrasyonu kod tarafında hazır; sadece gerçek hesap + `STRIPE_*` anahtarları + `stripe listen` webhook'u gerekir (v2.0 deploy işi). **Sıradaki oturum:** v2.0 domain/VPS deploy — kod tarafındaki TÜM v2.0 maddeleri hazır (Oracle Cloud Free ARM + DuckDNS'e göre yeniden yazıldı, bkz. v2.0 madde 1). **BLOKE:** Oracle hesap açılışı kart doğrulamasında "Transaction Failed" veriyor (23 Temmuz 2026 itibarıyla çözülmedi) — bir sonraki oturum önce bu denemenin sonucunu sormalı; başarılıysa `DEPLOY.md` adım adım takip edilir, hâlâ başarısızsa Google Cloud e2-micro alternatifi değerlendirilmeli. Deploy öncesi MUTLAKA yapılacaklar (v1.17 denetiminden): `.env`'de `ENVIRONMENT=production` + gerçek `CORS_ORIGINS` + güçlü `GRAFANA_PASSWORD` set edilmeli (yoksa uygulama/compose zaten sert hata verip durur — bilinçli tasarım). Kalan bilinçli-kapatılmayan güvenlik maddeleri: token'ların DB'de düz metin olması (belgelenmiş sadelik tercihi), `/docs`'un prod'da açık kalması (API dok portalı özelliğiyle çelişmesin diye bilinçli).
+**✅ v2.1.1 — v2.1'in prod'a deploy'u SIRASINDA bulunan 3 gerçek canlı bug (18 Ağustos 2026,
+TAMAMLANDI): prod hâlâ 29 Temmuz'daki v2.0 commit'indeydi (owner rolü hiç canlıda değildi, kullanıcı
+"pro değilsin" görüyordu) — `git push` + sunucuda `pull` + `docker compose up -d --build app worker
+frontend` ile deploy edildi. Ardından kullanıcının "arama/semantic/tag/duygu analizi uçtan uca çalışıyor
+mu" isteği üzerine yapılan canlı doğrulama sırasında 3 bağımsız, gerçek prod bug'ı bulundu (hiçbiri
+planlı değildi, hiçbiri bu oturumun deploy'undan KAYNAKLANMADI — ikisi zaten günlerdir sessizce
+bozuktu):**
+1. 🔴 **En kritik — Groq `llama-3.1-8b-instant` modeli TAMAMEN KALDIRILMIŞ** (17 Ağu 2026 ~08:35 UTC'den
+   beri, `HTTP 404 model_not_found`). `analyze_text()` hata yutup nötr fallback döndüğü için (bilinçli
+   "servis çökmesin" tasarımı) HİÇBİR alarm çalmadı — ~1 gündür canlıdaki HER haber sessizce
+   sentiment=Neutral/topic=Other/entities=boş alıyordu, bu da gündem (trending) ve "ilgili haberler"i de
+   BOŞ gösteriyordu (entity overlap'e dayandıkları için — 3 farklı belirti, TEK kök neden). Cursor
+   bazlı ikili arama ile regresyonun tam ne zaman başladığını (`/api/v1/news?cursor=N` ile tarihe göre)
+   tespit ettik. **Çözüm:** model `openai/gpt-oss-20b`'ye geçti (bkz. "Kritik Kararlar"daki Groq notu).
+   Kod deploy sonrası birkaç dakika içinde gündem/ilgili-haberler kendiliğinden düzeldi (yeni haberler
+   doğru analiz edildi), eski ~1 günlük nötr haberler geriye dönük düzeltilmedi (`reanalyze_all()`
+   `entities is not None` olan satırları atlıyor — nötr fallback NULL değil boş dict yazdığı için bu
+   endpoint onları YAKALAMIYOR, bilerek backfill yapılmadı, kullanıcıya soruldu).
+2. **`/ws/feed` prod'da HİÇ ÇALIŞMIYORDU** (muhtemelen hiç, o özellik yazıldığından beri) —
+   `requirements.txt`'te `uvicorn==0.41.0` (bare, `[standard]` DEĞİL) ve `websockets`/`wsproto` hiç
+   pinlenmemiş; uvicorn bu paketler olmadan WS protokolünü hiç tanımıyor, her upgrade isteği düz HTTP'ye
+   düşüp Starlette router'ında 404 alıyordu. **Bu tamamen fark edilmeden kalmıştı çünkü:** (a) local
+   venv'de `websockets` `google-genai` (Gemini döneminden kalma, `requirements.txt`'te YOK, hiçbir yerde
+   import edilmiyor) üzerinden transitive kurulu geliyordu; (b) `tests/adapters/test_websocket.py`
+   Starlette `TestClient`'ın in-process ASGI transport'unu kullanıyor, bu da gerçek `websockets` paketine
+   HİÇ ihtiyaç duymuyor — testler bu sınıfta hiçbir zaman yakalayamaz. **Çözüm:** `requirements.txt`'e
+   `websockets==16.0` eklendi (`uvicorn[standard]` DEĞİL — o extras httptools/uvloop/watchfiles de
+   getirirdi, RAM optimizasyonu disiplinini bozardı).
+3. Frontend `useLiveFeed.ts`: prod'da `NEXT_PUBLIC_API_URL=/api` (göreli) olduğu için
+   `BASE.replace(/^http/,"ws")` no-op kalıyor, `new WebSocket("/api/ws/feed")` tarayıcıda senkron
+   `SyntaxError` fırlatıyordu (göreli URL sayfanın şemasını [https] miras alır, WebSocket constructor'ı
+   şemanın ws/wss olmasını zorunlu kılar) — try/catch'siz olduğu için ticker sessizce "bağlantı kesildi"
+   durumunda donuyordu. `window.location`'dan açık `ws(s)://host+path` inşa edecek + constructor'ı
+   try/catch'e alacak şekilde düzeltildi.
+- **Doğrulama yöntemi notu (kalıcı ders):** `curl`/`wget` ile WebSocket endpoint'i test ETME — ikisi de
+  gerçek WS handshake yapmaz (Upgrade header'ı eklemek yetmez), sonuçta gördüğün 404 hem "route yok" hem
+  "gerçekten çalışıyor ama bu araç anlamıyor" anlamına gelebilir, ayırt edemezsin. Gerçek bir istemci kullan
+  (Python `websockets` kütüphanesi `InvalidStatus` + gerçek HTTP status/header verir, ya da Node'un yerleşik
+  `WebSocket`'i).
+- **AWS SSM operasyon deseni (bu oturumda netleşti):** `aws ssm send-command --document-name
+  AWS-RunShellScript` içindeki komutlarda `git` kullanmadan önce `export HOME=/home/ubuntu` (SSM oturumunda
+  `$HOME` set değil) + `git -c safe.directory=<repo-path>` (root/farklı kullanıcı sahipliği "dubious
+  ownership" hatası verir) gerekir. Windows'taki native `aws.exe`'ye Git Bash'ten `--parameters
+  file:///tmp/...` gibi bir paramfile yolu VERME — path'i doğru çözemiyor ("No such file or directory"
+  hatası dosya gerçekten var olsa bile); `--parameters` JSON'unu inline (gerekirse base64 ile) geç.
+
+**Tamamlananlar:** v1.2 → v1.11 (detaylar yukarıdaki milestone'larda) + v1.11 sonrası 6 ara iş (şifre sıfırlama, prod deploy tutarlılığı, kritik ChromaDB indeksleme bug fix, arama recency sıralaması, retention job, cookie tabanlı session auth — detay MEVCUT DURUM'da) + go-live hazırlığı + admin paneli/rol hiyerarşisi + sponsor/email/digest düzeltmeleri (8 Temmuz 2026) + v1.12 (responsive/erişilebilirlik/SEO/tema perf, TAMAMLANDI) + WebSocket canlı ticker + v1.14 tier-gating gerçek yapıldı + canlı testte bulunan auth bug'ları (20 Temmuz 2026) + v1.15 e-posta doğrulama akışı + v1.16 ham veri export + dashboard canlı liste enjeksiyonu + v1.17 kapsamlı güvenlik denetimi & sertleştirme (21 Temmuz 2026) + v1.18 Kafka→Redpanda + PWA + ücretsiz deploy hazırlığı + Dependabot + `/ws/feed` bağlantı limiti + yedek şifreleme/offsite (22 Temmuz 2026) + **v1.19 public `/news/search` kota atlatma kapatıldı** (23 Temmuz 2026, detay aşağıda) + v2.0 RAM optimizasyonu/canlıya çıkış (29 Temmuz 2026) + **v2.1 owner rolü + kademeli rol yönetimi + gerçek e-posta gönderimi** (17 Ağustos 2026, detay yukarıda) + **v2.1.1 prod deploy + 3 gerçek canlı bug (Groq model kaldırılmış, `/ws/feed` hiç çalışmıyordu, frontend WS URL SyntaxError'ı) bulunup düzeltildi** (18 Ağustos 2026, detay yukarıda; `main`'e/origin'e hâlâ merge edilmedi, sadece `optimize/t3-small-ram`). 612 backend test, lokalde TAM çalışır (billing dahil — `BILLING_DEV_MODE=true` ile Stripe'sız demo). Gerçek Stripe entegrasyonu kod tarafında hazır; sadece gerçek hesap + `STRIPE_*` anahtarları + `stripe listen` webhook'u gerekir (v2.0 deploy işi). **Sıradaki oturum:** v2.0 domain/VPS deploy — kod tarafındaki TÜM v2.0 maddeleri hazır (Oracle Cloud Free ARM + DuckDNS'e göre yeniden yazıldı, bkz. v2.0 madde 1). **BLOKE:** Oracle hesap açılışı kart doğrulamasında "Transaction Failed" veriyor (23 Temmuz 2026 itibarıyla çözülmedi) — bir sonraki oturum önce bu denemenin sonucunu sormalı; başarılıysa `DEPLOY.md` adım adım takip edilir, hâlâ başarısızsa Google Cloud e2-micro alternatifi değerlendirilmeli. Deploy öncesi MUTLAKA yapılacaklar (v1.17 denetiminden): `.env`'de `ENVIRONMENT=production` + gerçek `CORS_ORIGINS` + güçlü `GRAFANA_PASSWORD` set edilmeli (yoksa uygulama/compose zaten sert hata verip durur — bilinçli tasarım). Kalan bilinçli-kapatılmayan güvenlik maddeleri: token'ların DB'de düz metin olması (belgelenmiş sadelik tercihi), `/docs`'un prod'da açık kalması (API dok portalı özelliğiyle çelişmesin diye bilinçli).
 
 **✅ v2.0 RAM/disk optimizasyonu + CANLIYA ÇIKIŞ — `embedder` servisi + 7 gerçek repo bug'ı (29 Temmuz 2026, TAMAMLANDI ve DEPLOY EDİLDİ):**
 - **🚀 SİTE CANLI: https://nexstreamnewsengine.duckdns.org** — AWS t3.small, gerçek Let's Encrypt sertifikası (27 Ekim 2026'ya kadar, certbot 12 saatte bir otomatik yeniliyor), 16 servis ayakta, boru hattı uçtan uca çalışıyor. **Sunucuya SSH ile DEĞİL, AWS SSM ile bağlanılıyor** (port 22 hem sandbox'tan hem kullanıcının ISP'sinden kapalı) — detay `DEPLOY.md` §2-AWS. Dal `optimize/t3-small-ram`, main'e HENÜZ MERGE EDİLMEDİ.
