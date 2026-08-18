@@ -159,3 +159,71 @@ def test_get_api_key_returns_current(app_client):
 
     assert resp.status_code == 200
     assert resp.json() == {"api_key": "nxs_abc123", "has_api_key": True}
+
+
+# ── /account/newsletter ─────────────────────────────────────────────────────
+# /subscriptions/{email} GET/PATCH X-API-Key ister (paylaşımlı admin anahtarı),
+# bu yüzden hesap sayfası kendi verisini SESSION'la okuyabilsin diye eklendi
+# (v2.1.1, 18 Ağu 2026 — kullanıcı gerçek hesabında abonelik olmadığını fark
+# edince, frontend'de bu özelliği açan hiçbir form olmadığı ortaya çıktı).
+
+def test_newsletter_requires_auth(app_client):
+    resp = app_client.get("/account/newsletter")
+    assert resp.status_code == 401
+
+
+def test_newsletter_not_subscribed(app_client):
+    _override(app_client, _make_user())
+    try:
+        with patch("src.adapters.api.routers.account_router.SubscriberRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_email.return_value = None
+            MockRepo.return_value = repo
+            resp = app_client.get("/account/newsletter")
+    finally:
+        _clear(app_client)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"subscribed": False}
+
+
+def test_newsletter_returns_current_preferences(app_client):
+    from src.domain.models.subscriber import Subscriber
+
+    _override(app_client, _make_user())
+    try:
+        with patch("src.adapters.api.routers.account_router.SubscriberRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_email.return_value = Subscriber(
+                email="me@test.com", keywords=["deprem"], preferred_sources=["TRT Haber"],
+                preferred_topics=["Politics"], language="TR", frequency="daily", is_active=True,
+            )
+            MockRepo.return_value = repo
+            resp = app_client.get("/account/newsletter")
+    finally:
+        _clear(app_client)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["subscribed"] is True
+    assert body["frequency"] == "daily"
+    assert body["keywords"] == ["deprem"]
+    assert body["preferred_sources"] == ["TRT Haber"]
+    assert body["preferred_topics"] == ["Politics"]
+
+
+def test_newsletter_inactive_subscription_shown_as_not_subscribed(app_client):
+    from src.domain.models.subscriber import Subscriber
+
+    _override(app_client, _make_user())
+    try:
+        with patch("src.adapters.api.routers.account_router.SubscriberRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_email.return_value = Subscriber(email="me@test.com", is_active=False)
+            MockRepo.return_value = repo
+            resp = app_client.get("/account/newsletter")
+    finally:
+        _clear(app_client)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"subscribed": False}
