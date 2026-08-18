@@ -35,7 +35,7 @@ What started as a course project on enterprise architecture has grown into a pro
 
 **Key capabilities:**
 - **17 sources** (11 Turkish + 6 English), added declaratively via a scraper registry
-- **AI pipeline** on Groq `llama-3.1-8b-instant`: sentiment + entities (people/orgs/locations) + topic + summary in a single prompt, with an optional Hugging Face fallback
+- **AI pipeline** on Groq `openai/gpt-oss-20b`: sentiment + entities (people/orgs/locations) + topic + summary in a single prompt, with an optional Hugging Face fallback
 - **Hybrid search**: ChromaDB semantic vectors + PostgreSQL keyword, combined-score ranked with recency decay, Turkish morphological stemming
 - **Trending engine**, **related-article graph** (entity overlap, Pro+), and **semantic dedup**
 - **Quality + credibility scoring**: deterministic content-quality score and source-credibility / corroboration metrics
@@ -136,7 +136,7 @@ flowchart LR
 | API | FastAPI + Uvicorn (REST + versioned `/api/v1`) |
 | Auth & limits | Session tokens (bcrypt), slowapi rate limiting, per-tier quotas |
 | Message broker | Redpanda (Kafka-compatible, single-node) |
-| AI analyzer | Groq `llama-3.1-8b-instant` (+ optional Hugging Face fallback) |
+| AI analyzer | Groq `openai/gpt-oss-20b` (+ optional Hugging Face fallback) |
 | Embeddings | `paraphrase-multilingual-MiniLM-L12-v2` (local, no API key) |
 | Vector search | ChromaDB (persistent) |
 | Database | PostgreSQL 15 + SQLAlchemy ORM |
@@ -354,6 +354,9 @@ The default `FallbackAnalyzer` chains Groq → Hugging Face → neutral fallback
 | `STRIPE_PRO_PRICE_ID` / `STRIPE_ENTERPRISE_PRICE_ID` | Stripe price IDs | — |
 | `BILLING_DEV_MODE` | Skip Stripe, upgrade tiers instantly (local demo only — never in production) | `false` |
 | `ADMIN_EMAILS` | Comma-separated emails bootstrapped as admin, no DB write needed | — |
+| `OWNER_EMAILS` | Comma-separated emails bootstrapped as owner (Enterprise-equivalent access, never assignable via API) | — |
+| `EMAIL_PROVIDER` | `auto` (SMTP if configured, else Resend, else console) / `smtp` / `resend` / `console` | `auto` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | Transactional email via SMTP (e.g. Gmail — use an app password, not your login password) | `smtp.gmail.com` / `587` / … |
 | `ENVIRONMENT` | `production` enables a startup guard that refuses to boot with an unsafe config (default API key, `CORS_ORIGINS=*`, dev billing mode, insecure cookies) | `development` |
 | `EXPORT_MAX_ROWS` | Row ceiling for the raw data export endpoint | `20000` |
 | `WS_MAX_CONNECTIONS_PER_USER` / `WS_MAX_TOTAL_CONNECTIONS` | `/ws/feed` per-user / global connection caps | `5` / `500` |
@@ -415,7 +418,10 @@ Uses Conventional Commits: `feat:`, `fix:`, `chore:`, `ci:`, `refactor:`, `test:
 | v1.17 | Full security audit & hardening (auth, injection, secrets, DoS, dependencies) | ✅ Done |
 | v1.18 | Kafka→Redpanda migration (ARM-ready), installable PWA, Dependabot, encrypted/offsite backups, WebSocket connection caps | ✅ Done |
 | v1.19 | Closed the last known rate-limit gap on the public search endpoint | ✅ Done |
-| v2.0 | Public launch: free-tier cloud VPS + domain, landing SEO, API docs portal | 🚧 In progress |
+| v2.0 | Public launch: RAM-optimized deploy to a free-tier cloud VPS, real domain + TLS | ✅ Done |
+| v2.1 | Owner role, tiered role management, real transactional email (SMTP) | ✅ Done |
+| v2.1.1 | Live security review: Groq model swap, WebSocket fix, nginx header fix, Turkish search-scoring fix, `main` sync | ✅ Done |
+| v2.2 | Real Stripe billing, API docs portal polish, launch content, Grafana alerting | 🚧 In progress |
 
 ---
 
@@ -436,7 +442,7 @@ Kurumsal mimari dersi için başlayan proje; e-posta doğrulamalı kullanıcı h
 
 **Temel özellikler:**
 - **17 kaynak** (11 TR + 6 EN), scraper registry ile bildirimsel eklenir
-- **AI hattı** (Groq `llama-3.1-8b-instant`): tek prompt'ta duygu + varlıklar (kişi/kurum/yer) + konu + özet; opsiyonel Hugging Face yedeği
+- **AI hattı** (Groq `openai/gpt-oss-20b`): tek prompt'ta duygu + varlıklar (kişi/kurum/yer) + konu + özet; opsiyonel Hugging Face yedeği
 - **Hibrit arama**: ChromaDB anlam vektörü + PostgreSQL anahtar kelime, recency decay'li birleşik skor; Türkçe morfolojik kök ayıklama
 - **Trending motoru**, **ilişki grafı** (varlık örtüşmesi, Pro+) ve **anlamsal dedup**
 - **Kalite + güvenilirlik skorlaması**: deterministik içerik kalitesi + kaynak güvenilirliği / doğrulama metrikleri
@@ -537,7 +543,7 @@ flowchart LR
 | API | FastAPI + Uvicorn (REST + sürümlü `/api/v1`) |
 | Auth & limit | Session token (bcrypt), slowapi rate limiting, tier bazlı kota |
 | Mesaj kuyruğu | Redpanda (Kafka-uyumlu, tek node) |
-| AI analyzer | Groq `llama-3.1-8b-instant` (+ opsiyonel Hugging Face yedeği) |
+| AI analyzer | Groq `openai/gpt-oss-20b` (+ opsiyonel Hugging Face yedeği) |
 | Embedding | `paraphrase-multilingual-MiniLM-L12-v2` (lokal, API key gerekmez) |
 | Vektör arama | ChromaDB (persistent) |
 | Veritabanı | PostgreSQL 15 + SQLAlchemy ORM |
@@ -781,7 +787,10 @@ Conventional Commits kullanılır: `feat:`, `fix:`, `chore:`, `ci:`, `refactor:`
 | v1.17 | Kapsamlı güvenlik denetimi & sertleştirme (auth, injection, secrets, DoS, bağımlılıklar) | ✅ |
 | v1.18 | Kafka→Redpanda geçişi (ARM-uyumlu), kurulabilir PWA, Dependabot, şifreli/offsite yedek, WebSocket bağlantı tavanı | ✅ |
 | v1.19 | Public arama endpoint'indeki son bilinen rate-limit boşluğu kapatıldı | ✅ |
-| v2.0 | Public launch: ücretsiz katman bulut VPS + domain, landing SEO, API docs portalı | 🚧 Devam ediyor |
+| v2.0 | Public launch: RAM optimizasyonlu deploy, ücretsiz katman bulut VPS + gerçek domain + TLS | ✅ |
+| v2.1 | Owner rolü, kademeli rol yönetimi, gerçek e-posta gönderimi (SMTP) | ✅ |
+| v2.1.1 | Canlı güvenlik incelemesi: Groq model değişimi, WebSocket düzeltmesi, nginx header düzeltmesi, Türkçe arama skoru düzeltmesi, `main` senkronizasyonu | ✅ |
+| v2.2 | Gerçek Stripe billing, API docs portal cilası, launch içeriği, Grafana alerting | 🚧 Devam ediyor |
 
 ---
 
