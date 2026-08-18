@@ -28,3 +28,13 @@ search_latency_seconds = Histogram(
     "Search endpoint latency in seconds",
     buckets=[0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0],
 )
+
+# v2.1.1 (18 Ağu 2026) — Groq'un modeli tamamen kaldırması bir gün boyunca fark
+# edilmedi çünkü FallbackAnalyzer'ın nötr fallback'i (bilinçli tasarım: servis
+# hot-path'i çökmesin) hiçbir sinyal bırakmıyordu. Bu sayaç artık Grafana
+# alerting'in "analiz kalitesi sessizce bozuldu mu" sorusuna cevap vermesini
+# sağlıyor — bkz. infra/grafana/provisioning/alerting/.
+analysis_fallback_total = Counter(
+    "nexstream_analysis_fallback_total",
+    "Total times ALL analyzers failed and a neutral default was returned",
+)

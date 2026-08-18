@@ -1,0 +1,24 @@
+apiVersion: 1
+
+# E-posta ile alert bildirimi — Grafana'nın KENDİ SMTP config'i gerekir
+# (GF_SMTP_* env var'ları, docker-compose.prod.yml'de grafana servisine
+# eklendi — app'in kullandığı SMTP_USER/SMTP_PASSWORD ile aynı Gmail hesabı
+# paylaşılıyor). Grafana SMTP yapılandırılmamışsa (GF_SMTP_ENABLED=false,
+# varsayılan, dev'de böyle) bu contact point e-posta gönderemez ama alert'ler
+# yine de Grafana UI'ında "firing" olarak görünür — /alerting sayfası her
+# zaman gerçeği yansıtır, e-posta sadece ek bir bildirim kanalıdır.
+#
+# NOT: adres burada doğrudan yazılı (Grafana'nın alerting provisioning'i
+# docker-compose'daki ${VAR} genişletmesini desteklemiyor — o sadece compose
+# dosyasının kendisi için geçerli, bind-mount edilen dosyalara uygulanmaz).
+# Değiştirmek istersen bu dosyayı elle güncelleyip Grafana'yı yeniden
+# başlatman yeterli.
+contactPoints:
+  - orgId: 1
+    name: nexstream-ops-email
+    receivers:
+      - uid: nexstream-ops-email-receiver
+        type: email
+        settings:
+          addresses: erenk897@gmail.com
+          singleEmail: true
