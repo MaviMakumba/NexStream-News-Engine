@@ -1,0 +1,137 @@
+{
+  "info": {
+    "name": "NexStream News Engine API",
+    "description": "AI destekli haber motoru — hibrit arama (semantik + anahtar kelime), duygu/varlık/konu analizi, gündem, ilişkili haberler. Canlı: https://nexstreamnewsengine.duckdns.org — API dokümantasyonu: {{base_url}}/api/docs\n\nİki kimlik doğrulama yolu var:\n1. `X-User-Key` header'ı (hesap sayfasından üretilen kişisel API key, `nxs_` önekli) — `/api/v1/*` uçları için.\n2. Oturum çerezi (`nxs_session`) — tarayıcıdan giriş yaptıysanız otomatik gönderilir.\n\nKimliksiz (public) uçlar — `/news/search`, `/news/trending`, `/feed.xml`, `/health` — hiçbir header gerektirmez, sadece IP bazlı rate limit uygulanır.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "https://nexstreamnewsengine.duckdns.org/api", "type": "string" },
+    { "key": "user_api_key", "value": "nxs_your_personal_key_here", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Public (kimlik gerekmez)",
+      "item": [
+        {
+          "name": "Health",
+          "request": { "method": "GET", "url": "{{base_url}}/health" }
+        },
+        {
+          "name": "Hibrit arama (semantik + anahtar kelime)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/news/search",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"yapay zeka teknoloji şirketleri\",\n  \"n_results\": 10\n}"
+            },
+            "description": "Free-tier tavanına (10 sonuç) sabitlenir, kimlik doğrulaması gerektirmez. 30/dakika + 200/gün rate limit."
+          }
+        },
+        {
+          "name": "Gündem (trending entity'ler)",
+          "request": { "method": "GET", "url": "{{base_url}}/news/trending?hours=6&limit=10" }
+        },
+        {
+          "name": "RSS/Atom akışı",
+          "request": { "method": "GET", "url": "{{base_url}}/feed.xml" }
+        }
+      ]
+    },
+    {
+      "name": "API v1 (kotalı, X-User-Key ile)",
+      "item": [
+        {
+          "name": "Haber listesi (cursor sayfalama)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-User-Key", "value": "{{user_api_key}}" }],
+            "url": "{{base_url}}/v1/news?limit=20&sentiment=Positive&topic=Technology"
+          }
+        },
+        {
+          "name": "Hibrit arama (tier'a göre sonuç sayısı)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-User-Key", "value": "{{user_api_key}}" }
+            ],
+            "url": "{{base_url}}/v1/news/search",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"beşiktaş transfer\",\n  \"n_results\": 50\n}"
+            }
+          }
+        },
+        {
+          "name": "İlişkili haberler (Pro+)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-User-Key", "value": "{{user_api_key}}" }],
+            "url": "{{base_url}}/v1/news/1/related"
+          }
+        },
+        {
+          "name": "Ham veri export — CSV/JSON (Enterprise)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-User-Key", "value": "{{user_api_key}}" }],
+            "url": "{{base_url}}/v1/news/export?format=json&date_from=2026-08-01&date_to=2026-08-18"
+          }
+        },
+        {
+          "name": "Kaynak listesi",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-User-Key", "value": "{{user_api_key}}" }],
+            "url": "{{base_url}}/v1/news/sources"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth & Hesap",
+      "item": [
+        {
+          "name": "Kayıt ol",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"you@example.com\",\n  \"password\": \"minimum-8-karakter\",\n  \"name\": \"Adınız\",\n  \"language\": \"TR\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Giriş yap",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"you@example.com\",\n  \"password\": \"minimum-8-karakter\"\n}"
+            },
+            "description": "Başarılı girişte HttpOnly `nxs_session` çerezi set edilir — Postman bunu otomatik saklar, sonraki isteklerde otomatik gönderir."
+          }
+        },
+        {
+          "name": "Kendi bilgim",
+          "request": { "method": "GET", "url": "{{base_url}}/auth/me" }
+        },
+        {
+          "name": "Kullanım istatistiklerim",
+          "request": { "method": "GET", "url": "{{base_url}}/account/usage" }
+        },
+        {
+          "name": "Kişisel API key üret/rotate",
+          "request": { "method": "POST", "url": "{{base_url}}/account/api-key" }
+        }
+      ]
+    }
+  ]
+}

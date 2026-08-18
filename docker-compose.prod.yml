@@ -299,6 +299,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: /api
+        NEXT_PUBLIC_SITE_URL: https://nexstreamnewsengine.duckdns.org
     container_name: nexstream_frontend
     restart: always
     depends_on:

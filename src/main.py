@@ -164,8 +164,41 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="NexStream News Engine API",
-    description="Yapay Zeka Destekli Haber Motoru",
-    version="1.11.0",
+    description="""
+Türkiye ve dünya haberlerini toplayıp yapay zeka ile analiz eden (duygu +
+varlık çıkarımı + konu sınıflandırma + özet), semantik + anahtar kelime
+aramasıyla sunan bir haber motoru API'si.
+
+**Başlarken:**
+- Kimlik doğrulaması gerektirmeyen uçlar (`/news/search`, `/news/trending`, `/feed.xml`) doğrudan denenebilir.
+- Sürümlü, kotalı public API için `/api/v1/*` uçlarını kullanın — `X-User-Key` header'ı ile (bkz. `/account/api-key`) ya da oturum çerezinizle kimlik doğrulanır.
+- Tier'a göre kota ve özellik erişimi değişir — detay için `/billing/config` ve README'deki "API Tiers" tablosuna bakın.
+
+**Kaynaklar:** [GitHub](https://github.com/MaviMakumba/NexStream-News-Engine) ·
+[Canlı site](https://nexstreamnewsengine.duckdns.org) ·
+[Postman koleksiyonu](https://github.com/MaviMakumba/NexStream-News-Engine/blob/main/docs/NexStream.postman_collection.json)
+""",
+    version="2.1.1",
+    contact={
+        "name": "MaviMakumba",
+        "url": "https://github.com/MaviMakumba/NexStream-News-Engine",
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://github.com/MaviMakumba/NexStream-News-Engine/blob/main/LICENSE",
+    },
+    openapi_tags=[
+        {"name": "News", "description": "Haber listesi, arama (hibrit: semantik + anahtar kelime), gündem/trend, ilişkili haberler, kaynak yönetimi. Çoğu uç kimlik doğrulaması gerektirmez, rate-limit ile korunur."},
+        {"name": "API v1", "description": "Sürümlü, kotalı public API — cursor tabanlı sayfalama, `X-RateLimit-*` header'ları, tier'a göre kota (bkz. README \"API Tiers\")."},
+        {"name": "Auth", "description": "Kayıt, giriş/çıkış, e-posta doğrulama, şifre sıfırlama. Kimlik HttpOnly `nxs_session` çerezi ile taşınır."},
+        {"name": "Account", "description": "Kendi kullanım istatistikleriniz + kişisel API key üretimi/iptali (`X-User-Key`)."},
+        {"name": "Admin", "description": "Kullanıcı/kullanım/sponsor yönetimi — moderatör/admin/owner rolü gerektirir."},
+        {"name": "Billing", "description": "Stripe tabanlı abonelik yönetimi (dev modda Stripe'sız simülasyon destekler)."},
+        {"name": "Subscriptions", "description": "E-posta bülteni + anlık anahtar-kelime uyarıları için abonelik yönetimi."},
+        {"name": "Feed", "description": "RSS/Atom 2.0 haber akışı (`/feed.xml`) — duygu ve konu etiketleriyle zenginleştirilmiş."},
+        {"name": "WebSocket", "description": "`/ws/feed` ile canlı haber akışı (Pro+ tier gerektirir)."},
+        {"name": "Health", "description": "Servis durumu — veritabanı, mesaj kuyruğu, vektör arama, embedder, e-posta adaptörü."},
+    ],
     lifespan=lifespan,
 )
 
