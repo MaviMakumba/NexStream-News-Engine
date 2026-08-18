@@ -409,6 +409,17 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?GRAFANA_PASSWORD .env icinde set edilmeli - guclu/rastgele bir sifre uretin}
       - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      # v2.1.1: alert e-postaları için — app'in SMTP hesabıyla AYNI Gmail
+      # hesabı paylaşılıyor (SMTP_USER/SMTP_PASSWORD zaten .env'de). SMTP_USER
+      # boşsa Grafana kimliksiz bağlanmayı dener ve göndermede sessizce
+      # başarısız olur (Grafana AÇILMAYI reddetmez) — alert'ler yine de
+      # "firing" olarak Grafana UI'ında görünür, sadece e-posta gitmez.
+      - GF_SMTP_ENABLED=true
+      - GF_SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}:${SMTP_PORT:-587}
+      - GF_SMTP_USER=${SMTP_USER:-}
+      - GF_SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - GF_SMTP_FROM_ADDRESS=${SMTP_USER:-alerts@nexstream.news}
+      - GF_SMTP_FROM_NAME=NexStream Alerts
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
