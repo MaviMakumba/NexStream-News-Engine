@@ -205,7 +205,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 ## MEVCUT DURUM
 
 - **Versiyon:** v2.1.1 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 18 Ağustos 2026 — AWS t3.small, gerçek Let's Encrypt, 16 servis, boru hattı uçtan uca çalışıyor; owner rolü + gerçek SMTP e-posta + Groq model/WS/nginx-header/arama düzeltmeleri prod'da doğrulandı, detay `docs/CHANGELOG.md`'de "v2.1.1" bloğu). İlk canlıya çıkış: 29 Temmuz 2026.
-- **Test sayısı:** 616 test, hepsi yeşil (backend, 18 Ağu 2026); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
+- **Test sayısı:** 622 test, hepsi yeşil (backend, 18 Ağu 2026); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
 - **Frontend:** Next.js 14 + React. 9 sinematik tema, tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
@@ -222,27 +222,31 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 Tamamlanan işlerin tam kronolojik dökümü `docs/CHANGELOG.md`'de. Burada sadece
 GERÇEKTEN bekleyen işler var:
 
-1. **Gerçek Stripe entegrasyonu** — kod tarafı hazır (bkz. "Kritik Kararlar" ve
-   BİLİNEN NOTLAR'daki billing maddeleri); sadece gerçek hesap + `STRIPE_*`
-   anahtarları + `stripe listen` webhook'u + `BILLING_DEV_MODE=false` gerekir.
-2. **API dokümantasyon portalı** — Swagger/Redoc cila, demo API key, kullanım
-   örnekleri, Postman collection.
-3. **Launch içeriği** — landing son metinler, OG görselleri, Product Hunt
-   materyali.
-4. **Resend domain doğrulaması** — `resend.com/domains`'te doğrulanmış domain
+1. **Anasayfa tasarım yenilemesi** — kullanıcı "şu an tamamen basit bir AI
+   tasarımı gibi duruyor" dedi (18 Ağu 2026), özellikle hero. Bilinçli olarak
+   BAŞLANMADI bu oturumda — gerçek bir tasarım kararı işi, `frontend-design`
+   skill'i ile ayrı/temiz bir oturumda ele alınmalı, aceleye getirilmemeli.
+2. **Gerçek Stripe entegrasyonu** — kod tarafı hazır; sadece gerçek hesap +
+   `STRIPE_*` anahtarları + `stripe listen` webhook'u + `BILLING_DEV_MODE=false`
+   gerekir. Türkiye'den hesap açılabiliyor mu belirsiz (kullanıcı kendi
+   bilgileriyle denemeli) — kabul etmezse Iyzico/PayTR gibi bir alternatif
+   kod tarafında sıfırdan yazım ister.
+3. **Özel kaynak ekleme (custom source ingestion)** — kullanıcı kararıyla
+   ŞİMDİLİK ertelendi, pricing metni "bize ulaşın" şeklinde yumuşatıldı
+   (18 Ağu 2026). Tam private/per-user versiyonu gerçek bir mimari iş
+   (kullanıcı bazlı veri izolasyonu şu an sistemde YOK) — ileride sadece
+   talep eden kullanıcıya özel, elle açılan bir şey olarak düşünülebilir.
+4. **Launch içeriği** — LinkedIn metni + OG görseli hazır (18 Ağu 2026).
+   Kalan: Product Hunt materyali, varsa ek sosyal medya içeriği — düşük öncelik.
+5. **Resend domain doğrulaması** — `resend.com/domains`'te doğrulanmış domain
    yoksa, hesap sahibi dışındaki kullanıcılara Resend üzerinden hiç mail gitmez
-   (şu an SMTP birincil olduğu için bu daha düşük öncelikli — sadece SMTP
-   düşerse Resend yedeğe geçer).
-5. **Cloudflare proxy** — DNS şu an `nexstreamnewsengine.duckdns.org`'u
-   doğrudan EC2 IP'sine çözüyor (18 Ağu 2026'da fark edildi, hiç kurulmamış).
-   DuckDNS subdomain'i Cloudflare'e delege etmek/proxy'lemek ekstra araştırma
-   gerektiriyor — tek instance + WAF/CDN yokluğu hacimsel DDoS'a karşı savunmasız
-   bırakıyor (veri riski değil, erişilebilirlik riski).
-6. **Grafana gerçek alert kuralları** — health-check değil İŞ ÇIKTISI bazlı
-   (ör. "1 saattir yeni haber yok", "Groq hata oranı %X üzeri", "email adapter
-   console'a düştü") — 18 Ağu 2026'da eksik olduğu tespit edildi, mevcut
-   Prometheus/Grafana stack'i sadece dashboard olarak kullanılıyor, alerting
-   provisioning'i yok.
+   (SMTP birincil olduğu için düşük öncelik — sadece SMTP düşerse Resend
+   yedeğe geçer).
+6. **Cloudflare proxy** — DNS şu an `nexstreamnewsengine.duckdns.org`'u
+   doğrudan EC2 IP'sine çözüyor. DuckDNS subdomain'i Cloudflare'e
+   delege/proxy edemezsin (Cloudflare bir zone'un TAMAMINA nameserver olmak
+   ister, DuckDNS'in alt alan adı değil) — gerçek bir domain satın almak
+   gerekiyor (~$10-15/yıl, tek seferlik). Kullanıcıya açıklandı, karar bekliyor.
 7. **Dependabot PR'ları** — 22 açık PR bekliyor (bazıları major version bump:
    Next 16, TypeScript 7) — review/merge kararı kullanıcıda, otomatik
    merge/deploy yok (bilinçli).

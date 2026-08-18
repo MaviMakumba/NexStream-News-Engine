@@ -239,6 +239,71 @@ arama kalitesi + CLAUDE.md büyüklüğü + main merge sordu, hepsi aynı oturum
   base64) geç. (4) nginx bind-mount edilmiş config dosyası `git pull` sonrası eski inode'a takılı
   kalabilir — `reload` değil `--force-recreate` gerekir.
 
+**✅ v2.1.2 — API docs portalı + Grafana alerting + gerçek canlı yürüyüşte bulunan bug'lar + digest
+formu (18 Ağustos 2026, aynı oturumun devamı, TAMAMLANDI):**
+- **API docs portalı:** FastAPI metadata zenginleştirildi (versiyon/açıklama/contact/license/10 tag
+  açıklaması), eksik `LICENSE` dosyası (MIT) eklendi, `docs/NexStream.postman_collection.json`
+  eklendi. **Bunu açarken 2 gerçek bug bulundu, ikisi de aynı kök problemin farklı katmanları:**
+  (1) o günün erken CSP eklemesi Swagger UI'ın CDN'den (`cdn.jsdelivr.net`) çektiği JS/CSS'i
+  engelleyip beyaz sayfa veriyordu — CSP'ye CDN eklendi; (2) CSP düzelince Swagger UI çalıştı ama
+  `openapi_url`'i kök-mutlak (`/openapi.json`) ürettiği için nginx'in `/api/` prefix'ini bilmiyordu,
+  tarayıcı `https://domain/openapi.json`'a gidip 404 alıyordu — uvicorn'a `--root-path /api` eklendi
+  (Swagger UI'ın ürettiği URL'leri düzeltir, gerçek iç routing'i DEĞİŞTİRMEZ).
+- **Launch/paylaşım içeriği:** `NEXT_PUBLIC_SITE_URL` hiç wire edilmemişti (Dockerfile'da ARG yok) —
+  `robots.txt`/`sitemap.xml`/OG meta HAFTALARDIR kimsenin sahibi olmadığı `nexstream.news`'a işaret
+  ediyordu, düzeltildi. `next/og`'un `ImageResponse`'ı Windows'ta `@vercel/og`'un gömülü font
+  yükleyicisinde "Invalid URL" ile çöktüğü için (yerel `next start` ile doğrulandı), statik bir
+  Pillow-üretimi OG görseline geçildi (PWA ikonlarıyla aynı yöntem, sıfır çalışma-zamanı riski).
+  LinkedIn için hazır paylaşım metni kullanıcıya verildi.
+- **README'ye "Nasıl Çalışır" bölümü** — kullanıcının "sayısal veriler + algoritma açıklamaları
+  gerekli mi" sorusu üzerine: kalite/güvenilirlik skoru formülleri, hibrit arama sıralama formülü
+  (bugünkü Türkçe-ek bug'ı gerçek örnek olarak), ve canlı Prometheus'tan çekilmiş (uydurma değil)
+  gerçek sayılar (Groq gecikmesi, image boyutları, test süresi).
+- **Grafana alerting** — iki provisioned alert kuralı: "1 saattir yeni haber işlenmedi" (mevcut
+  `nexstream_articles_processed_total`) ve "analiz sürekli nötr fallback'e düşüyor" (yeni
+  `nexstream_analysis_fallback_total` sayacı, `FallbackAnalyzer`'a eklendi — bugünkü Groq olayını
+  ~15-20 dakikada yakalardı). **Kurulum sırasında Grafana'yı GERÇEKTEN ÇÖKERTEN bir hata yapıldı:**
+  datasource'a elle sabit bir `uid: prometheus` vermeye çalışmak, Grafana'nın haftalardır kayıtlı
+  auto-generated UID'li mevcut kaydıyla çakışıp "Datasource provisioning error: data source not
+  found" ile Grafana'yı crash-loop'a soktu — birkaç dakika içinde canlı doğrulamada yakalanıp geri
+  alındı, gerçek UID Grafana'nın kendi `/api/datasources` API'sinden okunup doğru şekilde tekrar
+  kuruldu. **Genel ders: zaten haftalardır provisioning ile yönetilen bir Grafana kaynağının uid'ini
+  SONRADAN elle sabitlemeye çalışma; gerçek/mevcut uid'i API'den oku.** Ayrıca worker'ın kendi
+  Prometheus sayaçlarının HİÇ scrape edilmediği bulundu (worker ASGI değil, `/metrics` sunan bir HTTP
+  sunucusu hiç yoktu — muhtemelen v1.6'dan beri) — `prometheus_client.start_http_server(9100)`
+  eklenip yeni bir scrape job'u tanımlandı, canlıda gerçek verinin akmaya başladığı doğrulandı.
+- **Kullanıcının canlı yürüyüşte bulduğu 6 gerçek bug:** (1) Landing hero'daki "Panele Git" ve "Demo
+  Görüntüle" giriş yapmış kullanıcıda İKİSİ DE `/dashboard`'a gidiyordu — "Demo Görüntüle" artık
+  sayfadaki canlı arama demosuna kaydırıyor. (2) "825+ Haber İndekslendi" istatistiği (VE ayrıca hero
+  rozetindeki ikinci bir kopyası) v1.11-öncesi bir hata raporundan kalma donuk bir sabitti — artık
+  `/health` + `/news/sources`'tan canlı çekiliyor. (3-4) Yukarıdaki API docs iki bug'ı. (5) Çıkış
+  yap → tarayıcı GERİ tuşu → hâlâ giriş yapılmış görünüyordu — kök neden bfcache (tarayıcı önceki
+  sayfayı donmuş JS durumuyla, mount effect'leri TEKRAR ÇALIŞTIRMADAN geri getiriyor); gerçek bir
+  yetki açığı değildi (çerez sunucuda gerçekten geçersiz) ama yanıltıcıydı — `pageshow`/`persisted`
+  dinleyicisiyle düzeltildi. (6) Pricing'de Kurumsal paket "Özel kaynak ekleme" vaat ediyordu ama
+  kodda hiç yok — kullanıcı kararıyla "bize ulaşın" diye yumuşatıldı, tam private/per-user versiyonu
+  (kullanıcı bazlı veri izolasyonu gerektirir, şu an sistemde YOK) ileriye bırakıldı.
+- **Digest/bülten formu** — kullanıcı kendi hesabında hiç abonelik kaydı olmadığını fark edip
+  "bu özellik hâlâ çalışıyor mu" diye sordu; DB kontrolünde `subscribers` tablosunda 0 satır çıktı.
+  Kazı sonucu: backend `/subscriptions` sistemi v1.7'den beri TAM çalışır durumdaydı ama Next.js
+  frontend'inde bunu açan HİÇBİR sayfa/form yoktu (muhtemelen Streamlit → Next.js geçişinde, v1.10,
+  unutulmuş) — üstelik pricing sayfası "Günlük digest e-postası"nı Free pakette bile vaat ediyordu.
+  `/subscriptions/{email}` GET/PATCH paylaşımlı admin `X-API-Key` istediği için (normal kullanıcı
+  oturumuyla kendi durumunu okuyamaz), `/account`'un "kendi verin, session auth" desenini izleyen
+  yeni bir `GET /account/newsletter` eklendi (sadece ön-doldurma için okuma); kaydetme mevcut public
+  `POST /subscriptions/`'ı (zaten upsert) olduğu gibi kullanıyor. Hesap sayfasına sıklık/konu/kaynak/
+  keyword tercihli bir kart eklendi.
+- **AWS maliyet/Cloudflare araştırması:** `aws ce get-cost-and-usage` ile $100 kredinin ~$18,4'ü
+  harcanmış bulundu, günlük yakım ~$0,93 (~$28/ay) — kredi Kasım ortasında (son kullanma tarihinden
+  ~2,5 ay önce) tükenecek. Cloudflare'in DuckDNS subdomain'i için KULLANILAMAYACAĞI netleşti
+  (Cloudflare bir zone'un TAMAMINA nameserver olmak ister, DuckDNS'in kendi zone'unun bir alt alan
+  adını devredemezsin) — gerçek bir domain satın alınması gerekiyor, kullanıcıya açıklandı, karar
+  bekliyor.
+- **Kalıcı ders:** Aynı "sessizce çalışmıyor ama görünürde her şey normal" deseni bu oturumda 3.
+  kez çıktı (worker metrikleri, digest UI'ı, gündem/ilişki grafı boşluğu) — **bir özelliğin backend
+  tarafının var olması, kullanıcının ona GERÇEKTEN erişebildiği anlamına gelmez; her "tamamlandı"
+  işaretli özelliği periyodik olarak uçtan uca (gerçek bir tarayıcıdan, gerçek bir hesapla) yürü.**
+
 **✅ v2.0 RAM/disk optimizasyonu + CANLIYA ÇIKIŞ — `embedder` servisi + 7 gerçek repo bug'ı (29 Temmuz 2026, TAMAMLANDI ve DEPLOY EDİLDİ):**
 - **🚀 SİTE CANLI: https://nexstreamnewsengine.duckdns.org** — AWS t3.small, gerçek Let's Encrypt sertifikası (27 Ekim 2026'ya kadar, certbot 12 saatte bir otomatik yeniliyor), 16 servis ayakta, boru hattı uçtan uca çalışıyor. **Sunucuya SSH ile DEĞİL, AWS SSM ile bağlanılıyor** (port 22 hem sandbox'tan hem kullanıcının ISP'sinden kapalı) — detay `DEPLOY.md` §2-AWS.
 - **Bağlam:** 28 Temmuz'da AWS `t3.small`'a (2 vCPU / 1.9GB) yapılan deploy teknik olarak çalıştı ama RAM yetmedi, yığın sürekli swap'taydı. Kullanıcının net talimatı: **"HİÇBİR ŞEY PORTFOLYOMUZU BOZAMAZ"** — hiçbir servis yığından çıkarılmayacak, çözüm kodu makineye sığdırmak. Spec: `docs/superpowers/specs/2026-07-28-t3-small-ram-optimizasyonu-design.md`, plan: `docs/superpowers/plans/2026-07-28-t3-small-ram-optimizasyonu.md`.
