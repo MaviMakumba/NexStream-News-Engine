@@ -60,3 +60,20 @@ def test_analyze_or_raise_raises_when_all_fail():
     fb = FallbackAnalyzer([_fail()])
     with pytest.raises(AnalysisError):
         fb.analyze_or_raise("x")
+
+
+def test_neutral_fallback_increments_metric():
+    """Grafana alerting'in dayandığı sayaç — bkz. metrics.py docstring'i (v2.1.1)."""
+    from src.adapters.api.metrics import analysis_fallback_total
+
+    before = analysis_fallback_total._value.get()
+    FallbackAnalyzer([_fail(), _fail()]).analyze_text("x")
+    assert analysis_fallback_total._value.get() == before + 1
+
+
+def test_successful_analysis_does_not_increment_metric():
+    from src.adapters.api.metrics import analysis_fallback_total
+
+    before = analysis_fallback_total._value.get()
+    FallbackAnalyzer([_ok(_GOOD)]).analyze_text("x")
+    assert analysis_fallback_total._value.get() == before
