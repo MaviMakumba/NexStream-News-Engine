@@ -3,7 +3,7 @@
 # (oradaki yoruma bakın), bu yüzden burada listelenmez.
 fastapi==0.139.2
 uvicorn==0.41.0
-pydantic==2.12.5
+pydantic==2.13.4
 pydantic-settings==2.14.2
 python-dotenv==1.2.2
 sentence-transformers==3.3.1
