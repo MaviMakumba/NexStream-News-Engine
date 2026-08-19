@@ -2,7 +2,7 @@
 # torch, Dockerfile.embedder'da CPU index'inden AYRI bir adımda kurulur
 # (oradaki yoruma bakın), bu yüzden burada listelenmez.
 fastapi==0.139.2
-uvicorn==0.41.0
+uvicorn==0.52.3
 pydantic==2.12.5
 pydantic-settings==2.14.2
 python-dotenv==1.2.2
