@@ -14,7 +14,7 @@ import { TierBadge } from "@/components/TierBadge";
 import { AuthLoadingScreen } from "@/components/AuthLoadingScreen";
 import { EmailVerifyBanner } from "@/components/EmailVerifyBanner";
 import {
-  BASE, createCheckout, devDowngrade, downloadExport, fetchBillingConfig, fetchMyNewsletter, fetchMyUsage,
+  BASE, createCheckout, deleteAccount, devDowngrade, downloadExport, fetchBillingConfig, fetchMyNewsletter, fetchMyUsage,
   fetchSources, generateApiKey, getBillingPortal, revokeApiKey, saveNewsletter, unsubscribeNewsletter,
 } from "@/lib/api";
 import type { AccountUsage, BillingConfig, Tier } from "@/lib/types";
@@ -24,7 +24,7 @@ import { UI, TIER_DETAILS, TOPIC_LABELS } from "@/lib/i18n";
 const NEWSLETTER_TOPICS = ["Technology", "Sports", "Economy", "Politics", "Health", "Culture", "World", "Other"];
 
 export default function AccountPage() {
-  const { user, isLoading, refreshUser } = useAuth();
+  const { user, isLoading, refreshUser, logout } = useAuth();
   const { lang } = useSettings();
   const t = UI[lang];
   const router = useRouter();
@@ -37,6 +37,13 @@ export default function AccountPage() {
   const [notice, setNotice] = useState("");
   const [exportFormat, setExportFormat] = useState<"csv" | "json">("csv");
   const [exportBusy, setExportBusy] = useState(false);
+
+  // Hesap silme (v2.1.2) — danger zone
+  const [delOpen, setDelOpen] = useState(false);
+  const [delPassword, setDelPassword] = useState("");
+  const [delConfirmed, setDelConfirmed] = useState(false);
+  const [delBusy, setDelBusy] = useState(false);
+  const [delError, setDelError] = useState("");
 
   // Bülten tercihleri (v2.1.1) — backend zaten hazırdı, hesap sayfasında hiç
   // UI'ı yoktu (kullanıcı gerçek hesabında abone kaydı olmadığını fark edince
@@ -202,6 +209,21 @@ export default function AccountPage() {
       alert(err instanceof Error ? err.message : t.errorOccurred);
     } finally {
       setExportBusy(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (!delConfirmed || !delPassword) return;
+    setDelBusy(true);
+    setDelError("");
+    try {
+      await deleteAccount(delPassword);
+      await logout();
+      router.replace("/");
+    } catch (err: unknown) {
+      setDelError(err instanceof Error ? err.message : t.errorOccurred);
+    } finally {
+      setDelBusy(false);
     }
   }
 
@@ -584,6 +606,55 @@ export default function AccountPage() {
               </a>
             ))}
           </div>
+        </div>
+
+        {/* Tehlikeli bölge — hesap silme (v2.1.2) */}
+        <div className="card" style={{ borderColor: "var(--neg)" }}>
+          <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--neg)", marginBottom: 8 }}>
+            ⚠ {t.dangerZoneTitle}
+          </h2>
+          <p style={{ fontSize: "0.84rem", color: "var(--text2)", marginBottom: 16, lineHeight: 1.6 }}>
+            {t.dangerZoneDesc}
+          </p>
+          {user.is_owner ? (
+            <p style={{ fontSize: "0.8rem", color: "var(--text3)" }}>{t.deleteAccountOwnerNote}</p>
+          ) : !delOpen ? (
+            <button onClick={() => setDelOpen(true)} className="btn-danger"
+                    style={{ fontSize: "0.82rem", padding: "8px 16px" }}>
+              {t.deleteAccountBtn}
+            </button>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 360 }}>
+              <p style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--text)" }}>{t.deleteAccountConfirmTitle}</p>
+              <div>
+                <label className="label">{t.deleteAccountPasswordLabel}</label>
+                <input type="password" value={delPassword}
+                       onChange={(e) => setDelPassword(e.target.value)}
+                       className="input" autoComplete="current-password" />
+              </div>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: "0.82rem", color: "var(--text2)", cursor: "pointer" }}>
+                <input type="checkbox" checked={delConfirmed}
+                       onChange={(e) => setDelConfirmed(e.target.checked)}
+                       style={{ marginTop: 2 }} />
+                {t.deleteAccountCheckboxLabel}
+              </label>
+              {delError && (
+                <div style={{ background: "var(--neg-bg)", border: "1px solid var(--neg)", borderRadius: 10,
+                              padding: "8px 12px", fontSize: "0.8rem", color: "var(--neg)" }}>⚠ {delError}</div>
+              )}
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={handleDeleteAccount}
+                        disabled={delBusy || !delConfirmed || !delPassword}
+                        className="btn-danger" style={{ fontSize: "0.82rem", padding: "8px 16px" }}>
+                  {delBusy ? t.deleteAccountSubmitting : t.deleteAccountSubmit}
+                </button>
+                <button onClick={() => { setDelOpen(false); setDelPassword(""); setDelConfirmed(false); setDelError(""); }}
+                        disabled={delBusy} className="btn-secondary" style={{ fontSize: "0.82rem", padding: "8px 16px" }}>
+                  {t.deleteAccountCancel}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -23,6 +23,7 @@ Yetki hiyerarşisi (v1.13, user < moderator < admin — bkz. domain/models/user.
 from datetime import datetime, timezone
 from typing import Optional
 
+import bcrypt
 from fastapi import Cookie, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
@@ -31,6 +32,23 @@ from src.infrastructure.config.settings import settings
 from src.adapters.api.auth import api_key_matches
 from src.adapters.repositories.user_repository import UserRepository
 from src.domain.models.user import User, UserRole, UserTier, role_at_least, effective_tier, TIER_DAILY_LIMITS
+
+
+# ── Parola hash'leme ─────────────────────────────────────────────────────────
+# auth_router.py (register/login) VE account_router.py (hesap silme onayı,
+# v2.1.2) paylaşıyor — bcrypt direkt kullanılıyor (passlib 5.x ile uyumsuz).
+
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode()[:72], bcrypt.gensalt()).decode()
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode()[:72], hashed.encode())
+    except Exception:
+        # Bozuk/eski hash formatı → güvenli taraf: reddet
+        return False
+
 
 # Oturum cookie'sinin adı — auth_router.py (set/delete) ile paylaşılır.
 SESSION_COOKIE_NAME = "nxs_session"

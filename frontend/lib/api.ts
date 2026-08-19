@@ -203,6 +203,14 @@ export async function fetchApiKey(): Promise<{ api_key: string | null; has_api_k
   return req(`${BASE}/account/api-key`);
 }
 
+/** Hesabı kalıcı olarak siler — geri alınamaz (v2.1.2). */
+export async function deleteAccount(password: string): Promise<void> {
+  await req(`${BASE}/account`, {
+    method: "DELETE",
+    body: JSON.stringify({ password }),
+  });
+}
+
 // ── Bülten aboneliği ─────────────────────────────────────────────────────────
 // /subscriptions/{email} GET/PATCH paylaşımlı X-API-Key ister (admin uçları),
 // bu yüzden okuma /account/newsletter üzerinden (kendi oturumunla) yapılıyor;

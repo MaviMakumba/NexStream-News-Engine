@@ -24,7 +24,11 @@ from sqlalchemy.orm import Session
 
 from src.infrastructure.config.database import get_db
 from src.infrastructure.config.settings import settings
-from src.adapters.api.auth_utils import has_admin_role, has_moderator_role, has_owner_role, effective_role, user_effective_tier, get_current_user, SESSION_COOKIE_NAME
+from src.adapters.api.auth_utils import (
+    has_admin_role, has_moderator_role, has_owner_role, effective_role, user_effective_tier,
+    get_current_user, SESSION_COOKIE_NAME,
+    hash_password as _hash_password, verify_password as _verify_password,
+)
 from src.adapters.api.limiter import limiter
 from src.adapters.notifications.email_adapter import get_email_adapter
 from src.adapters.repositories.user_repository import UserRepository
@@ -74,17 +78,9 @@ def _make_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def _hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode()[:72], bcrypt.gensalt()).decode()
-
-
-def _verify_password(plain: str, hashed: str) -> bool:
-    try:
-        return bcrypt.checkpw(plain.encode()[:72], hashed.encode())
-    except Exception:
-        # Bozuk/eski hash formatı → güvenli taraf: reddet
-        return False
-
+# `_hash_password`/`_verify_password` artık auth_utils.py'de (account_router.py
+# hesap silme onayında da aynı fonksiyonları kullanıyor, v2.1.2) — yukarıda
+# alias olarak import edildi, bu modüldeki hiçbir çağrı noktası değişmedi.
 
 # Kayıtlı olmayan bir e-postayla login denendiğinde bcrypt'in ÇALIŞMAMASI
 # (kullanıcı bulunamazsa erken dönüş) yanıt süresinden kayıtlı/kayıtsız e-posta
