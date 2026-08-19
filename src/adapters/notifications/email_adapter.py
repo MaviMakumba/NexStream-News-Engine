@@ -12,6 +12,7 @@ sadece bu iki sözlüğe bir `"FR": {...}` bloğu eklemek demektir; hiçbir
 
 import html
 import logging
+import re
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -88,6 +89,29 @@ _TOPIC_LABELS: dict = {
         "World": "World", "Other": "Other",
     },
 }
+
+
+_TAG_RE = re.compile(r"<[^>]+>")
+_WHITESPACE_RE = re.compile(r"[ \t]+")
+_BLANK_LINES_RE = re.compile(r"\n{3,}")
+
+
+def _html_to_text(rendered_html: str) -> str:
+    """Gönderilen HTML gövdesinden kaba bir plain-text alternatifi türetir.
+
+    Gerçek bir render motoru değil — sadece multipart/alternative'in bir
+    text/plain kısmı olmasını sağlamak için (SMTP'de HTML-only gövde yaygın
+    bir spam sinyali; 18 Ağu 2026'da doğrulama maili kendi gönderenin
+    Gmail'inde bile spam'e düşünce bulundu, bkz. CLAUDE.md). Blok elemanlarını
+    satır sonuna çevirip etiketleri atar, HTML entity'lerini çözer.
+    """
+    text = re.sub(r"(?i)</(p|div|tr|h[1-6])>", "\n", rendered_html)
+    text = re.sub(r"(?i)<br\s*/?>", "\n", text)
+    text = _TAG_RE.sub("", text)
+    text = html.unescape(text)
+    text = _WHITESPACE_RE.sub(" ", text)
+    text = _BLANK_LINES_RE.sub("\n\n", text)
+    return text.strip()
 
 
 def _t(language: str, key: str) -> str:
@@ -309,6 +333,10 @@ class SmtpEmailAdapter(_HtmlEmailAdapter):
         msg["Subject"] = subject
         msg["From"] = self._from
         msg["To"] = to
+        # multipart/alternative'de her zaman en az tercih edilenden en çok
+        # tercih edilene doğru eklenir — istemciler DESTEKLEDİKLERİ SON parçayı
+        # gösterir, o yüzden plain önce, html sonra.
+        msg.attach(MIMEText(_html_to_text(html), "plain", "utf-8"))
         msg.attach(MIMEText(html, "html", "utf-8"))
 
         try:

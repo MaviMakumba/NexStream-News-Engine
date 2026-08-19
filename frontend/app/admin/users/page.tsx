@@ -10,7 +10,7 @@
 // sütunu salt-okunur rozet olarak gösterilir.
 
 import { useCallback, useEffect, useState } from "react";
-import { fetchUsers, updateUserRole } from "@/lib/api";
+import { fetchUsers, updateUserRole, updateUserTier } from "@/lib/api";
 import type { AdminUser, Role } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/settings-context";
@@ -18,6 +18,7 @@ import { TierBadge } from "@/components/TierBadge";
 import { UI } from "@/lib/i18n";
 
 const TIER_VALUES = ["", "free", "pro", "enterprise"];
+const ASSIGNABLE_TIERS = ["free", "pro", "enterprise"]; // filtre "" hariç
 const ROLE_RANK: Record<Role, number> = { user: 0, moderator: 1, admin: 2, owner: 3 };
 const ASSIGNABLE_ROLES: Role[] = ["user", "moderator", "admin"]; // owner asla atanamaz
 
@@ -34,6 +35,7 @@ export default function AdminUsersPage() {
   const t = UI[lang];
   const roleLabel: Record<Role, string> = { user: t.roleUser, moderator: t.roleModerator, admin: t.roleAdmin, owner: t.roleOwner };
   const isModerator = Boolean(user?.is_moderator);
+  const isOwner = Boolean(user?.is_owner);
 
   const [apiKey,   setApiKey]   = useState("");
   const [tier,     setTier]     = useState("");
@@ -43,6 +45,7 @@ export default function AdminUsersPage() {
   const [error,    setError]    = useState("");
   const [loaded,   setLoaded]   = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [savingTierId, setSavingTierId] = useState<number | null>(null);
 
   const load = useCallback(async (key?: string) => {
     // Moderator/admin oturumu varsa anahtar gerekmez (cookie otomatik taşınır); yoksa girilen anahtar kullanılır.
@@ -76,6 +79,22 @@ export default function AdminUsersPage() {
       setError(err instanceof Error ? err.message : t.roleUpdateError);
     } finally {
       setSavingId(null);
+    }
+  }
+
+  // Owner'a özel: rol değişiminin aksine kendine de uygulanabilir (bkz. backend
+  // update_user_tier docstring'i — owner zaten effective_tier ile enterprise
+  // muamelesi görüyor, bu sadece kayıt tutarlılığı).
+  async function handleTierChange(targetId: number, newTier: string) {
+    const creds = isModerator ? {} : { apiKey };
+    setSavingTierId(targetId); setError("");
+    try {
+      await updateUserTier(creds, targetId, newTier);
+      setUsers((prev) => prev.map((u) => (u.id === targetId ? { ...u, tier: newTier } : u)));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t.tierUpdateError);
+    } finally {
+      setSavingTierId(null);
     }
   }
 
@@ -140,7 +159,7 @@ export default function AdminUsersPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.84rem" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {[t.colEmail, t.colTier, t.colRole, t.colStatus, t.colPaying, t.colJoined].map((h) => (
+                    {[t.colEmail, t.colTier, t.colRole, t.colStatus, t.colEmailVerified, t.colPaying, t.colJoined].map((h) => (
                       <th key={h} style={{
                         padding: "14px 20px", textAlign: "left",
                         color: "var(--text3)", fontWeight: 700, textTransform: "uppercase",
@@ -158,7 +177,19 @@ export default function AdminUsersPage() {
                         onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
                       <td style={{ padding: "12px 20px", color: "var(--text)" }}>{u.email}</td>
                       <td style={{ padding: "12px 20px" }}>
-                        <TierBadge tier={u.tier as "free" | "pro" | "enterprise"} lang={lang} />
+                        {isOwner ? (
+                          <select
+                            value={u.tier}
+                            disabled={savingTierId === u.id}
+                            onChange={(e) => handleTierChange(u.id, e.target.value)}
+                            className="input"
+                            style={{ width: "auto", padding: "4px 10px", fontSize: "0.76rem", fontWeight: 600 }}
+                          >
+                            {ASSIGNABLE_TIERS.map((tv) => <option key={tv} value={tv}>{tv}</option>)}
+                          </select>
+                        ) : (
+                          <TierBadge tier={u.tier as "free" | "pro" | "enterprise"} lang={lang} />
+                        )}
                       </td>
                       <td style={{ padding: "12px 20px" }}>
                         {(() => {
@@ -194,6 +225,17 @@ export default function AdminUsersPage() {
                         )}
                       </td>
                       <td style={{ padding: "12px 20px" }}>
+                        {u.email_verified ? (
+                          <span className="badge" style={{ background: "var(--pos-bg)", color: "var(--pos)", borderColor: "var(--pos)" }}>
+                            {t.emailVerifiedYes}
+                          </span>
+                        ) : (
+                          <span className="badge" style={{ background: "var(--neu-bg)", color: "var(--neu)", borderColor: "var(--neu)" }}>
+                            {t.emailVerifiedNo}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: "12px 20px" }}>
                         {u.tier === "free" ? (
                           <span style={{ color: "var(--text3)" }}>—</span>
                         ) : u.is_paying ? (
@@ -213,7 +255,7 @@ export default function AdminUsersPage() {
                   ))}
                   {users.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ padding: "40px", textAlign: "center", color: "var(--text3)" }}>
+                      <td colSpan={7} style={{ padding: "40px", textAlign: "center", color: "var(--text3)" }}>
                         {t.noUsers}
                       </td>
                     </tr>

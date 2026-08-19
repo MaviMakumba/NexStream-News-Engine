@@ -122,6 +122,7 @@ export interface AdminUser {
   name: string;
   tier: string;
   is_active: boolean;
+  email_verified: boolean;
   role: Role;
   is_paying: boolean;
   created_at: string;
