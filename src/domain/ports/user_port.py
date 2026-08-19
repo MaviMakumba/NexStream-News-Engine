@@ -49,6 +49,11 @@ class UserRepositoryPort(ABC):
     @abstractmethod
     def update_password(self, user_id: int, password_hash: str) -> bool: ...
 
+    @abstractmethod
+    def delete_user(self, user_id: int) -> bool:
+        """Kullanıcıyı ve kendisine bağlı tüm satırları (session/token/usage_log) siler."""
+        ...
+
     # ── Oturum yönetimi ────────────────────────────────────────────────────
 
     @abstractmethod

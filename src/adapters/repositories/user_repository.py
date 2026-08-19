@@ -148,6 +148,25 @@ class UserRepository(UserRepositoryPort):
         self.db.commit()
         return True
 
+    def delete_user(self, user_id: int) -> bool:
+        """Kullanıcıyı ve KENDİSİNE bağlı tüm satırları kalıcı olarak siler
+        (v2.1.2, hesap silme). FK CASCADE yok (ORM'de plain Integer kolon) —
+        çocuk tablolar önce, `users` satırı en son, tek transaction'da.
+
+        `subscribers` (bülten) burada YOK — user_id'ye bağlı değil, email
+        eşleşmesiyle ayrı işleniyor (bkz. account_router.py::delete_account).
+        """
+        orm = self.db.query(UserORM).filter(UserORM.id == user_id).first()
+        if not orm:
+            return False
+        self.db.query(UserSessionORM).filter(UserSessionORM.user_id == user_id).delete()
+        self.db.query(PasswordResetTokenORM).filter(PasswordResetTokenORM.user_id == user_id).delete()
+        self.db.query(EmailVerificationTokenORM).filter(EmailVerificationTokenORM.user_id == user_id).delete()
+        self.db.query(UsageLogORM).filter(UsageLogORM.user_id == user_id).delete()
+        self.db.delete(orm)
+        self.db.commit()
+        return True
+
     # ── Oturum yönetimi ────────────────────────────────────────────────────
 
     def create_session(self, session: UserSession) -> UserSession:
