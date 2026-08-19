@@ -109,6 +109,21 @@ export interface RelatedResponse {
   related: RelatedArticle[];
 }
 
+// v2.2 — story cluster ("bu haberi kim nasıl anlatıyor"). related'dan farkı:
+// entity kesişimi değil semantik vektör benzerliği, tier gating yok (herkese açık).
+export interface StorySource {
+  id: number;
+  title: string;
+  source: string;
+  url: string;
+  score: number;
+}
+
+export interface StoryClusterResponse {
+  article_id: number;
+  sources: StorySource[];
+}
+
 export interface UsageRow {
   user_id: number | null;
   endpoint: string;

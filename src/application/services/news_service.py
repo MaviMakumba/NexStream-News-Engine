@@ -466,6 +466,20 @@ class NewsService:
         ]
         return {"article_id": article_id, "related": related}
 
+    def get_story_cluster(self, article_id: int, limit: int = 6) -> dict:
+        """"Bu haberi kim nasıl anlatıyor" — aynı olayı kapsayan diğer kaynaklar
+        (v2.2, rakip taraması — Ground News Blindspot'un küçük ölçekli hali).
+
+        Asıl benzerlik hesabı ChromaSearchRepository.find_similar'da (semantik
+        vektör mesafesi); burası sadece orkestrasyon. `search_repository`
+        opsiyoneldir (bkz. sınıf docstring'i) — ChromaDB yapılandırılmamışsa
+        özellik sessizce boş liste döner, çökmez.
+        """
+        if not self.search_repository:
+            return {"article_id": article_id, "sources": []}
+        sources = self.search_repository.find_similar(article_id, n_results=limit)
+        return {"article_id": article_id, "sources": sources}
+
     def _send_keyword_alerts(self, article: Article) -> None:
         """'instant' frekanslı abonelere keyword eşleşmesinde anında e-posta yollar."""
         if self.subscriber_repository is None or self.email_port is None:

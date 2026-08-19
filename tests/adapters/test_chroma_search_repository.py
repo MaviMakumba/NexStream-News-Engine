@@ -158,6 +158,52 @@ def test_search_chroma_error_returns_empty_list():
     assert results == []
 
 
+# ── find_similar (story cluster, v2.2) ──────────────────────────────────────
+# Dedup eşiğinden (0.92, aynı haber) daha gevşek: farklı kaynakların AYNI
+# OLAYI farklı kelimelerle anlattığı makaleleri de yakalamak için.
+
+def test_find_similar_returns_other_sources_above_threshold():
+    repo, _ = make_repo()
+    repo._mock_collection.get.return_value = {"ids": ["1"], "embeddings": [[0.1] * 384]}
+    repo._mock_collection.query.return_value = {
+        "ids": [["1", "2", "3"]],
+        "metadatas": [[
+            {"title": "Kendisi", "source": "BBC", "url": "http://a.com"},
+            {"title": "Aynı olay başka kaynak", "source": "TRT", "url": "http://b.com"},
+            {"title": "Alakasız", "source": "CNN", "url": "http://c.com"},
+        ]],
+        "distances": [[0.0, 0.1, 5.0]],   # similarity ≈ 1.0, 0.909, 0.166
+    }
+    results = repo.find_similar(article_id=1, n_results=5, threshold=0.72)
+    assert len(results) == 1
+    assert results[0]["id"] == 2
+    assert results[0]["source"] == "TRT"
+
+
+def test_find_similar_missing_article_returns_empty():
+    repo, _ = make_repo()
+    repo._mock_collection.get.return_value = {"ids": [], "embeddings": []}
+    assert repo.find_similar(article_id=999) == []
+
+
+def test_find_similar_chroma_error_returns_empty():
+    repo, _ = make_repo()
+    repo._mock_collection.get.side_effect = Exception("boom")
+    assert repo.find_similar(article_id=1) == []
+
+
+def test_find_similar_respects_n_results_limit():
+    repo, _ = make_repo()
+    repo._mock_collection.get.return_value = {"ids": ["1"], "embeddings": [[0.1] * 384]}
+    repo._mock_collection.query.return_value = {
+        "ids": [["1", "2", "3", "4"]],
+        "metadatas": [[{"title": "x", "source": "s", "url": "u"}] * 4],
+        "distances": [[0.0, 0.05, 0.05, 0.05]],
+    }
+    results = repo.find_similar(article_id=1, n_results=2, threshold=0.5)
+    assert len(results) == 2
+
+
 def test_search_score_calculation():
     repo, _ = make_repo()
     repo._mock_collection.query.return_value = {

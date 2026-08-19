@@ -6,7 +6,7 @@
 
 import type {
   AccountUsage, AdminUserList, Article, BillingConfig, CheckoutResponse, NewsPage, RelatedResponse,
-  SearchResult, Sponsor, TrendingResponse, UsageRow, User,
+  SearchResult, Sponsor, StoryClusterResponse, TrendingResponse, UsageRow, User,
 } from "./types";
 
 export const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -158,6 +158,11 @@ export async function fetchTrending(hours = 6, limit = 10): Promise<TrendingResp
 
 export async function fetchRelated(id: number): Promise<RelatedResponse> {
   return req<RelatedResponse>(`${BASE}/api/v1/news/${id}/related`);
+}
+
+/** "Bu haberi kim nasıl anlatıyor" — aynı olayı kapsayan diğer kaynaklar (v2.2, herkese açık). */
+export async function fetchStoryCluster(id: number): Promise<StoryClusterResponse> {
+  return req<StoryClusterResponse>(`${BASE}/api/v1/news/${id}/sources`);
 }
 
 export async function fetchSources(): Promise<string[]> {
