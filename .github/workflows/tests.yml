@@ -80,3 +80,39 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
+
+  # 19 Ağu 2026 güvenlik denetimi: Dependabot haftalık version-bump PR'ları
+  # açıyor ama build'i bilinen bir CVE'de UYARAN bir CI adımı yoktu. Bilinçli
+  # olarak continue-on-error: true — hem backend'de (torch/transformers gibi
+  # transitive bağımlılıklarda düzeltmesi major bump gerektiren CVE'ler var)
+  # hem frontend'de (Next 16 bump'ı Dependabot'ta zaten bekliyor, roadmap'te
+  # ayrı bir karar) audit ŞU AN kırmızı — blocking yapmak her PR'ı durdururdu.
+  # Amaç: sonucu GÖRÜNÜR kılmak, build'i durdurmak değil.
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: pip-audit (backend, non-blocking)
+        continue-on-error: true
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm audit (frontend, non-blocking)
+        continue-on-error: true
+        working-directory: frontend
+        run: npm audit --audit-level=high
