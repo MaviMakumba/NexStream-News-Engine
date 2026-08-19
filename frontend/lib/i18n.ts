@@ -194,13 +194,14 @@ export const UI: Record<Lang, Record<string, string>> = {
     usersTitle: "Kullanıcılar & Ödeme Durumu",
     tierFilter: "Tier Filtresi", allTiers: "Tüm Tier'lar",
     colEmail: "E-posta", colTier: "Tier", colStatus: "Durum", colPaying: "Ödeme", colJoined: "Kayıt",
-    colRole: "Rol",
+    colRole: "Rol", colEmailVerified: "E-posta Doğrulama",
     payingReal: "✓ Stripe", payingDev: "Dev-mode", inactiveStatus: "Pasif",
+    emailVerifiedYes: "✓ Doğrulandı", emailVerifiedNo: "Doğrulanmadı",
     totalUsers: "Toplam Kullanıcı", payingUsers: "Gerçek Ödeyen",
     noUsers: "Kullanıcı bulunamadı.",
     roleUser: "Kullanıcı", roleModerator: "Moderatör", roleAdmin: "Admin", roleOwner: "Kurucu",
     ownerBadge: "Kurucu",
-    roleUpdateError: "Rol değiştirilemedi.",
+    roleUpdateError: "Rol değiştirilemedi.", tierUpdateError: "Tier değiştirilemedi.",
   },
   EN: {
     // ── Nav ──
@@ -375,13 +376,14 @@ export const UI: Record<Lang, Record<string, string>> = {
     usersTitle: "Users & Payment Status",
     tierFilter: "Tier Filter", allTiers: "All Tiers",
     colEmail: "Email", colTier: "Tier", colStatus: "Status", colPaying: "Payment", colJoined: "Joined",
-    colRole: "Role",
+    colRole: "Role", colEmailVerified: "Email Verification",
     payingReal: "✓ Stripe", payingDev: "Dev-mode", inactiveStatus: "Inactive",
+    emailVerifiedYes: "✓ Verified", emailVerifiedNo: "Unverified",
     totalUsers: "Total Users", payingUsers: "Real Paying",
     noUsers: "No users found.",
     roleUser: "User", roleModerator: "Moderator", roleAdmin: "Admin", roleOwner: "Owner",
     ownerBadge: "Founder",
-    roleUpdateError: "Could not update role.",
+    roleUpdateError: "Could not update role.", tierUpdateError: "Could not update tier.",
   },
 };
 

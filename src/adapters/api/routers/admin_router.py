@@ -9,6 +9,9 @@ Yetkilendirme (v1.13, iki seviyeli; rol değiştirme v2.1'de kademeliye geçti):
         mantığıyla uygulanır — bkz. `update_user_role` docstring'i.
     require_admin — YAZMA işlemleri (sponsor CRUD) route düzeyinde ayrıca
         ister. X-API-Key VEYA role="admin" (veya ADMIN_EMAILS'teki).
+    require_owner — manuel tier verme (`PATCH /users/{id}/tier`, v2.1 sonrası)
+        route düzeyinde ister. X-API-Key VEYA role="owner" (veya
+        OWNER_EMAILS'teki) — admin YETMEZ, kurucuya özel.
 
 Sponsor yönetimi kasıtlı olarak basit tutuldu (tek tablo, soft-delete):
 silme yerine `is_active=false` yazılır ki geçmiş kampanyalar raporlanabilsin.
@@ -23,11 +26,11 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from src.adapters.api.auth_utils import require_admin, require_moderator, get_current_user, effective_role
+from src.adapters.api.auth_utils import require_admin, require_moderator, require_owner, get_current_user, get_optional_user, effective_role
 from src.adapters.repositories.user_repository import UserRepository
 from src.adapters.repositories.orm_models import SponsorORM
 from src.domain.models.sponsor import Sponsor
-from src.domain.models.user import User, UserRole, role_at_least
+from src.domain.models.user import User, UserRole, UserTier, role_at_least
 from src.infrastructure.config.database import get_db
 
 logger = logging.getLogger(__name__)
@@ -62,6 +65,10 @@ def list_users(
     BILLING_DEV_MODE'daki tek-tık tier yükseltmeleri bu alanı hiç YAZMAZ
     (bkz. billing_router.py), sadece gerçek Stripe checkout/webhook yazar —
     yani bu alan "dev-mode'da yükseltilmiş" ile "gerçekten ödeyen" ayrımını verir.
+
+    `email_verified` bilinçli olarak `is_active`'ten AYRI alan (18 Ağu 2026) —
+    hesabın devre dışı bırakılmış olması ile e-posta doğrulanmamış olması
+    bağımsız eksenler, admin tablosunda tek bir "durum" rozetine sıkıştırılmaz.
     """
     repo = UserRepository(db)
     users = repo.list_users(limit=limit, offset=offset, tier=tier)
@@ -74,6 +81,7 @@ def list_users(
                 "name": u.name,
                 "tier": u.tier.value if hasattr(u.tier, "value") else u.tier,
                 "is_active": u.is_active,
+                "email_verified": u.email_verified,
                 "role": effective_role(u),
                 "is_paying": bool(u.stripe_customer_id),
                 "created_at": u.created_at,
@@ -130,6 +138,46 @@ def update_user_role(
         raise HTTPException(status_code=404, detail="User not found")
     logger.info("Rol değişti: user_id=%s → %s (işlemi yapan: %s)", user_id, req.role, current_user.email)
     return {"id": user_id, "role": req.role}
+
+
+# ── Manuel tier verme (owner-only) ───────────────────────────────────────────────
+
+class TierUpdateRequest(BaseModel):
+    tier: str
+
+
+_ASSIGNABLE_TIERS = (UserTier.FREE.value, UserTier.PRO.value, UserTier.ENTERPRISE.value)
+
+
+@router.patch("/users/{user_id}/tier", dependencies=[Depends(require_owner)])
+def update_user_tier(
+    user_id: int,
+    req: TierUpdateRequest,
+    db: Session = Depends(get_db),
+    actor: Optional[User] = Depends(get_optional_user),
+):
+    """Kurucunun ödeme almadan bir kullanıcıya (kendisi dahil) Pro/Kurumsal
+    verebilmesi için — role değiştirmenin aksine kendine uygulamak YASAK
+    DEĞİL (owner zaten effective_tier ile enterprise muamelesi görüyor, bu
+    sadece kayıt tutarlılığı).
+
+    `stripe_customer_id` KASITLI gönderilmez — BILLING_DEV_MODE'daki tek-tık
+    yükseltmelerle aynı yol (bkz. billing_router.py), `is_paying` alanı
+    (admin listesinde) bu yüzden "gerçek ödeme" ile karışmaz.
+    """
+    if req.tier not in _ASSIGNABLE_TIERS:
+        raise HTTPException(status_code=400, detail="tier must be free, pro or enterprise")
+
+    repo = UserRepository(db)
+    if not repo.get_by_id(user_id):
+        raise HTTPException(status_code=404, detail="User not found")
+
+    repo.update_tier(user_id, req.tier)
+    logger.info(
+        "Manuel tier verildi: user_id=%s → %s (işlemi yapan: %s)",
+        user_id, req.tier, actor.email if actor else "X-API-Key",
+    )
+    return {"id": user_id, "tier": req.tier}
 
 
 # ── Sponsor CRUD ───────────────────────────────────────────────────────────────
