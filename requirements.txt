@@ -1,5 +1,5 @@
 fastapi==0.139.2
-uvicorn==0.41.0
+uvicorn==0.52.3
 # uvicorn[standard] DEĞİL — bilinçli minimal seçim (o extras httptools/uvloop/
 # watchfiles de getirir). /ws/feed'in ASGI seviyesinde çalışması için gereken
 # TEK şey websockets (veya wsproto); 18 Ağu 2026'da prod'da bulundu: bu paket
