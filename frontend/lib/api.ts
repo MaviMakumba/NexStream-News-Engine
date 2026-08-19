@@ -260,6 +260,15 @@ export async function updateUserRole(creds: AdminCreds, userId: number, role: st
   });
 }
 
+/** Bir kullanıcının tier'ını manuel değiştirir (ödeme olmadan) — sadece owner. */
+export async function updateUserTier(creds: AdminCreds, userId: number, tier: string): Promise<{ id: number; tier: string }> {
+  return req(`${BASE}/admin/users/${userId}/tier`, {
+    method: "PATCH",
+    headers: adminHeaders(creds),
+    body: JSON.stringify({ tier }),
+  });
+}
+
 export async function fetchSponsors(creds: AdminCreds): Promise<Sponsor[]> {
   return req<Sponsor[]>(`${BASE}/admin/sponsors`, { headers: adminHeaders(creds) });
 }
