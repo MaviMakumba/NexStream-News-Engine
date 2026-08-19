@@ -6,6 +6,9 @@ sadece geçerli oturum (X-Session-Token) yeterlidir:
     GET    /account/usage    — günlük kota durumu + endpoint bazlı istatistik
     POST   /account/api-key  — kişisel API anahtarı üret/yenile
     DELETE /account/api-key  — anahtarı iptal et
+    GET    /account/saved    — kaydedilen (bookmark) haberler (v2.2)
+    POST   /account/saved/{id}   — haberi kaydet (v2.2)
+    DELETE /account/saved/{id}   — kaydı kaldır (v2.2)
     DELETE /account          — hesabı kalıcı olarak sil (v2.1.2)
 
 API anahtarı `nxs_` öneklidir ve /api/v1 isteklerinde `X-User-Key` header'ı
@@ -14,6 +17,7 @@ ile session yerine kullanılabilir (kota kullanıcının tier'ından uygulanır)
 
 import logging
 import secrets
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
@@ -21,9 +25,12 @@ from sqlalchemy.orm import Session
 
 from src.adapters.api.auth_utils import get_current_user, has_owner_role, user_effective_tier, verify_password, SESSION_COOKIE_NAME
 from src.adapters.api.limiter import limiter
+from src.adapters.repositories.news_repository import NewsRepository
+from src.adapters.repositories.saved_article_repository import SavedArticleRepository
 from src.adapters.repositories.subscriber_repository import SubscriberRepository
 from src.adapters.repositories.user_repository import UserRepository
 from src.domain.models.user import User, TIER_DAILY_LIMITS
+from src.domain.schemas.news_schema import NewsResponse
 from src.infrastructure.config.database import get_db
 from src.infrastructure.config.settings import settings
 
@@ -118,6 +125,49 @@ def my_newsletter_subscription(
         "preferred_topics": sub.preferred_topics,
         "language": sub.language,
     }
+
+
+# ── Kaydet / Sonra Oku (bookmarks, v2.2) ────────────────────────────────────
+# Rakip taraması sonrası quick-win paketi (bkz. CLAUDE.md YOL HARİTASI, 19 Ağu
+# 2026) — hemen hemen her rakip agregatörde olan tablo-stakes bir özellik.
+
+@router.get("/saved", response_model=List[NewsResponse])
+def list_saved_articles(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Kaydedilenler — en son kaydedilen önce (kayıt sırası korunur, DB dönüş
+    sırası DEĞİL: `get_articles_by_ids` bir IN sorgusu, sırayı garanti etmez)."""
+    ids = SavedArticleRepository(db).list_saved_article_ids(current_user.id)
+    articles = {a.id: a for a in NewsRepository(db).get_articles_by_ids(ids)}
+    return [articles[i] for i in ids if i in articles]
+
+
+@router.post("/saved/{article_id}")
+@limiter.limit("30/minute")
+def save_article(
+    request: Request,
+    article_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if NewsRepository(db).get_article_by_id(article_id) is None:
+        raise HTTPException(status_code=404, detail="Haber bulunamadı.")
+    SavedArticleRepository(db).save(current_user.id, article_id)
+    return {"saved": True}
+
+
+@router.delete("/saved/{article_id}")
+@limiter.limit("30/minute")
+def unsave_article(
+    request: Request,
+    article_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Idempotent — zaten kayıtlı değilse de 200 döner (tekrar denemek zararsız)."""
+    SavedArticleRepository(db).unsave(current_user.id, article_id)
+    return {"saved": False}
 
 
 # ── Hesap silme (v2.1.2) ─────────────────────────────────────────────────────

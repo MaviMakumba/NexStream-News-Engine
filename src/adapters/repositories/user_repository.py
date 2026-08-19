@@ -17,6 +17,7 @@ from src.domain.models.user import User, UserSession, UserTier, UserRole, Passwo
 from src.domain.ports.user_port import UserRepositoryPort
 from src.adapters.repositories.orm_models import (
     UserORM, UserSessionORM, UsageLogORM, PasswordResetTokenORM, EmailVerificationTokenORM,
+    SavedArticleORM,
 )
 
 logger = logging.getLogger(__name__)
@@ -124,6 +125,17 @@ class UserRepository(UserRepositoryPort):
         self.db.commit()
         return True
 
+    def set_active(self, user_id: int, is_active: bool) -> bool:
+        """Kullanıcıyı banlar/aktifleştirir (v2.2) — `is_active` login akışında
+        (auth_router.login) zaten kontrol ediliyordu, sadece bunu yazacak bir
+        yol yoktu (bkz. admin_router.update_user_active)."""
+        orm = self.db.query(UserORM).filter(UserORM.id == user_id).first()
+        if not orm:
+            return False
+        orm.is_active = is_active
+        self.db.commit()
+        return True
+
     def update_role(self, user_id: int, role: str) -> bool:
         orm = self.db.query(UserORM).filter(UserORM.id == user_id).first()
         if not orm:
@@ -150,8 +162,9 @@ class UserRepository(UserRepositoryPort):
 
     def delete_user(self, user_id: int) -> bool:
         """Kullanıcıyı ve KENDİSİNE bağlı tüm satırları kalıcı olarak siler
-        (v2.1.2, hesap silme). FK CASCADE yok (ORM'de plain Integer kolon) —
-        çocuk tablolar önce, `users` satırı en son, tek transaction'da.
+        (v2.1.2, hesap silme; v2.2'de saved_articles eklendi). FK CASCADE yok
+        (ORM'de plain Integer kolon) — çocuk tablolar önce, `users` satırı en
+        son, tek transaction'da.
 
         `subscribers` (bülten) burada YOK — user_id'ye bağlı değil, email
         eşleşmesiyle ayrı işleniyor (bkz. account_router.py::delete_account).
@@ -163,6 +176,7 @@ class UserRepository(UserRepositoryPort):
         self.db.query(PasswordResetTokenORM).filter(PasswordResetTokenORM.user_id == user_id).delete()
         self.db.query(EmailVerificationTokenORM).filter(EmailVerificationTokenORM.user_id == user_id).delete()
         self.db.query(UsageLogORM).filter(UsageLogORM.user_id == user_id).delete()
+        self.db.query(SavedArticleORM).filter(SavedArticleORM.user_id == user_id).delete()
         self.db.delete(orm)
         self.db.commit()
         return True

@@ -355,6 +355,106 @@ def test_cancel_active_subscriptions_cancels_each_active_subscription():
     mock_cancel.assert_called_once_with("sub_1")
 
 
+# ── /account/saved (bookmarks, v2.2) ────────────────────────────────────────
+
+def test_list_saved_requires_auth(app_client):
+    resp = app_client.get("/account/saved")
+    assert resp.status_code == 401
+
+
+def test_list_saved_returns_articles_in_saved_order(app_client):
+    from src.domain.models.article import Article
+    from datetime import datetime, timezone
+
+    _override(app_client, _make_user())
+    try:
+        with patch("src.adapters.api.routers.account_router.SavedArticleRepository") as MockSaved, \
+             patch("src.adapters.api.routers.account_router.NewsRepository") as MockNews:
+            saved_repo = MagicMock()
+            saved_repo.list_saved_article_ids.return_value = [3, 1]
+            MockSaved.return_value = saved_repo
+            news_repo = MagicMock()
+            news_repo.get_articles_by_ids.return_value = [
+                Article(id=1, title="Bir", source="BBC", url="u1", content="c",
+                        created_at=datetime.now(timezone.utc)),
+                Article(id=3, title="Üç", source="BBC", url="u3", content="c",
+                        created_at=datetime.now(timezone.utc)),
+            ]
+            MockNews.return_value = news_repo
+            resp = app_client.get("/account/saved")
+    finally:
+        _clear(app_client)
+
+    assert resp.status_code == 200
+    ids = [a["id"] for a in resp.json()]
+    assert ids == [3, 1]   # saved_article_ids sırası korunmalı, DB dönüş sırası değil
+
+
+def test_save_article_requires_auth(app_client):
+    resp = app_client.post("/account/saved/1")
+    assert resp.status_code == 401
+
+
+def test_save_article_404_when_article_missing(app_client):
+    _override(app_client, _make_user())
+    try:
+        with patch("src.adapters.api.routers.account_router.NewsRepository") as MockNews:
+            news_repo = MagicMock()
+            news_repo.get_article_by_id.return_value = None
+            MockNews.return_value = news_repo
+            resp = app_client.post("/account/saved/999")
+    finally:
+        _clear(app_client)
+
+    assert resp.status_code == 404
+
+
+def test_save_article_success(app_client):
+    from src.domain.models.article import Article
+    from datetime import datetime, timezone
+
+    _override(app_client, _make_user())
+    try:
+        with patch("src.adapters.api.routers.account_router.NewsRepository") as MockNews, \
+             patch("src.adapters.api.routers.account_router.SavedArticleRepository") as MockSaved:
+            news_repo = MagicMock()
+            news_repo.get_article_by_id.return_value = Article(
+                id=42, title="T", source="BBC", url="u", content="c",
+                created_at=datetime.now(timezone.utc))
+            MockNews.return_value = news_repo
+            saved_repo = MagicMock()
+            saved_repo.save.return_value = True
+            MockSaved.return_value = saved_repo
+            resp = app_client.post("/account/saved/42")
+    finally:
+        _clear(app_client)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"saved": True}
+    saved_repo.save.assert_called_once_with(1, 42)
+
+
+def test_unsave_article_requires_auth(app_client):
+    resp = app_client.delete("/account/saved/1")
+    assert resp.status_code == 401
+
+
+def test_unsave_article_success(app_client):
+    _override(app_client, _make_user())
+    try:
+        with patch("src.adapters.api.routers.account_router.SavedArticleRepository") as MockSaved:
+            saved_repo = MagicMock()
+            saved_repo.unsave.return_value = True
+            MockSaved.return_value = saved_repo
+            resp = app_client.delete("/account/saved/42")
+    finally:
+        _clear(app_client)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"saved": False}
+    saved_repo.unsave.assert_called_once_with(1, 42)
+
+
 def test_cancel_active_subscriptions_swallows_stripe_errors():
     """Stripe API hata verirse hesap silme akışını bloklamamalı — sessizce loglanır."""
     from src.adapters.api.routers.account_router import _cancel_active_subscriptions

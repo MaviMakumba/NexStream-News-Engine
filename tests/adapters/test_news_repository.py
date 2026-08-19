@@ -99,6 +99,28 @@ def _add(repo, url, title, content="içerik", summary="özet", sentiment="Positi
     return a
 
 
+# ── get_articles_by_ids (v2.2, saved articles listesini render etmek için) ──
+
+def test_get_articles_by_ids_returns_matching_articles():
+    db = make_session()
+    repo = NewsRepository(db)
+    repo.save_article(make_article("https://bbc.com/1"))
+    repo.save_article(make_article("https://bbc.com/2"))
+    repo.save_article(make_article("https://bbc.com/3"))
+    all_ids = [a.id for a in repo.get_all_articles()]
+
+    results = repo.get_articles_by_ids([all_ids[0], all_ids[2]])
+
+    assert {a.id for a in results} == {all_ids[0], all_ids[2]}
+
+
+def test_get_articles_by_ids_empty_list_returns_empty():
+    db = make_session()
+    repo = NewsRepository(db)
+
+    assert repo.get_articles_by_ids([]) == []
+
+
 def test_keyword_search_returns_any_word_match():
     """Multi-word query'de kelimelerden EN AZ BİRİ eşleşen makaleler dönmeli."""
     db = make_session()

@@ -10,7 +10,7 @@
 // sütunu salt-okunur rozet olarak gösterilir.
 
 import { useCallback, useEffect, useState } from "react";
-import { fetchUsers, updateUserRole, updateUserTier } from "@/lib/api";
+import { fetchUsers, updateUserActive, updateUserRole, updateUserTier } from "@/lib/api";
 import type { AdminUser, Role } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
 import { useSettings } from "@/lib/settings-context";
@@ -46,6 +46,7 @@ export default function AdminUsersPage() {
   const [loaded,   setLoaded]   = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [savingTierId, setSavingTierId] = useState<number | null>(null);
+  const [savingActiveId, setSavingActiveId] = useState<number | null>(null);
 
   const load = useCallback(async (key?: string) => {
     // Moderator/admin oturumu varsa anahtar gerekmez (cookie otomatik taşınır); yoksa girilen anahtar kullanılır.
@@ -95,6 +96,24 @@ export default function AdminUsersPage() {
       setError(err instanceof Error ? err.message : t.tierUpdateError);
     } finally {
       setSavingTierId(null);
+    }
+  }
+
+  // Banlama/aktifleştirme (v2.2) — role değiştirmeyle AYNI kademeli yetki kuralı,
+  // banlarken tarayıcıda ek bir onay istenir (irreversible-hissi bir eylem: tüm
+  // oturumlar anında düşer).
+  async function handleActiveToggle(target: AdminUser) {
+    const nextActive = !target.is_active;
+    if (!nextActive && !window.confirm(t.banUserConfirm)) return;
+    const creds = isModerator ? {} : { apiKey };
+    setSavingActiveId(target.id); setError("");
+    try {
+      await updateUserActive(creds, target.id, nextActive);
+      setUsers((prev) => prev.map((u) => (u.id === target.id ? { ...u, is_active: nextActive } : u)));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t.activeUpdateError);
+    } finally {
+      setSavingActiveId(null);
     }
   }
 
@@ -214,15 +233,24 @@ export default function AdminUsersPage() {
                         })()}
                       </td>
                       <td style={{ padding: "12px 20px" }}>
-                        {u.is_active ? (
-                          <span className="badge" style={{ background: "var(--pos-bg)", color: "var(--pos)", borderColor: "var(--pos)" }}>
-                            ● {t.activeStatus}
-                          </span>
-                        ) : (
-                          <span className="badge" style={{ background: "var(--neu-bg)", color: "var(--neu)", borderColor: "var(--neu)" }}>
-                            {t.inactiveStatus}
-                          </span>
-                        )}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {u.is_active ? (
+                            <span className="badge" style={{ background: "var(--pos-bg)", color: "var(--pos)", borderColor: "var(--pos)" }}>
+                              ● {t.activeStatus}
+                            </span>
+                          ) : (
+                            <span className="badge" style={{ background: "var(--neg-bg)", color: "var(--neg)", borderColor: "var(--neg)" }}>
+                              {t.inactiveStatus}
+                            </span>
+                          )}
+                          {u.role !== "owner" && (ROLE_RANK[u.role] ?? 0) < actorRank && u.id !== user?.id && (
+                            <button onClick={() => handleActiveToggle(u)} disabled={savingActiveId === u.id}
+                                    className={u.is_active ? "btn-danger" : "btn-secondary"}
+                                    style={{ fontSize: "0.68rem", padding: "3px 9px" }}>
+                              {u.is_active ? t.banUser : t.unbanUser}
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: "12px 20px" }}>
                         {u.email_verified ? (

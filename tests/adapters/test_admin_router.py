@@ -395,6 +395,144 @@ def test_owner_role_can_never_be_assigned(app_client):
     assert resp.status_code == 400
 
 
+# ── Kullanıcı banlama / aktifleştirme (v2.2) ────────────────────────────────
+# `role` endpoint'iyle AYNI kademeli yetki deseni — router-level require_moderator
+# giriş kapısı, handler içinde rank-comparison. Ban ayrıca banlanan kullanıcının
+# aktif oturumlarını da düşürür (çalınmış/hâlâ açık bir oturumla erişime devam
+# edemesin diye) — hesap silmedeki "irreversible eylem" ilkesiyle aynı gerekçe.
+
+def test_update_user_active_rejects_plain_user_actor(app_client):
+    plain_user = _make_user(id=1, role=UserRole.USER)
+    app_client.app.dependency_overrides[get_optional_user] = lambda: plain_user
+    try:
+        resp = app_client.patch("/admin/users/2/active", json={"is_active": False})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+    assert resp.status_code == 403
+
+
+def test_update_user_active_ban_success_kills_sessions(app_client):
+    admin = _make_user(id=1, role=UserRole.ADMIN)
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_optional_user] = lambda: admin
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_id.return_value = _target(2, UserRole.USER)
+            repo.set_active.return_value = True
+            MockRepo.return_value = repo
+            resp = app_client.patch("/admin/users/2/active", json={"is_active": False})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"id": 2, "is_active": False}
+    repo.set_active.assert_called_once_with(2, False)
+    repo.delete_sessions_for_user.assert_called_once_with(2)
+
+
+def test_update_user_active_reactivate_does_not_kill_sessions(app_client):
+    admin = _make_user(id=1, role=UserRole.ADMIN)
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_optional_user] = lambda: admin
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_id.return_value = _target(2, UserRole.USER)
+            repo.set_active.return_value = True
+            MockRepo.return_value = repo
+            resp = app_client.patch("/admin/users/2/active", json={"is_active": True})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    repo.delete_sessions_for_user.assert_not_called()
+
+
+def test_update_user_active_rejects_self_change(app_client):
+    admin = _make_user(id=1, role=UserRole.ADMIN)
+    app_client.app.dependency_overrides[get_optional_user] = lambda: admin
+    try:
+        resp = app_client.patch("/admin/users/1/active", json={"is_active": False})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+    assert resp.status_code == 400
+
+
+def test_update_user_active_owner_can_never_be_banned(app_client):
+    admin = _make_user(id=1, role=UserRole.ADMIN)
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_optional_user] = lambda: admin
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_id.return_value = _target(2, UserRole.OWNER)
+            MockRepo.return_value = repo
+            resp = app_client.patch("/admin/users/2/active", json={"is_active": False})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+        app_client.app.dependency_overrides.pop(get_db, None)
+    assert resp.status_code == 403
+    repo.set_active.assert_not_called()
+
+
+def test_moderator_cannot_ban_another_moderator(app_client):
+    moderator = _make_user(id=1, role=UserRole.MODERATOR)
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_optional_user] = lambda: moderator
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_id.return_value = _target(2, UserRole.MODERATOR)
+            MockRepo.return_value = repo
+            resp = app_client.patch("/admin/users/2/active", json={"is_active": False})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+        app_client.app.dependency_overrides.pop(get_db, None)
+    assert resp.status_code == 403
+
+
+def test_moderator_can_ban_plain_user(app_client):
+    moderator = _make_user(id=1, role=UserRole.MODERATOR)
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_optional_user] = lambda: moderator
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_id.return_value = _target(2, UserRole.USER)
+            repo.set_active.return_value = True
+            MockRepo.return_value = repo
+            resp = app_client.patch("/admin/users/2/active", json={"is_active": False})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+        app_client.app.dependency_overrides.pop(get_db, None)
+    assert resp.status_code == 200
+
+
+def test_update_user_active_404_for_missing_user(app_client):
+    admin = _make_user(id=1, role=UserRole.ADMIN)
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_optional_user] = lambda: admin
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_id.return_value = None
+            MockRepo.return_value = repo
+            resp = app_client.patch("/admin/users/999/active", json={"is_active": False})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+        app_client.app.dependency_overrides.pop(get_db, None)
+    assert resp.status_code == 404
+
+
 # ── Sponsors ──────────────────────────────────────────────────────────────────
 
 def test_list_sponsors_requires_api_key(app_client):

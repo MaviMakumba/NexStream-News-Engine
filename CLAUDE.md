@@ -68,7 +68,7 @@ src/
 │           ├── news_router.py    # GET /news, /trending, /{id}/related, POST /scrape, /search, /reindex, /sources
 │           ├── health_router.py  # GET /health — DB + Kafka + ChromaDB durumu
 │           ├── auth_router.py    # /auth: register, login, logout, me (v1.9)
-│           ├── account_router.py # /account: usage paneli + kişisel API key (v1.11)
+│           ├── account_router.py # /account: usage paneli + kişisel API key (v1.11) + saved (v2.2)
 │           ├── admin_router.py   # /admin: usage + sponsor CRUD — require_admin (v1.11)
 │           ├── billing_router.py # /billing: Stripe + dev-mode bypass + /config (v1.11)
 │           ├── subscription_router.py # /subscriptions: newsletter abonelikleri (v1.7)
@@ -89,7 +89,8 @@ migrations/
 ├── v1_8_quality_credibility.sql   # v1.8 DB migration (quality_score, credibility_score, corroboration_count)
 ├── v1_9_users_sessions_usage_sponsor.sql  # v1.9 (users, user_sessions, usage_logs, sponsors)
 ├── v1_11_admin_api_keys.sql       # v1.11 (users.is_admin, users.api_key + unique index)
-└── v1_12_password_reset_tokens.sql # şifre sıfırlama (password_reset_tokens tablosu)
+├── v1_12_password_reset_tokens.sql # şifre sıfırlama (password_reset_tokens tablosu)
+└── v2_2_saved_articles.sql        # v2.2 (saved_articles — kaydet/sonra oku)
 frontend/                          # Next.js 14 + React (Streamlit'in yerini aldı, v1.10)
 ├── app/                           # App Router sayfaları (landing, dashboard, search, account, admin, auth)
 │   ├── layout.tsx                 # data-theme=<id> + Google Fonts linkleri
@@ -204,8 +205,8 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v2.1.1 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 18 Ağustos 2026 — AWS t3.small, gerçek Let's Encrypt, 16 servis, boru hattı uçtan uca çalışıyor; owner rolü + gerçek SMTP e-posta + Groq model/WS/nginx-header/arama düzeltmeleri prod'da doğrulandı, detay `docs/CHANGELOG.md`'de "v2.1.1" bloğu). İlk canlıya çıkış: 29 Temmuz 2026.
-- **Test sayısı:** 642 test, hepsi yeşil (backend, 19 Ağu 2026); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
+- **Versiyon:** v2.2 (kod main'de; henüz redeploy edilmedi) 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 18 Ağustos 2026 — AWS t3.small, gerçek Let's Encrypt, 16 servis, boru hattı uçtan uca çalışıyor; owner rolü + gerçek SMTP e-posta + Groq model/WS/nginx-header/arama düzeltmeleri prod'da doğrulandı, detay `docs/CHANGELOG.md`'de "v2.1.1" bloğu). İlk canlıya çıkış: 29 Temmuz 2026. **19 Ağu 2026'dan beri main'de canlıya YANSIMAMIŞ iki özellik var: hesap silme (v2.1.2, `DELETE /account`) ve kaydet/sonra oku (v2.2, `/account/saved`) — kullanıcı hesap sayfasında bir özelliği "bulamıyorum" derse önce redeploy tarihini kontrol et, UI'dan silinmiş değildir.**
+- **Test sayısı:** 674 test, hepsi yeşil (backend, 19 Ağu 2026); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
 - **Frontend:** Next.js 14 + React. 9 sinematik tema, tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
@@ -257,6 +258,33 @@ GERÇEKTEN bekleyen işler var:
    bülten aboneliği — kalıcı silinir). Frontend'de /account sayfasında
    "Tehlikeli Bölge".
 9. **Analytics/hata takibi** — yok (ör. Sentry, PostHog).
+10. ~~Rakip taraması sonrası quick-win paketi~~ — ✅ 19 Ağu 2026'da tamamlandı
+    (Ground News/Feedly/Inoreader/FreshRSS taraması, detay için scratchpad'deki
+    araştırma raporuna bak). Kaydet/sonra oku (`/account/saved`, v2.2),
+    kaynak "corroboration" rozeti (veri zaten vardı, sadece UI'a eklendi),
+    okuma süresi tahmini (client-side), tarayıcı-yerel TTS (Web Speech API).
+    **main'de, henüz redeploy edilmedi** (bkz. MEVCUT DURUM).
+11. **Story cluster görünümü** — "Bu haberi kim nasıl anlatıyor" (Ground
+    News Blindspot'unun küçük ölçekli hali). `embedding_port` zaten var,
+    yeni port gerekmiyor — `GET /news/{id}/sources` gibi bir endpoint aynı
+    story cluster'daki diğer kaynakları dönebilir. Kendi kısa brainstorming
+    turu ister (19 Ağu 2026 rakip taraması, madde #5).
+12. **Web Push bildirimleri (breaking news)** — PWA service worker zaten
+    kurulu; `web-push` + VAPID ile tamamen ücretsiz. Yeni bir
+    `NotificationPort` adapter'ı gerektirir — tam "architectural" tur
+    (spec + writing-plans). (19 Ağu 2026 rakip taraması, madde #6)
+13. **RAG tabanlı "bu konuda soru sor" mini sohbet** — Perplexity/Artifact
+    tarzı soru-cevap; ChromaDB semantic search (embedding_port) + Groq analiz
+    hattı (analysis_port) zaten var, `AnalysisPort`'a yeni bir
+    `answer_question` metodu olarak modellenebilir. Portfolyo değeri yüksek
+    ama en büyük iş — kendi mimari tasarım turu ister. (19 Ağu 2026 rakip
+    taraması, madde #7)
+14. ~~Kullanıcı banlama (moderatör/admin)~~ — ✅ 19 Ağu 2026'da tamamlandı.
+    `PATCH /admin/users/{id}/active` — `update_user_role` ile birebir aynı
+    kademeli yetki deseni (hedefin rolü actor'dan KESİNLİKLE düşük olmalı,
+    owner hiç hedef olamaz, kendi kendini banlayamazsın), banlarken
+    `delete_sessions_for_user` ile tüm oturumlar da düşürülür. Admin panelinde
+    durum sütununda Banla/Banı Kaldır butonu.
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,
@@ -398,6 +426,7 @@ docker logs nexstream_chromadb --tail 20
 - **WebSocket endpoint'ini `curl`/`wget` ile test etme** — ikisi de gerçek WS handshake yapmaz, gördüğün 404 hem "route yok" hem "araç anlamıyor" anlamına gelebilir, ayırt edemezsin. Gerçek istemci kullan: Python `websockets` kütüphanesi (`websockets.connect(...)`, red durumunda `InvalidStatus` + gerçek HTTP status/header verir) ya da Node'un yerleşik `WebSocket`'i.
 - **Groq modelleri zamanla TAMAMEN kaldırılabiliyor** (404 `model_not_found`, rate limit DEĞİL) — fail-open bir analiz pipeline'ında bu sessizce nötr/varsayılan sonuca düşer, hiç alarm çalmaz (18 Ağu 2026'da `llama-3.1-8b-instant` böyle kayboldu, ~1 gün fark edilmedi). Şüphelenince `GET https://api.groq.com/openai/v1/models` ile güncel listeyi kontrol et. Güncel reasoning modelleri (`gpt-oss-*`) `reasoning`'i `message.reasoning` alanında `content`'ten AYRI döner (JSON parse'ı bozmaz); `qwen` ailesi `<think>` etiketini `content`'e GÖMER (bozar).
 - **AWS SSM operasyon deseni:** `aws ssm send-command --document-name AWS-RunShellScript` içindeki komutlarda `git` kullanmadan önce `export HOME=/home/ubuntu` (SSM oturumunda `$HOME` set değil) + `git -c safe.directory=<repo-path>` (root/farklı kullanıcı sahipliği "dubious ownership" hatası verir) gerekir. Windows'taki native `aws.exe`'ye Git Bash'ten `file:///tmp/...` gibi bir paramfile yolu VERME — hiçbir `--parameters`/`--policy-document`/vb. argümanında path'i doğru çözemiyor; JSON'u her zaman inline (gerekirse `$(cat ...)` ile) geç.
+- **Otomatik saldırgan engelleme kapsamı (19 Ağu 2026'da kullanıcı sorunca netleşti):** var olan tek savunma nginx `limit_req_zone` (IP başına genel hız sınırı, `infra/nginx/*.conf`) + slowapi endpoint bazlı limitler (login 15/dk, forgot-password 10/dk vb.) — ikisi de sadece o anki isteği YAVAŞLATIR/429 döner, KALICI bir IP ban/WAF/fail2ban YOK. Gerçek bir IP ban istenirse ayrı bir iş (IP blocklist tablosu + nginx `deny` ya da fail2ban entegrasyonu) gerekir, mevcut rate limiting bunu vermez. **Kullanıcı bazlı banlama ayrı ve VAR** (`PATCH /admin/users/{id}/active`, v2.2 — bkz. YOL HARİTASI madde 14) ama bu IP değil hesap seviyesinde, anonim/kayıtsız bir saldırganı durdurmaz.
 - **slowapi + çoklu worker gotcha'sı (19 Ağu 2026 güvenlik denetiminde bulundu):** prod `uvicorn --workers 2` ile çalışıyor; `limiter.py`'de `storage_uri` set edilmezse slowapi varsayılan olarak in-memory sayaç kullanır ve HER worker kendi ayrı sayacını tutar — kodda `"15/minute"` yazsa da istekler worker'lara round-robin dağıldığı için limit fiilen ~2 katına kadar gevşer (canlıda art arda 18 login denemesiyle doğrulandı, hiç 429 gelmedi). Çözüldü: `limiter = Limiter(..., storage_uri=REDIS_URL, in_memory_fallback_enabled=True)` — zaten cache için kurulu Redis'i paylaşıyor. **REDIS_URL prod'dan kaldırılırsa rate limit sessizce ~2x gevşer, hata vermez** — bunu unutma.
 - **`nexstream-deploy` IAM kullanıcısı artık AdministratorAccess DEĞİL (19 Ağu 2026 güvenlik denetimi):** `NexStreamDeployMinimal` policy'sine scope'landı — sadece EC2 describe/start/stop/reboot + SSM SendCommand/GetCommandInvocation/DescribeInstanceInformation, hepsi `i-0608c897a3d8ca3f3` ile sınırlı (DEPLOY.md'de belgelenen gerçek kullanım). Bunun dışında bir AWS eylemi (S3, IAM, RDS, Budgets dahil — `aws budgets describe-budgets` bile artık 403 verir) gerekirse bu kimlikle YAPILAMAZ, kullanıcıya sor (geçici AdministratorAccess ya da Console). Kendi IAM policy'sini bile artık düzenleyemiyor (`iam:CreatePolicyVersion` yok) — kasıtlı.
 - **v1.12 öncesi durum taraması (bu session'da yapıldı):** Responsive/erişilebilirlik/SEO/tema-performans-profili maddelerinin hiçbiri henüz başlamadı; sadece dashboard sayfasında kısmi bir skeleton-loading deseni var (diğer sayfalarla tutarsız). Yeni bir session bu maddelere başlarken sıfırdan tasarlamalı.
