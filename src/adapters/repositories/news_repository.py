@@ -144,6 +144,13 @@ class NewsRepository(NewsRepositoryPort):
         row = self.db.query(NewsORM).filter(NewsORM.id == article_id).first()
         return self._to_domain(row) if row else None
 
+    def get_articles_by_ids(self, article_ids: List[int]) -> List[Article]:
+        """Kaydedilenler (saved articles) listesini render etmek için toplu çekim."""
+        if not article_ids:
+            return []
+        rows = self.db.query(NewsORM).filter(NewsORM.id.in_(article_ids)).all()
+        return [self._to_domain(row) for row in rows]
+
     def get_articles_with_entities(self, limit: int = 500, exclude_id: Optional[int] = None) -> List[Article]:
         q = self.db.query(NewsORM).filter(NewsORM.entities.isnot(None))
         if exclude_id is not None:

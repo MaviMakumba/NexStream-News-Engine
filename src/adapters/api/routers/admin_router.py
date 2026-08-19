@@ -26,7 +26,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from src.adapters.api.auth_utils import require_admin, require_moderator, require_owner, get_current_user, get_optional_user, effective_role
+from src.adapters.api.auth_utils import require_admin, require_moderator, require_owner, get_current_user, get_optional_user, effective_role, has_owner_role
 from src.adapters.repositories.user_repository import UserRepository
 from src.adapters.repositories.orm_models import SponsorORM
 from src.domain.models.sponsor import Sponsor
@@ -138,6 +138,57 @@ def update_user_role(
         raise HTTPException(status_code=404, detail="User not found")
     logger.info("Rol değişti: user_id=%s → %s (işlemi yapan: %s)", user_id, req.role, current_user.email)
     return {"id": user_id, "role": req.role}
+
+
+# ── Kullanıcı banlama / aktifleştirme (v2.2) ────────────────────────────────
+# Kullanıcı 19 Ağu 2026'da sordu: admin panelinde "Aktif/Pasif" rozeti vardı
+# ama hiçbir endpoint bunu False yapamıyordu — `is_active` + login guard'ı
+# hazırdı, sadece tetikleyici eksikti (bkz. CLAUDE.md YOL HARİTASI madde 14).
+# Yetki deseni `update_user_role` ile birebir aynı (kademeli: hedefin rolü
+# actor'dan KESİNLİKLE düşük olmalı); owner hiçbir şekilde hedef olamaz.
+
+class ActiveUpdateRequest(BaseModel):
+    is_active: bool
+
+
+@router.patch("/users/{user_id}/active")
+def update_user_active(
+    user_id: int,
+    req: ActiveUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Kullanıcıyı banlar (`is_active=false`) veya yeniden aktifleştirir.
+
+    Banlarken kullanıcının TÜM aktif oturumları da düşürülür — irreversible
+    bir eylem çalınmış/açık bir oturumla atlatılabilir olmasın (hesap silmedeki
+    aynı gerekçe). Yeniden aktifleştirmede oturumlara dokunulmaz.
+    """
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Kendinizi banlayamazsınız.")
+
+    repo = UserRepository(db)
+    target = repo.get_by_id(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if has_owner_role(target):
+        raise HTTPException(status_code=403, detail="Owner hesapları banlanamaz.")
+
+    actor_role = effective_role(current_user)
+    target_role = effective_role(target)
+    if role_at_least(target_role, actor_role):
+        raise HTTPException(status_code=403, detail="Bu kullanıcıyı banlama yetkiniz yok")
+
+    if not repo.set_active(user_id, req.is_active):
+        raise HTTPException(status_code=404, detail="User not found")
+    if not req.is_active:
+        repo.delete_sessions_for_user(user_id)
+
+    logger.info(
+        "Kullanıcı durumu değişti: user_id=%s → is_active=%s (işlemi yapan: %s)",
+        user_id, req.is_active, current_user.email,
+    )
+    return {"id": user_id, "is_active": req.is_active}
 
 
 # ── Manuel tier verme (owner-only) ───────────────────────────────────────────────

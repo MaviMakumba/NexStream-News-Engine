@@ -13,11 +13,12 @@ import { Navbar } from "@/components/Navbar";
 import { TierBadge } from "@/components/TierBadge";
 import { AuthLoadingScreen } from "@/components/AuthLoadingScreen";
 import { EmailVerifyBanner } from "@/components/EmailVerifyBanner";
+import { NewsCard } from "@/components/NewsCard";
 import {
   BASE, createCheckout, deleteAccount, devDowngrade, downloadExport, fetchBillingConfig, fetchMyNewsletter, fetchMyUsage,
-  fetchSources, generateApiKey, getBillingPortal, revokeApiKey, saveNewsletter, unsubscribeNewsletter,
+  fetchSavedArticles, fetchSources, generateApiKey, getBillingPortal, revokeApiKey, saveNewsletter, unsubscribeNewsletter,
 } from "@/lib/api";
-import type { AccountUsage, BillingConfig, Tier } from "@/lib/types";
+import type { AccountUsage, Article, BillingConfig, Tier } from "@/lib/types";
 import type { NewsletterPrefs } from "@/lib/api";
 import { UI, TIER_DETAILS, TOPIC_LABELS } from "@/lib/i18n";
 
@@ -37,6 +38,9 @@ export default function AccountPage() {
   const [notice, setNotice] = useState("");
   const [exportFormat, setExportFormat] = useState<"csv" | "json">("csv");
   const [exportBusy, setExportBusy] = useState(false);
+
+  // Kaydedilenler (bookmarks, v2.2)
+  const [saved, setSaved] = useState<Article[] | null>(null);
 
   // Hesap silme (v2.1.2) — danger zone
   const [delOpen, setDelOpen] = useState(false);
@@ -70,6 +74,7 @@ export default function AccountPage() {
     loadUsage();
     fetchBillingConfig().then(setBilling).catch(() => {});
     fetchSources().then(setSources).catch(() => {});
+    fetchSavedArticles().then(setSaved).catch(() => {});
     fetchMyNewsletter().then((prefs: NewsletterPrefs) => {
       setNlSubscribed(prefs.subscribed);
       if (prefs.subscribed) {
@@ -410,6 +415,25 @@ export default function AccountPage() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* Kaydedilenler (bookmarks, v2.2) */}
+        <div className="card">
+          <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>
+            🔖 {t.savedPageTitle}
+          </h2>
+          <p style={{ fontSize: "0.84rem", color: "var(--text2)", marginBottom: 16, lineHeight: 1.6 }}>
+            {t.savedPageDesc}
+          </p>
+          {saved === null ? (
+            <p style={{ fontSize: "0.8rem", color: "var(--text3)" }}>{t.loading}</p>
+          ) : saved.length === 0 ? (
+            <p style={{ fontSize: "0.8rem", color: "var(--text3)" }}>{t.savedEmpty}</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {saved.map((a) => <NewsCard key={a.id} article={a} />)}
+            </div>
+          )}
         </div>
 
         {/* Bülten tercihleri (v2.1.1) */}

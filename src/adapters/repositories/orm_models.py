@@ -133,6 +133,21 @@ class UsageLogORM(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class SavedArticleORM(Base):
+    """Kaydedilen haber (bookmark / sonra oku) — v2.2."""
+
+    __tablename__ = "saved_articles"
+    __table_args__ = (
+        Index("ix_saved_articles_user_id", "user_id"),
+        Index("ix_saved_articles_user_article", "user_id", "article_id", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)
+    article_id = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class SponsorORM(Base):
     __tablename__ = "sponsors"
 

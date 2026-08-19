@@ -57,6 +57,10 @@ export const UI: Record<Lang, Record<string, string>> = {
     loadingRelated: "Yükleniyor…", noRelated: "İlgili haber bulunamadı.",
     relatedError: "İlgili haberler yüklenemedi.",
     goToArticle: "Habere git →",
+    saveArticle: "Kaydet", unsaveArticle: "Kaydedilenlerden kaldır",
+    listenArticle: "Dinle", stopListening: "Durdur",
+    savedPageTitle: "Kaydedilenler", savedPageDesc: "Sonra okumak için kaydettiğin haberler.",
+    savedEmpty: "Henüz kaydedilen haber yok.",
 
     // ── Search ──
     searchPlaceholder: "bitcoin, deprem, yapay zeka…",
@@ -210,6 +214,9 @@ export const UI: Record<Lang, Record<string, string>> = {
     roleUser: "Kullanıcı", roleModerator: "Moderatör", roleAdmin: "Admin", roleOwner: "Kurucu",
     ownerBadge: "Kurucu",
     roleUpdateError: "Rol değiştirilemedi.", tierUpdateError: "Tier değiştirilemedi.",
+    banUser: "Banla", unbanUser: "Banı Kaldır",
+    banUserConfirm: "Bu kullanıcıyı banlamak istediğinize emin misiniz? Tüm oturumları anında kapanır.",
+    activeUpdateError: "Durum değiştirilemedi.",
   },
   EN: {
     // ── Nav ──
@@ -247,6 +254,10 @@ export const UI: Record<Lang, Record<string, string>> = {
     loadingRelated: "Loading…", noRelated: "No related articles found.",
     relatedError: "Failed to load related articles.",
     goToArticle: "Read article →",
+    saveArticle: "Save", unsaveArticle: "Remove from saved",
+    listenArticle: "Listen", stopListening: "Stop",
+    savedPageTitle: "Saved Articles", savedPageDesc: "Articles you saved to read later.",
+    savedEmpty: "No saved articles yet.",
 
     // ── Search ──
     searchPlaceholder: "bitcoin, earthquake, AI…",
@@ -400,6 +411,9 @@ export const UI: Record<Lang, Record<string, string>> = {
     roleUser: "User", roleModerator: "Moderator", roleAdmin: "Admin", roleOwner: "Owner",
     ownerBadge: "Founder",
     roleUpdateError: "Could not update role.", tierUpdateError: "Could not update tier.",
+    banUser: "Ban", unbanUser: "Unban",
+    banUserConfirm: "Are you sure you want to ban this user? All their sessions end immediately.",
+    activeUpdateError: "Could not update status.",
   },
 };
 

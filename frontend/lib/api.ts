@@ -5,7 +5,7 @@
 // ayrıca paylaşımlı X-API-Key'i kabul eder (makine-makine / admin olmayan giriş).
 
 import type {
-  AccountUsage, AdminUserList, BillingConfig, CheckoutResponse, NewsPage, RelatedResponse,
+  AccountUsage, AdminUserList, Article, BillingConfig, CheckoutResponse, NewsPage, RelatedResponse,
   SearchResult, Sponsor, TrendingResponse, UsageRow, User,
 } from "./types";
 
@@ -211,6 +211,20 @@ export async function deleteAccount(password: string): Promise<void> {
   });
 }
 
+// ── Kaydedilenler / bookmarks (v2.2) ────────────────────────────────────────
+
+export async function fetchSavedArticles(): Promise<Article[]> {
+  return req<Article[]>(`${BASE}/account/saved`);
+}
+
+export async function saveArticleApi(articleId: number): Promise<void> {
+  await req(`${BASE}/account/saved/${articleId}`, { method: "POST" });
+}
+
+export async function unsaveArticleApi(articleId: number): Promise<void> {
+  await req(`${BASE}/account/saved/${articleId}`, { method: "DELETE" });
+}
+
 // ── Bülten aboneliği ─────────────────────────────────────────────────────────
 // /subscriptions/{email} GET/PATCH paylaşımlı X-API-Key ister (admin uçları),
 // bu yüzden okuma /account/newsletter üzerinden (kendi oturumunla) yapılıyor;
@@ -265,6 +279,15 @@ export async function updateUserRole(creds: AdminCreds, userId: number, role: st
     method: "PATCH",
     headers: adminHeaders(creds),
     body: JSON.stringify({ role }),
+  });
+}
+
+/** Kullanıcıyı banlar (is_active=false, tüm oturumları düşer) veya yeniden aktifleştirir (v2.2). */
+export async function updateUserActive(creds: AdminCreds, userId: number, isActive: boolean): Promise<{ id: number; is_active: boolean }> {
+  return req(`${BASE}/admin/users/${userId}/active`, {
+    method: "PATCH",
+    headers: adminHeaders(creds),
+    body: JSON.stringify({ is_active: isActive }),
   });
 }
 
