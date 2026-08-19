@@ -3,4 +3,4 @@ pydantic-settings==2.14.2
 python-dotenv==1.2.2
 requests==2.33.0
 aiokafka==0.13.0
-apscheduler==3.11.2
+apscheduler==3.11.3

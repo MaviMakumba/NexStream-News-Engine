@@ -17,7 +17,7 @@ httpx==0.28.1
 beautifulsoup4==4.15.0
 lxml==6.1.0
 aiokafka==0.13.0
-apscheduler==3.11.2
+apscheduler==3.11.3
 chromadb-client==1.5.5
 # sentence-transformers BURADA YOK: model ayrı `embedder` servisinde tek kopya
 # duruyor (requirements-embedder.txt). app/worker embedding'i HTTP ile soruyor,
