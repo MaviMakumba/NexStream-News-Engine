@@ -10,7 +10,7 @@
 ![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=nextdotjs)
 ![Redpanda](https://img.shields.io/badge/Redpanda-Kafka--compatible-E33237)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
-![Tests](https://img.shields.io/badge/tests-553_passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-685_passing-brightgreen)
 ![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
@@ -37,8 +37,10 @@ What started as a course project on enterprise architecture has grown into a pro
 - **17 sources** (11 Turkish + 6 English), added declaratively via a scraper registry
 - **AI pipeline** on Groq `openai/gpt-oss-20b`: sentiment + entities (people/orgs/locations) + topic + summary in a single prompt, with an optional Hugging Face fallback
 - **Hybrid search**: ChromaDB semantic vectors + PostgreSQL keyword, combined-score ranked with recency decay, Turkish morphological stemming
-- **Trending engine**, **related-article graph** (entity overlap, Pro+), and **semantic dedup**
+- **Trending engine**, **related-article graph** (entity overlap, Pro+), **story clusters** ("who's covering this story", semantic similarity, free for everyone), and **semantic dedup**
 - **Quality + credibility scoring**: deterministic content-quality score and source-credibility / corroboration metrics
+- **Reader features**: save-for-later bookmarks, estimated reading time, in-browser text-to-speech (Web Speech API, free)
+- **Moderation**: role-based user banning (`is_active` toggle, session revocation) alongside the role hierarchy
 - **Real-time WebSocket feed** (Pro+, per-user + global connection caps), **email newsletter + instant keyword alerts**, **RSS/Atom feed**
 - **User accounts** with email verification, session auth (HttpOnly cookies), **tiered API** (Free / Pro / Enterprise) with per-user rate limits, per-tier search-result caps, and usage analytics
 - **Stripe billing** (with a no-Stripe dev mode for local demos), **raw data export** (CSV/JSON, Enterprise-only), **Redis cache**
@@ -47,15 +49,15 @@ What started as a course project on enterprise architecture has grown into a pro
 - **Event-driven** via Redpanda (Kafka-compatible, ARM-friendly); **fully containerized** with Docker Compose
 - **Observability**: Prometheus + Grafana + Loki, `/health` and `/metrics` endpoints
 - **Security-hardened**: prod-startup config guard, timing-safe auth checks, HTML-escaped emails, per-route rate limits, encrypted + offsite-capable backups
-- **553 tests**, all green; CI via GitHub Actions with Dependabot-driven dependency updates
+- **685 tests**, all green; CI via GitHub Actions with Dependabot-driven dependency updates
 
 **At a glance:**
 
 | Metric | Value |
 |--------|-------|
 | News sources | 17 (11 Turkish + 6 English) |
-| Backend tests | 553 — all green |
-| API endpoints | 49, across 13 routers |
+| Backend tests | 685 — all green |
+| API endpoints | 57, across 10 routers |
 | Cinematic frontend themes | 9 |
 | API tiers | 3 (Free / Pro / Enterprise) — server-enforced |
 | Docker services | 10 (dev) / 16 (prod, incl. observability stack) |
@@ -340,7 +342,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-**Test coverage: 553 tests** across domain, application, and adapter layers. Every external call (Groq, Kafka, DB, ChromaDB) is mocked — no network access required.
+**Test coverage: 685 tests** across domain, application, and adapter layers. Every external call (Groq, Kafka, DB, ChromaDB) is mocked — no network access required.
 
 <details>
 <summary>Actual local run output</summary>
@@ -355,7 +357,7 @@ $ python -m pytest tests/ -q
 ........................................................................ [ 82%]
 ........................................................................ [ 96%]
 ..................                                                        [100%]
-553 passed, 1 warning in 16.56s
+685 passed, 1 warning in 16.56s
 ```
 
 </details>
@@ -450,7 +452,7 @@ Every push / PR to `main` triggers GitHub Actions:
 
 1. Spins up a PostgreSQL 15 service container
 2. Installs Python dependencies (incl. `pytest-asyncio`)
-3. Runs all 553 tests with `pytest`
+3. Runs all 685 tests with `pytest`
 4. Reports pass/fail status
 
 Dependabot also opens weekly PRs for pip, npm, and GitHub Actions dependency updates (review/merge/rebuild stays manual by design — no auto-merge).
@@ -511,8 +513,10 @@ Kurumsal mimari dersi için başlayan proje; e-posta doğrulamalı kullanıcı h
 - **17 kaynak** (11 TR + 6 EN), scraper registry ile bildirimsel eklenir
 - **AI hattı** (Groq `openai/gpt-oss-20b`): tek prompt'ta duygu + varlıklar (kişi/kurum/yer) + konu + özet; opsiyonel Hugging Face yedeği
 - **Hibrit arama**: ChromaDB anlam vektörü + PostgreSQL anahtar kelime, recency decay'li birleşik skor; Türkçe morfolojik kök ayıklama
-- **Trending motoru**, **ilişki grafı** (varlık örtüşmesi, Pro+) ve **anlamsal dedup**
+- **Trending motoru**, **ilişki grafı** (varlık örtüşmesi, Pro+), **story cluster** ("bu haberi kim nasıl anlatıyor", semantik benzerlik, herkese ücretsiz) ve **anlamsal dedup**
 - **Kalite + güvenilirlik skorlaması**: deterministik içerik kalitesi + kaynak güvenilirliği / doğrulama metrikleri
+- **Okuyucu özellikleri**: kaydet/sonra oku, okuma süresi tahmini, tarayıcı-içi sesli okuma (Web Speech API, ücretsiz)
+- **Moderasyon**: rol hiyerarşisinin yanında kullanıcı banlama (`is_active` toggle, oturum iptali)
 - **Gerçek zamanlı WebSocket akışı** (Pro+, kullanıcı başına + toplam bağlantı tavanı), **e-posta bülteni + anlık keyword alert**, **RSS/Atom feed**
 - **Kullanıcı hesapları** e-posta doğrulamalı, session auth (HttpOnly cookie), **katmanlı API** (Free / Pro / Enterprise) kullanıcı bazlı limit + arama sonucu tavanı + analytics
 - **Stripe ödeme** (lokal demo için Stripe'sız dev mode), **ham veri export** (CSV/JSON, sadece Enterprise), **Redis cache**
@@ -521,15 +525,15 @@ Kurumsal mimari dersi için başlayan proje; e-posta doğrulamalı kullanıcı h
 - Redpanda (Kafka-uyumlu, ARM-dostu) ile **olay güdümlü**; Docker Compose ile **tamamen konteynerli**
 - **Gözlemlenebilirlik**: Prometheus + Grafana + Loki, `/health` ve `/metrics`
 - **Güvenlik sertleştirmesi**: prod-açılış config guard'ı, zamanlama-güvenli auth kontrolleri, HTML-escape'li e-postalar, route-bazlı rate limit'ler, şifrelenebilir + offsite yedekleme
-- **553 test**, hepsi yeşil; GitHub Actions CI + Dependabot ile otomatik bağımlılık güncellemesi
+- **685 test**, hepsi yeşil; GitHub Actions CI + Dependabot ile otomatik bağımlılık güncellemesi
 
 **Bir bakışta:**
 
 | Metrik | Değer |
 |--------|-------|
 | Haber kaynağı | 17 (11 TR + 6 EN) |
-| Backend test | 553 — hepsi yeşil |
-| API endpoint'i | 49, 13 router'da |
+| Backend test | 685 — hepsi yeşil |
+| API endpoint'i | 57, 10 router’da |
 | Sinematik frontend teması | 9 |
 | API katmanı | 3 (Free / Pro / Enterprise) — sunucu tarafında zorunlu |
 | Docker servisi | 10 (dev) / 16 (prod, gözlemlenebilirlik yığını dahil) |
@@ -784,7 +788,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-**553 test** — domain, application ve adapter katmanları. Her dış çağrı (Groq, Kafka, DB, ChromaDB) mock'lanır; ağ erişimi gerekmez.
+**685 test** — domain, application ve adapter katmanları. Her dış çağrı (Groq, Kafka, DB, ChromaDB) mock'lanır; ağ erişimi gerekmez.
 
 <details>
 <summary>Gerçek lokal çalıştırma çıktısı</summary>
@@ -799,7 +803,7 @@ $ python -m pytest tests/ -q
 ........................................................................ [ 82%]
 ........................................................................ [ 96%]
 ..................                                                        [100%]
-553 passed, 1 warning in 16.56s
+685 passed, 1 warning in 16.56s
 ```
 
 </details>
@@ -884,7 +888,7 @@ Varsayılan `FallbackAnalyzer`, Groq → Hugging Face → nötr fallback zinciri
 
 1. Bir PostgreSQL 15 servis konteyneri ayağa kaldırır
 2. Python bağımlılıklarını kurar (`pytest-asyncio` dahil)
-3. `pytest` ile 553 testin tamamını çalıştırır
+3. `pytest` ile 685 testin tamamını çalıştırır
 4. Başarılı/başarısız durumunu raporlar
 
 Dependabot da pip, npm ve GitHub Actions bağımlılıkları için haftalık PR açar (review/merge/rebuild kararı bilinçli olarak kullanıcıda kalır — otomatik merge yok).

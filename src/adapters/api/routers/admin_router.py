@@ -146,6 +146,11 @@ def update_user_role(
 # hazırdı, sadece tetikleyici eksikti (bkz. CLAUDE.md YOL HARİTASI madde 14).
 # Yetki deseni `update_user_role` ile birebir aynı (kademeli: hedefin rolü
 # actor'dan KESİNLİKLE düşük olmalı); owner hiçbir şekilde hedef olamaz.
+# `actor` Optional (get_optional_user) — `update_user_tier` ile aynı gerekçe:
+# X-API-Key `get_current_user`'a hiç çözülmez (sadece session/X-User-Key
+# tanır), zorunlu tutulursa makine-makine erişimi 401 alır (19 Ağu 2026'da
+# canlı testte yakalandı — router-level require_moderator X-API-Key'i kabul
+# ediyordu ama handler içindeki get_current_user reddediyordu).
 
 class ActiveUpdateRequest(BaseModel):
     is_active: bool
@@ -155,7 +160,7 @@ class ActiveUpdateRequest(BaseModel):
 def update_user_active(
     user_id: int,
     req: ActiveUpdateRequest,
-    current_user: User = Depends(get_current_user),
+    actor: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     """Kullanıcıyı banlar (`is_active=false`) veya yeniden aktifleştirir.
@@ -163,8 +168,13 @@ def update_user_active(
     Banlarken kullanıcının TÜM aktif oturumları da düşürülür — irreversible
     bir eylem çalınmış/açık bir oturumla atlatılabilir olmasın (hesap silmedeki
     aynı gerekçe). Yeniden aktifleştirmede oturumlara dokunulmaz.
+
+    `actor is None` → X-API-Key ile geldi (router-level require_moderator zaten
+    doğruladı) — rank-comparison/self-check atlanır, paylaşımlı anahtar en
+    yüksek yetkili kabul edilir (owner koruması hariç, o HER durumda geçerli).
     """
-    if user_id == current_user.id:
+    # Self-check DB'ye hiç dokunmadan erken döner (update_user_role ile aynı özen).
+    if actor is not None and user_id == actor.id:
         raise HTTPException(status_code=400, detail="Kendinizi banlayamazsınız.")
 
     repo = UserRepository(db)
@@ -174,10 +184,11 @@ def update_user_active(
     if has_owner_role(target):
         raise HTTPException(status_code=403, detail="Owner hesapları banlanamaz.")
 
-    actor_role = effective_role(current_user)
-    target_role = effective_role(target)
-    if role_at_least(target_role, actor_role):
-        raise HTTPException(status_code=403, detail="Bu kullanıcıyı banlama yetkiniz yok")
+    if actor is not None:
+        actor_role = effective_role(actor)
+        target_role = effective_role(target)
+        if role_at_least(target_role, actor_role):
+            raise HTTPException(status_code=403, detail="Bu kullanıcıyı banlama yetkiniz yok")
 
     if not repo.set_active(user_id, req.is_active):
         raise HTTPException(status_code=404, detail="User not found")
@@ -186,7 +197,7 @@ def update_user_active(
 
     logger.info(
         "Kullanıcı durumu değişti: user_id=%s → is_active=%s (işlemi yapan: %s)",
-        user_id, req.is_active, current_user.email,
+        user_id, req.is_active, actor.email if actor else "X-API-Key",
     )
     return {"id": user_id, "is_active": req.is_active}
 

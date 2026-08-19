@@ -516,6 +516,26 @@ def test_moderator_can_ban_plain_user(app_client):
     assert resp.status_code == 200
 
 
+def test_update_user_active_via_api_key(app_client):
+    """Makine-makine erişimi (X-API-Key) da rol tabanlı rank-comparison'a takılmadan
+    banlayabilmeli — `update_user_tier` ile aynı desen (actor Optional, None ise
+    rank kontrolü atlanır)."""
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_id.return_value = _target(2, UserRole.USER)
+            repo.set_active.return_value = True
+            MockRepo.return_value = repo
+            resp = app_client.patch("/admin/users/2/active", json={"is_active": False}, headers=_HEADERS)
+    finally:
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    repo.delete_sessions_for_user.assert_called_once_with(2)
+
+
 def test_update_user_active_404_for_missing_user(app_client):
     admin = _make_user(id=1, role=UserRole.ADMIN)
     db = _make_mock_db()
