@@ -42,7 +42,7 @@ export const PRIVACY_POLICY: Record<Lang, LegalPage> = {
       {
         heading: "Haklarınız",
         body:
-          "Hesap bilgilerinizi Hesabım sayfasından görüntüleyebilir ve API anahtarınızı istediğiniz zaman iptal edebilirsiniz. Not: şu anda kendi kendine hesap silme (verilerin kalıcı olarak silinmesi) özelliği bulunmuyor — bu, gerçek kamuya açık yayın öncesi eklenmesi gereken bilinen bir eksikliktir. Bu arada hesabınızın silinmesini talep etmek için bizimle iletişime geçebilirsiniz.",
+          "Hesap bilgilerinizi Hesabım sayfasından görüntüleyebilir, API anahtarınızı istediğiniz zaman iptal edebilir ve hesabınızı (Hesabım sayfasındaki \"Tehlikeli Bölge\" bölümünden) kalıcı olarak silebilirsiniz — hesap silindiğinde oturumlarınız, API anahtarınız, kullanım geçmişiniz ve bülten aboneliğiniz dahil tüm verileriniz veritabanından tamamen kaldırılır ve bu işlem geri alınamaz.",
       },
       {
         heading: "Çerezler",
@@ -75,7 +75,7 @@ export const PRIVACY_POLICY: Record<Lang, LegalPage> = {
       {
         heading: "Your rights",
         body:
-          "You can view your account details and revoke your API key at any time from the Account page. Note: self-service account deletion (permanent data erasure) is not yet available — this is a known gap that must be closed before a genuine public launch. In the meantime you can contact us to request account deletion.",
+          "You can view your account details, revoke your API key at any time, and permanently delete your account from the \"Danger Zone\" section on the Account page — deleting your account permanently removes all your data from our database, including sessions, your API key, usage history, and newsletter subscription, and this action cannot be undone.",
       },
       {
         heading: "Cookies",

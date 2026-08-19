@@ -92,3 +92,13 @@ class SubscriberRepository(SubscriberRepositoryPort):
         orm.is_active = False
         self.db.commit()
         return True
+
+    def delete_by_email(self, email: str) -> bool:
+        """Kaydı kalıcı olarak siler (v2.1.2, hesap silme) — `deactivate`'in
+        aksine PII'yi (keywords/preferred_sources dahil) DB'de bırakmaz."""
+        orm = self.db.query(SubscriberORM).filter(SubscriberORM.email == email).first()
+        if not orm:
+            return False
+        self.db.delete(orm)
+        self.db.commit()
+        return True

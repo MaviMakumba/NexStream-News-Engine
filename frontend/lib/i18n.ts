@@ -144,6 +144,14 @@ export const UI: Record<Lang, Record<string, string>> = {
     usage: "Kullanım", sponsors: "Sponsorlar", apiDocs: "API Docs", rssFeed: "RSS Akışı",
     errorOccurred: "Hata oluştu.",
 
+    // ── Hesap silme (v2.1.2) ──
+    dangerZoneTitle: "Tehlikeli Bölge", dangerZoneDesc: "Hesabını sildiğinde tüm verilerin (oturumlar, API anahtarı, kullanım geçmişi, bülten aboneliği) kalıcı olarak silinir. Bu işlem geri alınamaz.",
+    deleteAccountBtn: "Hesabımı Sil", deleteAccountCancel: "Vazgeç",
+    deleteAccountConfirmTitle: "Emin misin?", deleteAccountPasswordLabel: "Devam etmek için parolanı gir",
+    deleteAccountCheckboxLabel: "Bu işlemin geri alınamayacağını anlıyorum.",
+    deleteAccountSubmit: "Kalıcı Olarak Sil", deleteAccountSubmitting: "Siliniyor…",
+    deleteAccountOwnerNote: "Kurucu hesaplar bu sayfadan silinemez.",
+
     // ── Account: kullanım paneli & API anahtarı (v1.11) ──
     usageTitle: "Kullanım & Kota", usedToday: "Bugün Kullanılan",
     remainingToday: "Kalan", dailyLimitLabel: "Günlük Limit",
@@ -325,6 +333,14 @@ export const UI: Record<Lang, Record<string, string>> = {
     billingPortal: "Billing Portal →", quickAccess: "Quick Access",
     usage: "Usage", sponsors: "Sponsors", apiDocs: "API Docs", rssFeed: "RSS Feed",
     errorOccurred: "An error occurred.",
+
+    // ── Account deletion (v2.1.2) ──
+    dangerZoneTitle: "Danger Zone", dangerZoneDesc: "Deleting your account permanently removes all your data (sessions, API key, usage history, newsletter subscription). This cannot be undone.",
+    deleteAccountBtn: "Delete My Account", deleteAccountCancel: "Cancel",
+    deleteAccountConfirmTitle: "Are you sure?", deleteAccountPasswordLabel: "Enter your password to continue",
+    deleteAccountCheckboxLabel: "I understand this cannot be undone.",
+    deleteAccountSubmit: "Permanently Delete", deleteAccountSubmitting: "Deleting…",
+    deleteAccountOwnerNote: "Founder accounts cannot be deleted from this page.",
 
     // ── Account: usage panel & API key (v1.11) ──
     usageTitle: "Usage & Quota", usedToday: "Used Today",
