@@ -1,4 +1,5 @@
 import pytest
+from email import message_from_string
 from unittest.mock import patch, MagicMock
 from src.adapters.notifications.email_adapter import ConsoleEmailAdapter, ResendEmailAdapter, SmtpEmailAdapter, get_email_adapter
 from src.domain.models.article import Article
@@ -181,6 +182,34 @@ def test_smtp_adapter_returns_false_on_exception_not_raises():
         with patch("smtplib.SMTP", side_effect=Exception("auth failed")):
             result = adapter.send_welcome("user@test.com", "TR")
     assert result is False
+
+
+def test_smtp_adapter_includes_plain_text_alternative():
+    """Sadece HTML gönderilmesi yaygın bir spam sinyali — multipart/alternative'de
+    bir text/plain fallback'i de olmalı (18 Ağu 2026'da canlıda doğrulama maili
+    kendi gönderenin Gmail'inde bile spam'e düşünce bulundu)."""
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.smtp_host = "smtp.gmail.com"
+        mock_settings.smtp_port = 587
+        mock_settings.smtp_user = "me@gmail.com"
+        mock_settings.smtp_password = "app-password"
+        mock_settings.smtp_from = ""
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        mock_settings.smtp_starttls = True
+        adapter = SmtpEmailAdapter()
+
+        mock_server = MagicMock()
+        mock_smtp_cm = MagicMock()
+        mock_smtp_cm.__enter__.return_value = mock_server
+        with patch("smtplib.SMTP", return_value=mock_smtp_cm):
+            adapter.send_verification("user@test.com", "http://test.com/verify?token=abc", "TR")
+
+    raw = mock_server.sendmail.call_args[0][2]
+    msg = message_from_string(raw)
+    assert msg.is_multipart()
+    content_types = {part.get_content_type() for part in msg.walk()}
+    assert "text/plain" in content_types
+    assert "text/html" in content_types
 
 
 def test_smtp_adapter_from_header_falls_back_to_smtp_user_when_smtp_from_unset():

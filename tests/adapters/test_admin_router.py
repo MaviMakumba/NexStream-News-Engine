@@ -132,6 +132,32 @@ def test_list_users_returns_items_with_is_paying(app_client):
     assert data["items"][1]["is_paying"] is False
 
 
+def test_list_users_returns_email_verified_flag(app_client):
+    """Admin tablosu 'Aktif/Pasif'ten bağımsız bir e-posta doğrulama sütunu
+    gösterecek (18 Ağu 2026 tartışması) — is_active ile karıştırılmamalı,
+    ayrı bir alan olarak dönmeli."""
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            verified_user = _make_user(id=1, email="verified@test.com")
+            verified_user.email_verified = True
+            unverified_user = _make_user(id=2, email="unverified@test.com")
+            unverified_user.email_verified = False
+            repo.list_users.return_value = [verified_user, unverified_user]
+            repo.count_users.return_value = 2
+            MockRepo.return_value = repo
+            resp = app_client.get("/admin/users", headers=_HEADERS)
+    finally:
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["items"][0]["email_verified"] is True
+    assert data["items"][1]["email_verified"] is False
+
+
 def test_list_users_passes_pagination_and_tier_filter(app_client):
     db = _make_mock_db()
     app_client.app.dependency_overrides[get_db] = lambda: db
@@ -514,6 +540,121 @@ def test_delete_nonexistent_sponsor_permanently_returns_404(app_client):
     try:
         resp = app_client.delete("/admin/sponsors/999/permanent", headers=_HEADERS)
     finally:
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 404
+
+
+# ── Manuel tier verme (owner-only, 18 Ağu 2026) ─────────────────────────────────
+# Kurucu, ödeme almadan bir kullanıcıya (kendisi dahil) Pro/Kurumsal verebilsin
+# diye eklendi. require_owner kullanır (admin YETMEZ) — repo.update_tier()
+# zaten var (BILLING_DEV_MODE'un kullandığı aynı metod), stripe_customer_id
+# gönderilmez ki is_paying "gerçek ödeme" ile karışmasın.
+
+def test_update_user_tier_rejects_plain_admin_actor(app_client):
+    """admin owner değildir — bu endpoint'e giremez (require_owner)."""
+    admin = _make_user(id=1, role=UserRole.ADMIN)
+    app_client.app.dependency_overrides[get_optional_user] = lambda: admin
+    try:
+        resp = app_client.patch("/admin/users/2/tier", json={"tier": "pro"})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+
+    assert resp.status_code == 403
+
+
+def test_update_user_tier_rejects_anonymous(app_client):
+    resp = app_client.patch("/admin/users/2/tier", json={"tier": "pro"})
+    assert resp.status_code == 401
+
+
+def test_update_user_tier_success(app_client):
+    owner = _make_user(id=1, role=UserRole.OWNER)
+    target = _make_user(id=2, role=UserRole.USER, tier=UserTier.FREE)
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_optional_user] = lambda: owner
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_id.return_value = target
+            repo.update_tier.return_value = True
+            MockRepo.return_value = repo
+            resp = app_client.patch("/admin/users/2/tier", json={"tier": "enterprise"})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"id": 2, "tier": "enterprise"}
+    # stripe_customer_id KASITLI gönderilmez — bu manuel bir grant, gerçek
+    # ödeme değil, is_paying alanı bundan etkilenmemeli.
+    repo.update_tier.assert_called_once_with(2, "enterprise")
+
+
+def test_update_user_tier_via_api_key(app_client):
+    """Makine-makine erişimi (X-API-Key) da owner kadar yetkilidir."""
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_id.return_value = _make_user(id=2)
+            repo.update_tier.return_value = True
+            MockRepo.return_value = repo
+            resp = app_client.patch("/admin/users/2/tier", json={"tier": "pro"}, headers=_HEADERS)
+    finally:
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+
+
+def test_update_user_tier_self_change_not_blocked(app_client):
+    """Rol değişiminin aksine kendine tier vermek YASAK DEĞİL — owner zaten
+    effective_tier ile enterprise muamelesi görüyor, bu sadece kayıt tutarlılığı
+    için (kullanıcı açıkça 'kendim dahil' istedi)."""
+    owner = _make_user(id=1, role=UserRole.OWNER)
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_optional_user] = lambda: owner
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_id.return_value = owner
+            repo.update_tier.return_value = True
+            MockRepo.return_value = repo
+            resp = app_client.patch("/admin/users/1/tier", json={"tier": "pro"})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+
+
+def test_update_user_tier_rejects_invalid_tier(app_client):
+    owner = _make_user(id=1, role=UserRole.OWNER)
+    app_client.app.dependency_overrides[get_optional_user] = lambda: owner
+    try:
+        resp = app_client.patch("/admin/users/2/tier", json={"tier": "ultra"})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
+
+    assert resp.status_code == 400
+
+
+def test_update_user_tier_404_for_missing_user(app_client):
+    owner = _make_user(id=1, role=UserRole.OWNER)
+    db = _make_mock_db()
+    app_client.app.dependency_overrides[get_optional_user] = lambda: owner
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.UserRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_id.return_value = None
+            MockRepo.return_value = repo
+            resp = app_client.patch("/admin/users/999/tier", json={"tier": "pro"})
+    finally:
+        app_client.app.dependency_overrides.pop(get_optional_user, None)
         app_client.app.dependency_overrides.pop(get_db, None)
 
     assert resp.status_code == 404
