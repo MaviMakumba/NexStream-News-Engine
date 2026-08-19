@@ -23,7 +23,7 @@ chromadb-client==1.5.5
 # duruyor (requirements-embedder.txt). app/worker embedding'i HTTP ile soruyor,
 # bu yüzden torch da kurulmuyor. httpx AŞAĞIDA KALMALI — HttpEmbedderAdapter onu
 # kullanıyor.
-slowapi==0.1.9
+slowapi==0.1.10
 prometheus-client==0.22.1
 prometheus-fastapi-instrumentator==8.0.2
 feedgen==0.9.0
