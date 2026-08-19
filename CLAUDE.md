@@ -206,7 +206,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 ## MEVCUT DURUM
 
 - **Versiyon:** v2.2 (kod main'de; henüz redeploy edilmedi) 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 18 Ağustos 2026 — AWS t3.small, gerçek Let's Encrypt, 16 servis, boru hattı uçtan uca çalışıyor; owner rolü + gerçek SMTP e-posta + Groq model/WS/nginx-header/arama düzeltmeleri prod'da doğrulandı, detay `docs/CHANGELOG.md`'de "v2.1.1" bloğu). İlk canlıya çıkış: 29 Temmuz 2026. **19 Ağu 2026'dan beri main'de canlıya YANSIMAMIŞ iki özellik var: hesap silme (v2.1.2, `DELETE /account`) ve kaydet/sonra oku (v2.2, `/account/saved`) — kullanıcı hesap sayfasında bir özelliği "bulamıyorum" derse önce redeploy tarihini kontrol et, UI'dan silinmiş değildir.**
-- **Test sayısı:** 674 test, hepsi yeşil (backend, 19 Ağu 2026); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
+- **Test sayısı:** 685 test, hepsi yeşil (backend, 19 Ağu 2026); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
 - **Frontend:** Next.js 14 + React. 9 sinematik tema, tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
@@ -264,21 +264,35 @@ GERÇEKTEN bekleyen işler var:
     kaynak "corroboration" rozeti (veri zaten vardı, sadece UI'a eklendi),
     okuma süresi tahmini (client-side), tarayıcı-yerel TTS (Web Speech API).
     **main'de, henüz redeploy edilmedi** (bkz. MEVCUT DURUM).
-11. **Story cluster görünümü** — "Bu haberi kim nasıl anlatıyor" (Ground
-    News Blindspot'unun küçük ölçekli hali). `embedding_port` zaten var,
-    yeni port gerekmiyor — `GET /news/{id}/sources` gibi bir endpoint aynı
-    story cluster'daki diğer kaynakları dönebilir. Kendi kısa brainstorming
-    turu ister (19 Ağu 2026 rakip taraması, madde #5).
+11. ~~Story cluster görünümü~~ — ✅ 19 Ağu 2026'da tamamlandı. "Bu haberi kim
+    nasıl anlatıyor" — `GET /news/{id}/sources` + `/api/v1/news/{id}/sources`
+    (tier gating YOK, herkese açık — corroboration rozeti gibi şeffaflık
+    özelliği). `ChromaSearchRepository.find_similar` zaten indexlenmiş
+    embedding'i tekrar hesaplamadan (`collection.get`) benzerlik araması
+    yapıyor, dedup eşiğinden (0.92) daha gevşek bir eşikle (0.72) aynı
+    olayı farklı kaynakların anlattığı makaleleri yakalıyor. `NewsService.
+    get_story_cluster` orkestrasyon, `NewsCard`'da kart footer'ında
+    "🔗 Kaynaklar" toggle'ı.
 12. **Web Push bildirimleri (breaking news)** — PWA service worker zaten
     kurulu; `web-push` + VAPID ile tamamen ücretsiz. Yeni bir
     `NotificationPort` adapter'ı gerektirir — tam "architectural" tur
     (spec + writing-plans). (19 Ağu 2026 rakip taraması, madde #6)
+    **19 Ağu 2026'da kota kısıtı nedeniyle bu oturuma ERTELENDİ** — sıradaki
+    oturumun ilk işi bu olmalı.
 13. **RAG tabanlı "bu konuda soru sor" mini sohbet** — Perplexity/Artifact
     tarzı soru-cevap; ChromaDB semantic search (embedding_port) + Groq analiz
     hattı (analysis_port) zaten var, `AnalysisPort`'a yeni bir
     `answer_question` metodu olarak modellenebilir. Portfolyo değeri yüksek
     ama en büyük iş — kendi mimari tasarım turu ister. (19 Ağu 2026 rakip
-    taraması, madde #7)
+    taraması, madde #7) **19 Ağu 2026'da kota kısıtı nedeniyle bu oturuma
+    ERTELENDİ** — madde 12'den sonra ele alınmalı.
+15. **Test paketi sağlık denetimi** — 19 Ağu 2026'da kullanıcı sordu: "674
+    test" büyüklük gösterir ama tek başına sağlık göstergesi değil, atıl/
+    anlamsız/artık gerçek davranışı doğrulamayan testler birikmiş olabilir.
+    Ayrı bir oturumluk iş: test dosyalarını tarayıp (1) hâlâ var olan kodu mu
+    test ediyor, (2) mock'un kendisini mi test ediyor (gerçek davranışı
+    değil), (3) aynı şeyi tekrar tekrar mı doğruluyor gibi sorularla atıl
+    olanları temizle/birleştir.
 14. ~~Kullanıcı banlama (moderatör/admin)~~ — ✅ 19 Ağu 2026'da tamamlandı.
     `PATCH /admin/users/{id}/active` — `update_user_role` ile birebir aynı
     kademeli yetki deseni (hedefin rolü actor'dan KESİNLİKLE düşük olmalı,

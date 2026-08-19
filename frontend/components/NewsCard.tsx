@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import type { Article, RelatedArticle } from "@/lib/types";
+import type { Article, RelatedArticle, StorySource } from "@/lib/types";
 import { SentimentBadge } from "./SentimentBadge";
-import { fetchRelated } from "@/lib/api";
+import { fetchRelated, fetchStoryCluster } from "@/lib/api";
 import { useSettings } from "@/lib/settings-context";
 import { useAuth } from "@/lib/auth-context";
 import { useSavedArticles } from "@/lib/saved-context";
@@ -48,6 +48,30 @@ export function NewsCard({ article }: { article: Article }) {
   const [related, setRelated] = useState<RelatedArticle[] | null>(null);
   const [loadingRelated, setLoadingRelated] = useState(false);
   const [relatedError, setRelatedError] = useState(false);
+
+  // Story cluster — "bu haberi kim nasıl anlatıyor" (v2.2, herkese açık,
+  // related'ın aksine Pro gerektirmez).
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [sources, setSources] = useState<StorySource[] | null>(null);
+  const [loadingSources, setLoadingSources] = useState(false);
+  const [sourcesError, setSourcesError] = useState(false);
+
+  async function toggleSources() {
+    if (sourcesOpen) { setSourcesOpen(false); return; }
+    if (sources !== null) { setSourcesOpen(true); return; }
+    setLoadingSources(true);
+    setSourcesError(false);
+    try {
+      const r = await fetchStoryCluster(article.id);
+      setSources(r.sources ?? []);
+    } catch {
+      setSourcesError(true);
+      setSources([]);
+    } finally {
+      setLoadingSources(false);
+    }
+    setSourcesOpen(true);
+  }
   const [speaking, setSpeaking] = useState(false);
   // Unmount effect'i (aşağıda) her render'da yeniden kurulmasın diye `speaking`
   // state'inin GÜNCEL değerini bir ref'te aynalıyoruz — effect'in dependency
@@ -222,6 +246,25 @@ export function NewsCard({ article }: { article: Article }) {
           )}
         </button>
 
+        {!!article.corroboration_count && article.corroboration_count > 0 && (
+          <button onClick={toggleSources} disabled={loadingSources}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer", padding: 0,
+                    fontSize: "0.75rem", color: "var(--text3)", transition: "color 0.15s",
+                    display: "flex", alignItems: "center", gap: 4,
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text3)")}>
+            {loadingSources ? (
+              <span style={{ color: "var(--text3)" }}>⟳ {t.loadingRelated}</span>
+            ) : sourcesOpen ? (
+              <><span style={{ color: "var(--accent)" }}>▲</span> {t.hideSources}</>
+            ) : (
+              <><span style={{ color: "var(--accent)" }}>🔗</span> {t.storySources}</>
+            )}
+          </button>
+        )}
+
         {canSpeak && (
           <button onClick={toggleListen} title={speaking ? t.stopListening : t.listenArticle}
                   aria-label={speaking ? t.stopListening : t.listenArticle}
@@ -295,6 +338,35 @@ export function NewsCard({ article }: { article: Article }) {
                       </span>
                     ))}
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Story cluster — "bu haberi kim nasıl anlatıyor" (v2.2) */}
+      {sourcesOpen && (
+        <div style={{ marginTop: 12, paddingTop: 4 }}>
+          {sourcesError && (
+            <p style={{ fontSize: "0.8rem", color: "var(--neg)", padding: "8px 0" }}>⚠ {t.sourcesError}</p>
+          )}
+          {!sourcesError && sources?.length === 0 && (
+            <p style={{ fontSize: "0.8rem", color: "var(--text3)", padding: "8px 0" }}>{t.noSources}</p>
+          )}
+          {!sourcesError && sources && sources.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {sources.map((s) => (
+                <div key={s.id} className="card-sm" style={{ borderRadius: 10 }}>
+                  <a href={s.url} target="_blank" rel="noopener noreferrer" style={{
+                    display: "block", fontSize: "0.84rem", color: "var(--text)",
+                    fontWeight: 600, textDecoration: "none", transition: "color 0.15s", lineHeight: 1.4,
+                  }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text)")}>
+                    {s.title}
+                  </a>
+                  <span style={{ fontSize: "0.72rem", color: "var(--text3)" }}>{s.source}</span>
                 </div>
               ))}
             </div>

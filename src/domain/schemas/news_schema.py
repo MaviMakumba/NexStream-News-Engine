@@ -85,3 +85,18 @@ class RelatedArticle(BaseModel):
 class RelatedResponse(BaseModel):
     article_id: int
     related: List[RelatedArticle] = Field(default_factory=list)
+
+
+# v2.2 — story cluster ("bu haberi kim nasıl anlatıyor"). `related`'dan farkı:
+# entity kesişimi değil semantik vektör benzerliği (aynı OLAY, farklı kaynak).
+class StorySource(BaseModel):
+    id: int
+    title: str
+    source: str
+    url: str
+    score: float
+
+
+class StoryClusterResponse(BaseModel):
+    article_id: int
+    sources: List[StorySource] = Field(default_factory=list)

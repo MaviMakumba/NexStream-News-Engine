@@ -10,7 +10,7 @@ import time
 from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from typing import List, Optional
 
-from src.domain.schemas.news_schema import NewsResponse, ScrapeCommand, SearchRequest, SearchResult, TrendingResponse, RelatedResponse
+from src.domain.schemas.news_schema import NewsResponse, ScrapeCommand, SearchRequest, SearchResult, TrendingResponse, RelatedResponse, StoryClusterResponse
 from src.domain.models.user import User, UserTier, TIER_SEARCH_RESULT_CAP, tier_at_least
 from src.domain.ports.messaging_port import MessagePublisherPort
 from src.application.services.news_service import NewsService
@@ -101,6 +101,23 @@ def get_related(
             detail="İlişki grafı Pro plan gerektirir. / Relation graph requires a Pro plan.",
         )
     return service.get_related(article_id, limit)
+
+
+@router.get("/{article_id}/sources", response_model=StoryClusterResponse)
+@limiter.limit("60/minute")
+def get_story_cluster(
+    request: Request,
+    article_id: int,
+    limit: int = Query(6, ge=1, le=20),
+    service: NewsService = Depends(get_news_service),
+):
+    """"Bu haberi kim nasıl anlatıyor" — aynı olayı kapsayan diğer kaynaklar
+    (v2.2, rakip taraması — Ground News Blindspot'un küçük ölçekli hali).
+
+    `related`'ın aksine tier gating YOK — corroboration rozeti gibi bir
+    şeffaflık özelliği, herkese açık.
+    """
+    return service.get_story_cluster(article_id, limit)
 
 
 @router.post("/reanalyze")

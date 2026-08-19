@@ -61,6 +61,8 @@ export const UI: Record<Lang, Record<string, string>> = {
     listenArticle: "Dinle", stopListening: "Durdur",
     savedPageTitle: "Kaydedilenler", savedPageDesc: "Sonra okumak için kaydettiğin haberler.",
     savedEmpty: "Henüz kaydedilen haber yok.",
+    storySources: "Kaynaklar", hideSources: "Gizle", noSources: "Bu haberi doğrulayan başka kaynak bulunamadı.",
+    sourcesError: "Kaynaklar yüklenemedi.",
 
     // ── Search ──
     searchPlaceholder: "bitcoin, deprem, yapay zeka…",
@@ -258,6 +260,8 @@ export const UI: Record<Lang, Record<string, string>> = {
     listenArticle: "Listen", stopListening: "Stop",
     savedPageTitle: "Saved Articles", savedPageDesc: "Articles you saved to read later.",
     savedEmpty: "No saved articles yet.",
+    storySources: "Sources", hideSources: "Hide", noSources: "No other source confirming this story was found.",
+    sourcesError: "Failed to load sources.",
 
     // ── Search ──
     searchPlaceholder: "bitcoin, earthquake, AI…",

@@ -76,6 +76,46 @@ class ChromaSearchRepository:
             logger.warning("Dedup sorgusu başarısız: %s", e)
             return False
 
+    def find_similar(self, article_id: int, n_results: int = 6, threshold: float = 0.72) -> list[dict]:
+        """Aynı story cluster'daki diğer kaynakları bulur (v2.2, "bu haberi kim
+        nasıl anlatıyor" görünümü — rakip taraması, Ground News Blindspot'unun
+        küçük ölçekli hali).
+
+        `is_near_duplicate`'in eşiği (0.92) kelimesi kelimesine aynı haberi
+        yakalar; burada daha gevşek bir eşik farklı kaynakların AYNI OLAYI
+        farklı kelimelerle anlattığı makaleleri de kapsar. Zaten indexlenmiş
+        vektörü tekrar embed ETMEZ — `collection.get` ile saklı embedding'i
+        okur, embedder servisine gereksiz bir HTTP çağrısı atmaz.
+        """
+        try:
+            existing = self.collection.get(ids=[str(article_id)], include=["embeddings"])
+            if len(existing["ids"]) == 0:
+                return []
+            embedding = existing["embeddings"][0]
+            results = self.collection.query(query_embeddings=[embedding], n_results=n_results + 1)
+            items = []
+            for i, doc_id in enumerate(results["ids"][0]):
+                if doc_id == str(article_id):
+                    continue
+                distance = results["distances"][0][i]
+                similarity = 1 / (1 + distance)
+                if similarity < threshold:
+                    continue
+                meta = results["metadatas"][0][i]
+                items.append({
+                    "id": int(doc_id),
+                    "title": meta.get("title", ""),
+                    "source": meta.get("source", ""),
+                    "url": meta.get("url", ""),
+                    "score": round(similarity, 4),
+                })
+                if len(items) >= n_results:
+                    break
+            return items
+        except Exception as e:
+            logger.warning("Story cluster sorgusu başarısız: %s", e)
+            return []
+
     def search(self, query: str, n_results: int = 10, source: str = None, sentiment: str = None) -> list[dict]:
         try:
             embedding = self.embedder.embed_text(query)
