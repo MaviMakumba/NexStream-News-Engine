@@ -205,12 +205,12 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 ## MEVCUT DURUM
 
 - **Versiyon:** v2.1.1 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 18 Ağustos 2026 — AWS t3.small, gerçek Let's Encrypt, 16 servis, boru hattı uçtan uca çalışıyor; owner rolü + gerçek SMTP e-posta + Groq model/WS/nginx-header/arama düzeltmeleri prod'da doğrulandı, detay `docs/CHANGELOG.md`'de "v2.1.1" bloğu). İlk canlıya çıkış: 29 Temmuz 2026.
-- **Test sayısı:** 633 test, hepsi yeşil (backend, 19 Ağu 2026); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
+- **Test sayısı:** 642 test, hepsi yeşil (backend, 19 Ağu 2026); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
 - **Frontend:** Next.js 14 + React. 9 sinematik tema, tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest` + Dependabot (pip+npm+github-actions, haftalık) — 22 açık Dependabot PR'ı bekliyor (review/merge kararı kullanıcıda).
-- **Branch:** `main` güncel (18 Ağustos 2026'da PR #33 ile senkronize edildi). Prod deploy hâlâ `optimize/t3-small-ram`'dan yapılıyor — yeni işler için main'den kısa ömürlü feature branch aç, PR ile geri birleştir. Kirli bir working tree varken bile `git fetch && git switch -c <yeni-dal> origin/main` çalışır (uncommitted değişiklikleri yeni dala taşır) — dosyalar iki dal arasında çakışmıyorsa stash'e gerek yok.
+- **Branch:** `main` güncel. Prod deploy hâlâ `optimize/t3-small-ram`'dan yapılıyor — yeni işler için main'den kısa ömürlü feature branch aç, PR ile geri birleştir. Kirli bir working tree varken bile `git fetch && git switch -c <yeni-dal> origin/main` çalışır (uncommitted değişiklikleri yeni dala taşır) — dosyalar iki dal arasında çakışmıyorsa stash'e gerek yok. **19 Ağu 2026'da `optimize/t3-small-ram` main'e fast-forward edilip prod redeploy edildi** (`git push origin main:optimize/t3-small-ram` + SSM üzerinden `docker compose -f docker-compose.prod.yml up --build -d`) — ama main PR'larla ilerlemeye devam ettiği için tekrar birkaç commit ileride olabilir, redeploy öncesi `git log --oneline origin/main ^origin/optimize/t3-small-ram` ile fark kontrol et.
 - **Hedef:** CV/portfolio projesi → canlı ürüne geçiş (ücretsiz başla, gelir varsa harca).
 - **Kısıt:** VPS'te 7/24 bağımsız çalışıyor. **Bütçe: GERÇEKTEN $0/ay** (kalıcı kısıt) — AWS Free Plan'ın $100 kredisiyle karşılanıyor, ~$18,4'ü harcanmış (18 Ağu 2026), günlük yakım ~$0,93 (~$28/ay) → kredi mevcut hızla **Kasım 2026 ortasında** tükenir (28 Ocak 2027 son kullanma tarihinden ~2,5 ay önce) — bu tarihten önce bir karar gerekir (durdur, küçült, ya da tekrar Oracle Free dene).
 - **Lokal araçlar:** Node.js v24 + npm host'a kuruldu (winget). Docker Desktop, PostgreSQL 17, Git zaten kurulu.
@@ -247,10 +247,15 @@ GERÇEKTEN bekleyen işler var:
    delege/proxy edemezsin (Cloudflare bir zone'un TAMAMINA nameserver olmak
    ister, DuckDNS'in alt alan adı değil) — gerçek bir domain satın almak
    gerekiyor (~$10-15/yıl, tek seferlik). Kullanıcıya açıklandı, karar bekliyor.
-7. **Dependabot PR'ları** — 22 açık PR bekliyor (bazıları major version bump:
-   Next 16, TypeScript 7) — review/merge kararı kullanıcıda, otomatik
-   merge/deploy yok (bilinçli).
-8. **Hesap silme endpoint'i** — privacy sayfasında "yapılacak" olarak belirtilmiş, hâlâ yazılmadı.
+7. **Dependabot PR'ları** — 19 Ağu 2026'da düşük riskli 12 tanesi merge edildi
+   (GitHub Actions + Python/JS patch-minor bump'lar). Kalan 8 tanesi major
+   bump (Next 14→16, TypeScript 5→7, Tailwind 3→4, React, Stripe SDK 7→15,
+   feedgen 0.9→1.0) — gerçek test istiyor, review/merge kararı kullanıcıda.
+8. ~~Hesap silme endpoint'i~~ — ✅ 19 Ağu 2026'da tamamlandı. `DELETE /account`
+   (parola + checkbox onayı, owner rolü hariç, Stripe aboneliği varsa
+   otomatik iptal, ilişkili tüm satırlar — sessions/token'lar/usage_log/
+   bülten aboneliği — kalıcı silinir). Frontend'de /account sayfasında
+   "Tehlikeli Bölge".
 9. **Analytics/hata takibi** — yok (ör. Sentry, PostHog).
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
