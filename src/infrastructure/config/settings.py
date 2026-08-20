@@ -134,6 +134,11 @@ class Settings(BaseSettings):
     search_recency_decay_floor: float = 0.5
     search_recency_window_days: int = 30
 
+    # ── Sorgu genişletme (LLM ile ilişkili terim üretme) ──────────────────────
+    # false → sorgu genişletme komple kapanır; worker/haber analizi etkilenmez,
+    # sadece arama eski (genişletmesiz) haline döner.
+    search_query_expansion_enabled: bool = True
+
     # ── Retention (eski haber temizliği) ────────────────────────────────────
     # ChromaDB'den eski vektörleri kaldırır (Postgres etkilenmez, reindex ile geri gelir).
     chroma_retention_days: int = 90      # 0 = kapalı
