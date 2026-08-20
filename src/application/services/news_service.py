@@ -29,6 +29,7 @@ from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from src.domain.ports.email_port import EmailPort
     from src.domain.ports.subscriber_port import SubscriberRepositoryPort
+    from src.domain.ports.query_expansion_port import QueryExpansionPort
 
 logger = logging.getLogger(__name__)
 
@@ -85,12 +86,14 @@ class NewsService:
         search_repository=None,
         subscriber_repository: Optional["SubscriberRepositoryPort"] = None,
         email_port: Optional["EmailPort"] = None,
+        query_expander: Optional["QueryExpansionPort"] = None,
     ):
         self.repository = repository
         self.analyzer = analyzer
         self.search_repository = search_repository
         self.subscriber_repository = subscriber_repository
         self.email_port = email_port
+        self.query_expander = query_expander
 
     @staticmethod
     def _apply_analysis(article: Article, result: dict) -> None:
@@ -169,10 +172,29 @@ class NewsService:
         decay kullanılır: skor tavanına (1.0) takılan tam eşleşmeler artık
         tazelikten etkilenmeye devam eder, sadece toplama ile maskelenmez.
         Taraflardan biri hata verirse diğeri tek başına sonuç döndürür.
+
+        `query_expander` (opsiyonel) — LLM ile ilişkili ek terimler üretir
+        ("İstanbul" → "Beykoz"). SADECE keyword tarafına, düşük ağırlıkla
+        (`_EXPANSION_WEIGHT`) eklenir; semantik taraf hiç etkilenmez (embedding
+        sorgusunu genişletilmiş terimlerle şişirmek orijinal sorgunun anlamını
+        sulandırma riski taşır). Genişletme başarısız olursa (exception/boş
+        liste) arama sessizce orijinal sorguyla devam eder — bkz. spec
+        "arama ilişkisel genişletme" (20 Ağu 2026).
         """
         candidate_size = min(max(n_results * _CANDIDATE_MULTIPLIER, _MIN_CANDIDATES), _MAX_CANDIDATES)
         query_terms = self._tokenize(query)  # includes Turkish stems for better recall (SQL adayı)
         relevance_terms = self._canonical_terms(query)  # coverage skoru için — bkz. docstring
+
+        expanded_terms: List[str] = []
+        if self.query_expander:
+            try:
+                expanded_terms = self.query_expander.expand(query)
+            except Exception as e:
+                logger.warning("Sorgu genişletme başarısız, orijinal sorguyla devam: %s", e)
+
+        # Genişletilmiş terimler SQL aday havuzuna da girer — yoksa o makale
+        # DB'den hiç çekilmez, _keyword_relevance onu hiç göremez.
+        sql_terms = query_terms + [t.lower() for t in expanded_terms if t]
 
         semantic_by_id: dict = {}
         if self.search_repository:
@@ -184,14 +206,14 @@ class NewsService:
 
         try:
             keyword_articles = self.repository.keyword_search(
-                query, candidate_size, source, sentiment, terms=query_terms
+                query, candidate_size, source, sentiment, terms=sql_terms
             )
         except Exception as e:
             logger.error(f"Keyword arama hatası: {e}")
             keyword_articles = []
         keyword_by_id: dict = {}
         for article in keyword_articles:
-            relevance = self._keyword_relevance(article, relevance_terms)
+            relevance = self._keyword_relevance(article, relevance_terms, secondary_terms=expanded_terms)
             if relevance > 0:
                 keyword_by_id[str(article.id)] = (relevance, article)
 

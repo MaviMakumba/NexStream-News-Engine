@@ -100,6 +100,77 @@ def make_service_with_search():
     return service, mock_repo, mock_search
 
 
+def test_hybrid_search_without_expander_matches_old_behavior():
+    """query_expander verilmezse davranış eskisiyle BİREBİR aynı kalmalı."""
+    service, mock_repo, _ = make_service()
+    service.search_repository = None
+    keyword_article = make_article()
+    keyword_article.id = 1
+    keyword_article.title = "Istanbul meeting today"
+    mock_repo.keyword_search.return_value = [keyword_article]
+
+    results = service.hybrid_search("istanbul")
+
+    assert len(results) == 1
+    mock_repo.keyword_search.assert_called_once()
+    called_terms = mock_repo.keyword_search.call_args.kwargs["terms"]
+    assert "istanbul" in called_terms
+
+
+def test_hybrid_search_includes_secondary_match_via_expander():
+    """query_expander "beykoz" döndürürse, sadece "Beykoz" geçen (İstanbul
+    geçmeyen) bir haber de artık sonuçlarda görünmeli — düşük skorla."""
+    mock_repo = MagicMock()
+    mock_search = MagicMock()
+    mock_expander = MagicMock()
+    mock_expander.expand.return_value = ["beykoz"]
+    mock_search.search.return_value = []
+
+    beykoz_article = make_article()
+    beykoz_article.id = 7
+    beykoz_article.title = "Beykoz'da yeni bir proje açıldı"
+    beykoz_article.summary = None
+    mock_repo.keyword_search.return_value = [beykoz_article]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=mock_search, query_expander=mock_expander,
+    )
+
+    results = service.hybrid_search("istanbul")
+
+    assert len(results) == 1
+    assert results[0]["id"] == "7"
+    assert 0.0 < results[0]["score"] < 0.9
+    mock_expander.expand.assert_called_once_with("istanbul")
+    called_terms = mock_repo.keyword_search.call_args.kwargs["terms"]
+    assert "beykoz" in called_terms
+
+
+def test_hybrid_search_expander_failure_falls_back_to_original_query():
+    """expand() exception fırlatırsa arama SESSİZCE orijinal sorguyla devam
+    etmeli, hybrid_search hiç patlamamalı."""
+    mock_repo = MagicMock()
+    mock_expander = MagicMock()
+    mock_expander.expand.side_effect = RuntimeError("Groq çöktü")
+
+    keyword_article = make_article()
+    keyword_article.id = 3
+    keyword_article.title = "yapay zeka haberi"
+    keyword_article.summary = None
+    mock_repo.keyword_search.return_value = [keyword_article]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=None, query_expander=mock_expander,
+    )
+
+    results = service.hybrid_search("yapay zeka")
+
+    assert len(results) == 1
+    assert results[0]["id"] == "3"
+
+
 def test_hybrid_search_returns_semantic_results():
     service, mock_repo, mock_search = make_service_with_search()
     mock_search.search.return_value = [
