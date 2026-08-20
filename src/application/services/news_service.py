@@ -192,9 +192,16 @@ class NewsService:
             except Exception as e:
                 logger.warning("Sorgu genişletme başarısız, orijinal sorguyla devam: %s", e)
 
+        # Malformed result validation: expand() kötü veri (None, int, vb.) dönerse,
+        # list comprehension TypeError fırlatır. Fail-open prensibi: boş liste ile devam.
+        if not isinstance(expanded_terms, list):
+            expanded_terms = []
+
         # Genişletilmiş terimler SQL aday havuzuna da girer — yoksa o makale
         # DB'den hiç çekilmez, _keyword_relevance onu hiç göremez.
-        sql_terms = query_terms + [t.lower() for t in expanded_terms if t]
+        # Bir kez lowercase'le, hem SQL hem secondary_terms için kullan.
+        expanded_terms_lower = [t.lower() for t in expanded_terms if t]
+        sql_terms = query_terms + expanded_terms_lower
 
         semantic_by_id: dict = {}
         if self.search_repository:
@@ -213,7 +220,7 @@ class NewsService:
             keyword_articles = []
         keyword_by_id: dict = {}
         for article in keyword_articles:
-            relevance = self._keyword_relevance(article, relevance_terms, secondary_terms=expanded_terms)
+            relevance = self._keyword_relevance(article, relevance_terms, secondary_terms=expanded_terms_lower)
             if relevance > 0:
                 keyword_by_id[str(article.id)] = (relevance, article)
 
