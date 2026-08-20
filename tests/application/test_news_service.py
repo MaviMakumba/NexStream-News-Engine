@@ -386,6 +386,51 @@ def test_keyword_relevance_empty_terms():
     assert NewsService._keyword_relevance(article, []) == 0.0
 
 
+def test_keyword_relevance_secondary_terms_add_small_bonus():
+    """Sadece ikincil (genişletilmiş) terim geçen makale sıfırdan farklı, ama
+    birincil terimin verdiği skordan daha düşük bir skor almalı."""
+    article = make_article()
+    article.title = "Beykoz'da yeni bir proje açıldı"
+    article.summary = None
+    article.content = "alakasız içerik"
+    relevance = NewsService._keyword_relevance(article, ["istanbul"], secondary_terms=["beykoz"])
+    assert 0.0 < relevance < 0.9  # sadece "istanbul" geçseydi 0.9 olurdu
+
+
+def test_keyword_relevance_primary_always_beats_secondary_only():
+    article_primary = make_article()
+    article_primary.title = "istanbul'da toplantı yapıldı"
+    article_primary.summary = None
+    article_primary.content = "alakasız içerik"
+
+    article_secondary = make_article()
+    article_secondary.title = "beykoz'da toplantı yapıldı"
+    article_secondary.summary = None
+    article_secondary.content = "alakasız içerik"
+
+    primary_score = NewsService._keyword_relevance(article_primary, ["istanbul"], secondary_terms=["beykoz"])
+    secondary_score = NewsService._keyword_relevance(article_secondary, ["istanbul"], secondary_terms=["beykoz"])
+
+    assert primary_score > secondary_score
+
+
+def test_keyword_relevance_no_secondary_terms_matches_old_behavior():
+    article = make_article()
+    article.title = "Yapay zeka çağı"
+    article.summary = None
+    relevance = NewsService._keyword_relevance(article, ["yapay", "zeka"], secondary_terms=None)
+    assert relevance == 0.9
+
+
+def test_keyword_relevance_score_never_exceeds_one():
+    article = make_article()
+    article.title = "istanbul beykoz"
+    article.summary = None
+    article.content = ""
+    relevance = NewsService._keyword_relevance(article, ["istanbul"], secondary_terms=["beykoz"])
+    assert relevance <= 1.0
+
+
 def test_keyword_relevance_no_mid_word_false_positive():
     """"adana" araması, kökü "ada" olduğu için "havadan" gibi alakasız bir
     kelimenin İÇİNDE geçen "ada" alt dizisini eşleştirmemeli (20 Ağu 2026'da

@@ -62,6 +62,9 @@ _TR_SUFFIXES = (
 )
 # Hem semantik hem keyword aramada çıkan sonuç daha güvenilirdir → küçük bonus.
 _DOUBLE_HIT_BONUS = 0.10
+# LLM sorgu genişletmesinden gelen ikincil terimlerin skor ağırlığı — asıl
+# (birincil) eşleşmeyi asla domine etmesin diye 1.0'ın belirgin altında.
+_EXPANSION_WEIGHT = 0.4
 # Aday havuzu istenenden geniş tutulur ki birleştirme sonrası sıralama sağlıklı olsun.
 _CANDIDATE_MULTIPLIER = 3
 _MIN_CANDIDATES = 20
@@ -315,7 +318,28 @@ class NewsService:
         return [NewsService._stem_tr(t) for t in tokens]
 
     @staticmethod
-    def _keyword_relevance(article: Article, query_terms: List[str]) -> float:
+    def _coverage_score(title: str, summary: str, content: str, terms: List[str]) -> float:
+        """Verilen terim listesinin başlık/özet/içerikte kapsama oranı — en
+        iyi alan skoru döner (_FIELD_WEIGHTS). `_keyword_relevance` hem
+        birincil hem ikincil (genişletme) terimler için bunu paylaşır (DRY)."""
+        if not terms:
+            return 0.0
+        patterns = [re.compile(r"\b" + re.escape(t)) for t in terms]
+        n = len(terms)
+        title_hits = sum(1 for p in patterns if p.search(title))
+        summary_hits = sum(1 for p in patterns if p.search(summary))
+        content_hits = sum(1 for p in patterns if p.search(content))
+        title_score = (title_hits / n) * _FIELD_WEIGHTS["title"]
+        summary_score = (summary_hits / n) * _FIELD_WEIGHTS["summary"]
+        content_score = (content_hits / n) * _FIELD_WEIGHTS["content"]
+        return max(title_score, summary_score, content_score)
+
+    @staticmethod
+    def _keyword_relevance(
+        article: Article,
+        query_terms: List[str],
+        secondary_terms: Optional[List[str]] = None,
+    ) -> float:
         """Coverage tabanlı keyword skoru: terimlerin yüzde kaçı hangi alanda geçiyor.
 
         Alanlar ayrı puanlanır ve en iyisi alınır — başlıkta tam eşleşme,
@@ -332,25 +356,23 @@ class NewsService:
         kelime sınırı gözetmeden yapıyordu: "ada" kökü "havadan" kelimesinin
         ORTASINDA da eşleşiyor, alakasız haberleri en üst sıraya taşıyordu
         (20 Ağu 2026'da canlıda "Adana" aramasıyla bulundu).
-        """
-        if not query_terms:
-            return 0.0
 
+        `secondary_terms` (opsiyonel) — LLM sorgu genişletmesinden gelen
+        ilişkili terimler ("İstanbul" → "Beykoz"). Bunlar AYRI bir coverage
+        hesabıyla skorlanır ve `_EXPANSION_WEIGHT` (0.4) ile küçültülerek asıl
+        skora eklenir — orijinal terimle eşleşen bir haber HER ZAMAN sadece
+        genişletilmiş terimle eşleşenden üstte kalır, ama ikincisi de artık
+        sıfır değildir (20 Ağu 2026, bkz. spec "arama ilişkisel genişletme").
+        """
         title = article.title.lower() if article.title else ""
         summary = article.summary.lower() if article.summary else ""
         content = article.content.lower() if article.content else ""
 
-        patterns = [re.compile(r"\b" + re.escape(t)) for t in query_terms]
-        n = len(query_terms)
-        title_hits = sum(1 for p in patterns if p.search(title))
-        summary_hits = sum(1 for p in patterns if p.search(summary))
-        content_hits = sum(1 for p in patterns if p.search(content))
+        base = NewsService._coverage_score(title, summary, content, query_terms)
+        secondary = NewsService._coverage_score(title, summary, content, secondary_terms or [])
 
-        title_score = (title_hits / n) * _FIELD_WEIGHTS["title"]
-        summary_score = (summary_hits / n) * _FIELD_WEIGHTS["summary"]
-        content_score = (content_hits / n) * _FIELD_WEIGHTS["content"]
-
-        return round(max(title_score, summary_score, content_score), 4)
+        total = base + secondary * _EXPANSION_WEIGHT
+        return round(min(total, 1.0), 4)
 
     def get_trending(self, hours: int = 6, limit: int = 10) -> dict:
         """Son N saatte en sık geçen entity'leri sayar (gündem listesi).
