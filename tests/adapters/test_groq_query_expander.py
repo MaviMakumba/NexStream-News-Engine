@@ -68,3 +68,12 @@ def test_expand_filters_non_string_terms():
     with patch("requests.post", return_value=resp):
         result = GroqQueryExpander().expand("istanbul")
     assert result == ["Beykoz", "Kadıköy"]
+
+
+def test_expand_returns_empty_when_terms_is_string_not_list():
+    """Regression test: if LLM returns {"terms": "beykoz"} (string instead of array),
+    we should return [] not ['b','e','y','k','o','z'] (character iteration bug)."""
+    resp = _mock_response(200, content='{"terms": "beykoz"}')
+    with patch("requests.post", return_value=resp):
+        result = GroqQueryExpander().expand("istanbul")
+    assert result == [], f"Expected empty list, got {result}"

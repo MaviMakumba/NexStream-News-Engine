@@ -67,6 +67,8 @@ class GroqQueryExpander(QueryExpansionPort):
             match = re.search(r"\{.*\}", content, re.DOTALL)
             parsed = json.loads(match.group(0)) if match else json.loads(content)
             terms = parsed.get("terms", [])
+            if not isinstance(terms, list):
+                terms = []
             clean = [t.strip() for t in terms if isinstance(t, str) and t.strip()]
             return clean[:_MAX_TERMS]
         except Exception as e:
