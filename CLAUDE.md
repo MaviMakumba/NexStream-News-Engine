@@ -25,7 +25,8 @@ src/
 │   │   ├── news_scraper_port.py   # class NewsScraperPort (ABC)
 │   │   ├── news_repository_port.py
 │   │   ├── messaging_port.py      # class MessagePublisherPort (ABC)
-│   │   └── embedding_port.py      # class EmbeddingPort (ABC)
+│   │   ├── embedding_port.py      # class EmbeddingPort (ABC)
+│   │   └── query_expansion_port.py # class QueryExpansionPort (ABC) — sorgu genişletme (v2.3)
 │   ├── schemas/
 │   │   └── news_schema.py         # Pydantic: NewsResponse, SearchRequest, SearchResult, TrendingResponse, RelatedResponse
 │   └── scoring/                   # Saf domain skorlama (v1.8) — dış bağımlılık yok
@@ -39,7 +40,9 @@ src/
 │   │   ├── huggingface_analyzer.py # HF Inference API — opsiyonel yedek (v1.8)
 │   │   ├── fallback_analyzer.py   # Groq dene, başarısızsa HF, hepsi olmazsa nötr (v1.8)
 │   │   ├── common.py              # Paylaşılan prompt + JSON parse + nötr fallback (v1.8)
-│   │   └── factory.py             # build_analyzer() — kompozisyon noktası (v1.8)
+│   │   ├── groq_query_expander.py # Groq ile ilişkili terim üretir ("İstanbul"→"Beykoz"), fail-open (v2.3)
+│   │   ├── caching_query_expander.py # QueryExpansionPort'u CachePort ile saran decorator (v2.3)
+│   │   └── factory.py             # build_analyzer() + build_query_expander() — kompozisyon noktası (v1.8)
 │   ├── scrapers/
 │   │   ├── rss_scrapers.py        # 11 TR+EN RSS kaynağı (BaseRssScraper tabanlı)
 │   │   └── registry.py            # SCRAPER_REGISTRY — tek kaynak doğruluk noktası
