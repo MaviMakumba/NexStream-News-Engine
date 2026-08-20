@@ -1,6 +1,15 @@
 """tests/adapters/test_groq_query_expander.py"""
 from unittest.mock import patch, MagicMock
 from src.adapters.analysis.groq_query_expander import GroqQueryExpander
+from src.adapters.api.metrics import (
+    groq_latency_seconds,
+    groq_rate_limit_total,
+    query_expansion_total,
+)
+
+
+def _expansion_count(result: str) -> float:
+    return query_expansion_total.labels(result=result)._value.get()
 
 
 def _mock_response(status_code=200, content=None, text=""):
@@ -77,3 +86,76 @@ def test_expand_returns_empty_when_terms_is_string_not_list():
     with patch("requests.post", return_value=resp):
         result = GroqQueryExpander().expand("istanbul")
     assert result == [], f"Expected empty list, got {result}"
+
+
+# ── Metrikler (fail-open Groq yolunun sessiz bozulmasını görünür kılar) ───────
+
+
+def test_metric_expanded_on_success():
+    before = _expansion_count("expanded")
+    resp = _mock_response(200, content='{"terms": ["Beykoz"]}')
+    with patch("requests.post", return_value=resp):
+        GroqQueryExpander().expand("istanbul")
+    assert _expansion_count("expanded") == before + 1
+
+
+def test_metric_empty_when_call_succeeds_with_zero_terms():
+    """Başarılı ama 0 terimli yanıt HATA DEĞİLDİR (sorgunun bariz bir ilişkili
+    terimi olmayabilir) — ayrı bir etiketle sayılır."""
+    before_empty = _expansion_count("empty")
+    before_error = _expansion_count("error")
+    resp = _mock_response(200, content='{"terms": []}')
+    with patch("requests.post", return_value=resp):
+        GroqQueryExpander().expand("asdkjf")
+    assert _expansion_count("empty") == before_empty + 1
+    assert _expansion_count("error") == before_error
+
+
+def test_metric_error_on_non_200():
+    before = _expansion_count("error")
+    resp = _mock_response(500, text="sunucu hatası")
+    with patch("requests.post", return_value=resp):
+        GroqQueryExpander().expand("istanbul")
+    assert _expansion_count("error") == before + 1
+
+
+def test_metric_error_on_exception():
+    before = _expansion_count("error")
+    with patch("requests.post", side_effect=TimeoutError("timeout")):
+        GroqQueryExpander().expand("istanbul")
+    assert _expansion_count("error") == before + 1
+
+
+def test_metric_error_on_malformed_json():
+    before = _expansion_count("error")
+    resp = _mock_response(200, content="bu JSON değil")
+    with patch("requests.post", return_value=resp):
+        GroqQueryExpander().expand("istanbul")
+    assert _expansion_count("error") == before + 1
+
+
+def test_rate_limit_counter_increments_on_429():
+    before_rl = groq_rate_limit_total._value.get()
+    before_err = _expansion_count("error")
+    resp = _mock_response(429, text="rate limit")
+    with patch("requests.post", return_value=resp):
+        GroqQueryExpander().expand("istanbul")
+    assert groq_rate_limit_total._value.get() == before_rl + 1
+    assert _expansion_count("error") == before_err + 1
+
+
+def test_latency_histogram_observed():
+    before = groq_latency_seconds._sum.get()
+    resp = _mock_response(200, content='{"terms": ["Beykoz"]}')
+    with patch("requests.post", return_value=resp):
+        GroqQueryExpander().expand("istanbul")
+    assert groq_latency_seconds._sum.get() >= before
+
+
+def test_blank_query_records_no_metric():
+    """Boş sorgu Groq'a hiç gitmiyor — "deneme" sayılmaz, hiçbir etiket artmaz."""
+    before = {r: _expansion_count(r) for r in ("hit", "expanded", "empty", "error")}
+    with patch("requests.post") as mock_post:
+        GroqQueryExpander().expand("   ")
+    mock_post.assert_not_called()
+    assert {r: _expansion_count(r) for r in before} == before

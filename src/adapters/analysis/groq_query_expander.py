@@ -13,12 +13,18 @@ logla, fallback dön" kuralı).
 import json
 import logging
 import re
+import time
 from typing import List
 
 import requests
 
 from src.domain.ports.query_expansion_port import QueryExpansionPort
 from src.infrastructure.config.settings import settings
+from src.adapters.api.metrics import (
+    groq_latency_seconds,
+    groq_rate_limit_total,
+    query_expansion_total,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +54,10 @@ class GroqQueryExpander(QueryExpansionPort):
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
 
     def expand(self, query: str) -> List[str]:
+        # Boş sorgu ETİKETLENMEZ: Groq'a hiç gidilmiyor, bu bir "genişletme
+        # denemesi" değil. "empty" saymak, metriğin asıl anlamını ("Groq yanıt
+        # verdi ama ilişkili terim bulamadı") çağıran taraftaki no-op'larla
+        # sulandırırdı.
         if not query or not query.strip():
             return []
         payload = {
@@ -59,18 +69,28 @@ class GroqQueryExpander(QueryExpansionPort):
         }
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
         try:
+            start = time.time()
             r = requests.post(self.api_url, headers=headers, json=payload, timeout=10)
+            groq_latency_seconds.observe(time.time() - start)
+
+            if r.status_code == 429:
+                groq_rate_limit_total.inc()
+
             if r.status_code != 200:
                 logger.warning("Sorgu genişletme başarısız (status=%d): %s", r.status_code, r.text[:200])
+                query_expansion_total.labels(result="error").inc()
                 return []
+
             content = r.json()["choices"][0]["message"]["content"]
             match = re.search(r"\{.*\}", content, re.DOTALL)
             parsed = json.loads(match.group(0)) if match else json.loads(content)
             terms = parsed.get("terms", [])
             if not isinstance(terms, list):
                 terms = []
-            clean = [t.strip() for t in terms if isinstance(t, str) and t.strip()]
-            return clean[:_MAX_TERMS]
+            clean = [t.strip() for t in terms if isinstance(t, str) and t.strip()][:_MAX_TERMS]
+            query_expansion_total.labels(result="expanded" if clean else "empty").inc()
+            return clean
         except Exception as e:
             logger.warning("Sorgu genişletme hatası: %s", e)
+            query_expansion_total.labels(result="error").inc()
             return []

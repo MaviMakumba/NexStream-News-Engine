@@ -1,5 +1,10 @@
 """tests/adapters/test_caching_query_expander.py"""
 from src.adapters.analysis.caching_query_expander import CachingQueryExpander
+from src.adapters.api.metrics import query_expansion_total
+
+
+def _expansion_count(result: str) -> float:
+    return query_expansion_total.labels(result=result)._value.get()
 
 
 class _FakeCache:
@@ -79,3 +84,28 @@ def test_expand_caches_nonempty_result_with_long_ttl():
 
     key, value, ttl = cache.set_calls[0]
     assert ttl == 30 * 24 * 60 * 60
+
+
+# ── Metrikler ─────────────────────────────────────────────────────────────────
+
+
+def test_cache_hit_increments_hit_metric():
+    cache = _FakeCache()
+    cache.store["qexp:istanbul"] = ["Beykoz"]
+    before = _expansion_count("hit")
+
+    CachingQueryExpander(_FakeExpander(["x"]), cache).expand("istanbul")
+
+    assert _expansion_count("hit") == before + 1
+
+
+def test_cache_miss_leaves_outcome_labels_to_inner_expander():
+    """Decorator herhangi bir QueryExpansionPort'u sarabilir — miss'te
+    expanded/empty/error ayrımını sadece alttaki somut adapter bilir, bu yüzden
+    burada HİÇBİR etiket artmaz (çift sayım olmasın)."""
+    cache = _FakeCache()
+    before = {r: _expansion_count(r) for r in ("hit", "expanded", "empty", "error")}
+
+    CachingQueryExpander(_FakeExpander(["Beykoz"]), cache).expand("istanbul")
+
+    assert {r: _expansion_count(r) for r in before} == before

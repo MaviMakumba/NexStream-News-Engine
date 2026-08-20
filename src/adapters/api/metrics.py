@@ -38,3 +38,15 @@ analysis_fallback_total = Counter(
     "nexstream_analysis_fallback_total",
     "Total times ALL analyzers failed and a neutral default was returned",
 )
+
+# v2.3 (20 Ağu 2026) — arama sorgu genişletme de fail-open bir Groq yolu:
+# hata durumunda sessizce boş liste dönüyor, arama çalışmaya devam ediyor, hiçbir
+# sinyal kalmıyor. `analysis_fallback_total` ile AYNI kör noktayı (yukarıdaki
+# "Groq sessizce bozuldu" deseni) bu yeni yol için de kapatır. `result` etiketi:
+# hit (cache — Groq'a hiç gidilmedi) / expanded (≥1 terim) / empty (başarılı ama
+# 0 terim, geçerli bir sonuç) / error (istek veya parse başarısız).
+query_expansion_total = Counter(
+    "nexstream_query_expansion_total",
+    "Total query expansion attempts by result",
+    ["result"],
+)
