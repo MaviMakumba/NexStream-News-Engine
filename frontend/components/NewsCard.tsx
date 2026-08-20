@@ -19,17 +19,6 @@ function relTime(iso: string, lang: "TR" | "EN") {
   return u(diff/86400, "g", "d");
 }
 
-// Okuma süresi tahmini (quick win #2, FreshRSS/Miniflux deseni) — içerik
-// zaten tam olarak frontend'e geliyor (bkz. NewsResponse.content), backend
-// değişikliği gerekmiyor. Ortalama okuma hızı ~200 kelime/dk.
-const _WORDS_PER_MINUTE = 200;
-
-function readingTime(content: string | undefined, lang: "TR" | "EN"): string {
-  const words = (content ?? "").trim().split(/\s+/).filter(Boolean).length;
-  const minutes = Math.max(1, Math.round(words / _WORDS_PER_MINUTE));
-  return lang === "TR" ? `${minutes} dk okuma` : `${minutes} min read`;
-}
-
 // Kaç kaynağın bu haberi doğruladığı (quick win #1) — veri zaten backend'de
 // hesaplanıyor (corroboration_count), sadece burada gösteriliyordu.
 function corroborationText(count: number, lang: "TR" | "EN"): string {
@@ -154,8 +143,6 @@ export function NewsCard({ article }: { article: Article }) {
         </span>
         <span style={{ color: "var(--border2)", fontSize: "0.65rem" }}>•</span>
         <span style={{ fontSize: "0.72rem", color: "var(--text3)" }}>{relTime(article.created_at, lang)}</span>
-        <span style={{ color: "var(--border2)", fontSize: "0.65rem" }}>•</span>
-        <span style={{ fontSize: "0.72rem", color: "var(--text3)" }}>{readingTime(article.content, lang)}</span>
         {topicLabel && (
           <span className="badge" style={{ background: "rgba(0,0,0,.25)", color: "var(--text3)",
                                            borderColor: "var(--border)" }}>
@@ -222,20 +209,14 @@ export function NewsCard({ article }: { article: Article }) {
       <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)",
                     display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={toggleRelated} disabled={loadingRelated}
-                style={{
-                  background: "none", border: "none", cursor: "pointer", padding: 0,
-                  fontSize: "0.75rem", color: "var(--text3)", transition: "color 0.15s",
-                  display: "flex", alignItems: "center", gap: 4,
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent)")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text3)")}>
+                className={`icon-chip${expanded ? " icon-chip--active" : ""}`}>
           {loadingRelated ? (
-            <span style={{ color: "var(--text3)" }}>⟳ {t.loadingRelated}</span>
+            <>⟳ {t.loadingRelated}</>
           ) : expanded ? (
-            <><span style={{ color: "var(--accent)" }}>▲</span> {t.hideRelated}</>
+            <><span className="icon-chip-glyph">▲</span> {t.hideRelated}</>
           ) : (
             <>
-              <span style={{ color: "var(--accent)" }}>↗</span> {t.related}
+              <span className="icon-chip-glyph">↗</span> {t.related}
               {!isPro && (
                 <span className="badge" style={{ background: "var(--accent-soft)", color: "var(--accent)",
                                                   borderColor: "var(--accent-line)", fontSize: "0.6rem" }}>
@@ -248,19 +229,13 @@ export function NewsCard({ article }: { article: Article }) {
 
         {!!article.corroboration_count && article.corroboration_count > 0 && (
           <button onClick={toggleSources} disabled={loadingSources}
-                  style={{
-                    background: "none", border: "none", cursor: "pointer", padding: 0,
-                    fontSize: "0.75rem", color: "var(--text3)", transition: "color 0.15s",
-                    display: "flex", alignItems: "center", gap: 4,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text3)")}>
+                  className={`icon-chip${sourcesOpen ? " icon-chip--active" : ""}`}>
             {loadingSources ? (
-              <span style={{ color: "var(--text3)" }}>⟳ {t.loadingRelated}</span>
+              <>⟳ {t.loadingRelated}</>
             ) : sourcesOpen ? (
-              <><span style={{ color: "var(--accent)" }}>▲</span> {t.hideSources}</>
+              <><span className="icon-chip-glyph">▲</span> {t.hideSources}</>
             ) : (
-              <><span style={{ color: "var(--accent)" }}>🔗</span> {t.storySources}</>
+              <><span className="icon-chip-glyph">🔗</span> {t.storySources}</>
             )}
           </button>
         )}
@@ -268,10 +243,8 @@ export function NewsCard({ article }: { article: Article }) {
         {canSpeak && (
           <button onClick={toggleListen} title={speaking ? t.stopListening : t.listenArticle}
                   aria-label={speaking ? t.stopListening : t.listenArticle}
-                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0,
-                           fontSize: "0.85rem", color: speaking ? "var(--accent)" : "var(--text3)",
-                           transition: "color 0.15s" }}>
-            {speaking ? "⏹" : "🔊"}
+                  className={`icon-chip icon-chip--iconOnly${speaking ? " icon-chip--active" : ""}`}>
+            <span className="icon-chip-glyph">{speaking ? "⏹" : "🔊"}</span>
           </button>
         )}
 
@@ -280,10 +253,8 @@ export function NewsCard({ article }: { article: Article }) {
                   title={isSaved(article.id) ? t.unsaveArticle : t.saveArticle}
                   aria-label={isSaved(article.id) ? t.unsaveArticle : t.saveArticle}
                   aria-pressed={isSaved(article.id)}
-                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0,
-                           fontSize: "0.85rem", color: isSaved(article.id) ? "var(--accent)" : "var(--text3)",
-                           transition: "color 0.15s" }}>
-            {isSaved(article.id) ? "🔖" : "🏷"}
+                  className={`icon-chip icon-chip--iconOnly${isSaved(article.id) ? " icon-chip--active" : ""}`}>
+            <span className="icon-chip-glyph">{isSaved(article.id) ? "🔖" : "🏷"}</span>
           </button>
         )}
 

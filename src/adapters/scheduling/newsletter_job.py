@@ -12,6 +12,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import List
+from sqlalchemy import text
 from src.infrastructure.config.database import SessionLocal
 from src.infrastructure.config.settings import settings
 from src.adapters.repositories.news_repository import NewsRepository
@@ -28,6 +29,14 @@ logger = logging.getLogger(__name__)
 # tutulur ki dar tercihli aboneler için de eşleşen haber bulma şansı olsun.
 _CANDIDATE_POOL_SIZE = 60
 _DIGEST_SIZE = 10
+
+# Postgres advisory lock anahtarı (gelişigüzel sabit) — prod `uvicorn --workers 2`
+# ile çalışıyor (bkz. CLAUDE.md), her worker lifespan'inde KENDİ newsletter_task'ını
+# başlatır ve ikisi de aynı 09:00 UTC hedefine aynı anda uyanır. Kilit olmadan
+# her ikisi de dijesti gönderiyordu → abone günde 2 mail alıyordu (20 Ağu 2026'da
+# canlıda bulundu). `pg_try_advisory_lock` non-blocking'tir: kilidi alamayan
+# worker o döngüyü sessizce atlar, ertesi gün tekrar dener.
+_DIGEST_LOCK_KEY = 8172603
 
 
 def _personalize(pool: List[Article], sub: Subscriber, limit: int = _DIGEST_SIZE) -> List[Article]:
@@ -64,33 +73,40 @@ async def run_newsletter_job() -> None:
 async def _send_digests(email_adapter) -> None:
     db = SessionLocal()
     try:
-        news_repo = NewsRepository(db)
-        sub_repo = SubscriberRepository(db)
-
-        candidate_pool = news_repo.get_latest_news(_CANDIDATE_POOL_SIZE)
-        if not candidate_pool:
-            logger.info("Newsletter: gönderilecek haber yok, atlanıyor.")
+        got_lock = db.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": _DIGEST_LOCK_KEY}).scalar()
+        if not got_lock:
+            logger.info("Newsletter: kilit başka bir worker'da, bu döngü atlanıyor (çoklu-worker duplicate önlemi).")
             return
-
-        sponsor = None
         try:
-            sponsor = get_active_sponsor(db)
-        except Exception:
-            pass
+            news_repo = NewsRepository(db)
+            sub_repo = SubscriberRepository(db)
 
-        subscribers = sub_repo.get_active_subscribers()
-        sent = 0
-        for sub in subscribers:
-            if sub.frequency not in ("daily", "instant"):
-                continue
+            candidate_pool = news_repo.get_latest_news(_CANDIDATE_POOL_SIZE)
+            if not candidate_pool:
+                logger.info("Newsletter: gönderilecek haber yok, atlanıyor.")
+                return
+
+            sponsor = None
             try:
-                articles = _personalize(candidate_pool, sub)
-                ok = email_adapter.send_digest(sub.email, articles, sub.language, sponsor=sponsor)
-                if ok:
-                    sent += 1
-            except Exception as e:
-                logger.warning("Digest gönderilemedi (%s): %s", sub.email, e)
+                sponsor = get_active_sponsor(db)
+            except Exception:
+                pass
 
-        logger.info("Newsletter digest gönderildi: %d/%d abone | sponsor=%s", sent, len(subscribers), sponsor.name if sponsor else None)
+            subscribers = sub_repo.get_active_subscribers()
+            sent = 0
+            for sub in subscribers:
+                if sub.frequency not in ("daily", "instant"):
+                    continue
+                try:
+                    articles = _personalize(candidate_pool, sub)
+                    ok = email_adapter.send_digest(sub.email, articles, sub.language, sponsor=sponsor)
+                    if ok:
+                        sent += 1
+                except Exception as e:
+                    logger.warning("Digest gönderilemedi (%s): %s", sub.email, e)
+
+            logger.info("Newsletter digest gönderildi: %d/%d abone | sponsor=%s", sent, len(subscribers), sponsor.name if sponsor else None)
+        finally:
+            db.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": _DIGEST_LOCK_KEY})
     finally:
         db.close()

@@ -220,6 +220,75 @@ def test_personalize_respects_limit():
     assert len(_personalize(pool, sub, limit=2)) == 2
 
 
+# ── Çoklu-worker duplicate önleme (20 Ağu 2026'da canlıda bulundu) ────────────
+
+@pytest.mark.asyncio
+async def test_send_digests_skips_when_advisory_lock_not_acquired():
+    """Prod 2 uvicorn worker'ı ile çalışıyor, ikisi de aynı anda dijest
+    döngüsüne uyanıyor. Postgres advisory lock'u alamayan worker (ör. diğer
+    worker zaten gönderiyor) hiç mail göndermemeli — eskiden ikisi de
+    gönderiyordu, abone günde 2 mail alıyordu."""
+    from src.adapters.scheduling.newsletter_job import _send_digests
+
+    mock_email = MagicMock()
+    mock_email.send_digest.return_value = True
+
+    with patch("src.adapters.scheduling.newsletter_job.SessionLocal") as MockSession, \
+         patch("src.adapters.scheduling.newsletter_job.NewsRepository") as MockNewsRepo, \
+         patch("src.adapters.scheduling.newsletter_job.SubscriberRepository") as MockSubRepo:
+
+        db = MagicMock()
+        db.execute.return_value.scalar.return_value = False  # kilit başka worker'da
+        MockSession.return_value = db
+
+        news_repo = MagicMock()
+        news_repo.get_latest_news.return_value = [_article()]
+        MockNewsRepo.return_value = news_repo
+
+        from src.domain.models.subscriber import Subscriber
+        sub_repo = MagicMock()
+        sub_repo.get_active_subscribers.return_value = [Subscriber(email="x@test.com", frequency="daily")]
+        MockSubRepo.return_value = sub_repo
+
+        await _send_digests(mock_email)
+
+    mock_email.send_digest.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_send_digests_releases_lock_after_sending():
+    """Kilidi alan worker işini bitirince serbest bırakmalı — yoksa ertesi gün
+    hiçbir worker dijest gönderemez (aynı pooled bağlantı kilidi hep tutar)."""
+    from src.adapters.scheduling.newsletter_job import _send_digests, _DIGEST_LOCK_KEY
+
+    mock_email = MagicMock()
+    mock_email.send_digest.return_value = True
+
+    with patch("src.adapters.scheduling.newsletter_job.SessionLocal") as MockSession, \
+         patch("src.adapters.scheduling.newsletter_job.NewsRepository") as MockNewsRepo, \
+         patch("src.adapters.scheduling.newsletter_job.SubscriberRepository") as MockSubRepo, \
+         patch("src.adapters.scheduling.newsletter_job.get_active_sponsor", return_value=None):
+
+        db = MagicMock()
+        db.execute.return_value.scalar.return_value = True  # kilit alındı
+        MockSession.return_value = db
+
+        news_repo = MagicMock()
+        news_repo.get_latest_news.return_value = [_article()]
+        MockNewsRepo.return_value = news_repo
+
+        from src.domain.models.subscriber import Subscriber
+        sub_repo = MagicMock()
+        sub_repo.get_active_subscribers.return_value = [Subscriber(email="x@test.com", frequency="daily")]
+        MockSubRepo.return_value = sub_repo
+
+        await _send_digests(mock_email)
+
+    unlock_calls = [c for c in db.execute.call_args_list if "pg_advisory_unlock" in str(c.args[0])]
+    assert len(unlock_calls) == 1
+    assert unlock_calls[0].args[1] == {"key": _DIGEST_LOCK_KEY}
+
+
 @pytest.mark.asyncio
 async def test_send_digests_sends_different_articles_per_subscriber_preference():
     """İki farklı tercihi olan abone, aynı gönderimde farklı haber listesi almalı."""
