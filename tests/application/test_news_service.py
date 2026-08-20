@@ -386,6 +386,33 @@ def test_keyword_relevance_empty_terms():
     assert NewsService._keyword_relevance(article, []) == 0.0
 
 
+def test_keyword_relevance_no_mid_word_false_positive():
+    """"adana" araması, kökü "ada" olduğu için "havadan" gibi alakasız bir
+    kelimenin İÇİNDE geçen "ada" alt dizisini eşleştirmemeli (20 Ağu 2026'da
+    canlıda bulundu: "Adana" araması en yüksek skorla "havadan" geçen alakasız
+    bir habere gidiyordu). Kök yalnızca bir kelimenin BAŞINDA eşleşmeli
+    (çekim eki bulma niyeti budur — bkz. `_canonical_terms` docstring),
+    kelimenin ortasında rastgele bir alt dizi olarak değil.
+    """
+    article = make_article()
+    article.title = "Bakanlıktan havadan görüntüler paylaşıldı"
+    article.summary = None
+    article.content = "alakasız içerik"
+    relevance = NewsService._keyword_relevance(article, NewsService._canonical_terms("adana"))
+    assert relevance == 0.0
+
+
+def test_keyword_relevance_still_matches_inflected_word_start():
+    """Kök eşleşmesi kelimenin BAŞINDA olduğu sürece hâlâ çalışmalı (regresyon
+    olmasın diye) — "adana" sorgusu "adanada" gibi çekimli bir formu bulmalı."""
+    article = make_article()
+    article.title = "Adanada deprem hissedildi"
+    article.summary = None
+    article.content = "alakasız içerik"
+    relevance = NewsService._keyword_relevance(article, NewsService._canonical_terms("adana"))
+    assert relevance == 0.9  # 1/1 × 0.9 (title)
+
+
 # ── _canonical_terms + skor seyreltme regresyonu (18 Ağu 2026'da canlıda bulundu) ──
 
 

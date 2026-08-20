@@ -324,6 +324,14 @@ class NewsService:
         `query_terms` burada `_canonical_terms()`'ın çıktısı olmalı (bir orijinal
         kelime = bir terim) — `_tokenize()`'ın çıktısını (kelime+kök ayrı ayrı)
         VERME, coverage bölenini yapay şişirir (bkz. `_canonical_terms` docstring).
+
+        Eşleşme kelimenin BAŞINDA aranır (`\\bterim`), metnin herhangi bir yerinde
+        geçen ham bir alt dizi olarak DEĞİL — kök bir SUFFIX kırpması olduğu için
+        orijinal kelimenin çekimli hallerini yakalamak ister ("adana" → kök "ada",
+        metinde "adanada" gibi bir çekimi yakalasın), ama ham `t in text` bunu
+        kelime sınırı gözetmeden yapıyordu: "ada" kökü "havadan" kelimesinin
+        ORTASINDA da eşleşiyor, alakasız haberleri en üst sıraya taşıyordu
+        (20 Ağu 2026'da canlıda "Adana" aramasıyla bulundu).
         """
         if not query_terms:
             return 0.0
@@ -332,10 +340,11 @@ class NewsService:
         summary = article.summary.lower() if article.summary else ""
         content = article.content.lower() if article.content else ""
 
+        patterns = [re.compile(r"\b" + re.escape(t)) for t in query_terms]
         n = len(query_terms)
-        title_hits = sum(1 for t in query_terms if t in title)
-        summary_hits = sum(1 for t in query_terms if t in summary)
-        content_hits = sum(1 for t in query_terms if t in content)
+        title_hits = sum(1 for p in patterns if p.search(title))
+        summary_hits = sum(1 for p in patterns if p.search(summary))
+        content_hits = sum(1 for p in patterns if p.search(content))
 
         title_score = (title_hits / n) * _FIELD_WEIGHTS["title"]
         summary_score = (summary_hits / n) * _FIELD_WEIGHTS["summary"]
@@ -404,18 +413,38 @@ class NewsService:
     def _entity_name_set(entities: Optional[dict]) -> set:
         return set(NewsService._entity_name_map(entities).keys())
 
-    def _count_corroboration(self, article: Article) -> int:
-        """Aynı olayı (>=2 ortak entity) raporlayan kaç FARKLI başka kaynak var."""
-        target = self._entity_name_set(article.entities)
-        if len(target) < 2:
-            return 0
-        sources: set = set()
-        for cand in self.repository.get_recent_articles_with_entities(48):
+    def _find_corroborating_articles(self, article: Article, hours: int = 48) -> list:
+        """`_count_corroboration` ile TAM AYNI kriteri (>=2 ortak entity, farklı
+        kaynak, son `hours` saat) uygular ama sadece sayı değil gerçek (Article, skor)
+        çiftlerini döner — skor = paylaşılan entity oranı (0,1].
+
+        Bu ikisinin ortak bir yardımcıda birleşmesinin nedeni: `get_story_cluster`
+        eskiden tamamen farklı bir sinyal (ChromaDB semantik embedding, eşik 0.72)
+        kullanıyordu — rozet "2 kaynak doğruluyor" derken panel "kaynak bulunamadı"
+        gösterebiliyordu, çünkü ikisi asla aynı şeyi ölçmüyordu (20 Ağu 2026'da
+        canlıda bulundu). Artık `get_story_cluster` bu listeyi semantik sonuçlarla
+        BİRLEŞTİRİYOR — rozetin saydığı kaynaklar panelde HER ZAMAN görünür.
+        """
+        target_map = self._entity_name_map(article.entities)
+        target_keys = set(target_map)
+        if len(target_keys) < 2:
+            return []
+        seen_sources: set = set()
+        results = []
+        for cand in self.repository.get_recent_articles_with_entities(hours):
             if cand.source == article.source or cand.id == article.id:
                 continue
-            if len(target & self._entity_name_set(cand.entities)) >= 2:
-                sources.add(cand.source)
-        return len(sources)
+            if cand.source in seen_sources:
+                continue
+            shared = target_keys & self._entity_name_set(cand.entities)
+            if len(shared) >= 2:
+                seen_sources.add(cand.source)
+                results.append((cand, round(len(shared) / len(target_keys), 4)))
+        return results
+
+    def _count_corroboration(self, article: Article) -> int:
+        """Aynı olayı (>=2 ortak entity) raporlayan kaç FARKLI başka kaynak var."""
+        return len(self._find_corroborating_articles(article))
 
     def _enrich_metadata(self, article: Article) -> None:
         """Ingest anında hesaplanan skorları işler: kalite + güvenilirlik.
@@ -470,14 +499,37 @@ class NewsService:
         """"Bu haberi kim nasıl anlatıyor" — aynı olayı kapsayan diğer kaynaklar
         (v2.2, rakip taraması — Ground News Blindspot'un küçük ölçekli hali).
 
-        Asıl benzerlik hesabı ChromaSearchRepository.find_similar'da (semantik
-        vektör mesafesi); burası sadece orkestrasyon. `search_repository`
-        opsiyoneldir (bkz. sınıf docstring'i) — ChromaDB yapılandırılmamışsa
-        özellik sessizce boş liste döner, çökmez.
+        İki sinyali BİRLEŞTİRİR:
+          1. Semantik (ChromaSearchRepository.find_similar) — farklı kelimelerle
+             anlatılan ama embedding'i yakın olan makaleler.
+          2. Entity-overlap (`_find_corroborating_articles`) — kartta gösterilen
+             "N kaynak doğruluyor" rozetiyle (`corroboration_count`) BİREBİR AYNI
+             kriter. Eskiden panel SADECE (1)'i kullanıyordu; rozet (2)'ye göre
+             hesaplandığı için rozet "2 kaynak" derken panel eşik (0.72) tutmadığında
+             "kaynak bulunamadı" gösterebiliyordu (20 Ağu 2026'da canlıda bulundu).
+             Artık rozetin saydığı her kaynak panelde de garanti görünür.
+
+        `search_repository` opsiyoneldir — ChromaDB yapılandırılmamışsa sadece (2)
+        çalışır, çökmez. Sonuçlar skora göre azalan sıralanır, `limit` ile kesilir.
         """
-        if not self.search_repository:
-            return {"article_id": article_id, "sources": []}
-        sources = self.search_repository.find_similar(article_id, n_results=limit)
+        semantic: list = []
+        if self.search_repository:
+            try:
+                semantic = self.search_repository.find_similar(article_id, n_results=limit)
+            except Exception as e:
+                logger.warning("Story cluster semantik arama başarısız: %s", e)
+
+        combined: dict = {s["id"]: s for s in semantic}
+
+        target = self.repository.get_article_by_id(article_id)
+        if target:
+            for cand, score in self._find_corroborating_articles(target):
+                combined.setdefault(cand.id, {
+                    "id": cand.id, "title": cand.title, "source": cand.source,
+                    "url": cand.url, "score": score,
+                })
+
+        sources = sorted(combined.values(), key=lambda s: s["score"], reverse=True)[:limit]
         return {"article_id": article_id, "sources": sources}
 
     def _send_keyword_alerts(self, article: Article) -> None:

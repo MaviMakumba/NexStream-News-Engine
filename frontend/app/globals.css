@@ -342,6 +342,37 @@ select option {
     white-space: nowrap; flex-shrink: 0;
   }
 
+  /* Kart footer aksiyonları (İlgili / Kaynaklar / Dinle / Kaydet). Eskiden
+     çıplak emoji + var(--text3), arka plan/kontur yoktu — 9 temanın hiçbirinde
+     "buton" gibi okunmuyordu, kaydet ikonu özellikle küçük ve fark edilmezdi
+     (20 Ağu 2026'da kullanıcı bulgusu). Emoji glifin kendi rengi CSS `color`
+     ile değiştirilemediği için görünürlük emoji rengine değil bu chip'in
+     zemin+kontur+boyutuna dayanıyor. Zemin opaklığı bilinçli olarak DÜŞÜK
+     (.10) tutuldu: koyu temalarda zaten yüksek kontrast var (text2 zemine
+     göre 6.5–9:1), gündüz temasında ise yüksek opaklık tam tersi etki yapıp
+     kontrastı düşürüyordu (relative-luminance ile doğrulandı — bkz. CLAUDE.md
+     "WCAG Kontrast Yöntemi").
+  */
+  .icon-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 10px; min-height: 30px; border-radius: calc(var(--radius) * 0.6);
+    font-size: 0.74rem; font-weight: 600; color: var(--text2);
+    background: rgba(0, 0, 0, 0.1); border: 1px solid var(--border2);
+    cursor: pointer; line-height: 1; white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+  }
+  .icon-chip .icon-chip-glyph { font-size: 0.95rem; }
+  .icon-chip:hover:not(:disabled) {
+    border-color: var(--accent-line); color: var(--accent); background: var(--accent-soft);
+  }
+  .icon-chip:disabled { opacity: 0.6; cursor: default; }
+  .icon-chip--active {
+    color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft);
+  }
+  /* Sadece emoji taşıyan aksiyonlar (Dinle / Kaydet) — metin yok, kare hissi. */
+  .icon-chip--iconOnly { padding: 6px 9px; }
+  .icon-chip--iconOnly .icon-chip-glyph { font-size: 1.05rem; }
+
   .divider { border: none; border-top: 1px solid var(--border); margin: 0; }
 
   .gradient-text {
