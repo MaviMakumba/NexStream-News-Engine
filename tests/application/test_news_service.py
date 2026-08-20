@@ -232,6 +232,153 @@ def test_hybrid_search_expander_malformed_result_not_fail_open():
     assert results[0]["id"] == "10"
 
 
+def test_hybrid_search_expander_malformed_element_does_not_crash():
+    """Liste KONTEYNIRI doğru ama ELEMANLARI değilse (eski/yabancı bir `qexp:`
+    Redis anahtarı böyle bir şey taşıyabilir) `.lower()` AttributeError fırlatır
+    ve hybrid_search'ten kaçardı. Sadece geçerli string'ler kullanılmalı."""
+    mock_repo = MagicMock()
+    mock_expander = MagicMock()
+    mock_expander.expand.return_value = ["beykoz", 42, None, "  ", "fatih"]
+
+    article = make_article()
+    article.id = 11
+    article.title = "Beykoz'da yeni proje"
+    article.summary = None
+    mock_repo.keyword_search.return_value = [article]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=None, query_expander=mock_expander,
+    )
+
+    results = service.hybrid_search("istanbul")
+
+    assert len(results) == 1
+    assert results[0]["id"] == "11"
+    # Sadece geçerli string'ler SQL'e gitmeli; 42/None/"  " elenmiş olmalı.
+    secondary_terms = mock_repo.keyword_search.call_args.kwargs["terms"]
+    assert secondary_terms == ["beykoz", "fatih"]
+
+
+def test_hybrid_search_secondary_terms_use_separate_query_with_own_budget():
+    """Birincil ve ikincil terimler TEK bir OR'lu sorgunun LIMIT'ini
+    paylaşmamalı: yaygın bir ikincil terim ("fatih" aynı zamanda sık bir isim)
+    havuzu doldurup gerçek birincil eşleşmeleri dışarıda bırakabiliyordu.
+    İki AYRI sorgu → her iki taraf da sonuçlarda görünür."""
+    primary_article = make_article("https://bbc.com/p")
+    primary_article.id = 1
+    primary_article.title = "istanbul'da toplantı yapıldı"
+    primary_article.summary = None
+
+    secondary_article = make_article("https://bbc.com/s")
+    secondary_article.id = 2
+    secondary_article.title = "fatih'te yeni proje açıldı"
+    secondary_article.summary = None
+
+    def keyword_search_side_effect(query, limit, source, sentiment, terms=None):
+        # Birincil sorgu SADECE birincil eşleşmeyi, ikincil sorgu SADECE
+        # ikincil eşleşmeyi döndürür (gerçek SQL'de olduğu gibi ayrık).
+        if "fatih" in (terms or []):
+            return [secondary_article]
+        return [primary_article]
+
+    mock_repo = MagicMock()
+    mock_repo.keyword_search.side_effect = keyword_search_side_effect
+    mock_expander = MagicMock()
+    mock_expander.expand.return_value = ["fatih"]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=None, query_expander=mock_expander,
+    )
+
+    results = service.hybrid_search("istanbul")
+
+    assert mock_repo.keyword_search.call_count == 2
+    ids = {r["id"] for r in results}
+    assert ids == {"1", "2"}
+
+    # İkincil sorgu birincilden DAHA KÜÇÜK bir bütçe kullanmalı (havuzu çalmaz).
+    primary_call, secondary_call = mock_repo.keyword_search.call_args_list
+    assert primary_call.kwargs["terms"] == service._tokenize("istanbul")
+    assert secondary_call.kwargs["terms"] == ["fatih"]
+    assert secondary_call.args[1] < primary_call.args[1]
+
+
+def test_hybrid_search_one_failing_query_does_not_kill_the_other():
+    """İki keyword sorgusu BAĞIMSIZ fail-open: birincil patlasa bile ikincil
+    sonuçları (ve tersi) yine de kullanılmalı."""
+    secondary_article = make_article("https://bbc.com/s")
+    secondary_article.id = 5
+    secondary_article.title = "beykoz'da yeni proje"
+    secondary_article.summary = None
+
+    def keyword_search_side_effect(query, limit, source, sentiment, terms=None):
+        if "beykoz" in (terms or []):
+            return [secondary_article]
+        raise RuntimeError("birincil SQL çöktü")
+
+    mock_repo = MagicMock()
+    mock_repo.keyword_search.side_effect = keyword_search_side_effect
+    mock_expander = MagicMock()
+    mock_expander.expand.return_value = ["beykoz"]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=None, query_expander=mock_expander,
+    )
+
+    results = service.hybrid_search("istanbul")
+
+    assert [r["id"] for r in results] == ["5"]
+
+
+def test_hybrid_search_no_second_query_when_nothing_to_expand():
+    """Genişletme yoksa (boş liste) ikincil sorgu HİÇ atılmamalı — boşuna
+    bir DB turu olurdu."""
+    mock_repo = MagicMock()
+    mock_expander = MagicMock()
+    mock_expander.expand.return_value = []
+
+    article = make_article()
+    article.id = 9
+    article.title = "istanbul'da toplantı"
+    article.summary = None
+    mock_repo.keyword_search.return_value = [article]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=None, query_expander=mock_expander,
+    )
+
+    service.hybrid_search("istanbul")
+
+    mock_repo.keyword_search.assert_called_once()
+
+
+def test_hybrid_search_dedups_article_present_in_both_queries():
+    """İki sorgu da aynı makaleyi döndürürse sonuçta bir kez görünmeli."""
+    article = make_article()
+    article.id = 3
+    article.title = "istanbul beykoz haberi"
+    article.summary = None
+
+    mock_repo = MagicMock()
+    mock_repo.keyword_search.return_value = [article]
+    mock_expander = MagicMock()
+    mock_expander.expand.return_value = ["beykoz"]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=None, query_expander=mock_expander,
+    )
+
+    results = service.hybrid_search("istanbul")
+
+    assert len(results) == 1
+    assert results[0]["id"] == "3"
+
+
 def test_hybrid_search_returns_semantic_results():
     service, mock_repo, mock_search = make_service_with_search()
     mock_search.search.return_value = [
@@ -529,7 +676,15 @@ def test_keyword_relevance_secondary_terms_add_small_bonus():
     assert 0.0 < relevance < 0.9  # sadece "istanbul" geçseydi 0.9 olurdu
 
 
-def test_keyword_relevance_primary_always_beats_secondary_only():
+def test_keyword_relevance_full_primary_beats_full_secondary():
+    """AYNI güçte (başlıkta tam kapsama) bir birincil eşleşme, ikincil
+    eşleşmeyi geçer — çünkü ikincil katkı `_EXPANSION_WEIGHT` ile küçültülür.
+
+    DİKKAT: bu "birincil HER ZAMAN kazanır" demek DEĞİLDİR. Garanti sadece
+    tavanlar üzerinedir (ikincil ≤ 0.36 < birincil ≤ 0.9); zayıf/kısmi bir
+    birincil eşleşme güçlü bir ikincil eşleşmenin altında kalabilir — bkz.
+    `_keyword_relevance` docstring'i.
+    """
     article_primary = make_article()
     article_primary.title = "istanbul'da toplantı yapıldı"
     article_primary.summary = None

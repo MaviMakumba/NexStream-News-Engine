@@ -70,6 +70,11 @@ _EXPANSION_WEIGHT = 0.4
 _CANDIDATE_MULTIPLIER = 3
 _MIN_CANDIDATES = 20
 _MAX_CANDIDATES = 50
+# Genişletilmiş (ikincil) terimler AYRI bir SQL sorgusuyla ve daha küçük bir
+# bütçeyle çekilir — birincil havuzun LIMIT'ini paylaşmasınlar diye (bkz.
+# `hybrid_search`). Bölen mevcut havuz sabitlerinden türetilir: birincil
+# bütçenin yarısı, taban `_MIN_CANDIDATES`'ın yarısı (=10).
+_SECONDARY_CANDIDATE_DIVISOR = 2
 
 
 class NewsService:
@@ -177,9 +182,11 @@ class NewsService:
         ("İstanbul" → "Beykoz"). SADECE keyword tarafına, düşük ağırlıkla
         (`_EXPANSION_WEIGHT`) eklenir; semantik taraf hiç etkilenmez (embedding
         sorgusunu genişletilmiş terimlerle şişirmek orijinal sorgunun anlamını
-        sulandırma riski taşır). Genişletme başarısız olursa (exception/boş
-        liste) arama sessizce orijinal sorguyla devam eder — bkz. spec
-        "arama ilişkisel genişletme" (20 Ağu 2026).
+        sulandırma riski taşır). Genişletilmiş terimler için AYRI ve daha küçük
+        bütçeli bir keyword sorgusu atılır — birincil sorgunun LIMIT'ini
+        paylaşmasınlar diye (bkz. aşağıdaki yorum). Genişletme başarısız olursa
+        (exception/boş liste) arama sessizce orijinal sorguyla devam eder —
+        bkz. spec "arama ilişkisel genişletme" (20 Ağu 2026).
         """
         candidate_size = min(max(n_results * _CANDIDATE_MULTIPLIER, _MIN_CANDIDATES), _MAX_CANDIDATES)
         query_terms = self._tokenize(query)  # includes Turkish stems for better recall (SQL adayı)
@@ -200,8 +207,13 @@ class NewsService:
         # Genişletilmiş terimler SQL aday havuzuna da girer — yoksa o makale
         # DB'den hiç çekilmez, _keyword_relevance onu hiç göremez.
         # Bir kez lowercase'le, hem SQL hem secondary_terms için kullan.
-        expanded_terms_lower = [t.lower() for t in expanded_terms if t]
-        sql_terms = query_terms + expanded_terms_lower
+        # `isinstance(t, str)` ELEMAN seviyesinde de şart: yukarıdaki kontrol
+        # sadece KONTEYNIRIN liste olduğunu doğrular. Eski/yabancı bir `qexp:`
+        # Redis anahtarı (bu özellikten önce yazılmış ya da ileride başka bir
+        # yazıcı tarafından yazılmış) liste içinde string olmayan bir eleman
+        # taşıyabilir; `.lower()` o zaman AttributeError fırlatır ve
+        # hybrid_search'ten kaçar ("hiçbir exception dışarı çıkmaz" kuralı).
+        expanded_terms_lower = [t.lower() for t in expanded_terms if isinstance(t, str) and t.strip()]
 
         semantic_by_id: dict = {}
         if self.search_repository:
@@ -211,13 +223,51 @@ class NewsService:
             except Exception as e:
                 logger.error(f"Semantik arama hatası: {e}")
 
+        # Birincil ve ikincil terimler AYRI sorgularda çekilir. Tek bir OR'lu
+        # sorguda ortak `LIMIT candidate_size` + `created_at DESC` sıralaması
+        # yüzünden yaygın bir ikincil terim ("Fatih" aynı zamanda sık bir isim)
+        # havuzu taze ama SADECE-ikincil eşleşmelerle doldurup gerçek birincil
+        # eşleşmeleri hiç çekilemez hale getirebiliyordu — `_EXPANSION_WEIGHT`
+        # ağırlığı yalnızca havuzdakini sıralayabilir, SQL'in hiç döndürmediğini
+        # kurtaramaz. Sonuç: genişletme aramayı iyileştirmek yerine bozabiliyordu.
         try:
             keyword_articles = self.repository.keyword_search(
-                query, candidate_size, source, sentiment, terms=sql_terms
+                query, candidate_size, source, sentiment, terms=query_terms
             )
         except Exception as e:
             logger.error(f"Keyword arama hatası: {e}")
             keyword_articles = []
+
+        # İkincil sorgu SADECE genişletme varsa atılır (boşsa gereksiz bir DB
+        # turu olurdu). Ayrı try/except: iki sorgudan biri patlarsa diğerinin
+        # sonuçları yine de kullanılır — genişletme hatası asıl aramayı
+        # köreltmemeli, asıl aramanın hatası da genişletmeyi.
+        secondary_articles: List[Article] = []
+        if expanded_terms_lower:
+            secondary_size = max(
+                candidate_size // _SECONDARY_CANDIDATE_DIVISOR,
+                _MIN_CANDIDATES // _SECONDARY_CANDIDATE_DIVISOR,
+            )
+            try:
+                secondary_articles = self.repository.keyword_search(
+                    query, secondary_size, source, sentiment, terms=expanded_terms_lower
+                )
+            except Exception as e:
+                logger.error(f"Genişletilmiş keyword arama hatası: {e}")
+                secondary_articles = []
+
+        # Birleştirme — id çakışmasında BİRİNCİL liste kazanır (pratikte iki
+        # sorgu farklı terim kümeleri kullandığı için çakışma nadir).
+        # Repository'nin döndürdüğü liste MUTASYONA UĞRATILMAZ (yeni liste
+        # kurulur) — çağıranın nesnesine yan etki bırakmamak için.
+        seen_ids: set = {str(a.id) for a in keyword_articles}
+        merged_articles = list(keyword_articles)
+        for article in secondary_articles:
+            if str(article.id) not in seen_ids:
+                seen_ids.add(str(article.id))
+                merged_articles.append(article)
+        keyword_articles = merged_articles
+
         keyword_by_id: dict = {}
         for article in keyword_articles:
             relevance = self._keyword_relevance(article, relevance_terms, secondary_terms=expanded_terms_lower)
@@ -389,9 +439,16 @@ class NewsService:
         `secondary_terms` (opsiyonel) — LLM sorgu genişletmesinden gelen
         ilişkili terimler ("İstanbul" → "Beykoz"). Bunlar AYRI bir coverage
         hesabıyla skorlanır ve `_EXPANSION_WEIGHT` (0.4) ile küçültülerek asıl
-        skora eklenir — orijinal terimle eşleşen bir haber HER ZAMAN sadece
-        genişletilmiş terimle eşleşenden üstte kalır, ama ikincisi de artık
-        sıfır değildir (20 Ağu 2026, bkz. spec "arama ilişkisel genişletme").
+        skora eklenir. Verilen GARANTİ şudur: ikincil katkı tavanı
+        `0.9 * _EXPANSION_WEIGHT = 0.36`, birincil tavanın (0.9) belirgin
+        altındadır — yani sadece-ikincil bir eşleşme, güçlü bir birincil
+        eşleşmenin ulaştığı skora ASLA ulaşamaz. Bunun ötesinde bir sıralama
+        garantisi YOKTUR: zayıf/kısmi bir birincil eşleşme (örn. üç terimden
+        biri, sadece içerikte → ~0.167) güçlü bir ikincil eşleşmenin (başlıkta
+        tam kapsama → 0.36) altında kalabilir. Bu KASITLIDIR — gerçekten ilgili
+        genişletilmiş-terim haberlerinin yüzeye çıkabilmesini sağlar, aksi halde
+        kalıcı olarak gömülü kalırlardı (20 Ağu 2026, bkz. spec "arama ilişkisel
+        genişletme").
         """
         title = article.title.lower() if article.title else ""
         summary = article.summary.lower() if article.summary else ""
