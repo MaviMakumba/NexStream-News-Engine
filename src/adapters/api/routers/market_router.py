@@ -1,7 +1,8 @@
 """Piyasa verisi — GET /market/ticker (BİST100/USD/EUR/gram altın).
 
-Public, auth gerektirmez (haber okuma gibi şeffaf) — kendi cache'i olduğu
-için ayrı bir rate limit de yok. CachePort ile iki katmanlı tutulur:
+Public, auth gerektirmez (haber okuma gibi şeffaf) — diğer public GET
+endpoint'leriyle aynı desende `@limiter.limit("60/minute")` var (bkz.
+health_router.py). CachePort ile iki katmanlı tutulur:
 - "market:snapshot" — TTL'li (settings.market_cache_ttl_seconds), taze veri.
 - "market:snapshot:last_good" — 24 saat TTL'li, Yahoo uzun süre kesilse bile
   gösterilecek bir son iyi değer kalsın diye ("ölü besleme çökertmez"
@@ -15,8 +16,9 @@ kesinti boyunca her istek fresh cache boş kaldığı için 4 Yahoo çağrısın
 
 import logging
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 
+from src.adapters.api.limiter import limiter
 from src.dependencies import get_cache, get_market_data_adapter
 from src.domain.ports.cache_port import CachePort
 from src.domain.ports.market_data_port import MarketDataError, MarketDataPort
@@ -36,7 +38,9 @@ _NEGATIVE_CACHE_TTL_SECONDS = 60
 
 
 @router.get("/ticker", response_model=MarketSnapshot)
+@limiter.limit("60/minute")
 def get_market_ticker(
+    request: Request,
     cache: CachePort = Depends(get_cache),
     market: MarketDataPort = Depends(get_market_data_adapter),
 ):
