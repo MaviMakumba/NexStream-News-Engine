@@ -5,7 +5,7 @@
 // ayrıca paylaşımlı X-API-Key'i kabul eder (makine-makine / admin olmayan giriş).
 
 import type {
-  AccountUsage, AdminUserList, Article, BillingConfig, CheckoutResponse, NewsPage, RelatedResponse,
+  AccountUsage, AdminUserList, Article, BillingConfig, CheckoutResponse, MarketSnapshot, NewsPage, RelatedResponse,
   SearchResult, Sponsor, StoryClusterResponse, TrendingResponse, UsageRow, User,
 } from "./types";
 
@@ -353,4 +353,18 @@ export async function getBillingPortal() {
 /** Dev modda aboneliği iptal simülasyonu — tier'ı Free'ye çeker. */
 export async function devDowngrade(): Promise<{ tier: string }> {
   return req<{ tier: string }>(`${BASE}/billing/dev/downgrade`, { method: "POST" });
+}
+
+// ── Piyasa ticker'ı (v2.3) ───────────────────────────────────────────────────
+// Best-effort widget — asla ApiError fırlatmaz, başarısızlıkta null döner ki
+// component sessizce render'dan çekilsin (sayfanın geri kalanını etkilemesin).
+
+export async function fetchMarketSnapshot(): Promise<MarketSnapshot | null> {
+  try {
+    const res = await fetch(`${BASE}/market/ticker`, { credentials: "include" });
+    if (res.status === 204 || !res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
