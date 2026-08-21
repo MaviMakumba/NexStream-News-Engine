@@ -40,6 +40,9 @@ export const UI: Record<Lang, Record<string, string>> = {
     batman: "Batman", batmanTag: "Gotham",
     wolfenstein: "Wolfenstein", wolfensteinTag: "Dizelpunk",
     day: "Aydınlık", dayTag: "Gündüz Modu",
+    night: "Karanlık", nightTag: "Gece Modu",
+    marketBist: "BİST100", marketUsd: "USD/TL", marketEur: "EUR/TL",
+    marketGold: "Gram Altın", marketStale: "gecikmeli",
 
     // ── Dashboard ──
     trending: "Gündem", latestNews: "Son Haberler",
@@ -239,6 +242,9 @@ export const UI: Record<Lang, Record<string, string>> = {
     batman: "Batman", batmanTag: "Gotham",
     wolfenstein: "Wolfenstein", wolfensteinTag: "Dieselpunk",
     day: "Daylight", dayTag: "Day Mode",
+    night: "Nightfall", nightTag: "Night Mode",
+    marketBist: "BIST100", marketUsd: "USD/TRY", marketEur: "EUR/TRY",
+    marketGold: "Gold (gram)", marketStale: "delayed",
 
     // ── Dashboard ──
     trending: "Trending", latestNews: "Latest News",

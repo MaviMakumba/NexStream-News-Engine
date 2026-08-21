@@ -95,6 +95,20 @@ export interface TrendingResponse {
   entities: TrendingEntity[];
 }
 
+export interface MarketQuote {
+  value: number;
+  change_pct: number;
+}
+
+export interface MarketSnapshot {
+  bist100: MarketQuote;
+  usd_try: MarketQuote;
+  eur_try: MarketQuote;
+  gold_gram_try: MarketQuote;
+  as_of: string;
+  stale: boolean;
+}
+
 export interface RelatedArticle {
   id: number;
   title: string;

@@ -89,6 +89,14 @@ export const THEMES: Record<ThemeId, ThemeDefinition> = {
     effect: null,
     flash: "#2563eb",
   },
+  night: {
+    id: "night",
+    labelKey: "night",
+    tagKey: "nightTag",
+    icon: "☾",
+    effect: null,
+    flash: "#60a5fa",
+  },
 };
 
 /** Ordered list for the picker UI. */
@@ -102,9 +110,10 @@ export const THEME_LIST: ThemeDefinition[] = [
   THEMES.batman,
   THEMES.wolfenstein,
   THEMES.day,
+  THEMES.night,
 ];
 
-export const DEFAULT_THEME: ThemeId = "matrix";
+export const DEFAULT_THEME: ThemeId = "day";
 
 export function isThemeId(value: unknown): value is ThemeId {
   return typeof value === "string" && value in THEMES;

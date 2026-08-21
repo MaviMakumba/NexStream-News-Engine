@@ -13,7 +13,8 @@ export type ThemeId =
   | "spiderman"
   | "batman"
   | "wolfenstein"
-  | "day";
+  | "day"
+  | "night";
 
 /**
  * A cinematic background effect. Each effect is a self-contained client
