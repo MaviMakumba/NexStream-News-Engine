@@ -209,7 +209,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 ## MEVCUT DURUM
 
 - **Versiyon:** v2.3 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 21 Ağustos 2026, commit `e4658eb` — canlı kullanıcı testi geri bildirimi: aydınlık `day` varsayılan tema + koyu `night` teması, piyasa ticker'ı (BİST100/USD/EUR/gram altın), subagent-driven-development ile uygulandı — bkz. `docs/superpowers/specs/2026-08-21-market-ticker-design.md` + `docs/superpowers/plans/2026-08-21-market-ticker.md`). İlk canlıya çıkış: 29 Temmuz 2026.
-- **Test sayısı:** PR #47 (arama sorgu genişletme) ile #48 (tema + piyasa ticker'ı) main'de birleşince güncellenecek — bkz. bu commit'in birleşme sonrası gerçek pytest çıktısı; her iki dal ayrı ayrı yeşildi (702 ve 717). Frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
+- **Test sayısı:** 744 test, hepsi yeşil (backend, 21 Ağu 2026 — PR #47 arama sorgu genişletme + #48 tema/piyasa ticker'ı main'de birleştikten sonra doğrulandı); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
 - **Frontend:** Next.js 14 + React. 10 sinematik tema (varsayılan artık `day` — sıcak/aydınlık, `night` onun koyu kardeşi, `matrix` seçilebilir kaldı), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
