@@ -70,7 +70,7 @@ class YahooFinanceMarketAdapter(MarketDataPort):
         """(price, previous_close) döner. Başarısızlıkta exception fırlatır
         (get_snapshot yutup MarketDataError'a çevirir)."""
         url = f"{self.base_url}/{symbol}"
-        r = requests.get(url, headers=_HEADERS, timeout=10, params={"interval": "1d", "range": "5d"})
+        r = requests.get(url, headers=_HEADERS, timeout=4, params={"interval": "1d", "range": "5d"})
         r.raise_for_status()
         meta = r.json()["chart"]["result"][0]["meta"]
         price = float(meta["regularMarketPrice"])
