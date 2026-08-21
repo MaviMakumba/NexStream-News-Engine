@@ -210,7 +210,7 @@ _QUOTES = {
     "XU100.IS": (10000.0, 9900.0),
     "USDTRY=X": (34.0, 33.5),
     "EURTRY=X": (37.0, 36.8),
-    "XAUUSD=X": (2500.0, 2480.0),
+    "GC=F": (2500.0, 2480.0),
 }
 
 
@@ -234,7 +234,7 @@ def test_get_snapshot_maps_all_four_symbols():
 
 def test_get_snapshot_derives_gold_gram_try_from_ounce_and_usdtry():
     quotes = dict(_QUOTES)
-    quotes["XAUUSD=X"] = (2500.0, 2500.0)
+    quotes["GC=F"] = (2500.0, 2500.0)
     quotes["USDTRY=X"] = (34.0, 34.0)
 
     def fake_get(url, headers=None, timeout=None, params=None):
@@ -297,7 +297,7 @@ _TROY_OUNCE_GRAMS = 31.1034768
 _SYMBOL_BIST100 = "XU100.IS"
 _SYMBOL_USDTRY = "USDTRY=X"
 _SYMBOL_EURTRY = "EURTRY=X"
-_SYMBOL_GOLD_OZ = "XAUUSD=X"
+_SYMBOL_GOLD_OZ = "GC=F"  # COMEX altın vadeli işlemi (USD/oz) — "XAUUSD=X" geçersiz sembol
 _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

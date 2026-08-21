@@ -25,7 +25,9 @@ _TROY_OUNCE_GRAMS = 31.1034768
 _SYMBOL_BIST100 = "XU100.IS"
 _SYMBOL_USDTRY = "USDTRY=X"
 _SYMBOL_EURTRY = "EURTRY=X"
-_SYMBOL_GOLD_OZ = "XAUUSD=X"
+_SYMBOL_GOLD_OZ = "GC=F"  # COMEX altın vadeli işlemi (USD/oz) — "XAUUSD=X" Yahoo'da
+# geçersiz sembol (404/Not Found döner, gerçek canlıda doğrulandı); GC=F spot'a
+# yakın bir yaklaşıklık, göz-atma amaçlı ticker için yeterli
 _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

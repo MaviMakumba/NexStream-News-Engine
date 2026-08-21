@@ -66,8 +66,9 @@ class MarketSnapshot(BaseModel):
 DEĞİL: quote endpoint'i 2023'ten beri bir "crumb" cookie-exchange dansı
 gerektiriyor (kırılgan), chart endpoint'i gerektirmiyor. Bedeli: batch
 sorgu yok, 4 sembol için 4 ayrı GET (`asyncio.gather` ile paralel).
-Semboller: `XU100.IS` (BİST100), `USDTRY=X`, `EURTRY=X`, `XAUUSD=X`
-(altın spot, USD/ons).
+Semboller: `XU100.IS` (BİST100), `USDTRY=X`, `EURTRY=X`, `GC=F`
+(COMEX altın vadeli işlemi, USD/ons — spot'a yakın bir yaklaşıklık; `XAUUSD=X`
+denendi ama Yahoo'da geçersiz sembol çıktı, bkz. final-fix-wave-report.md).
 
 Her yanıttan `chart.result[0].meta.regularMarketPrice` ve
 `.previousClose` (yoksa `.chartPreviousClose`) okunur, `change_pct =
