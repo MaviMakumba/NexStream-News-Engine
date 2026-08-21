@@ -17,7 +17,11 @@ export function MarketTicker() {
     let cancelled = false;
     const load = () => {
       fetchMarketSnapshot().then((s) => {
-        if (!cancelled) setSnapshot(s);
+        // fetchMarketSnapshot() resolves to null on ANY failure (network blip,
+        // a single non-200, etc.) — only overwrite on a real snapshot so a
+        // transient failure doesn't blank a ticker the backend went to real
+        // effort to keep serving (stale-but-valid fallback, see market_router.py).
+        if (!cancelled) setSnapshot((prev) => s ?? prev);
       });
     };
     load();
