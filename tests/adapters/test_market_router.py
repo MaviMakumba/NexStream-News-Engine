@@ -4,8 +4,10 @@ CachePort ve MarketDataPort mock'lanır, gerçek Yahoo çağrısı YOK."""
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
+from src.adapters.api.routers.market_router import _LAST_GOOD_TTL_SECONDS
 from src.domain.ports.market_data_port import MarketDataError
 from src.domain.schemas.market_schema import MarketQuote, MarketSnapshot
+from src.infrastructure.config.settings import settings
 
 
 def _snapshot() -> MarketSnapshot:
@@ -55,6 +57,14 @@ def test_ticker_fetches_and_caches_on_miss(app_client):
     assert r.status_code == 200
     assert r.json()["stale"] is False
     assert cache.set.call_count == 2  # taze anahtar + last_good anahtarı
+    # Sadece cagri sayisi degil, HANGI anahtara HANGI TTL ile yazildigini da
+    # dogrula — ikisi de ayni anahtara giderse regresyon burada yakalanmali
+    # (stale-fallback tasariminin sessizce kirilmasini onlemek icin).
+    first_call, second_call = cache.set.call_args_list
+    assert first_call.args[0] == "market:snapshot"
+    assert first_call.kwargs["ttl_seconds"] == settings.market_cache_ttl_seconds
+    assert second_call.args[0] == "market:snapshot:last_good"
+    assert second_call.kwargs["ttl_seconds"] == _LAST_GOOD_TTL_SECONDS
 
 
 def test_ticker_falls_back_to_last_good_on_failure(app_client):
