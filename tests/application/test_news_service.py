@@ -100,6 +100,285 @@ def make_service_with_search():
     return service, mock_repo, mock_search
 
 
+def test_hybrid_search_without_expander_matches_old_behavior():
+    """query_expander verilmezse davranış eskisiyle BİREBİR aynı kalmalı."""
+    service, mock_repo, _ = make_service()
+    service.search_repository = None
+    keyword_article = make_article()
+    keyword_article.id = 1
+    # Not using Turkish "İstanbul'da toplantı" from brief: Python's str.lower() on
+    # capital dotted İ (U+0130) produces a 2-codepoint sequence that breaks
+    # _coverage_score's \b-anchored regex. This is a pre-existing bug (out of scope).
+    keyword_article.title = "Istanbul meeting today"
+    mock_repo.keyword_search.return_value = [keyword_article]
+
+    results = service.hybrid_search("istanbul")
+
+    assert len(results) == 1
+    mock_repo.keyword_search.assert_called_once()
+    called_terms = mock_repo.keyword_search.call_args.kwargs["terms"]
+    assert "istanbul" in called_terms
+
+
+def test_hybrid_search_includes_secondary_match_via_expander():
+    """query_expander "beykoz" döndürürse, sadece "Beykoz" geçen (İstanbul
+    geçmeyen) bir haber de artık sonuçlarda görünmeli — düşük skorla."""
+    mock_repo = MagicMock()
+    mock_search = MagicMock()
+    mock_expander = MagicMock()
+    mock_expander.expand.return_value = ["beykoz"]
+    mock_search.search.return_value = []
+
+    beykoz_article = make_article()
+    beykoz_article.id = 7
+    beykoz_article.title = "Beykoz'da yeni bir proje açıldı"
+    beykoz_article.summary = None
+    mock_repo.keyword_search.return_value = [beykoz_article]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=mock_search, query_expander=mock_expander,
+    )
+
+    results = service.hybrid_search("istanbul")
+
+    assert len(results) == 1
+    assert results[0]["id"] == "7"
+    assert 0.0 < results[0]["score"] < 0.9
+    mock_expander.expand.assert_called_once_with("istanbul")
+    called_terms = mock_repo.keyword_search.call_args.kwargs["terms"]
+    assert "beykoz" in called_terms
+
+
+def test_hybrid_search_expander_failure_falls_back_to_original_query():
+    """expand() exception fırlatırsa arama SESSİZCE orijinal sorguyla devam
+    etmeli, hybrid_search hiç patlamamalı."""
+    mock_repo = MagicMock()
+    mock_expander = MagicMock()
+    mock_expander.expand.side_effect = RuntimeError("Groq çöktü")
+
+    keyword_article = make_article()
+    keyword_article.id = 3
+    keyword_article.title = "yapay zeka haberi"
+    keyword_article.summary = None
+    mock_repo.keyword_search.return_value = [keyword_article]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=None, query_expander=mock_expander,
+    )
+
+    results = service.hybrid_search("yapay zeka")
+
+    assert len(results) == 1
+    assert results[0]["id"] == "3"
+
+
+def test_hybrid_search_expander_case_insensitivity_titlecase_expansion():
+    """GroqQueryExpander Title-Case çıktı döner ("Beykoz" gibi). Bunları
+    lowercase'lemeden secondary_terms'e geçmek matching başarısız kılardı.
+    Düzeltme: expanded_terms bir kez lowercase'le, hem SQL hem secondary için kullan."""
+    mock_repo = MagicMock()
+    mock_search = MagicMock()
+    mock_expander = MagicMock()
+    # Gerçek LLM çıktısı gibi Title-Case:
+    mock_expander.expand.return_value = ["Beykoz", "Fatih"]
+    mock_search.search.return_value = []
+
+    article = make_article()
+    article.id = 42
+    article.title = "Beykoz'da büyük proje başladı"
+    article.summary = None
+    mock_repo.keyword_search.return_value = [article]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=mock_search, query_expander=mock_expander,
+    )
+
+    results = service.hybrid_search("istanbul")
+
+    assert len(results) == 1
+    assert results[0]["id"] == "42"
+    assert 0.0 < results[0]["score"] < 0.9  # secondary terms ağırlığı ile düşük
+    # Verify lowercased terms were used in SQL:
+    called_terms = mock_repo.keyword_search.call_args.kwargs["terms"]
+    assert "beykoz" in called_terms
+    assert "fatih" in called_terms
+
+
+def test_hybrid_search_expander_malformed_result_not_fail_open():
+    """expand() None döndürse (ya da başka non-list), list comprehension TypeError
+    fırlatacaktır. Fail-open prensibi: isinstance check ile boş liste default'ı."""
+    mock_repo = MagicMock()
+    mock_expander = MagicMock()
+    mock_expander.expand.return_value = None  # Malformed result
+
+    article = make_article()
+    article.id = 10
+    article.title = "test article"
+    article.summary = None
+    mock_repo.keyword_search.return_value = [article]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=None, query_expander=mock_expander,
+    )
+
+    # Should not raise TypeError, should fallback gracefully
+    results = service.hybrid_search("test")
+
+    assert len(results) == 1
+    assert results[0]["id"] == "10"
+
+
+def test_hybrid_search_expander_malformed_element_does_not_crash():
+    """Liste KONTEYNIRI doğru ama ELEMANLARI değilse (eski/yabancı bir `qexp:`
+    Redis anahtarı böyle bir şey taşıyabilir) `.lower()` AttributeError fırlatır
+    ve hybrid_search'ten kaçardı. Sadece geçerli string'ler kullanılmalı."""
+    mock_repo = MagicMock()
+    mock_expander = MagicMock()
+    mock_expander.expand.return_value = ["beykoz", 42, None, "  ", "fatih"]
+
+    article = make_article()
+    article.id = 11
+    article.title = "Beykoz'da yeni proje"
+    article.summary = None
+    mock_repo.keyword_search.return_value = [article]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=None, query_expander=mock_expander,
+    )
+
+    results = service.hybrid_search("istanbul")
+
+    assert len(results) == 1
+    assert results[0]["id"] == "11"
+    # Sadece geçerli string'ler SQL'e gitmeli; 42/None/"  " elenmiş olmalı.
+    secondary_terms = mock_repo.keyword_search.call_args.kwargs["terms"]
+    assert secondary_terms == ["beykoz", "fatih"]
+
+
+def test_hybrid_search_secondary_terms_use_separate_query_with_own_budget():
+    """Birincil ve ikincil terimler TEK bir OR'lu sorgunun LIMIT'ini
+    paylaşmamalı: yaygın bir ikincil terim ("fatih" aynı zamanda sık bir isim)
+    havuzu doldurup gerçek birincil eşleşmeleri dışarıda bırakabiliyordu.
+    İki AYRI sorgu → her iki taraf da sonuçlarda görünür."""
+    primary_article = make_article("https://bbc.com/p")
+    primary_article.id = 1
+    primary_article.title = "istanbul'da toplantı yapıldı"
+    primary_article.summary = None
+
+    secondary_article = make_article("https://bbc.com/s")
+    secondary_article.id = 2
+    secondary_article.title = "fatih'te yeni proje açıldı"
+    secondary_article.summary = None
+
+    def keyword_search_side_effect(query, limit, source, sentiment, terms=None):
+        # Birincil sorgu SADECE birincil eşleşmeyi, ikincil sorgu SADECE
+        # ikincil eşleşmeyi döndürür (gerçek SQL'de olduğu gibi ayrık).
+        if "fatih" in (terms or []):
+            return [secondary_article]
+        return [primary_article]
+
+    mock_repo = MagicMock()
+    mock_repo.keyword_search.side_effect = keyword_search_side_effect
+    mock_expander = MagicMock()
+    mock_expander.expand.return_value = ["fatih"]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=None, query_expander=mock_expander,
+    )
+
+    results = service.hybrid_search("istanbul")
+
+    assert mock_repo.keyword_search.call_count == 2
+    ids = {r["id"] for r in results}
+    assert ids == {"1", "2"}
+
+    # İkincil sorgu birincilden DAHA KÜÇÜK bir bütçe kullanmalı (havuzu çalmaz).
+    primary_call, secondary_call = mock_repo.keyword_search.call_args_list
+    assert primary_call.kwargs["terms"] == service._tokenize("istanbul")
+    assert secondary_call.kwargs["terms"] == ["fatih"]
+    assert secondary_call.args[1] < primary_call.args[1]
+
+
+def test_hybrid_search_one_failing_query_does_not_kill_the_other():
+    """İki keyword sorgusu BAĞIMSIZ fail-open: birincil patlasa bile ikincil
+    sonuçları (ve tersi) yine de kullanılmalı."""
+    secondary_article = make_article("https://bbc.com/s")
+    secondary_article.id = 5
+    secondary_article.title = "beykoz'da yeni proje"
+    secondary_article.summary = None
+
+    def keyword_search_side_effect(query, limit, source, sentiment, terms=None):
+        if "beykoz" in (terms or []):
+            return [secondary_article]
+        raise RuntimeError("birincil SQL çöktü")
+
+    mock_repo = MagicMock()
+    mock_repo.keyword_search.side_effect = keyword_search_side_effect
+    mock_expander = MagicMock()
+    mock_expander.expand.return_value = ["beykoz"]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=None, query_expander=mock_expander,
+    )
+
+    results = service.hybrid_search("istanbul")
+
+    assert [r["id"] for r in results] == ["5"]
+
+
+def test_hybrid_search_no_second_query_when_nothing_to_expand():
+    """Genişletme yoksa (boş liste) ikincil sorgu HİÇ atılmamalı — boşuna
+    bir DB turu olurdu."""
+    mock_repo = MagicMock()
+    mock_expander = MagicMock()
+    mock_expander.expand.return_value = []
+
+    article = make_article()
+    article.id = 9
+    article.title = "istanbul'da toplantı"
+    article.summary = None
+    mock_repo.keyword_search.return_value = [article]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=None, query_expander=mock_expander,
+    )
+
+    service.hybrid_search("istanbul")
+
+    mock_repo.keyword_search.assert_called_once()
+
+
+def test_hybrid_search_dedups_article_present_in_both_queries():
+    """İki sorgu da aynı makaleyi döndürürse sonuçta bir kez görünmeli."""
+    article = make_article()
+    article.id = 3
+    article.title = "istanbul beykoz haberi"
+    article.summary = None
+
+    mock_repo = MagicMock()
+    mock_repo.keyword_search.return_value = [article]
+    mock_expander = MagicMock()
+    mock_expander.expand.return_value = ["beykoz"]
+
+    service = NewsService(
+        repository=mock_repo, analyzer=MagicMock(),
+        search_repository=None, query_expander=mock_expander,
+    )
+
+    results = service.hybrid_search("istanbul")
+
+    assert len(results) == 1
+    assert results[0]["id"] == "3"
+
+
 def test_hybrid_search_returns_semantic_results():
     service, mock_repo, mock_search = make_service_with_search()
     mock_search.search.return_value = [
@@ -384,6 +663,59 @@ def test_keyword_relevance_content_only_match():
 def test_keyword_relevance_empty_terms():
     article = make_article()
     assert NewsService._keyword_relevance(article, []) == 0.0
+
+
+def test_keyword_relevance_secondary_terms_add_small_bonus():
+    """Sadece ikincil (genişletilmiş) terim geçen makale sıfırdan farklı, ama
+    birincil terimin verdiği skordan daha düşük bir skor almalı."""
+    article = make_article()
+    article.title = "Beykoz'da yeni bir proje açıldı"
+    article.summary = None
+    article.content = "alakasız içerik"
+    relevance = NewsService._keyword_relevance(article, ["istanbul"], secondary_terms=["beykoz"])
+    assert 0.0 < relevance < 0.9  # sadece "istanbul" geçseydi 0.9 olurdu
+
+
+def test_keyword_relevance_full_primary_beats_full_secondary():
+    """AYNI güçte (başlıkta tam kapsama) bir birincil eşleşme, ikincil
+    eşleşmeyi geçer — çünkü ikincil katkı `_EXPANSION_WEIGHT` ile küçültülür.
+
+    DİKKAT: bu "birincil HER ZAMAN kazanır" demek DEĞİLDİR. Garanti sadece
+    tavanlar üzerinedir (ikincil ≤ 0.36 < birincil ≤ 0.9); zayıf/kısmi bir
+    birincil eşleşme güçlü bir ikincil eşleşmenin altında kalabilir — bkz.
+    `_keyword_relevance` docstring'i.
+    """
+    article_primary = make_article()
+    article_primary.title = "istanbul'da toplantı yapıldı"
+    article_primary.summary = None
+    article_primary.content = "alakasız içerik"
+
+    article_secondary = make_article()
+    article_secondary.title = "beykoz'da toplantı yapıldı"
+    article_secondary.summary = None
+    article_secondary.content = "alakasız içerik"
+
+    primary_score = NewsService._keyword_relevance(article_primary, ["istanbul"], secondary_terms=["beykoz"])
+    secondary_score = NewsService._keyword_relevance(article_secondary, ["istanbul"], secondary_terms=["beykoz"])
+
+    assert primary_score > secondary_score
+
+
+def test_keyword_relevance_no_secondary_terms_matches_old_behavior():
+    article = make_article()
+    article.title = "Yapay zeka çağı"
+    article.summary = None
+    relevance = NewsService._keyword_relevance(article, ["yapay", "zeka"], secondary_terms=None)
+    assert relevance == 0.9
+
+
+def test_keyword_relevance_score_never_exceeds_one():
+    article = make_article()
+    article.title = "istanbul beykoz"
+    article.summary = None
+    article.content = ""
+    relevance = NewsService._keyword_relevance(article, ["istanbul"], secondary_terms=["beykoz"])
+    assert relevance <= 1.0
 
 
 def test_keyword_relevance_no_mid_word_false_positive():

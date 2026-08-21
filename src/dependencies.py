@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from src.infrastructure.config.database import get_db
 from src.adapters.repositories.news_repository import NewsRepository
 from src.adapters.repositories.user_repository import UserRepository
-from src.adapters.analysis.factory import build_analyzer
+from src.adapters.analysis.factory import build_analyzer, build_query_expander
 from src.adapters.search.chroma_search_repository import ChromaSearchRepository
 from src.adapters.cache.factory import build_cache
 from src.adapters.market.yahoo_finance_adapter import YahooFinanceMarketAdapter
@@ -78,4 +78,8 @@ def get_news_service(db: Session = Depends(get_db)) -> NewsService:
     repo = NewsRepository(db)
     analyzer = build_analyzer()
     search_repo = get_search_repository()
-    return NewsService(repository=repo, analyzer=analyzer, search_repository=search_repo)
+    query_expander = build_query_expander(get_cache())
+    return NewsService(
+        repository=repo, analyzer=analyzer,
+        search_repository=search_repo, query_expander=query_expander,
+    )
