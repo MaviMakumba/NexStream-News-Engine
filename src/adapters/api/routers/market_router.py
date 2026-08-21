@@ -6,6 +6,11 @@ için ayrı bir rate limit de yok. CachePort ile iki katmanlı tutulur:
 - "market:snapshot:last_good" — 24 saat TTL'li, Yahoo uzun süre kesilse bile
   gösterilecek bir son iyi değer kalsın diye ("ölü besleme çökertmez"
   deseninin piyasa verisi karşılığı, bkz. RSS scraper'lar).
+
+Yahoo hatası alınıp last_good'a düşüldüğünde, stale işaretli değer KISA bir
+TTL ile (_NEGATIVE_CACHE_TTL_SECONDS) fresh anahtara da yazılır — yoksa
+kesinti boyunca her istek fresh cache boş kaldığı için 4 Yahoo çağrısını
+(her biri timeout'a kadar) tekrar tetikler ("request stampede").
 """
 
 import logging
@@ -24,6 +29,10 @@ router = APIRouter(prefix="/market", tags=["Market"])
 _CACHE_KEY = "market:snapshot"
 _LAST_GOOD_KEY = "market:snapshot:last_good"
 _LAST_GOOD_TTL_SECONDS = 24 * 60 * 60
+# Yahoo kesintisi sırasında stale değeri fresh anahtara da kısa süreliğine
+# yazar — yoksa her istek fresh cache boş kaldığı için 4 Yahoo çağrısını
+# (her biri timeout'a kadar) tekrar tetikler ("request stampede").
+_NEGATIVE_CACHE_TTL_SECONDS = 60
 
 
 @router.get("/ticker", response_model=MarketSnapshot)
@@ -46,4 +55,6 @@ def get_market_ticker(
         last_good = cache.get(_LAST_GOOD_KEY)
         if last_good is None:
             return Response(status_code=204)
-        return MarketSnapshot.model_validate({**last_good, "stale": True})
+        stale_payload = {**last_good, "stale": True}
+        cache.set(_CACHE_KEY, stale_payload, ttl_seconds=_NEGATIVE_CACHE_TTL_SECONDS)
+        return MarketSnapshot.model_validate(stale_payload)
