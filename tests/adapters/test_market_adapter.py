@@ -69,3 +69,31 @@ def test_get_snapshot_raises_market_data_error_on_http_failure():
                side_effect=ConnectionError("boom")):
         with pytest.raises(MarketDataError):
             adapter.get_snapshot()
+
+
+def test_get_snapshot_raises_market_data_error_on_invalid_symbol_response():
+    """Yahoo'nun geçersiz/delisted bir sembol için GERÇEKTEN döndüğü şekli
+    mock'lar — bu hipotetik bir "bozuk JSON" değil, XAUUSD=X'in canlıda
+    döndürdüğü tam yanıt (bkz. Fix 1). result None olunca [0] indexlemesi
+    TypeError fırlatır — get_snapshot bunu yutup MarketDataError'a çevirmeli,
+    çıplak TypeError sızdırmamalı."""
+    invalid_resp = MagicMock()
+    invalid_resp.raise_for_status.return_value = None
+    invalid_resp.json.return_value = {
+        "chart": {
+            "result": None,
+            "error": {"code": "Not Found", "description": "No data found, symbol may be delisted"},
+        }
+    }
+
+    def fake_get(url, headers=None, timeout=None, params=None):
+        symbol = url.rsplit("/", 1)[-1]
+        if symbol == "GC=F":
+            return invalid_resp
+        price, previous = _QUOTES[symbol]
+        return _chart_response(price, previous)
+
+    adapter = YahooFinanceMarketAdapter()
+    with patch("src.adapters.market.yahoo_finance_adapter.requests.get", side_effect=fake_get):
+        with pytest.raises(MarketDataError):
+            adapter.get_snapshot()
