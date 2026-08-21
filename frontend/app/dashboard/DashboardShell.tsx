@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Navbar } from "@/components/Navbar";
 import { LiveTicker } from "@/components/LiveTicker";
+import { MarketTicker } from "@/components/MarketTicker";
 import { AuthLoadingScreen } from "@/components/AuthLoadingScreen";
 import { EmailVerifyBanner } from "@/components/EmailVerifyBanner";
 import { LiveFeedProvider } from "@/lib/live-feed-context";
@@ -25,6 +26,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     <LiveFeedProvider>
       <div style={{ minHeight: "100vh" }}>
         <Navbar />
+        <MarketTicker />
         <LiveTicker />
         <main style={{ maxWidth: 1280, margin: "0 auto", padding: "28px 20px" }}>
           <EmailVerifyBanner />

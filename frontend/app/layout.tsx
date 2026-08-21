@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "NexStream",
   },
   icons: {
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#020806",
+  themeColor: "#f3f1ec",
 };
 
 // One combined Google Fonts request covering every theme's display face.
@@ -65,7 +65,7 @@ const FONTS_HREF =
   "&display=swap";
 
 // İlk boyamadan (paint) ÖNCE çalışır — localStorage'daki temayı senkron uygular,
-// böylece sayfa her açılışta varsayılan (matrix) temayla yanıp kullanıcının
+// böylece sayfa her açılışta varsayılan (day) temayla yanıp kullanıcının
 // gerçek temasına geçmez. React state'i settings-context.tsx'te aynı değeri
 // lazy initializer ile okur, ikisi arasında fark olmaz.
 const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('nxt_theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;

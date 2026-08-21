@@ -159,22 +159,44 @@
   --grid: rgba(200, 146, 58, .05);
 }
 
-/* ── Day (clean / readable) ───────────────────────────────────────── */
+/* ── Day (clean / readable, DEFAULT) ─────────────────────────────────
+   Warm off-white instead of the previous cool blue-white — pure white
+   surfaces read as "ice glare" on phone screens (user testing, 21 Ağu
+   2026). Text/accent kept dark enough that swapping the background
+   warmth doesn't erode existing WCAG AA contrast. ────────────────── */
 [data-theme="day"] {
   --font-body: "Inter", sans-serif;
   --font-display: "Inter", sans-serif;
   --radius: 14px;
   --display-tracking: -0.02em;
-  --bg: #eef2f7; --bg2: #e2e8f0;
-  --surface: rgba(255, 255, 255, 0.92);
-  --border: rgba(37, 99, 235, 0.14); --border2: rgba(37, 99, 235, 0.34);
-  --text: #0f172a; --text2: #475569; --text3: #606f83;
-  --accent: #2563eb; --accent2: #7c3aed; --accent-h: #1d4ed8;
-  --accent-soft: rgba(37, 99, 235, 0.07); --accent-line: rgba(37, 99, 235, 0.28);
-  --pos: #16a34a; --neg: #dc2626; --neu: #d97706;
-  --pos-bg: rgba(22, 163, 74, .08); --neg-bg: rgba(220, 38, 38, .08); --neu-bg: rgba(217, 119, 6, .08);
-  --glow: rgba(37, 99, 235, .14); --glow2: rgba(124, 58, 237, .1);
-  --grid: rgba(37, 99, 235, .05);
+  --bg: #f3f1ec; --bg2: #e8e4d9;
+  --surface: rgba(255, 253, 250, 0.78);
+  --border: rgba(120, 113, 95, 0.16); --border2: rgba(29, 78, 216, 0.36);
+  --text: #1c1a16; --text2: #4b463c; --text3: #6b6558;
+  --accent: #1d4ea9; --accent2: #6d28d9; --accent-h: #163e87;
+  --accent-soft: rgba(29, 78, 169, 0.08); --accent-line: rgba(29, 78, 169, 0.3);
+  --pos: #15803d; --neg: #c62222; --neu: #b45309;
+  --pos-bg: rgba(21, 128, 61, .08); --neg-bg: rgba(198, 34, 34, .08); --neu-bg: rgba(180, 83, 9, .08);
+  --glow: rgba(29, 78, 169, .12); --glow2: rgba(109, 40, 217, .08);
+  --grid: rgba(29, 78, 169, .05);
+}
+
+/* ── Night (dark sibling of Day — same calm/no-effect family) ──────── */
+[data-theme="night"] {
+  --font-body: "Inter", sans-serif;
+  --font-display: "Inter", sans-serif;
+  --radius: 14px;
+  --display-tracking: -0.02em;
+  --bg: #17181c; --bg2: #1f2024;
+  --surface: rgba(32, 33, 38, 0.82);
+  --border: rgba(255, 255, 255, 0.08); --border2: rgba(96, 165, 250, 0.36);
+  --text: #eef0f3; --text2: #b7bcc4; --text3: #8b909b;
+  --accent: #60a5fa; --accent2: #a78bfa; --accent-h: #82bbfb;
+  --accent-soft: rgba(96, 165, 250, 0.12); --accent-line: rgba(96, 165, 250, 0.34);
+  --pos: #4ade80; --neg: #f87171; --neu: #fbbf24;
+  --pos-bg: rgba(74, 222, 128, .12); --neg-bg: rgba(248, 113, 113, .12); --neu-bg: rgba(251, 191, 36, .12);
+  --glow: rgba(96, 165, 250, .18); --glow2: rgba(167, 139, 250, .12);
+  --grid: rgba(255, 255, 255, .04);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
