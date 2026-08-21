@@ -127,6 +127,11 @@ class Settings(BaseSettings):
     # ── Redis (cache) ──────────────────────────────────────────────────────
     redis_url: str = ""                 # örn. redis://localhost:6379/0; boş = NullCache
 
+    # ── Piyasa ticker'ı (BİST/USD/EUR/gram altın, v2.3) ─────────────────────
+    # Yahoo Finance'e her istekte gidilmesin diye CachePort üzerinden TTL'li
+    # tutulur (bkz. market_router.py). Redis yoksa (NullCache) fiilen devre dışı.
+    market_cache_ttl_seconds: int = 300
+
     # ── Arama sıralaması (recency) ──────────────────────────────────────────
     # hybrid_search skoru relevance * decay_factor olarak hesaplanır (çarpımsal
     # — additive bonus skor tavanına (1.0) takılan tam eşleşmeleri etkilemiyordu).
