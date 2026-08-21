@@ -26,7 +26,7 @@ chromadb-client==1.5.5
 slowapi==0.1.10
 prometheus-client==0.22.1
 prometheus-fastapi-instrumentator==8.0.2
-feedgen==0.9.0
+feedgen==1.0.0
 email-validator>=2.3.0
 bcrypt>=4.0.0
 stripe>=7.0.0
