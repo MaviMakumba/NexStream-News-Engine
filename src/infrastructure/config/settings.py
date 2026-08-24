@@ -161,6 +161,15 @@ class Settings(BaseSettings):
     ws_max_connections_per_user: int = 5
     ws_max_total_connections: int = 500
 
+    # ── Hata takibi (v2.4, tek-operatörlük) ─────────────────────────────────
+    # Sentry'nin ücretsiz hosted katmanı — VPS'e YENİ bir servis/RAM eklemiyor
+    # (SaaS), diğer opsiyonel entegrasyonlarla (Redis/HuggingFace/Resend) aynı
+    # desen: boş = devre dışı, kod hiç Sentry'ye dokunmaz. `sentry_traces_sample_rate`
+    # düşük tutuldu (performans izleme, tek-operatörlük bir projede ikincil öncelik,
+    # sadece hata event'leri asıl değerli olan).
+    sentry_dsn: str = ""
+    sentry_traces_sample_rate: float = 0.05
+
     @property
     def admin_email_set(self) -> set[str]:
         """ADMIN_EMAILS değerini normalize edilmiş (küçük harf) set'e çevirir."""

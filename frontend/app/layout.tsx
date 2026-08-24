@@ -5,6 +5,7 @@ import { SavedArticlesProvider } from "@/lib/saved-context";
 import { SettingsProvider } from "@/lib/settings-context";
 import { DEFAULT_THEME } from "@/lib/theme/registry";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
+import { AnalyticsProvider } from "@/components/AnalyticsProvider";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://nexstream.news";
 const SITE_TITLE = "NexStream — AI Haber Motoru";
@@ -81,11 +82,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ServiceWorkerRegistration />
-        <AuthProvider>
-          <SavedArticlesProvider>
-            <SettingsProvider>{children}</SettingsProvider>
-          </SavedArticlesProvider>
-        </AuthProvider>
+        <AnalyticsProvider>
+          <AuthProvider>
+            <SavedArticlesProvider>
+              <SettingsProvider>{children}</SettingsProvider>
+            </SavedArticlesProvider>
+          </AuthProvider>
+        </AnalyticsProvider>
       </body>
     </html>
   );

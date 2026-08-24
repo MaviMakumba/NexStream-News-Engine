@@ -14,6 +14,7 @@ from aiokafka import AIOKafkaConsumer
 from src.infrastructure.config.database import SessionLocal
 from src.infrastructure.config.settings import settings
 from src.infrastructure.logging.logger import setup_logging
+from src.infrastructure.observability.sentry import init_sentry
 from src.adapters.repositories.news_repository import NewsRepository
 from src.adapters.repositories.subscriber_repository import SubscriberRepository
 from src.adapters.analysis.factory import build_analyzer
@@ -67,6 +68,7 @@ async def _process(scraper):
 
 async def consume():
     setup_logging()
+    init_sentry("worker")
     startup_done = False  # Run startup scrape only once per process, not on every reconnect
 
     while True:  # outer loop: reconnect on Kafka failures

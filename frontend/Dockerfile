@@ -15,6 +15,13 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 # domain'e işaret ediyordu, canlıda hiç fark edilmemişti.
 ARG NEXT_PUBLIC_SITE_URL=https://nexstreamnewsengine.duckdns.org
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+# Kullanım analitiği (v2.4) — boş bırakılırsa AnalyticsProvider tamamen no-op
+# kalır (bkz. components/AnalyticsProvider.tsx), diğer opsiyonel entegrasyonlarla
+# aynı desen.
+ARG NEXT_PUBLIC_POSTHOG_KEY=""
+ENV NEXT_PUBLIC_POSTHOG_KEY=$NEXT_PUBLIC_POSTHOG_KEY
+ARG NEXT_PUBLIC_POSTHOG_HOST="https://us.i.posthog.com"
+ENV NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST
 RUN npm run build
 
 FROM node:20-alpine AS runner
