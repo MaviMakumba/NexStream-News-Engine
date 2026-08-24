@@ -208,7 +208,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v2.3 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 24 Ağustos 2026, commit `4828495` = `main` HEAD, PR #49+#50 dahil — bkz. "Branch" notu aşağıda: deploy artık doğrudan main'den yapılıyor). İlk canlıya çıkış: 29 Temmuz 2026.
+- **Versiyon:** v2.4 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 25 Ağustos 2026, commit `4e79475` = `main` HEAD, PR #51+#52+#53 dahil — **deploy artık tam otomatik**, main'e her merge'de GitHub Actions kendi kendine SSM'e bağlanıp redeploy ediyor, bkz. "Branch" notu aşağıda). İlk canlıya çıkış: 29 Temmuz 2026.
 - **Test sayısı:** 754 test, hepsi yeşil (backend, 25 Ağu 2026 — `init_sentry()` için +3 test); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
 - **Frontend:** Next.js 14 + React. 10 sinematik tema (varsayılan artık `day` — sıcak/aydınlık, `night` onun koyu kardeşi, `matrix` seçilebilir kaldı), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
@@ -220,15 +220,13 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 `.github/workflows/tests.yml`'e yeni bir `deploy` job'ı eklendi (PR #52) —
 `test`+`frontend` job'ları geçerse main'e her push'ta SSM üzerinden yukarıdaki
 akışı (`git reset --hard` + `docker compose up --build -d`) OTOMATİK tetikliyor,
-ardından `/api/health`'i polling ile doğruluyor. **Gerekli iki GitHub Secret
-(`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) `gh secret set` Bash sınıflandırıcısı
-tarafından engellendiği için Claude tarafından EKLENEMEDİ** — kullanıcının kendisi
-eklemesi gerekiyor (zaten SSM için kullanılan scoped `nexstream-deploy` IAM
-kullanıcısından, `aws configure get aws_access_key_id`/`aws_secret_access_key`
-ile lokal `default` profilden okunabilir). Secrets eklenene kadar `deploy` job'ı
-her push'ta credential hatasıyla kırmızı olur — zararsız (test/frontend'i
-etkilemiyor, merge'i engellemiyor) ama otomatik deploy fiilen DEVREDE DEĞİL.
-Secrets eklendikten sonra **elle SSM adımı artık gereksiz** — sadece manuel
+ardından `/api/health`'i polling ile doğruluyor. **25 Ağu 2026'da kullanıcı
+gerekli iki GitHub Secret'ı (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+`gh secret set` Bash sınıflandırıcısı tarafından Claude'a engellendiği için
+kendisi) ekledi ve otomasyon UÇTAN UCA DOĞRULANDI** — başarısız olmuş eski bir
+`deploy` job'ı `gh run rerun --failed` ile yeniden tetiklendi, bu kez SSM'e
+GERÇEKTEN bağlanıp deploy'u kendi başına yaptı, `Success` döndü. **Artık main'e
+her merge tam otomatik prod'a çıkıyor, elle SSM adımı SADECE manuel
 müdahale/debug gerektiğinde kullanılmaya devam eder.
 - **Hedef:** 24 Ağu 2026'da kullanıcı buzdağı fork sorusuna cevap verdi — proje **ŞİMDİLİK bilinçli olarak portfolyo** olarak kalıyor (gerçek ürüne dönüştürme kararı ertelendi, AWS kredisi tükenmeden önce tekrar gözden geçirilecek). Tek VPS mimarisi de bilinçli olarak korunuyor (çoklu-bölge/HA yatırımı YOK).
 - **Kısıt:** VPS'te 7/24 bağımsız çalışıyor. **Bütçe: GERÇEKTEN $0/ay** (kalıcı kısıt) — AWS Free Plan'ın $100 kredisiyle karşılanıyor, ~$18,4'ü harcanmış (18 Ağu 2026), günlük yakım ~$0,93 (~$28/ay) → kredi mevcut hızla **Kasım 2026 ortasında** tükenir (28 Ocak 2027 son kullanma tarihinden ~2,5 ay önce) — bu tarihten önce bir karar gerekir. **24 Ağu 2026'da AWS-sonrası alternatifler resmi kaynaklardan araştırıldı (VPS fiyat karşılaştırması):** Oracle Cloud "Always Free" artık güvenilmez hale geldi (Haziran 2026'da Ampere A1 limiti habersizce 4 OCPU/24GB'den **2 OCPU/12GB'ye düşürüldü**, limit-üstü instance'lar Ağustos 2026'dan itibaren sonlandırılıyor) — hâlâ tek $0 seçenek ama artık "kur unut" güvenilirliğinde değil, en fazla yedek. Fly.io/Render/Railway'in ücretsiz katmanları (PaaS, uyku modu/kredi kartı zorunluluğu) 16 servisli Docker Compose stack'ine uygun değil. **En iyi gerçek alternatif: Hetzner CX33** (4 vCPU/8GB RAM, ~€8.49/ay ≈ $9-10, Almanya/Finlandiya — TR'ye görece yakın), ikinci sırada Contabo aynı spec'e $6.60/ay (CPU steal-time riski var, LLM/embedder gibi CPU-yoğun işler için dalgalanabilir). RAM darsa ilk kapatılacak servisler: Prometheus/Grafana/Loki/Promtail (tek operatörlü projede opsiyonel) → Redis (zaten NullCache fallback'i var) → backup container'ı (host-cron'a taşınabilir). Şu an aksiyon YOK, sadece Kasım kararı için hazırlık.
@@ -450,18 +448,17 @@ GERÇEKTEN bekleyen işler var:
     aynen sürer). `SEARCH_QUERY_EXPANSION_ENABLED` ile açık/kapalı.
     `get_news_service` DI'da `build_query_expander(get_cache())` ile bağlandı.
 
-19. ~~Deploy pipeline'ı main merge'ine bağla~~ — ✅ **kısmen** 24 Ağu 2026'da
-    çözüldü: prod artık ayrı bir dal (`optimize/t3-small-ram`) yerine doğrudan
-    `main`'den deploy ediliyor, bkz. MEVCUT DURUM "Branch" notu — drift kaynağı
-    ortadan kalktı. **Hâlâ eksik olan:** deploy tetikleyicisi otomatik değil,
-    hâlâ elle SSM ile (`git checkout main && git reset --hard origin/main` +
-    `docker compose -f docker-compose.prod.yml up --build -d`) yapılıyor —
-    main'e her merge otomatik deploy tetiklemiyor, code review/CI main merge'i
-    engellemiyor diye deploy'un kendisi de engellenmiş olmuyor (birileri main'e
-    kırık bir şey merge edip SSM'i unutursa fark edilmez). İdeal çözüm hâlâ
-    GitHub Actions'a main'e merge olunca (ya da bir tag/release'te) otomatik
-    SSM tetikleyen bir deploy job'ı eklemek. Bounded bir CI/CD işi, ayrı bir
-    oturumda ele alınmalı.
+19. ~~Deploy pipeline'ı main merge'ine bağla~~ — ✅ **TAMAMEN çözüldü** (24-25
+    Ağu 2026, iki aşamada). 24 Ağu: prod artık ayrı bir dal
+    (`optimize/t3-small-ram`) yerine doğrudan `main`'den deploy ediliyor, bkz.
+    MEVCUT DURUM "Branch" notu — drift kaynağı ortadan kalktı. 25 Ağu:
+    `.github/workflows/tests.yml`'e main'e her push'ta (test+frontend
+    geçerse) SSM üzerinden otomatik redeploy + `/api/health` doğrulaması yapan
+    bir `deploy` job'ı eklendi (PR #52), kullanıcı gerekli iki GitHub Secret'ı
+    ekledi, `gh run rerun --failed` ile UÇTAN UCA doğrulandı (otomasyon
+    gerçekten kendi başına SSM'e bağlanıp deploy yaptı). **Artık main'e her
+    merge tam otomatik prod'a çıkıyor** — elle SSM adımı sadece manuel
+    müdahale/debug için saklı kaldı.
 20. ~~"Kaynaklar" (story cluster) UI'ının kullanışlılığı~~ — ✅ 24 Ağu 2026'da
     çözüldü. Canlı veriyle test edilince kullanıcının şikayeti hem UI hem
     kod tarafında doğrulandı: (1) panel gerçekten İlgili Haberler'in görsel
