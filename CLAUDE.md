@@ -295,10 +295,31 @@ GERÇEKTEN bekleyen işler var:
    delege/proxy edemezsin (Cloudflare bir zone'un TAMAMINA nameserver olmak
    ister, DuckDNS'in alt alan adı değil) — gerçek bir domain satın almak
    gerekiyor (~$10-15/yıl, tek seferlik). Kullanıcıya açıklandı, karar bekliyor.
-7. **Dependabot PR'ları** — 19 Ağu 2026'da düşük riskli 12 tanesi merge edildi
-   (GitHub Actions + Python/JS patch-minor bump'lar). Kalan 8 tanesi major
-   bump (Next 14→16, TypeScript 5→7, Tailwind 3→4, React, Stripe SDK 7→15,
-   feedgen 0.9→1.0) — gerçek test istiyor, review/merge kararı kullanıcıda.
+7. **Dependabot PR'ları** — 19 Ağu 2026'da düşük riskli 12 tanesi merge edildi.
+   **25 Ağu 2026'da kalan 8 major-bump tekrar triyaj edildi:** 3 tanesi
+   güvenle merge edildi (CI + tam lokal test paketiyle doğrulanarak) —
+   `@types/node` 20→26 (sadece tip, dev-only), `feedgen` 0.9→1.0 (küçük/
+   test-kapsamlı kullanım alanı, `/feed.xml`), `stripe` SDK 7→15 (kod zaten
+   dev-mode'da devre dışı, canlı risk yok). **Kalan 4 tanesi gerçekten kırık,
+   ayrı bir oturumda ele alınmalı:**
+   - **Next.js 14→16 (#31):** CI (build) YEŞİL ama runtime/davranış
+     doğrulaması yapılmadı — App Router'da major sürümler arası genelde
+     davranış farkı olur, gerçek smoke-test (dev server + sayfa gezme)
+     gerektirir, körlemesine merge edilmemeli.
+   - **Tailwind 3→4 (#23):** build KIRIK — `tailwindcss` artık doğrudan
+     PostCSS plugin'i değil, ayrı `@tailwindcss/postcss` paketi + postcss
+     config güncellemesi gerekiyor (Tailwind'in kendi resmi v4 migration
+     adımı, iyi belgelenmiş).
+   - **React + react-dom (#21 + #22):** İKİSİ DE ayrı ayrı ERESOLVE
+     (peer-dependency) hatasıyla kırık — çünkü biri diğerinin bump'ını
+     bekliyor. **Muhtemel çözüm: ikisini AYNI ANDA/birlikte bir dalda
+     bump'lamak** (tek tek değil), sonra test etmek.
+   - **TypeScript 5→7 (#18):** build KIRIK ("Failed to compile", webpack
+     hatası) — muhtemelen daha katı tip kontrolü gerçek bir tip hatasını
+     yakalıyor, kod tarafında düzeltme gerektirebilir.
+   Review/merge kararı hâlâ kullanıcıda, ama artık netlik var: 3'ü bitti,
+   4'ü gerçek iş istiyor (özellikle Next 16 + React/react-dom + Tailwind 4
+   birbirini etkileyebilir, birlikte planlanmalı).
 8. ~~Hesap silme endpoint'i~~ — ✅ 19 Ağu 2026'da tamamlandı. `DELETE /account`
    (parola + checkbox onayı, owner rolü hariç, Stripe aboneliği varsa
    otomatik iptal, ilişkili tüm satırlar — sessions/token'lar/usage_log/
@@ -369,13 +390,25 @@ GERÇEKTEN bekleyen işler var:
     gözükmeli (rank'e göre). Bounded bir frontend işi (`frontend/app/admin/
     users/page.tsx`), backend değişikliği gerekmiyor (mevcut liste zaten
     tamamı çekiyor, client-side sort yeterli).
-15. **Test paketi sağlık denetimi** — 19 Ağu 2026'da kullanıcı sordu: "674
-    test" büyüklük gösterir ama tek başına sağlık göstergesi değil, atıl/
-    anlamsız/artık gerçek davranışı doğrulamayan testler birikmiş olabilir.
-    Ayrı bir oturumluk iş: test dosyalarını tarayıp (1) hâlâ var olan kodu mu
-    test ediyor, (2) mock'un kendisini mi test ediyor (gerçek davranışı
-    değil), (3) aynı şeyi tekrar tekrar mı doğruluyor gibi sorularla atıl
-    olanları temizle/birleştir.
+15. ~~Test paketi sağlık denetimi~~ — ✅ 25 Ağu 2026'da yapıldı, **sonuç: paket
+    sağlıklı, temizlik gerekmedi.** AST tabanlı bir tarama (751 test
+    fonksiyonu) 3 soruyu kontrol etti: (1) **Ölü/orphan test yok** — tüm
+    `from src....` import'ları gerçek modüllere çözülüyor (tek "hit" bir
+    paket-import false-positive'iydi, `src/adapters/analysis/__init__.py`
+    zaten var). (2) **Skip/xfail/TODO/FIXME işaretli 0 test** — birikmiş
+    atıl test borcu yok. (3) **"Mock'un kendisini test etme" şüphesi
+    incelendi:** ilk kaba tarama 62 "şüpheli" işaretledi ama bunların
+    çoğu `pytest.raises(...)`/`mock.assert_called_with(...)` gibi assert
+    OLMAYAN ama gerçek doğrulama YAPAN kalıplardı (AST'de yakalanmadı,
+    metodoloji düzeltildi). Gerçek "hiç doğrulama yok" adayı sadece 9'a
+    indi, hepsi incelendi — hepsi **bilinçli "exception fırlatmamalı"
+    testleri** (ör. `test_null_cache_delete_does_nothing`,
+    `test_broadcast_no_connections_no_send`), projenin "Exception'ları
+    yut, logla, fallback dön" felsefesiyle (bkz. KODLAMA KURALLARI) birebir
+    örtüşüyor — atıl değil, kasıtlı ve doğru. Aynı isimde birden fazla test
+    fonksiyonu taraması da sadece 1 "duplicate" buldu, o da meşru (iki farklı
+    `EmbeddingPort` adaptörünün AYNI kontratı sağladığını doğrulayan iki ayrı
+    dosyadaki aynı isimli test — kasıtlı, silinmemeli).
 14. ~~Kullanıcı banlama (moderatör/admin)~~ — ✅ 19 Ağu 2026'da tamamlandı.
     `PATCH /admin/users/{id}/active` — `update_user_role` ile birebir aynı
     kademeli yetki deseni (hedefin rolü actor'dan KESİNLİKLE düşük olmalı,
