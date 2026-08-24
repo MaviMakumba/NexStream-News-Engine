@@ -215,8 +215,8 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
 - **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest` + Dependabot (pip+npm+github-actions, haftalık) — 8 açık Dependabot PR'ı bekliyor (hepsi major-bump, review/merge kararı kullanıcıda).
 - **Branch — 24 Ağu 2026'da deploy mimarisi değişti:** PR #48 ve #47 21 Ağu 2026'da main'e merge edilmişti ama **prod hâlâ ayrı `optimize/t3-small-ram` dalından deploy ediliyordu** — karşılaştırma yapılınca o dalın PR #47'nin (arama sorgu genişletme) dosyalarını hiç içermediği ortaya çıktı (canlı site sessizce eski kalmıştı, `groq_query_expander.py` prod'da yoktu). Kullanıcı kararıyla **`optimize/t3-small-ram` emekliye ayrıldı, prod artık doğrudan `main`'den deploy ediliyor** — roadmap madde 19'un (deploy'u main'e bağlama) drift kısmı bu şekilde çözüldü (tam otomatik CI/CD tetikleyicisi hâlâ yok, deploy hâlâ elle SSM ile tetikleniyor). Sunucuda `git checkout main && git reset --hard origin/main` yapıldı, redeploy sonrası canlı bir arama isteğiyle yeni kodun çalıştığı doğrulandı (`groq_query_expander` log satırı göründü, o dosya bir önceki deploy'da yoktu). **Yeni akış: main'den kısa ömürlü feature branch aç → PR → merge → SSM'de `git checkout main && git reset --hard origin/main` → `docker compose -f docker-compose.prod.yml up --build -d`.** `optimize/t3-small-ram` dalı (yerel+uzak) siliniMEDİ, sadece kullanılmıyor — silme kararı ayrı, henüz verilmedi.
-- **Hedef:** CV/portfolio projesi → canlı ürüne geçiş (ücretsiz başla, gelir varsa harca).
-- **Kısıt:** VPS'te 7/24 bağımsız çalışıyor. **Bütçe: GERÇEKTEN $0/ay** (kalıcı kısıt) — AWS Free Plan'ın $100 kredisiyle karşılanıyor, ~$18,4'ü harcanmış (18 Ağu 2026), günlük yakım ~$0,93 (~$28/ay) → kredi mevcut hızla **Kasım 2026 ortasında** tükenir (28 Ocak 2027 son kullanma tarihinden ~2,5 ay önce) — bu tarihten önce bir karar gerekir (durdur, küçült, ya da tekrar Oracle Free dene).
+- **Hedef:** 24 Ağu 2026'da kullanıcı buzdağı fork sorusuna cevap verdi — proje **ŞİMDİLİK bilinçli olarak portfolyo** olarak kalıyor (gerçek ürüne dönüştürme kararı ertelendi, AWS kredisi tükenmeden önce tekrar gözden geçirilecek). Tek VPS mimarisi de bilinçli olarak korunuyor (çoklu-bölge/HA yatırımı YOK).
+- **Kısıt:** VPS'te 7/24 bağımsız çalışıyor. **Bütçe: GERÇEKTEN $0/ay** (kalıcı kısıt) — AWS Free Plan'ın $100 kredisiyle karşılanıyor, ~$18,4'ü harcanmış (18 Ağu 2026), günlük yakım ~$0,93 (~$28/ay) → kredi mevcut hızla **Kasım 2026 ortasında** tükenir (28 Ocak 2027 son kullanma tarihinden ~2,5 ay önce) — bu tarihten önce bir karar gerekir. **24 Ağu 2026'da AWS-sonrası alternatifler resmi kaynaklardan araştırıldı (VPS fiyat karşılaştırması):** Oracle Cloud "Always Free" artık güvenilmez hale geldi (Haziran 2026'da Ampere A1 limiti habersizce 4 OCPU/24GB'den **2 OCPU/12GB'ye düşürüldü**, limit-üstü instance'lar Ağustos 2026'dan itibaren sonlandırılıyor) — hâlâ tek $0 seçenek ama artık "kur unut" güvenilirliğinde değil, en fazla yedek. Fly.io/Render/Railway'in ücretsiz katmanları (PaaS, uyku modu/kredi kartı zorunluluğu) 16 servisli Docker Compose stack'ine uygun değil. **En iyi gerçek alternatif: Hetzner CX33** (4 vCPU/8GB RAM, ~€8.49/ay ≈ $9-10, Almanya/Finlandiya — TR'ye görece yakın), ikinci sırada Contabo aynı spec'e $6.60/ay (CPU steal-time riski var, LLM/embedder gibi CPU-yoğun işler için dalgalanabilir). RAM darsa ilk kapatılacak servisler: Prometheus/Grafana/Loki/Promtail (tek operatörlü projede opsiyonel) → Redis (zaten NullCache fallback'i var) → backup container'ı (host-cron'a taşınabilir). Şu an aksiyon YOK, sadece Kasım kararı için hazırlık.
 - **Lokal araçlar:** Node.js v24 + npm host'a kuruldu (winget). Docker Desktop, PostgreSQL 17, Git zaten kurulu.
 
 ---
@@ -230,11 +230,40 @@ GERÇEKTEN bekleyen işler var:
    tasarımı gibi duruyor" dedi (18 Ağu 2026), özellikle hero. Bilinçli olarak
    BAŞLANMADI bu oturumda — gerçek bir tasarım kararı işi, `frontend-design`
    skill'i ile ayrı/temiz bir oturumda ele alınmalı, aceleye getirilmemeli.
-2. **Gerçek Stripe entegrasyonu** — kod tarafı hazır; sadece gerçek hesap +
-   `STRIPE_*` anahtarları + `stripe listen` webhook'u + `BILLING_DEV_MODE=false`
-   gerekir. Türkiye'den hesap açılabiliyor mu belirsiz (kullanıcı kendi
-   bilgileriyle denemeli) — kabul etmezse Iyzico/PayTR gibi bir alternatif
-   kod tarafında sıfırdan yazım ister.
+2. **Gerçek Stripe entegrasyonu — 24 Ağu 2026'da kullanıcı kararıyla ERTELENDİ**
+   (şirket kurma/vergi levhası gibi ek hukuki-mali yük istemiyor). Kod tarafı
+   hazır kalıyor ama öncelik değil. **Bunun yerine gelir yolu olarak Google
+   Ads (AdSense, SADECE Free tier'da gösterilecek) değerlendiriliyor** —
+   resmi kaynaklardan araştırıldı, sonuç:
+   - **Şirketsiz/şahıs olarak mümkün** — AdSense'in kendisi şirket kaydı
+     istemiyor (Individual hesap türü yeterli, sonradan Business'a
+     değiştirilemiyor, sadece kapat-yeniden-aç).
+   - **Vergi tarafında en elverişli yol GVK mükerrer 20/B istisnası**
+     (325 seri no'lu Tebliğ, 26 Eylül 2024'te "internet üzerinden sunulan
+     hizmetler"i de kapsayacak şekilde genişletildi) — vergi dairesinden
+     (veya `digital.gib.gov.tr` Dijital Vergi Dairesi'nden) bir "istisna
+     belgesi" alıp faaliyete özel bir banka hesabı açmak yeterli, banka
+     %15 stopaj keser, gelir 2026 için 4. dilim tavanı olan **5.300.000
+     TL'yi** aşmadıkça bu stopaj NİHAİ vergidir — beyanname/fatura/şirket
+     YOK. (Şart: istisna belgesi + ayrı banka hesabı fiilen açılmalı,
+     yoksa gelir varsayılan olarak "ticari kazanç" sayılır ve şahıs/esnaf
+     mükellefiyeti + yıllık beyan gerekir.) **Fiilen başvurmadan önce bir
+     mali müşavirle NexStream'in özelinde bu istisnaya girip girmediği
+     teyit edilmeli** — araştırma resmi tebliğ metnine değil (TLS hatası
+     nedeniyle) YMM/vergi danışmanlığı kaynaklarının alıntılarına dayandı.
+   - **Asıl darboğaz vergi değil, AdSense ONAYI:** Google'ın resmi ret
+     nedenleri arasında "yeterli özgün içerik yok" ve "scraped content"
+     birebir var — NexStream'in RSS-agregatör yapısı + neredeyse sıfır
+     trafik bu riski yüksek yapıyor. **Sonuç: AdSense başvurusu gerçek
+     kullanıcı trafiği gelene kadar ERTELENMELİ**, şimdi başvurmak muhtemel
+     ret + bekleme kaybı demek. `/privacy` sayfasını çerez-kategorileri +
+     "Ads Settings" linkiyle şimdiden reklam-hazır hale getirmek (KVKK
+     Çerez Rehberi'ne göre reklam çerezleri açık rıza gerektiriyor)
+     maliyetsiz bir ön hazırlık. Telif açısından risk zaten düşük (aşağıya
+     bak) — reklam gelirinin bunu artırdığına dair bir bulgu yok.
+   - Iyzico/PayTR gibi bir alternatif ödeme sağlayıcısı hâlâ gündemde
+     DEĞİL — kullanıcı gelir yolunu reklama kaydırdı, Stripe/PayTR ikisi de
+     "gerçek ürün" fork'u netleşirse tekrar gündeme gelebilir.
 3. **Özel kaynak ekleme (custom source ingestion)** — kullanıcı kararıyla
    ŞİMDİLİK ertelendi, pricing metni "bize ulaşın" şeklinde yumuşatıldı
    (18 Ağu 2026). Tam private/per-user versiyonu gerçek bir mimari iş
@@ -260,7 +289,13 @@ GERÇEKTEN bekleyen işler var:
    otomatik iptal, ilişkili tüm satırlar — sessions/token'lar/usage_log/
    bülten aboneliği — kalıcı silinir). Frontend'de /account sayfasında
    "Tehlikeli Bölge".
-9. **Analytics/hata takibi** — yok (ör. Sentry, PostHog).
+9. **Analytics/hata takibi** — yok (ör. Sentry, PostHog). **24 Ağu 2026'da
+   kullanıcı bunu ve "gerçek kullanıcı sinyali toplama"yı onaylanan iş
+   listesine ekledi, "tek operatörlük" bir çözüm istedi** (Sentry gibi
+   kurumsal/ağır değil — GlitchTip self-host, Sentry free tier gibi hafif
+   seçenekler değerlendirilmeli). Kullanıcının onayladığı sıra: deploy
+   otomasyonu → Dependabot → test sağlığı denetimi → **hata takibi +
+   kullanıcı sinyali (bu madde)** → web push (#12) → RAG sohbet (#13).
 10. ~~Rakip taraması sonrası quick-win paketi~~ — ✅ 19 Ağu 2026'da tamamlandı
     (Ground News/Feedly/Inoreader/FreshRSS taraması, detay için scratchpad'deki
     araştırma raporuna bak). Kaydet/sonra oku (`/account/saved`, v2.2),
@@ -492,6 +527,8 @@ docker logs nexstream_chromadb --tail 20
 
 ## BİLİNEN NOTLAR
 
+- **Telif hakkı risk değerlendirmesi (24 Ağu 2026, resmi kaynaklardan araştırıldı — FSEK, EUR-Lex, 17 U.S.C.):**
+  Mevcut model (17 kaynaktan RSS `<description>` teaser'ı, tam makale metni HİÇ çekilmiyor/saklanmıyor, LLM kendi özetini üretiyor, her kart kaynağa açık link taşıyor) **DÜŞÜK risk** sayıldı. Gerekçe: FSEK madde 36/37, günlük haberlerin "kısaltılarak basın özetleri şeklinde" kaynak gösterilerek serbestçe iktibas edilmesine açıkça izin veriyor — bu tam olarak projenin yaptığı şey. **Tek somut risk noktası kaynak gösteriminin doğruluğu/yeterliliği** — FSEK m.71/3 ve 71/5 kaynak göstermeden veya yetersiz/yanlış kaynak göstererek iktibası AYRI birer suç sayıyor (6 ay-2 yıl hapis/adli para, ama m.75 gereği soruşturma sadece hak sahibinin ŞİKAYETİYLE başlıyor, resen değil) — her kartta kaynak adı+tarih+link'in doğru/görünür olduğundan emin olunmalı. AB'nin "basın yayıncıları hakkı" (2019/790 m.15) muhtemelen bizi bağlamıyor (kısa-alıntı istisnası + BBC/Guardian zaten AB üyesi değil, UK merkezli). ABD fair use tarafında da (Fox News v. TVEyes emsali) kısa-özet+zorunlu-dış-link modeli lehimize (kaynağa trafiği ENGELLEMİYOR, TVEyes'ın aksine ikame etmiyor). 2026'nın büyük telif gündemi (Anthropic'in $1.5 milyarlık model-eğitimi uzlaşması, AB'nin Google'a "AI Overviews trafik çalıyor" soruşturması) yapısal olarak bambaşka bir sorunu hedefliyor, projeye uygulanmıyor. Şirketsiz/şahıs olarak devam etmek telif sorumluluğunu artırmıyor/azaltmıyor (ayrı bir konu: vergi — bkz. YOL HARİTASI madde 2). **Somut aksiyon:** her kartta kaynak gösteriminin FSEK standardına uyduğunu teyit et, tam makale metni saklama kararına (roadmap madde 18, bilinçli ertelendi) SADIK kal — o satıra geçilirse risk profili kökten değişir. Basit bir takedown/itiraz e-postası (footer/`/contact`) eklemek düşük maliyetli bir güvence.
 - Groq free tier: 14.400 req/gün — production'da dikkat
 - Scraper limit: 25 haber/kaynak/çalışma
 - DB duplicate kontrolü var — aynı URL tekrar kaydedilmez
