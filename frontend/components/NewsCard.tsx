@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Article, RelatedArticle, StorySource } from "@/lib/types";
 import { SentimentBadge } from "./SentimentBadge";
 import { fetchRelated, fetchStoryCluster } from "@/lib/api";
@@ -44,6 +45,7 @@ function dedupeBySource(sources: StorySource[]): StorySource[] {
 
 export function NewsCard({ article }: { article: Article }) {
   const { lang } = useSettings();
+  const router = useRouter();
   const { user } = useAuth();
   const { isSaved, toggleSaved } = useSavedArticles();
   const t = UI[lang];
@@ -205,18 +207,22 @@ export function NewsCard({ article }: { article: Article }) {
         </p>
       )}
 
-      {/* Entity chips */}
+      {/* Entity chips — tıklayınca arama sayfasına gider (TrendingPills'in
+          kullandığı aynı router.push deseni, 25 Ağu 2026). */}
       {entities.length > 0 && (
         <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 5 }}>
           {entities.map((e) => (
-            <span key={e} className="badge" style={{
+            <button key={e} type="button"
+                    onClick={() => router.push(`/dashboard/search?q=${encodeURIComponent(e)}`)}
+                    className="badge" style={{
               background: "var(--accent-soft)",
               color: "var(--accent)",
               borderColor: "var(--accent-line)",
               fontSize: "0.68rem",
+              fontFamily: "inherit", margin: 0, cursor: "pointer",
             }}>
               {e}
-            </span>
+            </button>
           ))}
         </div>
       )}
