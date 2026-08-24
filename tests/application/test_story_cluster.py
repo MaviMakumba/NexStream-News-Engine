@@ -14,11 +14,16 @@ def _service(search_repository=None):
 
 
 def test_story_cluster_returns_sources_from_search_repository():
+    from src.domain.models.article import Article
+
     search_repo = MagicMock()
     search_repo.find_similar.return_value = [
         {"id": 2, "title": "Başka kaynak", "source": "TRT", "url": "u2", "score": 0.81},
     ]
-    service, _ = _service(search_repo)
+    service, repo = _service(search_repo)
+    # entities=None → hedefin ayırt edici entity'si yok, semantik doğrulama atlanır
+    # (bkz. test_story_cluster_keeps_semantic_matches_when_target_has_no_entities)
+    repo.get_article_by_id.return_value = Article(id=1, title="t", source="X", url="u1", content="c", entities=None)
 
     result = service.get_story_cluster(1, limit=6)
 
@@ -80,9 +85,94 @@ def test_story_cluster_merges_semantic_and_entity_overlap_without_duplicates():
                                 content="c", entities=two_entities)
     repo.get_article_by_id.return_value = target
     repo.get_recent_articles_with_entities.return_value = [same_as_semantic]
+    repo.get_articles_by_ids.return_value = [same_as_semantic]  # semantik doğrulama bu id'yi çeker
 
     service = NewsService(repository=repo, analyzer=MagicMock(), search_repository=search_repo)
     result = service.get_story_cluster(1, limit=6)
 
     assert len(result["sources"]) == 1
     assert result["sources"][0]["title"] == "Aynı makale (semantik)"  # semantik veri kazandı
+
+
+# ── Semantik eşleşmelerin entity doğrulaması (24 Ağu 2026'da canlıda bulundu) ─
+# Kısa/kalıplaşmış haber şablonlarında ("X'de orman yangını çıktı") embedding
+# benzerliği FARKLI gerçek olayları aynı "story" sayabiliyordu. Canlıda: Ankara'daki
+# bir yangın haberi, Kaş/Kemer/Bursa/Uludağ'daki alakasız yangınlarla (hiçbir entity
+# paylaşmadıkları halde) skor 0.72-0.92 arasında eşleşti.
+
+def test_story_cluster_filters_semantic_matches_without_entity_overlap():
+    """Semantik eşleşme hedefle HİÇ entity paylaşmıyorsa (farklı gerçek olay,
+    sadece kalıp-cümle benzerliği) elenir."""
+    from src.domain.models.article import Article
+
+    search_repo = MagicMock()
+    search_repo.find_similar.return_value = [
+        {"id": 2, "title": "Alakasız başka bir yangın", "source": "TRT", "url": "u2", "score": 0.81},
+    ]
+
+    repo = MagicMock()
+    target = Article(id=1, title="Ankara'da yangın", source="BBC", url="u1", content="c",
+                      entities={"persons": [], "organizations": ["Ankara Valiliği"], "locations": ["Ankara", "Mamak"]})
+    unrelated = Article(id=2, title="Alakasız başka bir yangın", source="TRT", url="u2", content="c",
+                         entities={"persons": [], "organizations": [], "locations": ["Bursa"]})
+    repo.get_article_by_id.return_value = target
+    repo.get_recent_articles_with_entities.return_value = []
+    repo.get_articles_by_ids.return_value = [unrelated]
+
+    service = NewsService(repository=repo, analyzer=MagicMock(), search_repository=search_repo)
+    result = service.get_story_cluster(1, limit=6)
+
+    assert result["sources"] == []
+
+
+def test_story_cluster_keeps_semantic_matches_with_entity_overlap():
+    """Semantik eşleşme hedefle en az bir ayırt edici entity paylaşıyorsa
+    (farklı kelimelerle anlatılan AYNI olay) korunur."""
+    from src.domain.models.article import Article
+
+    search_repo = MagicMock()
+    search_repo.find_similar.return_value = [
+        {"id": 2, "title": "Farklı kelimelerle aynı yangın", "source": "TRT", "url": "u2", "score": 0.91},
+    ]
+
+    repo = MagicMock()
+    target = Article(id=1, title="Ankara'da yangın", source="BBC", url="u1", content="c",
+                      entities={"persons": [], "organizations": ["Ankara Valiliği"], "locations": ["Ankara", "Mamak"]})
+    same_event = Article(id=2, title="Farklı kelimelerle aynı yangın", source="TRT", url="u2", content="c",
+                          entities={"persons": [], "organizations": ["Ankara Valiliği"], "locations": ["Ankara", "Mamak"]})
+    repo.get_article_by_id.return_value = target
+    repo.get_recent_articles_with_entities.return_value = []
+    repo.get_articles_by_ids.return_value = [same_event]
+
+    service = NewsService(repository=repo, analyzer=MagicMock(), search_repository=search_repo)
+    result = service.get_story_cluster(1, limit=6)
+
+    assert result["sources"] == [
+        {"id": 2, "title": "Farklı kelimelerle aynı yangın", "source": "TRT", "url": "u2", "score": 0.91},
+    ]
+
+
+def test_story_cluster_keeps_semantic_matches_when_target_has_no_entities():
+    """Hedefin hiç ayırt edici entity'si yoksa (ör. NER hiçbir şey çıkaramadı)
+    semantik doğrulama atlanır — hepsini elemek, hiç doğrulayamamaktan daha
+    kötü bir varsayılan olurdu. Gereksiz `get_articles_by_ids` sorgusu da atılmamalı."""
+    from src.domain.models.article import Article
+
+    search_repo = MagicMock()
+    search_repo.find_similar.return_value = [
+        {"id": 2, "title": "Bir eşleşme", "source": "TRT", "url": "u2", "score": 0.81},
+    ]
+
+    repo = MagicMock()
+    target = Article(id=1, title="Entity'siz haber", source="BBC", url="u1", content="c",
+                      entities={"persons": [], "organizations": [], "locations": []})
+    repo.get_article_by_id.return_value = target
+    repo.get_recent_articles_with_entities.return_value = []
+
+    service = NewsService(repository=repo, analyzer=MagicMock(), search_repository=search_repo)
+    result = service.get_story_cluster(1, limit=6)
+
+    assert result["sources"] == [
+        {"id": 2, "title": "Bir eşleşme", "source": "TRT", "url": "u2", "score": 0.81},
+    ]
+    repo.get_articles_by_ids.assert_not_called()
