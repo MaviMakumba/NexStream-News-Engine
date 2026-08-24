@@ -26,6 +26,22 @@ function corroborationText(count: number, lang: "TR" | "EN"): string {
   return `${count} source${count === 1 ? "" : "s"} confirm`;
 }
 
+// "Kaynaklar" panelini kaynak ADINA göre tekilleştirir (24 Ağu 2026, kullanıcı
+// geri bildirimi: panel İlgili Haberler'in bir kopyası gibi duruyordu). Aynı
+// kaynaktan birden fazla makale eşleşirse (semantik + entity-overlap birleşimi)
+// sadece EN YÜKSEK skorlu olan gösterilir — backend zaten skora göre azalan
+// sıralı döndürüyor, o yüzden ilk görülen kazanır.
+function dedupeBySource(sources: StorySource[]): StorySource[] {
+  const seen = new Set<string>();
+  const result: StorySource[] = [];
+  for (const s of sources) {
+    if (seen.has(s.source)) continue;
+    seen.add(s.source);
+    result.push(s);
+  }
+  return result;
+}
+
 export function NewsCard({ article }: { article: Article }) {
   const { lang } = useSettings();
   const { user } = useAuth();
@@ -316,7 +332,11 @@ export function NewsCard({ article }: { article: Article }) {
         </div>
       )}
 
-      {/* Story cluster — "bu haberi kim nasıl anlatıyor" (v2.2) */}
+      {/* Story cluster — "bu haberi kim nasıl anlatıyor" (v2.2). 24 Ağu 2026'da
+          tam makale kartı listesinden kaynak-adı rozetlerine (pill) çevrildi —
+          eski hali İlgili Haberler panelinin görsel bir kopyası gibi duruyordu.
+          Her pill hâlâ o kaynaktaki spesifik makaleye link veriyor, sadece
+          görünüm karttan pill'e indi. */}
       {sourcesOpen && (
         <div style={{ marginTop: 12, paddingTop: 4 }}>
           {sourcesError && (
@@ -326,19 +346,18 @@ export function NewsCard({ article }: { article: Article }) {
             <p style={{ fontSize: "0.8rem", color: "var(--text3)", padding: "8px 0" }}>{t.noSources}</p>
           )}
           {!sourcesError && sources && sources.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {sources.map((s) => (
-                <div key={s.id} className="card-sm" style={{ borderRadius: 10 }}>
-                  <a href={s.url} target="_blank" rel="noopener noreferrer" style={{
-                    display: "block", fontSize: "0.84rem", color: "var(--text)",
-                    fontWeight: 600, textDecoration: "none", transition: "color 0.15s", lineHeight: 1.4,
-                  }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text)")}>
-                    {s.title}
-                  </a>
-                  <span style={{ fontSize: "0.72rem", color: "var(--text3)" }}>{s.source}</span>
-                </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "4px 0" }}>
+              {dedupeBySource(sources).map((s) => (
+                <a key={s.source} href={s.url} target="_blank" rel="noopener noreferrer" title={s.title}
+                   className="badge" style={{
+                     background: "var(--accent-soft)", color: "var(--accent)",
+                     borderColor: "var(--accent-line)", fontSize: "0.72rem", textDecoration: "none",
+                     transition: "background 0.15s",
+                   }}
+                   onMouseEnter={(e) => (e.currentTarget.style.background = "var(--accent-line)")}
+                   onMouseLeave={(e) => (e.currentTarget.style.background = "var(--accent-soft)")}>
+                  {s.source}
+                </a>
               ))}
             </div>
           )}
