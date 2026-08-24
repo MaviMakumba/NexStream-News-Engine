@@ -110,6 +110,9 @@ services:
       - FRONTEND_URL=${FRONTEND_URL:-}
       - SESSION_COOKIE_SECURE=true
       - EMBEDDER_URL=http://embedder:8000
+      # v2.4: hata takibi — boş bırakılırsa init_sentry() no-op kalır.
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.05}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 30s
@@ -232,6 +235,9 @@ services:
       - SMTP_FROM=${SMTP_FROM:-}
       - SMTP_STARTTLS=${SMTP_STARTTLS:-true}
       - EMBEDDER_URL=http://embedder:8000
+      # v2.4: hata takibi — boş bırakılırsa init_sentry() no-op kalır.
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.05}
     deploy:
       resources:
         limits:
@@ -310,6 +316,8 @@ services:
       args:
         NEXT_PUBLIC_API_URL: /api
         NEXT_PUBLIC_SITE_URL: https://nexstreamnewsengine.duckdns.org
+        NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+        NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
     container_name: nexstream_frontend
     restart: always
     depends_on:

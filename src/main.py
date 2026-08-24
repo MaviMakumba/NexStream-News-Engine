@@ -25,6 +25,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from src.infrastructure.config.database import engine, Base, SessionLocal
 from src.infrastructure.config.settings import settings
 from src.infrastructure.logging.logger import setup_logging
+from src.infrastructure.observability.sentry import init_sentry
 from src.adapters.api.limiter import limiter
 from src.adapters.api.routers import news_router, health_router
 from src.adapters.api.routers.websocket_router import router as ws_router
@@ -44,6 +45,7 @@ from src.adapters.scheduling.retention_job import run_retention_job
 from src.dependencies import set_message_publisher, get_search_repository, set_notifier
 
 setup_logging()
+init_sentry("app")
 log = logging.getLogger(__name__)
 
 # Dev ortamında tabloları otomatik oluşturur; prod'da migrations/ script'leri esastır.

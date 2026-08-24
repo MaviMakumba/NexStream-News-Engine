@@ -20,7 +20,7 @@ export interface LegalPage {
 export const PRIVACY_POLICY: Record<Lang, LegalPage> = {
   TR: {
     title: "Gizlilik Politikası",
-    updated: "Son güncelleme: Temmuz 2026",
+    updated: "Son güncelleme: Ağustos 2026",
     disclaimer:
       "⚠ Bu sayfa bir başlangıç şablonudur — gerçek yayın öncesi mutlaka bir hukuk danışmanı tarafından incelenmelidir. Bağlayıcı bir hukuki belge değildir.",
     sections: [
@@ -32,7 +32,7 @@ export const PRIVACY_POLICY: Record<Lang, LegalPage> = {
       {
         heading: "Üçüncü taraf hizmet sağlayıcılar",
         body:
-          "Haber analizi için Groq'un yapay zeka API'sini kullanıyoruz (yalnızca kazınan haber metinleri işlenir, kişisel verileriniz gönderilmez). Şifre sıfırlama ve bülten e-postaları Resend üzerinden gönderilir. Ödeme işlemleri (ücretli planlar) Stripe üzerinden yürütülür; kart bilgileriniz bizim sunucularımıza hiç ulaşmaz.",
+          "Haber analizi için Groq'un yapay zeka API'sini kullanıyoruz (yalnızca kazınan haber metinleri işlenir, kişisel verileriniz gönderilmez). Şifre sıfırlama ve bülten e-postaları Resend üzerinden gönderilir. Ödeme işlemleri (ücretli planlar) Stripe üzerinden yürütülür; kart bilgileriniz bizim sunucularımıza hiç ulaşmaz. Hizmeti iyileştirmek için (yapılandırıldığında) Sentry hata takibi ve PostHog kullanım analitiği kullanılabilir — ikisi de reklam amaçlı DEĞİL, teknik hata ayıklama ve hangi özelliklerin kullanıldığını anlamak içindir.",
       },
       {
         heading: "Verilerinizi nasıl kullanıyoruz?",
@@ -47,13 +47,13 @@ export const PRIVACY_POLICY: Record<Lang, LegalPage> = {
       {
         heading: "Çerezler",
         body:
-          "Yalnızca oturumunuzu sürdürmek için zorunlu bir çerez (nxs_session) ve tema/dil tercihiniz için tarayıcınızın yerel depolamasını (localStorage) kullanıyoruz. Takip veya reklam amaçlı çerez kullanılmıyor.",
+          "Oturumunuzu sürdürmek için zorunlu bir çerez (nxs_session) ve tema/dil tercihiniz için tarayıcınızın yerel depolamasını (localStorage) kullanıyoruz. Kullanım analitiği (PostHog) yapılandırıldığında sayfa gezinmeleri gibi anonim kullanım verileri de toplanabilir — reklam amaçlı çerez şu an KULLANILMIYOR, ileride eklenirse bu sayfa önceden güncellenir ve gerekli açık rıza mekanizması eklenir.",
       },
     ],
   },
   EN: {
     title: "Privacy Policy",
-    updated: "Last updated: July 2026",
+    updated: "Last updated: August 2026",
     disclaimer:
       "⚠ This page is a starter template — it must be reviewed by legal counsel before real public launch. It is not a binding legal document.",
     sections: [
@@ -65,7 +65,7 @@ export const PRIVACY_POLICY: Record<Lang, LegalPage> = {
       {
         heading: "Third-party service providers",
         body:
-          "We use Groq's AI API for news analysis (only scraped article text is processed, never your personal data). Password-reset and digest emails are sent via Resend. Payments (paid plans) are processed via Stripe; your card details never reach our servers.",
+          "We use Groq's AI API for news analysis (only scraped article text is processed, never your personal data). Password-reset and digest emails are sent via Resend. Payments (paid plans) are processed via Stripe; your card details never reach our servers. When configured, we may use Sentry for error tracking and PostHog for usage analytics to improve the service — neither is used for advertising, only for technical debugging and understanding which features are used.",
       },
       {
         heading: "How we use your data",
@@ -80,7 +80,7 @@ export const PRIVACY_POLICY: Record<Lang, LegalPage> = {
       {
         heading: "Cookies",
         body:
-          "We only use one essential cookie to keep you signed in (nxs_session) and your browser's local storage for your theme/language preference. No tracking or advertising cookies are used.",
+          "We use one essential cookie to keep you signed in (nxs_session) and your browser's local storage for your theme/language preference. When usage analytics (PostHog) is configured, anonymous usage data such as page views may also be collected — advertising cookies are NOT currently used; if that changes, this page will be updated in advance with the appropriate consent mechanism.",
       },
     ],
   },
@@ -89,7 +89,7 @@ export const PRIVACY_POLICY: Record<Lang, LegalPage> = {
 export const TERMS_OF_SERVICE: Record<Lang, LegalPage> = {
   TR: {
     title: "Kullanım Şartları",
-    updated: "Son güncelleme: Temmuz 2026",
+    updated: "Son güncelleme: Ağustos 2026",
     disclaimer:
       "⚠ Bu sayfa bir başlangıç şablonudur — gerçek yayın öncesi mutlaka bir hukuk danışmanı tarafından incelenmelidir. Bağlayıcı bir hukuki belge değildir.",
     sections: [
@@ -122,7 +122,7 @@ export const TERMS_OF_SERVICE: Record<Lang, LegalPage> = {
   },
   EN: {
     title: "Terms of Service",
-    updated: "Last updated: July 2026",
+    updated: "Last updated: August 2026",
     disclaimer:
       "⚠ This page is a starter template — it must be reviewed by legal counsel before real public launch. It is not a binding legal document.",
     sections: [

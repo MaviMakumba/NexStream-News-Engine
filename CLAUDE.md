@@ -209,7 +209,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 ## MEVCUT DURUM
 
 - **Versiyon:** v2.3 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 24 Ağustos 2026, commit `4828495` = `main` HEAD, PR #49+#50 dahil — bkz. "Branch" notu aşağıda: deploy artık doğrudan main'den yapılıyor). İlk canlıya çıkış: 29 Temmuz 2026.
-- **Test sayısı:** 751 test, hepsi yeşil (backend, 24 Ağu 2026 — kaynaklar/corroboration/İlgili Haberler'deki jenerik-entity skorlama düzeltmeleri +7 test); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
+- **Test sayısı:** 754 test, hepsi yeşil (backend, 25 Ağu 2026 — `init_sentry()` için +3 test); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
 - **Frontend:** Next.js 14 + React. 10 sinematik tema (varsayılan artık `day` — sıcak/aydınlık, `night` onun koyu kardeşi, `matrix` seçilebilir kaldı), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
@@ -325,13 +325,37 @@ GERÇEKTEN bekleyen işler var:
    otomatik iptal, ilişkili tüm satırlar — sessions/token'lar/usage_log/
    bülten aboneliği — kalıcı silinir). Frontend'de /account sayfasında
    "Tehlikeli Bölge".
-9. **Analytics/hata takibi** — yok (ör. Sentry, PostHog). **24 Ağu 2026'da
-   kullanıcı bunu ve "gerçek kullanıcı sinyali toplama"yı onaylanan iş
-   listesine ekledi, "tek operatörlük" bir çözüm istedi** (Sentry gibi
-   kurumsal/ağır değil — GlitchTip self-host, Sentry free tier gibi hafif
-   seçenekler değerlendirilmeli). Kullanıcının onayladığı sıra: deploy
-   otomasyonu → Dependabot → test sağlığı denetimi → **hata takibi +
-   kullanıcı sinyali (bu madde)** → web push (#12) → RAG sohbet (#13).
+9. ~~Analytics/hata takibi~~ — ✅ **kod tarafı 25 Ağu 2026'da tamamlandı,
+   AKTİVASYON (gerçek DSN/API key) bekliyor.** Her ikisi de SaaS ücretsiz
+   katman — VPS'e yeni bir servis/RAM eklemiyor (RAM zaten dar, self-host
+   GlitchTip/Umami gibi seçenekler bilinçli olarak elendi):
+   - **Sentry (hata takibi):** `src/infrastructure/observability/sentry.py::init_sentry()`
+     — `app` ve `worker` her ikisinde de çağrılıyor, `SENTRY_DSN` boşsa tamamen
+     no-op (diğer opsiyonel entegrasyonlarla — Redis/HuggingFace/Resend — aynı
+     desen), kurulum kendi içinde try/except'li (asla açılışı engellemez).
+     3 yeni test.
+   - **PostHog (kullanıcı sinyali/analytics):** `frontend/components/AnalyticsProvider.tsx`
+     — `NEXT_PUBLIC_POSTHOG_KEY` boşsa no-op, doluysa App Router pageview'larını
+     `usePathname` ile elle gönderir (`useSearchParams` DEĞİL — Suspense
+     gerektirir), autocapture açık (tıklamalar otomatik yakalanır).
+   - `docker-compose.prod.yml` + `frontend/Dockerfile`'a env var'lar eklendi
+     (aşağıdaki BİLİNEN NOTLAR'da tam liste). `/privacy` sayfası (TR+EN)
+     güncellendi — eskiden "takip/reklam çerezi kullanılmıyor" diye KESİN bir
+     iddiası vardı, bu artık yanlış olurdu; PostHog/Sentry'nin varlığı ve
+     reklam amaçlı KULLANILMADIĞI açıkça belirtildi.
+   - **Sonraki adım (kullanıcı aksiyonu gerekiyor):** gerçek bir Sentry +
+     PostHog hesabı açıp `SENTRY_DSN`/`NEXT_PUBLIC_POSTHOG_KEY`'i prod `.env`'e
+     eklemek — kod hazır, aktivasyon sadece config. **Frontend Sentry (Next.js
+     SDK, kaynak haritası/build-config entegrasyonu) bilinçli olarak
+     YAPILMADI** — gerçek hesap açılmadan `@sentry/nextjs` kurulum sihirbazı
+     zaten interaktif çalışmıyor, ayrıca `next.config.js`'e dokunup build'i
+     kırma riski taşıyordu; backend zaten kapsıyor, frontend hata takibi
+     küçük bir takip işi olarak kalsın.
+   - **Ayrıca fark edilen küçük bir eksik (henüz yapılmadı):** `/privacy` ve
+     `/terms`'te "bizimle iletişime geçin" deniyor ama gerçek bir iletişim
+     kanalı (e-posta/`/contact` sayfası) YOK — telif itiraz/takedown süreci
+     için de faydalı olurdu (bkz. BİLİNEN NOTLAR'daki telif değerlendirmesi).
+     Küçük, bağımsız bir sonraki iş.
 10. ~~Rakip taraması sonrası quick-win paketi~~ — ✅ 19 Ağu 2026'da tamamlandı
     (Ground News/Feedly/Inoreader/FreshRSS taraması, detay için scratchpad'deki
     araştırma raporuna bak). Kaydet/sonra oku (`/account/saved`, v2.2),
@@ -626,7 +650,7 @@ docker logs nexstream_chromadb --tail 20
 - **slowapi + çoklu worker gotcha'sı (19 Ağu 2026 güvenlik denetiminde bulundu):** prod `uvicorn --workers 2` ile çalışıyor; `limiter.py`'de `storage_uri` set edilmezse slowapi varsayılan olarak in-memory sayaç kullanır ve HER worker kendi ayrı sayacını tutar — kodda `"15/minute"` yazsa da istekler worker'lara round-robin dağıldığı için limit fiilen ~2 katına kadar gevşer (canlıda art arda 18 login denemesiyle doğrulandı, hiç 429 gelmedi). Çözüldü: `limiter = Limiter(..., storage_uri=REDIS_URL, in_memory_fallback_enabled=True)` — zaten cache için kurulu Redis'i paylaşıyor. **REDIS_URL prod'dan kaldırılırsa rate limit sessizce ~2x gevşer, hata vermez** — bunu unutma.
 - **`nexstream-deploy` IAM kullanıcısı artık AdministratorAccess DEĞİL (19 Ağu 2026 güvenlik denetimi):** `NexStreamDeployMinimal` policy'sine scope'landı — sadece EC2 describe/start/stop/reboot + SSM SendCommand/GetCommandInvocation/DescribeInstanceInformation, hepsi `i-0608c897a3d8ca3f3` ile sınırlı (DEPLOY.md'de belgelenen gerçek kullanım). Bunun dışında bir AWS eylemi (S3, IAM, RDS, Budgets dahil — `aws budgets describe-budgets` bile artık 403 verir) gerekirse bu kimlikle YAPILAMAZ, kullanıcıya sor (geçici AdministratorAccess ya da Console). Kendi IAM policy'sini bile artık düzenleyemiyor (`iam:CreatePolicyVersion` yok) — kasıtlı.
 - **v1.12 öncesi durum taraması (bu session'da yapıldı):** Responsive/erişilebilirlik/SEO/tema-performans-profili maddelerinin hiçbiri henüz başlamadı; sadece dashboard sayfasında kısmi bir skeleton-loading deseni var (diğer sayfalarla tutarsız). Yeni bir session bu maddelere başlarken sıfırdan tasarlamalı.
-- **v1.11 sonrası yeni env var'lar:** `FRONTEND_URL` (boş — prod'da gerçek domain ile set edilmeli, şifre sıfırlama linki için), `PASSWORD_RESET_TTL_MINUTES` (60), `SEARCH_RECENCY_DECAY_FLOOR` (0.5), `SEARCH_RECENCY_WINDOW_DAYS` (30), `CHROMA_RETENTION_DAYS` (90 — 0 kapatır), `DB_RETENTION_DAYS` (0 — kapalı, açarsan Postgres'ten KALICI siler), `RETENTION_HOUR_UTC` (4), `EMAIL_VERIFICATION_TTL_MINUTES` (1440 — v1.15, e-posta doğrulama linki geçerlilik süresi), `EXPORT_MAX_ROWS` (20000 — v1.16, ham veri export üst satır sınırı), `WS_MAX_CONNECTIONS_PER_USER` (5 — v1.18, `/ws/feed` per-user tavan), `WS_MAX_TOTAL_CONNECTIONS` (500 — v1.18, `/ws/feed` global tavan), **v2.0 embedder ayarları:** `EMBEDDER_MODE` (`http` — `local` sadece Docker'sız geliştirme), `EMBEDDER_URL` (`http://embedder:8000`), `EMBEDDER_MODEL_NAME` (`paraphrase-multilingual-MiniLM-L12-v2`), `EMBEDDER_CONNECT_TIMEOUT` (2.0), `EMBEDDER_READ_TIMEOUT` (5.0), `EMBEDDER_BATCH_READ_TIMEOUT` (30.0), `EMBEDDER_RETRIES` (1), **v2.1 owner rolü + gerçek e-posta:** `OWNER_EMAILS` (boş — virgülle ayrılmış, DB'ye dokunmadan owner sayılır, tek kaynak bu env veya elle yazılan `role='owner'`), `EMAIL_PROVIDER` (`auto` — `smtp`/`resend`/`console` ile zorlanabilir), `SMTP_HOST` (`smtp.gmail.com`), `SMTP_PORT` (587), `SMTP_USER`/`SMTP_PASSWORD` (Gmail app password — normal login şifresi DEĞİL), `SMTP_FROM` (boşsa `EMAIL_FROM` kullanılır), `SMTP_STARTTLS` (`true`), `SEARCH_QUERY_EXPANSION_ENABLED` (`true` — v2.2, arama sorgu genişletme açık/kapalı anahtarı).
+- **v1.11 sonrası yeni env var'lar:** `FRONTEND_URL` (boş — prod'da gerçek domain ile set edilmeli, şifre sıfırlama linki için), `PASSWORD_RESET_TTL_MINUTES` (60), `SEARCH_RECENCY_DECAY_FLOOR` (0.5), `SEARCH_RECENCY_WINDOW_DAYS` (30), `CHROMA_RETENTION_DAYS` (90 — 0 kapatır), `DB_RETENTION_DAYS` (0 — kapalı, açarsan Postgres'ten KALICI siler), `RETENTION_HOUR_UTC` (4), `EMAIL_VERIFICATION_TTL_MINUTES` (1440 — v1.15, e-posta doğrulama linki geçerlilik süresi), `EXPORT_MAX_ROWS` (20000 — v1.16, ham veri export üst satır sınırı), `WS_MAX_CONNECTIONS_PER_USER` (5 — v1.18, `/ws/feed` per-user tavan), `WS_MAX_TOTAL_CONNECTIONS` (500 — v1.18, `/ws/feed` global tavan), **v2.0 embedder ayarları:** `EMBEDDER_MODE` (`http` — `local` sadece Docker'sız geliştirme), `EMBEDDER_URL` (`http://embedder:8000`), `EMBEDDER_MODEL_NAME` (`paraphrase-multilingual-MiniLM-L12-v2`), `EMBEDDER_CONNECT_TIMEOUT` (2.0), `EMBEDDER_READ_TIMEOUT` (5.0), `EMBEDDER_BATCH_READ_TIMEOUT` (30.0), `EMBEDDER_RETRIES` (1), **v2.1 owner rolü + gerçek e-posta:** `OWNER_EMAILS` (boş — virgülle ayrılmış, DB'ye dokunmadan owner sayılır, tek kaynak bu env veya elle yazılan `role='owner'`), `EMAIL_PROVIDER` (`auto` — `smtp`/`resend`/`console` ile zorlanabilir), `SMTP_HOST` (`smtp.gmail.com`), `SMTP_PORT` (587), `SMTP_USER`/`SMTP_PASSWORD` (Gmail app password — normal login şifresi DEĞİL), `SMTP_FROM` (boşsa `EMAIL_FROM` kullanılır), `SMTP_STARTTLS` (`true`), `SEARCH_QUERY_EXPANSION_ENABLED` (`true` — v2.2, arama sorgu genişletme açık/kapalı anahtarı), **v2.4 hata takibi/analytics (tek-operatörlük, 25 Ağu 2026):** `SENTRY_DSN` (boş — doluysa `app`+`worker` her ikisi de `init_sentry()` ile ayrı `server_name` etiketiyle Sentry'ye event gönderir, boşsa kod Sentry'nin varlığından habersiz), `SENTRY_TRACES_SAMPLE_RATE` (0.05), `NEXT_PUBLIC_POSTHOG_KEY` (boş — frontend build-time ARG, doluysa `AnalyticsProvider` PostHog'u başlatır, App Router pageview'larını `usePathname` ile elle gönderir), `NEXT_PUBLIC_POSTHOG_HOST` (`https://us.i.posthog.com`).
 - **v2.0 nginx dersi:** nginx `upstream` bloklarını AÇILIŞTA çözer — tek bir upstream host'u ayakta değilse `[emerg] host not found in upstream` ile nginx HİÇ açılmaz ve API dahil bütün site çöker (28 Tem 2026'da grafana durdurulunca yaşandı). **Opsiyonel/ikincil upstream'ler değişkenli `proxy_pass` + `resolver 127.0.0.11` ile lazy çözümlenmeli** (grafana için yapıldı, prod ve dev conf'larda). `app`/`frontend` bilinçli olarak upstream bloğu olarak bırakıldı — onlar zaten zorunlu.
 - **v2.0 Next.js standalone dersi:** Docker her container'a otomatik `HOSTNAME=<container-id>` koyar; Next.js standalone `server.js` buna bind eder ve o isim TEK bir ağ arayüzüne çözülür. Container iki ağdaysa (frontend + backend) nginx diğer ağdan ulaşamaz → **her temiz deploy'da 502**. `frontend/Dockerfile`'da `ENV HOSTNAME=0.0.0.0` şart. Log'daki "Network: http://0.0.0.0:3000" satırı bilgi amaçlıdır, bind adresini GÖSTERMEZ — ona bakıp teşhisi geri çekme.
 - **v2.0 ChromaDB imaj dersi:** Bu imajda `curl`/`wget`/`python`/`nc` YOK, sadece `bash` var — healthcheck HTTP yoklamasını `/dev/tcp` ile elle kurmak zorunda (`exec 3<>/dev/tcp/localhost/8000 && printf "GET /api/v2/heartbeat HTTP/1.0\r\n\r\n" >&3 && head -1 <&3 | grep -q 200`). `/api/v1` yolu chroma 1.x'te kaldırıldı, `/api/v2` kullan.
