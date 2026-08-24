@@ -29,5 +29,5 @@ prometheus-fastapi-instrumentator==8.0.2
 feedgen==1.0.0
 email-validator>=2.3.0
 bcrypt>=4.0.0
-stripe>=7.0.0
+stripe>=15.5.1
 redis>=5.0.0
