@@ -208,7 +208,7 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v2.3 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 24 Ağustos 2026, commit `b0fc27b` = `main` HEAD — bkz. "Branch" notu aşağıda: deploy artık doğrudan main'den yapılıyor). İlk canlıya çıkış: 29 Temmuz 2026.
+- **Versiyon:** v2.3 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 24 Ağustos 2026, commit `4828495` = `main` HEAD, PR #49+#50 dahil — bkz. "Branch" notu aşağıda: deploy artık doğrudan main'den yapılıyor). İlk canlıya çıkış: 29 Temmuz 2026.
 - **Test sayısı:** 751 test, hepsi yeşil (backend, 24 Ağu 2026 — kaynaklar/corroboration/İlgili Haberler'deki jenerik-entity skorlama düzeltmeleri +7 test); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
 - **Frontend:** Next.js 14 + React. 10 sinematik tema (varsayılan artık `day` — sıcak/aydınlık, `night` onun koyu kardeşi, `matrix` seçilebilir kaldı), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
@@ -362,7 +362,39 @@ GERÇEKTEN bekleyen işler var:
     rozet/pill satırına çevrildi (`NewsCard.tsx`); (2) "tam çalışmıyor"
     algısının arkasında GERÇEK bir skorlama bug'ı vardı — bkz. BİLİNEN
     NOTLAR'daki "jenerik entity" maddesi. `_find_corroborating_articles`
-    düzeltildi, 2 regresyon testi eklendi (746 test yeşil).
+    düzeltildi, 2 regresyon testi eklendi (746 test yeşil). **Aynı gün içinde
+    kullanıcı "başka yerde de aynı bug olabilir mi" diye sorunca tarama
+    genişletildi, `get_related` (Pro+ ücretli özellik) VE `get_story_cluster`'ın
+    semantik tarafında da aynı bug sınıfı bulunup düzeltildi (PR #50, +7 test,
+    751 test yeşil) — detay BİLİNEN NOTLAR'da.**
+21. **Entity chip → arama (bounded, TASARIM SUNULDU, ONAY BEKLİYOR)** — kullanıcı
+    24 Ağu 2026'da önerdi: `NewsCard`'daki entity chip'lerine (persons/
+    organizations/locations rozetleri) tıklayınca `/dashboard/search?q=<isim>`'e
+    gitsin — `TrendingPills`'in zaten kullandığı AYNI navigasyon deseni
+    (`dashboard/page.tsx`'te `router.push`). Tasarım kullanıcıya sunuldu ama
+    oturum başka bir konuya (buzdağı analizi) kayınca onay/red netleşmedi —
+    sıradaki oturumun İLK işi bu olmalı (kullanıcı onaylarsa küçük bir
+    frontend değişikliği, `NewsCard.tsx`'teki `<span className="badge">`
+    entity chip'lerini `useRouter` + `router.push` çağıran bir `<button>`'a
+    çevirmek).
+22. **Stratejik "buzdağı" değerlendirmesi yapıldı (24 Ağu 2026) — sıradaki
+    oturumun gerçek ilk gündemi bu olmalı, roadmap sıralamasından ÖNCE.**
+    Kullanıcı "dünyaya bakıp rasyonel sıralasak" dedi, gerçek web araştırması
+    (SaaS PMF aşamaları, 2026'nın AI/haber-toplama hukuki iklimi) + projenin
+    tam durumu temel alınarak bir Artifact hazırlandı (kullanıcının kendi
+    Artifacts galerisinde, "Buzdağının Neresindeyiz?" başlığıyla — URL bu
+    oturumun transkriptinde). **Ortaya çıkan asıl soru roadmap'te bir madde
+    DEĞİL, bir FORK:** proje bilinçli olarak "bitmiş bir portfolyo parçası"
+    olarak mı bırakılacak, yoksa gerçekten kullanıcı bulunmaya çalışılan bir
+    ürüne mi dönüştürülecek? Cevap portfolyo ise mevcut derinlik zaten yeterli
+    (roadmap'teki küçük maddeler sırayla temizlenebilir). Cevap ürünse,
+    sıradaki iş roadmap'te bir sonraki madde DEĞİL — analytics/hata takibi
+    (madde 9, hiç başlanmadı, ölçüm olmadan hangi özelliğin işe yaradığı
+    bilinemiyor) ve gerçek kullanıcı bulma (3 kişiye siteyi kullandırıp
+    izlemek). **Ayrıca somut bir son tarih var: AWS kredisi ~Kasım 2026
+    ortasında bitiyor (bu notun yazıldığı andan ~75 gün sonra) — bu karar o
+    tarihten ÖNCE netleşmeli.** Sıradaki oturum kullanıcıya bu soruyu
+    sormalı, cevaba göre roadmap'in geri kalanını yeniden sıralamalı.
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,
