@@ -208,14 +208,13 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v2.3 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 21 Ağustos 2026, commit `e4658eb` — canlı kullanıcı testi geri bildirimi: aydınlık `day` varsayılan tema + koyu `night` teması, piyasa ticker'ı (BİST100/USD/EUR/gram altın), subagent-driven-development ile uygulandı — bkz. `docs/superpowers/specs/2026-08-21-market-ticker-design.md` + `docs/superpowers/plans/2026-08-21-market-ticker.md`). İlk canlıya çıkış: 29 Temmuz 2026.
+- **Versiyon:** v2.3 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 24 Ağustos 2026, commit `b0fc27b` = `main` HEAD — bkz. "Branch" notu aşağıda: deploy artık doğrudan main'den yapılıyor). İlk canlıya çıkış: 29 Temmuz 2026.
 - **Test sayısı:** 744 test, hepsi yeşil (backend, 21 Ağu 2026 — PR #47 arama sorgu genişletme + #48 tema/piyasa ticker'ı main'de birleştikten sonra doğrulandı); frontend `tsc --noEmit` + `next build` temiz. Paket ~22 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
 - **Frontend:** Next.js 14 + React. 10 sinematik tema (varsayılan artık `day` — sıcak/aydınlık, `night` onun koyu kardeşi, `matrix` seçilebilir kaldı), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
-- **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest` + Dependabot (pip+npm+github-actions, haftalık) — 22 açık Dependabot PR'ı bekliyor (review/merge kararı kullanıcıda).
-- **Branch:** PR #48 (`feat/v2.3-live-testing-feedback`) ve PR #47 (`feat/search-query-expansion`) 21 Ağu 2026'da main'e merge edildi (ikisi arasında sadece CLAUDE.md'de çakışma vardı, kod tarafı otomatik birleşti). Kullanılan feature dalları (yerel + uzak) ve worktree temizlendi — kalan dallar sadece `main` ve `optimize/t3-small-ram`. Prod deploy hâlâ `optimize/t3-small-ram`'dan yapılıyor — yeni işler için main'den kısa ömürlü feature branch aç, PR ile geri birleştir. Kirli bir working tree varken bile `git fetch && git switch -c <yeni-dal> origin/main` çalışır (uncommitted değişiklikleri yeni dala taşır) — dosyalar iki dal arasında çakışmıyorsa stash'e gerek yok. **21 Ağu 2026'da main merge'i BEKLEMEDEN feature branch doğrudan `optimize/t3-small-ram`'a push edilip prod redeploy edildi** (`git push origin <feature-dalı>:optimize/t3-small-ram` + SSM üzerinden `docker compose -f docker-compose.prod.yml up --build -d`).
-  **⚠️ Bu KABUL EDİLMİŞ bir teknik borç, önerilen bir desen DEĞİL:** main'i PR-merge zorunluluğu olmadan atlayıp doğrudan bir feature dalından deploy etmek code review/CI kapısını (test+lint+security-audit) by-pass eder, main'in "tek doğruluk kaynağı" olma özelliğini bozar (main üzerinden debug/hotfix yaparken canlıda çalışanla eşleşmeyebilir — "drift"), rollback'i temiz bir `git revert` yerine sunucuya manuel müdahaleye çevirir, ve başka biri main'den yeni dal açarsa optimize dalındaki canlı değişikliklerden habersiz kalır. Kabul edilebilir olduğu TEK durum izole bir staging/test sunucusuna kaynak tüketimi doğrulaması için deploy etmektir — bu proje şu an bunu YAPMIYOR, doğrudan prod'a basıyor. İdeal çözüm: deploy tetikleyicisini main merge'ine (ya da bir Git tag/release'e) bağlamak — bkz. YOL HARİTASI.
+- **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest` + Dependabot (pip+npm+github-actions, haftalık) — 8 açık Dependabot PR'ı bekliyor (hepsi major-bump, review/merge kararı kullanıcıda).
+- **Branch — 24 Ağu 2026'da deploy mimarisi değişti:** PR #48 ve #47 21 Ağu 2026'da main'e merge edilmişti ama **prod hâlâ ayrı `optimize/t3-small-ram` dalından deploy ediliyordu** — karşılaştırma yapılınca o dalın PR #47'nin (arama sorgu genişletme) dosyalarını hiç içermediği ortaya çıktı (canlı site sessizce eski kalmıştı, `groq_query_expander.py` prod'da yoktu). Kullanıcı kararıyla **`optimize/t3-small-ram` emekliye ayrıldı, prod artık doğrudan `main`'den deploy ediliyor** — roadmap madde 19'un (deploy'u main'e bağlama) drift kısmı bu şekilde çözüldü (tam otomatik CI/CD tetikleyicisi hâlâ yok, deploy hâlâ elle SSM ile tetikleniyor). Sunucuda `git checkout main && git reset --hard origin/main` yapıldı, redeploy sonrası canlı bir arama isteğiyle yeni kodun çalıştığı doğrulandı (`groq_query_expander` log satırı göründü, o dosya bir önceki deploy'da yoktu). **Yeni akış: main'den kısa ömürlü feature branch aç → PR → merge → SSM'de `git checkout main && git reset --hard origin/main` → `docker compose -f docker-compose.prod.yml up --build -d`.** `optimize/t3-small-ram` dalı (yerel+uzak) siliniMEDİ, sadece kullanılmıyor — silme kararı ayrı, henüz verilmedi.
 - **Hedef:** CV/portfolio projesi → canlı ürüne geçiş (ücretsiz başla, gelir varsa harca).
 - **Kısıt:** VPS'te 7/24 bağımsız çalışıyor. **Bütçe: GERÇEKTEN $0/ay** (kalıcı kısıt) — AWS Free Plan'ın $100 kredisiyle karşılanıyor, ~$18,4'ü harcanmış (18 Ağu 2026), günlük yakım ~$0,93 (~$28/ay) → kredi mevcut hızla **Kasım 2026 ortasında** tükenir (28 Ocak 2027 son kullanma tarihinden ~2,5 ay önce) — bu tarihten önce bir karar gerekir (durdur, küçült, ya da tekrar Oracle Free dene).
 - **Lokal araçlar:** Node.js v24 + npm host'a kuruldu (winget). Docker Desktop, PostgreSQL 17, Git zaten kurulu.
@@ -344,15 +343,18 @@ GERÇEKTEN bekleyen işler var:
     aynen sürer). `SEARCH_QUERY_EXPANSION_ENABLED` ile açık/kapalı.
     `get_news_service` DI'da `build_query_expander(get_cache())` ile bağlandı.
 
-19. **Deploy pipeline'ı main merge'ine bağla (teknik borç, 21 Ağu 2026'da netleşti)** —
-    şu an prod deploy `main`'e PR-merge zorunluluğu OLMADAN doğrudan bir feature
-    dalından (`optimize/t3-small-ram`'a push) tetikleniyor, bkz. MEVCUT DURUM
-    "Branch" notundaki uyarı. Code review/CI (test+lint+security-audit) kapısını
-    by-pass ediyor, main "tek doğruluk kaynağı" olmaktan çıkıyor, rollback git
-    revert yerine sunucuya manuel müdahale gerektiriyor. İdeal çözüm: GitHub
-    Actions'a main'e merge olunca (ya da bir tag/release'te) otomatik SSM
-    tetikleyen bir deploy job'ı eklemek — mevcut manuel "feature branch → push →
-    SSM" akışının yerini alır. Bounded bir CI/CD işi, ayrı bir oturumda ele alınmalı.
+19. ~~Deploy pipeline'ı main merge'ine bağla~~ — ✅ **kısmen** 24 Ağu 2026'da
+    çözüldü: prod artık ayrı bir dal (`optimize/t3-small-ram`) yerine doğrudan
+    `main`'den deploy ediliyor, bkz. MEVCUT DURUM "Branch" notu — drift kaynağı
+    ortadan kalktı. **Hâlâ eksik olan:** deploy tetikleyicisi otomatik değil,
+    hâlâ elle SSM ile (`git checkout main && git reset --hard origin/main` +
+    `docker compose -f docker-compose.prod.yml up --build -d`) yapılıyor —
+    main'e her merge otomatik deploy tetiklemiyor, code review/CI main merge'i
+    engellemiyor diye deploy'un kendisi de engellenmiş olmuyor (birileri main'e
+    kırık bir şey merge edip SSM'i unutursa fark edilmez). İdeal çözüm hâlâ
+    GitHub Actions'a main'e merge olunca (ya da bir tag/release'te) otomatik
+    SSM tetikleyen bir deploy job'ı eklemek. Bounded bir CI/CD işi, ayrı bir
+    oturumda ele alınmalı.
 20. **"Kaynaklar" (story cluster) UI'ının kullanışlılığı sorgulanıyor (21 Ağu 2026,
     kullanıcı canlı test geri bildirimi)** — kullanıcı "ilgili haberler butonunun
     bir benzeri gibi oldu, hem tam çalışmıyor hem de işlevsel değil" dedi; tam
