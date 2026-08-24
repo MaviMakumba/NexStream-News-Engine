@@ -526,6 +526,28 @@ class NewsService:
     def _entity_name_set(entities: Optional[dict]) -> set:
         return set(NewsService._entity_name_map(entities).keys())
 
+    def _distinguishing_entity_keys(self, article: Article, candidates: list, target_keys: Optional[set] = None) -> set:
+        """Hedefin entity'lerinden bu pencerede "ayırt edici" (jenerik OLMAYAN)
+        olanları döner — bkz. `_GENERIC_ENTITY_SOURCE_FLOOR`. Hem entity-overlap
+        corroboration'da (`_find_corroborating_articles`) HEM semantik eşleşme
+        doğrulamasında (`get_story_cluster`) kullanılan TEK ortak fonksiyon —
+        iki sinyal "ayırt edicilik"i farklı şekilde tanımlarsa yine tutarsızlık
+        garantidir (24 Ağu 2026'da canlıda bulundu, bkz. CLAUDE.md).
+
+        Bir entity ne kadar çok FARKLI kaynakta geçiyorsa o kadar az ayırt
+        edicidir (ör. "Türkiye" gibi ülke adları). `candidates` çağıran tarafından
+        geçirilir — aynı pencerenin (ör. `get_recent_articles_with_entities`)
+        birden fazla amaç için tekrar sorgulanmasını önlemek içindir.
+        """
+        target_keys = target_keys if target_keys is not None else set(self._entity_name_map(article.entities))
+        source_counts: dict = {}
+        for cand in candidates:
+            for key in self._entity_name_set(cand.entities):
+                source_counts.setdefault(key, set()).add(cand.source)
+        for key in target_keys:
+            source_counts.setdefault(key, set()).add(article.source)
+        return {k for k in target_keys if len(source_counts.get(k, ())) < _GENERIC_ENTITY_SOURCE_FLOOR}
+
     def _find_corroborating_articles(self, article: Article, hours: int = 48) -> list:
         """`_count_corroboration` ile TAM AYNI kriteri uygular ama sadece sayı değil
         gerçek (Article, skor) çiftlerini döner — skor = paylaşılan entity oranı (0,1].
@@ -539,14 +561,11 @@ class NewsService:
 
         Kriter: >=2 ortak entity, farklı kaynak, son `hours` saat İÇİNDE — AMA
         paylaşılan entity'lerden en az biri bu pencerede "ayırt edici" olmalı
-        (bkz. `_GENERIC_ENTITY_SOURCE_FLOOR`). Aksi halde sadece "Türkiye" +
+        (bkz. `_distinguishing_entity_keys`). Aksi halde sadece "Türkiye" +
         "İstanbul" gibi neredeyse HER Türkçe haberde geçen iki jenerik lokasyonu
         paylaşan iki alakasız makale (ör. bir röportaj ile bir futbol maçı)
         %100 skorla "aynı olayı anlatıyor" sayılıyordu (24 Ağu 2026'da canlıda
-        bulundu — bkz. CLAUDE.md). Ayırt edicilik, bu pencerede zaten elimizde
-        olan aday listesinden (ekstra sorgu YOK) hesaplanan kaynak-frekansıyla
-        belirlenir: bir entity ne kadar çok FARKLI kaynakta geçiyorsa o kadar
-        az ayırt edicidir.
+        bulundu — bkz. CLAUDE.md).
         """
         target_map = self._entity_name_map(article.entities)
         target_keys = set(target_map)
@@ -554,22 +573,7 @@ class NewsService:
             return []
 
         candidates = self.repository.get_recent_articles_with_entities(hours)
-
-        # Entity -> bu pencerede onu geçiren FARKLI kaynak kümesi (aynı kaynağın
-        # birden fazla makalesi bir entity'yi yapay olarak "nadir" göstermesin
-        # diye kaynak bazında sayıyoruz, makale bazında değil). Hedefin kendi
-        # kaynağı da dahil — kendi entity'lerinin frekansı da bu pencereye göre.
-        source_counts: dict = {}
-        for cand in candidates:
-            for key in self._entity_name_set(cand.entities):
-                source_counts.setdefault(key, set()).add(cand.source)
-        for key in target_keys:
-            source_counts.setdefault(key, set()).add(article.source)
-
-        distinguishing_keys = {
-            k for k in target_keys
-            if len(source_counts.get(k, ())) < _GENERIC_ENTITY_SOURCE_FLOOR
-        }
+        distinguishing_keys = self._distinguishing_entity_keys(article, candidates, target_keys)
         if not distinguishing_keys:
             # Hedefin TÜM entity'leri bu pencerede jenerikse (ör. sadece ülke/
             # şehir adı), 2 jenerik entity paylaşmak bile "aynı olay" anlamına
@@ -604,10 +608,21 @@ class NewsService:
         article.credibility_score = compute_credibility(base_credibility(article.source), corroboration)
 
     def get_related(self, article_id: int, limit: int = 5) -> dict:
-        """Entity kesişimine göre ilgili haberleri bulur (ilişki grafı).
+        """Entity kesişimine göre ilgili haberleri bulur (ilişki grafı, Pro+ özelliği).
 
         Ayrı bir ilişki tablosu YOKTUR — son 500 entity'li haber on-the-fly
         taranır, ortak entity sayısına (eşitlikte tarihe) göre sıralanır.
+
+        Paylaşılan entity'lerden EN AZ biri "ayırt edici" olmalı (bkz.
+        `_distinguishing_entity_keys` — corroboration/story-cluster ile AYNI
+        fonksiyon, aynı jenerik-entity kavramı). Bu filtre 24 Ağu 2026'da
+        eklendi: `_find_corroborating_articles`'daki jenerik-entity bug'ı
+        düzeltilirken, `get_related`'ın AYNI zayıflığı (üstelik daha hafif bir
+        eşikle — tek bir ortak entity bile yetiyordu) hiç kontrol edilmemiş
+        olduğu fark edildi. Canlı testte doğrulandı: "Ankara" paylaşan HERHANGİ
+        iki haber (bir yangın haberiyle bir futbol maçı, bir cinayet haberi,
+        bir sınav sonucu haberi...) "ilgili" sayılıyordu — bu ÜCRETLİ bir
+        özellik olduğu için etkisi corroboration'dan daha ciddiydi.
         """
         target = self.repository.get_article_by_id(article_id)
         if target is None:
@@ -618,10 +633,17 @@ class NewsService:
         if not target_keys:
             return {"article_id": article_id, "related": []}
 
+        candidates = self.repository.get_articles_with_entities(limit=500, exclude_id=article_id)
+        distinguishing = self._distinguishing_entity_keys(target, candidates, target_keys)
+        if not distinguishing:
+            # Hedefin TÜM entity'leri bu havuzda jenerikse (ör. sadece "Türkiye"),
+            # tek bir jenerik entity paylaşmak "ilgili" anlamına gelmez.
+            return {"article_id": article_id, "related": []}
+
         scored = []
-        for cand in self.repository.get_articles_with_entities(limit=500, exclude_id=article_id):
+        for cand in candidates:
             shared_keys = target_keys & self._entity_name_set(cand.entities)
-            if not shared_keys:
+            if not shared_keys or not (shared_keys & distinguishing):
                 continue
             shared_names = [target_map[k] for k in sorted(shared_keys)]
             scored.append((len(shared_keys), cand, shared_names))
@@ -656,6 +678,17 @@ class NewsService:
              "kaynak bulunamadı" gösterebiliyordu (20 Ağu 2026'da canlıda bulundu).
              Artık rozetin saydığı her kaynak panelde de garanti görünür.
 
+        Semantik sonuçlar EK OLARAK entity doğrulamasından geçer: kısa/kalıplaşmış
+        haber şablonlarında (ör. "X'de orman yangını çıktı") embedding benzerliği
+        FARKLI gerçek olayları (farklı şehirlerdeki farklı yangınlar) aynı "story"
+        sayabiliyordu — hiçbir entity paylaşmadıkları halde (24 Ağu 2026'da canlıda
+        bulundu: Ankara'daki bir yangın haberi, Kaş/Kemer/Bursa/Uludağ'daki alakasız
+        yangınlarla eşleşmişti). Hedefin en az bir ayırt edici entity'si varsa
+        (`_distinguishing_entity_keys`), semantik bir eşleşme SADECE bu entity'lerden
+        birini paylaşıyorsa kabul edilir. Hedefin hiç ayırt edici entity'si yoksa
+        (ör. NER hiçbir şey çıkaramadıysa) doğrulama atlanır — elimizde ayırt edecek
+        sinyal yoksa semantik sonucu olduğu gibi bırakmak, hepsini elemekten iyidir.
+
         `search_repository` opsiyoneldir — ChromaDB yapılandırılmamışsa sadece (2)
         çalışır, çökmez. Sonuçlar skora göre azalan sıralanır, `limit` ile kesilir.
         """
@@ -666,9 +699,23 @@ class NewsService:
             except Exception as e:
                 logger.warning("Story cluster semantik arama başarısız: %s", e)
 
-        combined: dict = {s["id"]: s for s in semantic}
-
         target = self.repository.get_article_by_id(article_id)
+
+        verified_semantic = semantic
+        if semantic and target:
+            candidates = self.repository.get_recent_articles_with_entities(48)
+            distinguishing = self._distinguishing_entity_keys(target, candidates)
+            if distinguishing:
+                semantic_entities = {
+                    a.id: self._entity_name_set(a.entities)
+                    for a in self.repository.get_articles_by_ids([s["id"] for s in semantic])
+                }
+                verified_semantic = [
+                    s for s in semantic if distinguishing & semantic_entities.get(s["id"], set())
+                ]
+
+        combined: dict = {s["id"]: s for s in verified_semantic}
+
         if target:
             for cand, score in self._find_corroborating_articles(target):
                 combined.setdefault(cand.id, {
