@@ -17,6 +17,8 @@ from src.infrastructure.logging.logger import setup_logging
 from src.infrastructure.observability.sentry import init_sentry
 from src.adapters.repositories.news_repository import NewsRepository
 from src.adapters.repositories.subscriber_repository import SubscriberRepository
+from src.adapters.repositories.push_subscription_repository import PushSubscriptionRepository
+from src.adapters.notifications.web_push_factory import build_web_push
 from src.adapters.analysis.factory import build_analyzer
 from src.adapters.scrapers.registry import SCRAPER_REGISTRY
 from src.adapters.search.chroma_search_repository import ChromaSearchRepository
@@ -52,12 +54,15 @@ async def _process(scraper):
         repo = NewsRepository(db)
         analyzer = build_analyzer()
         sub_repo = SubscriberRepository(db)
+        push_repo = PushSubscriptionRepository(db)
         service = NewsService(
             repository=repo,
             analyzer=analyzer,
             search_repository=_get_search_repo(),
             subscriber_repository=sub_repo,
             email_port=_get_email_adapter(),
+            push_repository=push_repo,
+            web_push=build_web_push(),
         )
         await service.update_news_from_source(scraper)
         loop = asyncio.get_running_loop()
