@@ -789,7 +789,7 @@ git commit -m "feat: NewsService._send_keyword_alerts push kanalıyla genişleti
 - Consumes: `PushSubscriptionRepository` (Task 1), `build_web_push()` (Task 2), `NewsService(push_repository=..., web_push=...)` (Task 3).
 - Produces: yok — bu görev bağlama/deployment, kendi başına test edilebilir bir davranış üretmiyor (proje kalıbı: kafka_consumer.py'nin kendi test dosyası yok, wiring `python -c` ile içe aktarma kontrolüyle doğrulanır).
 
-- [ ] **Step 1: `kafka_consumer.py`'yi güncelle**
+- [x] **Step 1: `kafka_consumer.py`'yi güncelle**
 
 Import bloğuna ekle (mevcut `from src.adapters.repositories.subscriber_repository import SubscriberRepository` satırının altına):
 ```python
@@ -822,12 +822,12 @@ async def _process(scraper):
         db.close()
 ```
 
-- [ ] **Step 2: Modülün hâlâ sorunsuz import edildiğini doğrula**
+- [x] **Step 2: Modülün hâlâ sorunsuz import edildiğini doğrula**
 
 Run: `venv\Scripts\python.exe -c "import src.adapters.messaging.kafka_consumer"`
 Expected: hata yok, sessizce çıkar (exit code 0)
 
-- [ ] **Step 3: `docker-compose.prod.yml`'de worker servisine VAPID env var'larını ekle**
+- [x] **Step 3: `docker-compose.prod.yml`'de worker servisine VAPID env var'larını ekle**
 
 `worker` servisinin `environment:` bloğuna (Sentry satırlarının hemen altına) ekle:
 ```yaml
@@ -838,12 +838,12 @@ Expected: hata yok, sessizce çıkar (exit code 0)
       - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:no-reply@nexstream.news}
 ```
 
-- [ ] **Step 4: Tam backend regresyonu**
+- [x] **Step 4: Tam backend regresyonu**
 
 Run: `venv\Scripts\python.exe -m pytest tests/ -v`
 Expected: 774 passed (754 mevcut + 7 Task 1 repository + 5 Task 2 adapter + 8 Task 3 keyword_alerts), hiç FAIL yok
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/adapters/messaging/kafka_consumer.py docker-compose.prod.yml
