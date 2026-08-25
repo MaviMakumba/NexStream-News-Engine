@@ -1337,17 +1337,17 @@ git commit -m "feat: frontend push toggle'ı + service worker handler'ları + i1
 - Consumes: tüm önceki task'ların birleşik hali.
 - Produces: yok — kapanış görevi.
 
-- [ ] **Step 1: Tam backend regresyonu**
+- [x] **Step 1: Tam backend regresyonu**
 
 Run: `venv\Scripts\python.exe -m pytest tests/ -v`
 Expected: 779 passed (774'ten Task 4 sonrası + 5 Task 5 account_router testi — `test_delete_account_success...` testi YENİ eklenmedi, sadece genişletildi, sayıya dahil değil), hiç FAIL yok
 
-- [ ] **Step 2: Frontend tip kontrolü + build (tekrar, tüm değişikliklerle birlikte)**
+- [x] **Step 2: Frontend tip kontrolü + build (tekrar, tüm değişikliklerle birlikte)**
 
 Run: `cd frontend; npx tsc --noEmit`
 Expected: hata yok
 
-- [ ] **Step 3: `CLAUDE.md`'yi güncelle**
+- [x] **Step 3: `CLAUDE.md`'yi güncelle**
 
 - YOL HARİTASI madde 12'yi `~~Web Push bildirimleri (breaking news)~~ — ✅ tamamlandı` olarak işaretle, kısa özet ekle (mevcut kaynak paylaşım kararı, WebPushPort isim çakışması notu).
 - MİMARİ bölümündeki `adapters/notifications/` listesine `pywebpush_adapter.py` + `web_push_factory.py` ekle, `domain/ports/` listesine `push_subscription_port.py` + `web_push_port.py` ekle.
@@ -1355,7 +1355,7 @@ Expected: hata yok
 - BİLİNEN NOTLAR'daki env var listesine `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY` ekle.
 - **Prod deploy notu ekle:** `migrations/v2_5_push_subscriptions.sql` prod'da ELLE çalıştırılmalı (dev'de `create_all` otomatik ekler, prod'da migrations/ esastır — mevcut proje kuralı).
 
-- [ ] **Step 4: Commit + PR**
+- [x] **Step 4: Commit + PR**
 
 ```bash
 git add CLAUDE.md
