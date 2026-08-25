@@ -407,6 +407,9 @@ GERÇEKTEN bekleyen işler var:
     /account/push-subscription` endpoint sahipliğini hiç doğrulamıyordu —
     düzeltildi, artık sadece `current_user.email`'e ait abonelikler
     silinebiliyor (bkz. BİLİNEN NOTLAR).
+    **25 Ağu 2026'da kullanıcı kararı: sıradaki oturumun GERÇEK ilk işi bu
+    madde DEĞİL, madde 16 (admin tablo sıralama, kısa/bounded) olmalı —
+    RAG (madde 13) büyük bir mimari tur, önce kısa iş kapatılsın.**
 13. **RAG tabanlı "bu konuda soru sor" mini sohbet** — Perplexity/Artifact
     tarzı soru-cevap; ChromaDB semantic search (embedding_port) + Groq analiz
     hattı (analysis_port) zaten var, `AnalysisPort`'a yeni bir
