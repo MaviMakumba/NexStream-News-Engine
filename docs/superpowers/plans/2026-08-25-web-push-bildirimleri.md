@@ -1063,7 +1063,7 @@ git commit -m "feat: POST/DELETE /account/push-subscription + delete_account gen
 - Consumes: `POST/DELETE /account/push-subscription` (Task 5).
 - Produces: yok — proje kararı gereği frontend'de browser-push API'lerini mock'layan birim test YOK (spec'te onaylandı, TTS özelliğiyle aynı emsal), `tsc --noEmit` + `npm run build` ile doğrulanır.
 
-- [ ] **Step 1: `lib/api.ts`'e backend çağrılarını ekle**
+- [x] **Step 1: `lib/api.ts`'e backend çağrılarını ekle**
 
 Dosyanın `// ── Bülten aboneliği` bölümünden hemen ÖNCE (yani `unsaveArticleApi`'nin altına) ekle:
 ```typescript
@@ -1084,7 +1084,7 @@ export async function unsubscribeFromPushApi(endpoint: string): Promise<void> {
 }
 ```
 
-- [ ] **Step 2: `lib/webpush.ts`'i oluştur**
+- [x] **Step 2: `lib/webpush.ts`'i oluştur**
 
 ```typescript
 // Tarayıcı push abonelik yardımcıları — Notification permission + Service
@@ -1146,7 +1146,7 @@ export async function unsubscribeFromPush(): Promise<void> {
 }
 ```
 
-- [ ] **Step 3: `i18n.ts`'e string'leri ekle**
+- [x] **Step 3: `i18n.ts`'e string'leri ekle**
 
 TR bloğunda `newsletterUnsubscribe: "Aboneliği İptal Et",` satırının hemen altına ekle:
 ```typescript
@@ -1162,7 +1162,7 @@ EN bloğunda `newsletterUnsubscribe: "Unsubscribe",` satırının hemen altına 
     pushLockedReason: "First select 'Instant alerts' above and save.",
 ```
 
-- [ ] **Step 4: `PushNotificationToggle.tsx` bileşenini oluştur**
+- [x] **Step 4: `PushNotificationToggle.tsx` bileşenini oluştur**
 
 ```tsx
 "use client";
@@ -1235,7 +1235,7 @@ export function PushNotificationToggle({
 }
 ```
 
-- [ ] **Step 5: `account/page.tsx`'e toggle'ı entegre et**
+- [x] **Step 5: `account/page.tsx`'e toggle'ı entegre et**
 
 Dosyanın en üstündeki import bloğuna ekle (`import { NewsCard } from "@/components/NewsCard";` satırının altına):
 ```typescript
@@ -1259,7 +1259,7 @@ Bülten kartındaki buton satırının kapanışından (`</div>` — mevcut sat�
           />
 ```
 
-- [ ] **Step 6: `sw.js`'e push event handler'larını ekle**
+- [x] **Step 6: `sw.js`'e push event handler'larını ekle**
 
 `frontend/public/sw.js` dosyasının SONUNA (mevcut `fetch` event listener'ının altına) ekle:
 ```javascript
@@ -1295,7 +1295,7 @@ self.addEventListener("notificationclick", (event) => {
 });
 ```
 
-- [ ] **Step 7: `Dockerfile`'a build ARG ekle**
+- [x] **Step 7: `Dockerfile`'a build ARG ekle**
 
 `frontend/Dockerfile`'da `ARG NEXT_PUBLIC_POSTHOG_HOST="https://us.i.posthog.com"` / `ENV NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST` satırlarının hemen altına, `RUN npm run build`'den ÖNCE ekle:
 ```dockerfile
@@ -1304,14 +1304,14 @@ ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY=""
 ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY
 ```
 
-- [ ] **Step 8: `docker-compose.prod.yml`'de frontend build args'a ekle**
+- [x] **Step 8: `docker-compose.prod.yml`'de frontend build args'a ekle**
 
 `frontend` servisinin `build.args` bloğuna (`NEXT_PUBLIC_POSTHOG_HOST` satırının altına) ekle:
 ```yaml
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
 ```
 
-- [ ] **Step 9: Tip kontrolü + prod build doğrulaması**
+- [x] **Step 9: Tip kontrolü + prod build doğrulaması**
 
 Run: `cd frontend; npx tsc --noEmit`
 Expected: hata yok
@@ -1319,7 +1319,7 @@ Expected: hata yok
 Run: `cd frontend; npm run build`
 Expected: build başarılı (frontend container ÇALIŞMIYORSA host'ta çalıştır — bkz. CLAUDE.md "npm run build'i frontend container ÇALIŞIRKEN host'ta ÇALIŞTIRMA" gotcha'sı, container'ı önce durdur veya sadece `tsc --noEmit` ile yetin)
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add frontend/lib/api.ts frontend/lib/webpush.ts frontend/components/PushNotificationToggle.tsx frontend/lib/i18n.ts frontend/app/account/page.tsx frontend/public/sw.js frontend/Dockerfile docker-compose.prod.yml
