@@ -218,8 +218,13 @@ services:
       # app'te vardı, worker'da unutulmuştu (25 Ağu 2026'da bulundu) — bu satır
       # olmadan Sentry event'leri yanlışlıkla "development" etiketleniyor VE
       # settings.py::_reject_unsafe_production_config guard'ı worker için hiç
-      # çalışmıyordu.
+      # çalışmıyordu. GUARD ARTIK AKTİF OLDUĞU İÇİN API_KEY/CORS_ORIGINS de
+      # gerçek değerleriyle geçilmeli (worker bunları FONKSİYONEL olarak
+      # kullanmıyor ama guard boş/wildcard görürse worker hiç açılmıyor —
+      # 25 Ağu 2026'da ilk denemede tam bu şekilde crash-loop'a girdi).
       - ENVIRONMENT=production
+      - API_KEY=${API_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS}
       - DB_HOST=db
       - DB_PORT=5432
       - DB_USER=${DB_USER}
@@ -303,7 +308,11 @@ services:
     environment:
       # worker'daki gibi — şu an davranışı etkilemiyor (scheduler init_sentry
       # çağırmıyor) ama tutarlılık için ekledik, ileride Sentry eklenirse hazır.
+      # API_KEY/CORS_ORIGINS de worker'daki AYNI sebeple (guard artık aktif,
+      # boş/wildcard görürse hiç açılmaz) gerçek değerleriyle geçiliyor.
       - ENVIRONMENT=production
+      - API_KEY=${API_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS}
       - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
       - SCRAPE_SOURCES=TRT Haber,BBC Türkçe,Hürriyet,Hürriyet Spor,Sabah,CNN Türk,Sözcü,Habertürk,HT Spor,BBC Technology,BBC Sport
     deploy:
