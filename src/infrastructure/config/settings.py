@@ -170,6 +170,15 @@ class Settings(BaseSettings):
     sentry_dsn: str = ""
     sentry_traces_sample_rate: float = 0.05
 
+    # ── Web push bildirimleri (VAPID, v2.5) ─────────────────────────────────
+    # Kriptografik anahtar çifti — 3. parti hesap gerektirmez (`npx web-push
+    # generate-vapid-keys` ile üretildi). Boşsa build_web_push() None döner,
+    # NewsService push adımını tamamen atlar (diğer opsiyonel entegrasyonlarla
+    # aynı desen: boş = devre dışı, kod hiç dokunmaz).
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "mailto:no-reply@nexstream.news"
+
     @property
     def admin_email_set(self) -> set[str]:
         """ADMIN_EMAILS değerini normalize edilmiş (küçük harf) set'e çevirir."""
