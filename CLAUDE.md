@@ -323,8 +323,10 @@ GERÇEKTEN bekleyen işler var:
    otomatik iptal, ilişkili tüm satırlar — sessions/token'lar/usage_log/
    bülten aboneliği — kalıcı silinir). Frontend'de /account sayfasında
    "Tehlikeli Bölge".
-9. ~~Analytics/hata takibi~~ — ✅ **kod tarafı 25 Ağu 2026'da tamamlandı,
-   AKTİVASYON (gerçek DSN/API key) bekliyor.** Her ikisi de SaaS ücretsiz
+9. ~~Analytics/hata takibi~~ — ✅ **TAMAMEN tamamlandı, 25 Ağu 2026'da AKTİVE
+   edildi ve canlıda doğrulandı** (Sentry hem `app` hem `worker`'da
+   `environment=production` etiketiyle event gönderiyor, PostHog EU host'a
+   bağlı, key frontend bundle'ına gömülü). Her ikisi de SaaS ücretsiz
    katman — VPS'e yeni bir servis/RAM eklemiyor (RAM zaten dar, self-host
    GlitchTip/Umami gibi seçenekler bilinçli olarak elendi):
    - **Sentry (hata takibi):** `src/infrastructure/observability/sentry.py::init_sentry()`
@@ -341,9 +343,12 @@ GERÇEKTEN bekleyen işler var:
      güncellendi — eskiden "takip/reklam çerezi kullanılmıyor" diye KESİN bir
      iddiası vardı, bu artık yanlış olurdu; PostHog/Sentry'nin varlığı ve
      reklam amaçlı KULLANILMADIĞI açıkça belirtildi.
-   - **Sonraki adım (kullanıcı aksiyonu gerekiyor):** gerçek bir Sentry +
-     PostHog hesabı açıp `SENTRY_DSN`/`NEXT_PUBLIC_POSTHOG_KEY`'i prod `.env`'e
-     eklemek — kod hazır, aktivasyon sadece config. **Frontend Sentry (Next.js
+   - **Aktivasyon 25 Ağu 2026'da tamamlandı:** kullanıcı Sentry (DE region) +
+     PostHog (EU Cloud — `us.i.posthog.com` varsayılanı **çalışmaz**, EU
+     hesapları `NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com` şart)
+     hesabı açtı, DSN/key hem lokal hem prod `.env`'e eklendi, `docker compose
+     up --build -d` ile aktive edildi (PostHog key build-time ARG olduğu için
+     frontend REBUILD gerekiyor, sadece restart yetmez). **Frontend Sentry (Next.js
      SDK, kaynak haritası/build-config entegrasyonu) bilinçli olarak
      YAPILMADI** — gerçek hesap açılmadan `@sentry/nextjs` kurulum sihirbazı
      zaten interaktif çalışmıyor, ayrıca `next.config.js`'e dokunup build'i
@@ -674,3 +679,4 @@ docker logs nexstream_chromadb --tail 20
 - **Public bir endpoint'in "cache miss" yolu pahalıysa (dış API çağrısı), sadece "cache hit" ucuz olması yetmez — negative-cache-on-failure şart (21 Ağu 2026, piyasa ticker'ı final review'da bulundu):** `GET /market/ticker` başarısızlıkta son iyi değere (`stale:true`) düşüyordu ama bu düşüşü TAZE cache anahtarına YAZMIYORDU — dış API (Yahoo) kesikken HER istek yeniden 4 senkron HTTP çağrısı deniyordu (uzun timeout × N istek = paylaşılan threadpool'u tıkama riski). Düzeltme: başarısızlıkta stale değer kısa TTL'li (60sn) olarak taze anahtara da yazılıyor, ardışık istekler cache hit'e düşüyor. Yeni bir "dış kaynağa bağımlı, cache'li, public" endpoint eklerken bu deseni varsay.
 - **🔒 21 Ağu 2026'da tüm git geçmişi mahremiyet gerekçesiyle yeniden yazıldı — `git-filter-repo` ile `main` VE `optimize/t3-small-ram`'daki her commit mesajından `Co-Authored-By: Claude...` (112 commit) ve `Claude-Session: https://claude.ai/code/...` (3 commit) satırları kaldırıldı; commit SHA'ları TÜMÜYLE değişti (tree hash'leri, yani kodun kendisi, doğrulanarak AYNI bırakıldı — sadece mesajlar temizlendi). Global `~/.claude/settings.json`'a `attribution: {commit: "", pr: "", sessionUrl: false}` eklendi, bu tarihten sonraki commit/PR'larda bu satırlar hiç oluşmayacak. 18 merge edilmiş PR'ın gövdesindeki "🤖 Generated with Claude Code" footer'ı da GitHub API üzerinden ayrıca temizlendi (git geçmişinin parçası değil, PR metadata'sı — ayrı bir işlemdi).**
   **Kalıcı sonuçlar/gotcha'lar:** (1) Rewrite'tan önce repo'yu clone/fork etmiş biri varsa onun kopyasında eski SHA'lar ve trailer'lar KALICI olarak durur, biz onu değiştiremeyiz — geriye dönük garanti veremeyiz. (2) **EC2 prod sunucusundaki `optimize/t3-small-ram` checkout'u bir sonraki SSM deploy'unda senkron OLMAYACAK** (eski SHA'lara bakıyor) — bir sonraki deploy'da normal `git pull` yerine `git fetch origin && git reset --hard origin/optimize/t3-small-ram` kullan, yoksa "diverged branches" hatası alırsın. (3) Force-push GitHub branch ruleset'i ("Main Koruma", `non_fast_forward` kuralı) tarafından normalde engellenir — geçici olarak `enforcement: disabled` yapılıp push sonrası `active`'e geri döndürüldü (`gh api -X PUT repos/.../rulesets/16758733`). (4) Açık Dependabot PR'ları (`mergeable: UNKNOWN`) rewrite öncesinde de aynı durumdaydı, rewrite'tan kaynaklı yeni bir bozulma DEĞİL. (5) Bash aracının otomatik izin sınıflandırıcısı hem `gh api` (ruleset PATCH) hem `gh pr edit`/MCP `update_pull_request` çağrılarını TUTARSIZ şekilde engelliyor — bazı çağrılar ilk denemede geçiyor, aynı türden bir sonraki çağrı engelleniyor; tek çözüm retry (kullanıcı onayı bir kez verilince kalıcı bir izin AÇILMIYOR, her çağrı ayrı değerlendiriliyor gibi görünüyor).
+- **`ENVIRONMENT=production` guard'ı (v1.17, `_reject_unsafe_production_config`) sadece HTTP-yüzeyli servise değil, `settings`'i import eden HER servise "hepsi ya da hiçbiri" uygulanır (25 Ağu 2026'da canlıda crash-loop'a yol açtı):** Sentry aktivasyonu sırasında worker/scheduler'a da `ENVIRONMENT=production` eklendi (app'te zaten vardı, worker/scheduler'da unutulmuştu) — ama guard `API_KEY`/`CORS_ORIGINS`/`SESSION_COOKIE_SECURE`/`BILLING_DEV_MODE` hepsini kontrol ediyor, worker/scheduler'ın compose bloğunda bunlardan İKİSİ (API_KEY, CORS_ORIGINS) hiç geçilmiyordu (worker/scheduler bu değerleri FONKSİYONEL olarak hiç kullanmaz, sadece `app`'in HTTP/CORS/auth yüzeyi için anlamlıdır). Sonuç: `Settings()` modül-seviyesinde import anında (`from src.infrastructure.config.settings import settings`) `ValidationError` fırlattı, worker+scheduler container'ları ~6 dakika crash-loop'ta kaldı (haber alma/analiz VE scrape tetikleme o süre boyunca durdu, `app`/frontend/site erişimi ETKİLENMEDİ). **Ders: bir servise `ENVIRONMENT=production` eklerken, guard'ın kontrol ettiği TÜM alanları (şu an 4 tanesi) o servisin compose bloğunda da gerçek değerleriyle geçirmen gerekir — servisin o değerleri kullanıp kullanmadığı ÖNEMLİ DEĞİL, guard'a görünür olmaları yeterli. Deploy sonrası `docker inspect <container> --format '{{.State.Status}}'`/`RestartCount` ile HER ZAMAN doğrula, sadece `/api/health`'e bakmak yetmez (app sağlıklı görünürken worker sessizce çökebiliyor — bkz. [[feedback_internal_network_silent_failure]] ile aynı "healthy görünüp iş yapmama" ders sınıfı).**
