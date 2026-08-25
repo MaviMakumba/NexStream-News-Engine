@@ -35,7 +35,7 @@
 **Interfaces:**
 - Produces: `PushSubscription` dataclass (`email: str, endpoint: str, p256dh: str, auth: str, id: Optional[int] = None, created_at: Optional[datetime] = None`), `PushSubscriptionRepositoryPort` (ABC: `save`, `get_by_email`, `delete_by_endpoint`, `delete_by_email`), `PushSubscriptionRepository(db: Session)` — Task 3, 5'te kullanılacak.
 
-- [ ] **Step 1: Domain model oluştur**
+- [x] **Step 1: Domain model oluştur**
 
 `src/domain/models/push_subscription.py`:
 ```python
@@ -56,7 +56,7 @@ class PushSubscription:
     created_at: Optional[datetime] = None
 ```
 
-- [ ] **Step 2: Port oluştur**
+- [x] **Step 2: Port oluştur**
 
 `src/domain/ports/push_subscription_port.py`:
 ```python
@@ -88,7 +88,7 @@ class PushSubscriptionRepositoryPort(ABC):
         """Hesap silinirken kullanıcının TÜM cihaz aboneliklerini temizler."""
 ```
 
-- [ ] **Step 3: ORM modeli ekle**
+- [x] **Step 3: ORM modeli ekle**
 
 `src/adapters/repositories/orm_models.py` dosyasının sonuna ekle:
 ```python
@@ -109,7 +109,7 @@ class PushSubscriptionORM(Base):
 ```
 (`Column`, `Integer`, `String`, `Text`, `DateTime`, `Index`, `func` zaten dosyanın en üstünde import edilmiş — yeni import gerekmiyor.)
 
-- [ ] **Step 4: Migration dosyası oluştur**
+- [x] **Step 4: Migration dosyası oluştur**
 
 `migrations/v2_5_push_subscriptions.sql`:
 ```sql
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 CREATE INDEX IF NOT EXISTS ix_push_subscriptions_email ON push_subscriptions(email);
 ```
 
-- [ ] **Step 5: Repository testlerini yaz (gerçek in-memory SQLite, mock YOK)**
+- [x] **Step 5: Repository testlerini yaz (gerçek in-memory SQLite, mock YOK)**
 
 `tests/adapters/test_push_subscription_repository.py`:
 ```python
@@ -226,12 +226,12 @@ def test_delete_by_email_removes_all_devices_for_that_email_only():
     assert len(repo.get_by_email("other@test.com")) == 1
 ```
 
-- [ ] **Step 6: Run testleri doğrula (önce FAIL etmeli — repository henüz yok)**
+- [x] **Step 6: Run testleri doğrula (önce FAIL etmeli — repository henüz yok)**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_push_subscription_repository.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'src.adapters.repositories.push_subscription_repository'`
 
-- [ ] **Step 7: Repository adaptörünü yaz**
+- [x] **Step 7: Repository adaptörünü yaz**
 
 `src/adapters/repositories/push_subscription_repository.py`:
 ```python
@@ -301,12 +301,12 @@ class PushSubscriptionRepository(PushSubscriptionRepositoryPort):
         self.db.commit()
 ```
 
-- [ ] **Step 8: Testleri tekrar çalıştır — PASS olmalı**
+- [x] **Step 8: Testleri tekrar çalıştır — PASS olmalı**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_push_subscription_repository.py -v`
 Expected: 7 passed
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/domain/models/push_subscription.py src/domain/ports/push_subscription_port.py src/adapters/repositories/push_subscription_repository.py src/adapters/repositories/orm_models.py migrations/v2_5_push_subscriptions.sql tests/adapters/test_push_subscription_repository.py
