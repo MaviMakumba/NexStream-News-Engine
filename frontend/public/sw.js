@@ -27,3 +27,36 @@ self.addEventListener("fetch", (event) => {
   if (!STATIC_ASSETS.includes(url.pathname)) return;
   event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
 });
+
+// Web push bildirimleri (v2.5) — backend PyWebPushAdapter'ın gönderdiği
+// {title, body, url} JSON payload'ını gösterir, tıklanınca ilgili haberi açar.
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch {
+    return;
+  }
+  const { title, body, url } = payload;
+  event.waitUntil(
+    self.registration.showNotification(title || "NexStream", {
+      body: body || "",
+      icon: "/icons/icon-192.png",
+      data: { url: url || "/" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsList) => {
+      for (const client of clientsList) {
+        if (client.url === targetUrl && "focus" in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+    })
+  );
+});

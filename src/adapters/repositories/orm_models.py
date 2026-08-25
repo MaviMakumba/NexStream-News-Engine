@@ -148,6 +148,22 @@ class SavedArticleORM(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class PushSubscriptionORM(Base):
+    """Tarayıcı push bildirim aboneliği — v2.5."""
+
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (
+        Index("ix_push_subscriptions_email", "email"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), nullable=False)
+    endpoint = Column(Text, unique=True, nullable=False)
+    p256dh = Column(String(255), nullable=False)
+    auth = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class SponsorORM(Base):
     __tablename__ = "sponsors"
 

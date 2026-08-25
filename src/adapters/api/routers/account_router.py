@@ -28,8 +28,10 @@ from src.adapters.api.limiter import limiter
 from src.adapters.repositories.news_repository import NewsRepository
 from src.adapters.repositories.saved_article_repository import SavedArticleRepository
 from src.adapters.repositories.subscriber_repository import SubscriberRepository
+from src.adapters.repositories.push_subscription_repository import PushSubscriptionRepository
 from src.adapters.repositories.user_repository import UserRepository
-from src.domain.models.user import User, TIER_DAILY_LIMITS
+from src.domain.models.push_subscription import PushSubscription
+from src.domain.models.user import User, TIER_DAILY_LIMITS, UserTier, tier_at_least
 from src.domain.schemas.news_schema import NewsResponse
 from src.infrastructure.config.database import get_db
 from src.infrastructure.config.settings import settings
@@ -170,6 +172,64 @@ def unsave_article(
     return {"saved": False}
 
 
+# ── Web push bildirimleri (v2.5) ────────────────────────────────────────────
+# Mevcut "Anlık Uyarılar" (instant) e-posta aboneliğinin AYNI keyword listesini
+# paylaşır — ayrı bir keyword formu yok (bkz. 2026-08-25 spec). Pro+ gating
+# _assert_instant_allowed (subscription_router.py) ile AYNI mantık.
+
+class PushKeys(BaseModel):
+    p256dh: str
+    auth: str
+
+
+class PushSubscriptionRequest(BaseModel):
+    endpoint: str
+    keys: PushKeys
+
+
+class PushUnsubscribeRequest(BaseModel):
+    endpoint: str
+
+
+@router.post("/push-subscription", status_code=201)
+@limiter.limit("10/minute")
+def create_push_subscription(
+    request: Request,
+    req: PushSubscriptionRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not tier_at_least(user_effective_tier(current_user), UserTier.PRO):
+        raise HTTPException(
+            status_code=403,
+            detail="Tarayıcı bildirimleri Pro plan gerektirir. / Push notifications require a Pro plan.",
+        )
+    sub = PushSubscription(
+        email=current_user.email, endpoint=req.endpoint,
+        p256dh=req.keys.p256dh, auth=req.keys.auth,
+    )
+    PushSubscriptionRepository(db).save(sub)
+    logger.info("Push aboneliği kaydedildi: user_id=%s", current_user.id)
+    return {"subscribed": True}
+
+
+@router.delete("/push-subscription")
+@limiter.limit("10/minute")
+def delete_push_subscription(
+    request: Request,
+    req: PushUnsubscribeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """`endpoint` sahipliği DOĞRULANIR — aksi halde bir kullanıcı başka bir
+    kullanıcının endpoint'ini tahmin edip/öğrenip silebilirdi (IDOR)."""
+    repo = PushSubscriptionRepository(db)
+    own_endpoints = {sub.endpoint for sub in repo.get_by_email(current_user.email)}
+    if req.endpoint in own_endpoints:
+        repo.delete_by_endpoint(req.endpoint)
+    return {"subscribed": False}
+
+
 # ── Hesap silme (v2.1.2) ─────────────────────────────────────────────────────
 
 class DeleteAccountRequest(BaseModel):
@@ -224,6 +284,7 @@ def delete_account(
         _cancel_active_subscriptions(current_user.stripe_customer_id)
 
     SubscriberRepository(db).delete_by_email(current_user.email)
+    PushSubscriptionRepository(db).delete_by_email(current_user.email)
     UserRepository(db).delete_user(current_user.id)
 
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")

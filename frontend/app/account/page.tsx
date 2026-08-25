@@ -14,6 +14,7 @@ import { TierBadge } from "@/components/TierBadge";
 import { AuthLoadingScreen } from "@/components/AuthLoadingScreen";
 import { EmailVerifyBanner } from "@/components/EmailVerifyBanner";
 import { NewsCard } from "@/components/NewsCard";
+import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 import {
   BASE, createCheckout, deleteAccount, devDowngrade, downloadExport, fetchBillingConfig, fetchMyNewsletter, fetchMyUsage,
   fetchSavedArticles, fetchSources, generateApiKey, getBillingPortal, revokeApiKey, saveNewsletter, unsubscribeNewsletter,
@@ -23,6 +24,7 @@ import type { NewsletterPrefs } from "@/lib/api";
 import { UI, TIER_DETAILS, TOPIC_LABELS } from "@/lib/i18n";
 
 const NEWSLETTER_TOPICS = ["Technology", "Sports", "Economy", "Politics", "Health", "Culture", "World", "Other"];
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
 export default function AccountPage() {
   const { user, isLoading, refreshUser, logout } = useAuth();
@@ -525,6 +527,15 @@ export default function AccountPage() {
               </button>
             )}
           </div>
+
+          <PushNotificationToggle
+            vapidPublicKey={VAPID_PUBLIC_KEY}
+            enabled={nlFrequency === "instant" && (user.effective_tier ?? user.tier) !== "free"}
+            lockedReason={t.pushLockedReason}
+            label={t.pushLabel}
+            subscribedLabel={t.pushSubscribedLabel}
+            errorLabel={t.pushErrorLabel}
+          />
         </div>
 
         {/* Ham veri export (v1.16, Enterprise) */}

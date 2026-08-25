@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 from src.application.services.news_service import NewsService
 from src.domain.models.article import Article
 from src.domain.models.subscriber import Subscriber
+from src.domain.models.push_subscription import PushSubscription
 
 
 def _article(title="Beşiktaş galip geldi", summary="Beşiktaş, Fenerbahçe'yi 2-1 yendi."):
@@ -124,3 +125,127 @@ def test_alert_checked_in_update_news_flow():
 
     asyncio.run(run())
     mock_sub_repo.get_active_subscribers.assert_called()
+
+
+def _push_sub(email="fan@test.com", endpoint="https://push.example.com/1"):
+    return PushSubscription(email=email, endpoint=endpoint, p256dh="k", auth="a")
+
+
+def _make_service_with_push(subscribers=None, push_subs=None, push_ok=True, web_push=True):
+    mock_repo = MagicMock()
+    mock_analyzer = MagicMock()
+    mock_sub_repo = MagicMock()
+    mock_sub_repo.get_active_subscribers.return_value = subscribers or []
+    mock_email = MagicMock()
+    mock_email.send_alert.return_value = True
+    mock_push_repo = MagicMock()
+    mock_push_repo.get_by_email.return_value = push_subs or []
+    mock_web_push = MagicMock() if web_push else None
+    if mock_web_push:
+        mock_web_push.send.return_value = push_ok
+    service = NewsService(
+        repository=mock_repo, analyzer=mock_analyzer,
+        subscriber_repository=mock_sub_repo, email_port=mock_email,
+        push_repository=mock_push_repo, web_push=mock_web_push,
+    )
+    return service, mock_email, mock_push_repo, mock_web_push
+
+
+def test_push_sent_alongside_email_when_keyword_matches():
+    sub = _instant_subscriber(["beşiktaş"])
+    service, mock_email, mock_push_repo, mock_web_push = _make_service_with_push(
+        [sub], push_subs=[_push_sub()]
+    )
+    service._send_keyword_alerts(_article("Beşiktaş şampiyon oldu"))
+
+    mock_email.send_alert.assert_called_once()
+    mock_web_push.send.assert_called_once()
+    call_kwargs = mock_web_push.send.call_args.kwargs
+    assert call_kwargs["title"] == "Beşiktaş şampiyon oldu"
+    assert "beşiktaş" in call_kwargs["body"]
+
+
+def test_push_skipped_when_web_push_is_none_email_still_sent():
+    sub = _instant_subscriber(["beşiktaş"])
+    service, mock_email, mock_push_repo, _ = _make_service_with_push(
+        [sub], push_subs=[_push_sub()], web_push=False
+    )
+    service._send_keyword_alerts(_article("Beşiktaş şampiyon oldu"))
+
+    mock_email.send_alert.assert_called_once()
+    mock_push_repo.get_by_email.assert_not_called()
+
+
+def test_push_skipped_when_push_repository_is_none_email_still_sent():
+    sub = _instant_subscriber(["beşiktaş"])
+    mock_repo = MagicMock()
+    mock_analyzer = MagicMock()
+    mock_sub_repo = MagicMock()
+    mock_sub_repo.get_active_subscribers.return_value = [sub]
+    mock_email = MagicMock()
+    mock_email.send_alert.return_value = True
+    mock_web_push = MagicMock()
+    service = NewsService(
+        repository=mock_repo, analyzer=mock_analyzer,
+        subscriber_repository=mock_sub_repo, email_port=mock_email,
+        push_repository=None, web_push=mock_web_push,
+    )
+    service._send_keyword_alerts(_article("Beşiktaş şampiyon oldu"))
+
+    mock_email.send_alert.assert_called_once()
+    mock_web_push.send.assert_not_called()
+
+
+def test_push_subscription_deleted_when_send_fails():
+    sub = _instant_subscriber(["beşiktaş"])
+    push_sub = _push_sub()
+    service, _, mock_push_repo, _ = _make_service_with_push(
+        [sub], push_subs=[push_sub], push_ok=False
+    )
+    service._send_keyword_alerts(_article("Beşiktaş şampiyon oldu"))
+
+    mock_push_repo.delete_by_endpoint.assert_called_once_with(push_sub.endpoint)
+
+
+def test_push_subscription_not_deleted_when_send_succeeds():
+    sub = _instant_subscriber(["beşiktaş"])
+    service, _, mock_push_repo, _ = _make_service_with_push(
+        [sub], push_subs=[_push_sub()], push_ok=True
+    )
+    service._send_keyword_alerts(_article("Beşiktaş şampiyon oldu"))
+
+    mock_push_repo.delete_by_endpoint.assert_not_called()
+
+
+def test_push_failure_does_not_prevent_email():
+    sub = _instant_subscriber(["beşiktaş"])
+    service, mock_email, _, _ = _make_service_with_push(
+        [sub], push_subs=[_push_sub()], push_ok=False
+    )
+    service._send_keyword_alerts(_article("Beşiktaş şampiyon oldu"))
+
+    mock_email.send_alert.assert_called_once()
+
+
+def test_push_unexpected_exception_does_not_prevent_email():
+    """web_push.send() beklenmedik bir exception fırlatırsa bile email etkilenmemeli."""
+    sub = _instant_subscriber(["beşiktaş"])
+    service, mock_email, _, mock_web_push = _make_service_with_push(
+        [sub], push_subs=[_push_sub()]
+    )
+    mock_web_push.send.side_effect = RuntimeError("boom")
+    service._send_keyword_alerts(_article("Beşiktaş şampiyon oldu"))
+
+    mock_email.send_alert.assert_called_once()
+
+
+def test_multiple_push_subscriptions_for_same_subscriber_all_attempted():
+    sub = _instant_subscriber(["beşiktaş"])
+    push_subs = [
+        _push_sub(endpoint="https://push.example.com/1"),
+        _push_sub(endpoint="https://push.example.com/2"),
+    ]
+    service, _, _, mock_web_push = _make_service_with_push([sub], push_subs=push_subs)
+    service._send_keyword_alerts(_article("Beşiktaş şampiyon oldu"))
+
+    assert mock_web_push.send.call_count == 2

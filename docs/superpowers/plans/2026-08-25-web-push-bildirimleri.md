@@ -35,7 +35,7 @@
 **Interfaces:**
 - Produces: `PushSubscription` dataclass (`email: str, endpoint: str, p256dh: str, auth: str, id: Optional[int] = None, created_at: Optional[datetime] = None`), `PushSubscriptionRepositoryPort` (ABC: `save`, `get_by_email`, `delete_by_endpoint`, `delete_by_email`), `PushSubscriptionRepository(db: Session)` — Task 3, 5'te kullanılacak.
 
-- [ ] **Step 1: Domain model oluştur**
+- [x] **Step 1: Domain model oluştur**
 
 `src/domain/models/push_subscription.py`:
 ```python
@@ -56,7 +56,7 @@ class PushSubscription:
     created_at: Optional[datetime] = None
 ```
 
-- [ ] **Step 2: Port oluştur**
+- [x] **Step 2: Port oluştur**
 
 `src/domain/ports/push_subscription_port.py`:
 ```python
@@ -88,7 +88,7 @@ class PushSubscriptionRepositoryPort(ABC):
         """Hesap silinirken kullanıcının TÜM cihaz aboneliklerini temizler."""
 ```
 
-- [ ] **Step 3: ORM modeli ekle**
+- [x] **Step 3: ORM modeli ekle**
 
 `src/adapters/repositories/orm_models.py` dosyasının sonuna ekle:
 ```python
@@ -109,7 +109,7 @@ class PushSubscriptionORM(Base):
 ```
 (`Column`, `Integer`, `String`, `Text`, `DateTime`, `Index`, `func` zaten dosyanın en üstünde import edilmiş — yeni import gerekmiyor.)
 
-- [ ] **Step 4: Migration dosyası oluştur**
+- [x] **Step 4: Migration dosyası oluştur**
 
 `migrations/v2_5_push_subscriptions.sql`:
 ```sql
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 CREATE INDEX IF NOT EXISTS ix_push_subscriptions_email ON push_subscriptions(email);
 ```
 
-- [ ] **Step 5: Repository testlerini yaz (gerçek in-memory SQLite, mock YOK)**
+- [x] **Step 5: Repository testlerini yaz (gerçek in-memory SQLite, mock YOK)**
 
 `tests/adapters/test_push_subscription_repository.py`:
 ```python
@@ -226,12 +226,12 @@ def test_delete_by_email_removes_all_devices_for_that_email_only():
     assert len(repo.get_by_email("other@test.com")) == 1
 ```
 
-- [ ] **Step 6: Run testleri doğrula (önce FAIL etmeli — repository henüz yok)**
+- [x] **Step 6: Run testleri doğrula (önce FAIL etmeli — repository henüz yok)**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_push_subscription_repository.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'src.adapters.repositories.push_subscription_repository'`
 
-- [ ] **Step 7: Repository adaptörünü yaz**
+- [x] **Step 7: Repository adaptörünü yaz**
 
 `src/adapters/repositories/push_subscription_repository.py`:
 ```python
@@ -301,12 +301,12 @@ class PushSubscriptionRepository(PushSubscriptionRepositoryPort):
         self.db.commit()
 ```
 
-- [ ] **Step 8: Testleri tekrar çalıştır — PASS olmalı**
+- [x] **Step 8: Testleri tekrar çalıştır — PASS olmalı**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_push_subscription_repository.py -v`
 Expected: 7 passed
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/domain/models/push_subscription.py src/domain/ports/push_subscription_port.py src/adapters/repositories/push_subscription_repository.py src/adapters/repositories/orm_models.py migrations/v2_5_push_subscriptions.sql tests/adapters/test_push_subscription_repository.py
@@ -329,7 +329,7 @@ git commit -m "feat: push subscription domain model, port, ORM, migration, repos
 - Consumes: `PushSubscription` (Task 1).
 - Produces: `WebPushPort` (ABC: `send(subscription, title, body, url) -> bool`), `PyWebPushAdapter()`, `build_web_push() -> Optional[WebPushPort]` — Task 3, 4'te kullanılacak.
 
-- [ ] **Step 1: `pywebpush`'ı requirements.txt'e ekle ve lokal venv'e kur**
+- [x] **Step 1: `pywebpush`'ı requirements.txt'e ekle ve lokal venv'e kur**
 
 `requirements.txt`'in sonuna ekle:
 ```
@@ -338,7 +338,7 @@ pywebpush>=2.0.0
 
 Run: `venv\Scripts\python.exe -m pip install pywebpush` (zaten kuruluysa no-op geçer).
 
-- [ ] **Step 2: settings.py'e VAPID alanlarını ekle**
+- [x] **Step 2: settings.py'e VAPID alanlarını ekle**
 
 `src/infrastructure/config/settings.py`'de `sentry_traces_sample_rate: float = 0.05` satırından hemen sonra ekle:
 ```python
@@ -353,7 +353,7 @@ Run: `venv\Scripts\python.exe -m pip install pywebpush` (zaten kuruluysa no-op g
     vapid_subject: str = "mailto:no-reply@nexstream.news"
 ```
 
-- [ ] **Step 3: WebPushPort'u oluştur**
+- [x] **Step 3: WebPushPort'u oluştur**
 
 `src/domain/ports/web_push_port.py`:
 ```python
@@ -377,7 +377,7 @@ class WebPushPort(ABC):
         döner, hiçbir zaman exception fırlatmaz (fail-open)."""
 ```
 
-- [ ] **Step 4: Adapter testlerini yaz (pywebpush.webpush() mock'lanır)**
+- [x] **Step 4: Adapter testlerini yaz (pywebpush.webpush() mock'lanır)**
 
 `tests/adapters/test_pywebpush_adapter.py`:
 ```python
@@ -455,12 +455,12 @@ def test_send_exception_without_response_returns_false():
     assert result is False
 ```
 
-- [ ] **Step 5: Run testleri doğrula (FAIL etmeli)**
+- [x] **Step 5: Run testleri doğrula (FAIL etmeli)**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_pywebpush_adapter.py -v`
 Expected: FAIL — `ModuleNotFoundError`
 
-- [ ] **Step 6: PyWebPushAdapter'ı yaz**
+- [x] **Step 6: PyWebPushAdapter'ı yaz**
 
 `src/adapters/notifications/pywebpush_adapter.py`:
 ```python
@@ -510,7 +510,7 @@ class PyWebPushAdapter(WebPushPort):
             return False
 ```
 
-- [ ] **Step 7: Factory'yi yaz**
+- [x] **Step 7: Factory'yi yaz**
 
 `src/adapters/notifications/web_push_factory.py`:
 ```python
@@ -529,12 +529,12 @@ def build_web_push() -> Optional[WebPushPort]:
     return PyWebPushAdapter()
 ```
 
-- [ ] **Step 8: Testleri tekrar çalıştır — PASS olmalı**
+- [x] **Step 8: Testleri tekrar çalıştır — PASS olmalı**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_pywebpush_adapter.py -v`
 Expected: 5 passed
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add requirements.txt src/infrastructure/config/settings.py src/domain/ports/web_push_port.py src/adapters/notifications/pywebpush_adapter.py src/adapters/notifications/web_push_factory.py tests/adapters/test_pywebpush_adapter.py
@@ -553,7 +553,7 @@ git commit -m "feat: WebPushPort + PyWebPushAdapter + VAPID settings + factory (
 - Consumes: `PushSubscriptionRepositoryPort.get_by_email`, `PushSubscriptionRepositoryPort.delete_by_endpoint` (Task 1), `WebPushPort.send` (Task 2).
 - Produces: `NewsService(..., push_repository: Optional[PushSubscriptionRepositoryPort] = None, web_push: Optional[WebPushPort] = None)` — Task 4'te worker DI'ında kullanılacak.
 
-- [ ] **Step 1: Yeni test senaryolarını `test_keyword_alerts.py`'ye ekle**
+- [x] **Step 1: Yeni test senaryolarını `test_keyword_alerts.py`'ye ekle**
 
 Dosyanın en üstündeki import bloğunu güncelle (mevcut `from src.domain.models.subscriber import Subscriber` satırının altına ekle):
 ```python
@@ -686,12 +686,12 @@ def test_multiple_push_subscriptions_for_same_subscriber_all_attempted():
     assert mock_web_push.send.call_count == 2
 ```
 
-- [ ] **Step 2: Testleri çalıştır — FAIL etmeli (constructor push_repository/web_push kabul etmiyor)**
+- [x] **Step 2: Testleri çalıştır — FAIL etmeli (constructor push_repository/web_push kabul etmiyor)**
 
 Run: `venv\Scripts\python.exe -m pytest tests/application/test_keyword_alerts.py -v`
 Expected: FAIL — `TypeError: NewsService.__init__() got an unexpected keyword argument 'push_repository'`
 
-- [ ] **Step 3: `news_service.py`'yi genişlet**
+- [x] **Step 3: `news_service.py`'yi genişlet**
 
 `TYPE_CHECKING` bloğunu güncelle (satır 29-32 civarı):
 ```python
@@ -760,17 +760,17 @@ Constructor'ı güncelle (mevcut `def __init__` — satır 92-106 civarı):
             logger.error("Push bildirimi gönderilirken hata (email alert etkilenmedi): %s", e)
 ```
 
-- [ ] **Step 4: Testleri tekrar çalıştır — hepsi PASS olmalı**
+- [x] **Step 4: Testleri tekrar çalıştır — hepsi PASS olmalı**
 
 Run: `venv\Scripts\python.exe -m pytest tests/application/test_keyword_alerts.py -v`
-Expected: 15 passed (6 mevcut + 9 yeni)
+Expected: 14 passed (6 mevcut + 8 yeni — gerçek uygulamada 9 değil 8 yeni test yazıldı, plan tahmini 1 fazlaydı)
 
-- [ ] **Step 5: Tam regresyon — bu dosyayı değiştirmek başka testi kırmamalı**
+- [x] **Step 5: Tam regresyon — bu dosyayı değiştirmek başka testi kırmamalı**
 
 Run: `venv\Scripts\python.exe -m pytest tests/application/test_news_service.py -v`
 Expected: mevcut tüm testler PASS (constructor'a yeni opsiyonel parametre eklendi, mevcut çağrılar etkilenmemeli)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/application/services/news_service.py tests/application/test_keyword_alerts.py
@@ -789,7 +789,7 @@ git commit -m "feat: NewsService._send_keyword_alerts push kanalıyla genişleti
 - Consumes: `PushSubscriptionRepository` (Task 1), `build_web_push()` (Task 2), `NewsService(push_repository=..., web_push=...)` (Task 3).
 - Produces: yok — bu görev bağlama/deployment, kendi başına test edilebilir bir davranış üretmiyor (proje kalıbı: kafka_consumer.py'nin kendi test dosyası yok, wiring `python -c` ile içe aktarma kontrolüyle doğrulanır).
 
-- [ ] **Step 1: `kafka_consumer.py`'yi güncelle**
+- [x] **Step 1: `kafka_consumer.py`'yi güncelle**
 
 Import bloğuna ekle (mevcut `from src.adapters.repositories.subscriber_repository import SubscriberRepository` satırının altına):
 ```python
@@ -822,12 +822,12 @@ async def _process(scraper):
         db.close()
 ```
 
-- [ ] **Step 2: Modülün hâlâ sorunsuz import edildiğini doğrula**
+- [x] **Step 2: Modülün hâlâ sorunsuz import edildiğini doğrula**
 
 Run: `venv\Scripts\python.exe -c "import src.adapters.messaging.kafka_consumer"`
 Expected: hata yok, sessizce çıkar (exit code 0)
 
-- [ ] **Step 3: `docker-compose.prod.yml`'de worker servisine VAPID env var'larını ekle**
+- [x] **Step 3: `docker-compose.prod.yml`'de worker servisine VAPID env var'larını ekle**
 
 `worker` servisinin `environment:` bloğuna (Sentry satırlarının hemen altına) ekle:
 ```yaml
@@ -838,12 +838,12 @@ Expected: hata yok, sessizce çıkar (exit code 0)
       - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:no-reply@nexstream.news}
 ```
 
-- [ ] **Step 4: Tam backend regresyonu**
+- [x] **Step 4: Tam backend regresyonu**
 
 Run: `venv\Scripts\python.exe -m pytest tests/ -v`
-Expected: 775 passed (754 mevcut + 7 Task 1 repository + 5 Task 2 adapter + 9 Task 3 keyword_alerts), hiç FAIL yok
+Expected: 774 passed (754 mevcut + 7 Task 1 repository + 5 Task 2 adapter + 8 Task 3 keyword_alerts), hiç FAIL yok
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/adapters/messaging/kafka_consumer.py docker-compose.prod.yml
@@ -862,7 +862,7 @@ git commit -m "feat: worker DI wiring — push_repository + web_push (Task 4/7)"
 - Consumes: `PushSubscriptionRepository` (Task 1), `PushSubscription` (Task 1), `get_current_user`/`user_effective_tier` (mevcut `auth_utils`), `UserTier`/`tier_at_least` (mevcut `domain/models/user.py`).
 - Produces: yok (uç nokta — Task 6'da frontend tarafından çağrılacak).
 
-- [ ] **Step 1: Yeni testleri `test_account_router.py`'ye ekle**
+- [x] **Step 1: Yeni testleri `test_account_router.py`'ye ekle**
 
 Dosyanın importlarını güncelle — `from src.domain.models.user import User, UserTier, UserRole` satırının (üstte, `_make_user` tanımının hemen yanında) `UserTier` zaten import ediliyorsa dokunma, değilse ekle. `Push` testleri için dosyanın sonuna ekle:
 ```python
@@ -958,12 +958,12 @@ def test_delete_account_success_deletes_user_and_subscription_and_clears_cookie(
 
 **Not:** `test_delete_account_cancels_active_stripe_subscription` ve `test_delete_account_skips_stripe_cancel_when_no_customer_id` testleri de `patch("src.adapters.api.routers.account_router.SubscriberRepository")` kullanıyor — `PushSubscriptionRepository` artık gerçek (mock'lanmamış) haliyle çağrılacağından bu iki testte de `patch("src.adapters.api.routers.account_router.PushSubscriptionRepository")` eklenmeli (aksi halde gerçek DB'ye bağlanmaya çalışıp hata verir). Her ikisinde de `SubscriberRepository` patch'inin yanına aynı şekilde `PushSubscriptionRepository` patch'i ekle (mock nesnesini kullanmasan bile context manager'a dahil et).
 
-- [ ] **Step 2: Testleri çalıştır — yeni push testleri FAIL etmeli, delete_account testi FAIL etmeli**
+- [x] **Step 2: Testleri çalıştır — yeni push testleri FAIL etmeli, delete_account testi FAIL etmeli**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_account_router.py -v`
 Expected: yeni 5 test FAIL (404 — route yok) + `test_delete_account_success...` FAIL (`PushSubscriptionRepository` account_router'da tanımlı değil)
 
-- [ ] **Step 3: `account_router.py`'yi güncelle**
+- [x] **Step 3: `account_router.py`'yi güncelle**
 
 Import bloğuna ekle (mevcut `from src.adapters.repositories.subscriber_repository import SubscriberRepository` satırının altına):
 ```python
@@ -1033,12 +1033,12 @@ def delete_push_subscription(
     PushSubscriptionRepository(db).delete_by_email(current_user.email)
 ```
 
-- [ ] **Step 4: Testleri tekrar çalıştır — hepsi PASS olmalı**
+- [x] **Step 4: Testleri tekrar çalıştır — hepsi PASS olmalı**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_account_router.py -v`
 Expected: hepsi PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/adapters/api/routers/account_router.py tests/adapters/test_account_router.py
@@ -1063,7 +1063,7 @@ git commit -m "feat: POST/DELETE /account/push-subscription + delete_account gen
 - Consumes: `POST/DELETE /account/push-subscription` (Task 5).
 - Produces: yok — proje kararı gereği frontend'de browser-push API'lerini mock'layan birim test YOK (spec'te onaylandı, TTS özelliğiyle aynı emsal), `tsc --noEmit` + `npm run build` ile doğrulanır.
 
-- [ ] **Step 1: `lib/api.ts`'e backend çağrılarını ekle**
+- [x] **Step 1: `lib/api.ts`'e backend çağrılarını ekle**
 
 Dosyanın `// ── Bülten aboneliği` bölümünden hemen ÖNCE (yani `unsaveArticleApi`'nin altına) ekle:
 ```typescript
@@ -1084,7 +1084,7 @@ export async function unsubscribeFromPushApi(endpoint: string): Promise<void> {
 }
 ```
 
-- [ ] **Step 2: `lib/webpush.ts`'i oluştur**
+- [x] **Step 2: `lib/webpush.ts`'i oluştur**
 
 ```typescript
 // Tarayıcı push abonelik yardımcıları — Notification permission + Service
@@ -1146,7 +1146,7 @@ export async function unsubscribeFromPush(): Promise<void> {
 }
 ```
 
-- [ ] **Step 3: `i18n.ts`'e string'leri ekle**
+- [x] **Step 3: `i18n.ts`'e string'leri ekle**
 
 TR bloğunda `newsletterUnsubscribe: "Aboneliği İptal Et",` satırının hemen altına ekle:
 ```typescript
@@ -1162,7 +1162,7 @@ EN bloğunda `newsletterUnsubscribe: "Unsubscribe",` satırının hemen altına 
     pushLockedReason: "First select 'Instant alerts' above and save.",
 ```
 
-- [ ] **Step 4: `PushNotificationToggle.tsx` bileşenini oluştur**
+- [x] **Step 4: `PushNotificationToggle.tsx` bileşenini oluştur**
 
 ```tsx
 "use client";
@@ -1235,7 +1235,7 @@ export function PushNotificationToggle({
 }
 ```
 
-- [ ] **Step 5: `account/page.tsx`'e toggle'ı entegre et**
+- [x] **Step 5: `account/page.tsx`'e toggle'ı entegre et**
 
 Dosyanın en üstündeki import bloğuna ekle (`import { NewsCard } from "@/components/NewsCard";` satırının altına):
 ```typescript
@@ -1259,7 +1259,7 @@ Bülten kartındaki buton satırının kapanışından (`</div>` — mevcut sat�
           />
 ```
 
-- [ ] **Step 6: `sw.js`'e push event handler'larını ekle**
+- [x] **Step 6: `sw.js`'e push event handler'larını ekle**
 
 `frontend/public/sw.js` dosyasının SONUNA (mevcut `fetch` event listener'ının altına) ekle:
 ```javascript
@@ -1295,7 +1295,7 @@ self.addEventListener("notificationclick", (event) => {
 });
 ```
 
-- [ ] **Step 7: `Dockerfile`'a build ARG ekle**
+- [x] **Step 7: `Dockerfile`'a build ARG ekle**
 
 `frontend/Dockerfile`'da `ARG NEXT_PUBLIC_POSTHOG_HOST="https://us.i.posthog.com"` / `ENV NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST` satırlarının hemen altına, `RUN npm run build`'den ÖNCE ekle:
 ```dockerfile
@@ -1304,14 +1304,14 @@ ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY=""
 ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY
 ```
 
-- [ ] **Step 8: `docker-compose.prod.yml`'de frontend build args'a ekle**
+- [x] **Step 8: `docker-compose.prod.yml`'de frontend build args'a ekle**
 
 `frontend` servisinin `build.args` bloğuna (`NEXT_PUBLIC_POSTHOG_HOST` satırının altına) ekle:
 ```yaml
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
 ```
 
-- [ ] **Step 9: Tip kontrolü + prod build doğrulaması**
+- [x] **Step 9: Tip kontrolü + prod build doğrulaması**
 
 Run: `cd frontend; npx tsc --noEmit`
 Expected: hata yok
@@ -1319,7 +1319,7 @@ Expected: hata yok
 Run: `cd frontend; npm run build`
 Expected: build başarılı (frontend container ÇALIŞMIYORSA host'ta çalıştır — bkz. CLAUDE.md "npm run build'i frontend container ÇALIŞIRKEN host'ta ÇALIŞTIRMA" gotcha'sı, container'ı önce durdur veya sadece `tsc --noEmit` ile yetin)
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add frontend/lib/api.ts frontend/lib/webpush.ts frontend/components/PushNotificationToggle.tsx frontend/lib/i18n.ts frontend/app/account/page.tsx frontend/public/sw.js frontend/Dockerfile docker-compose.prod.yml
@@ -1337,17 +1337,17 @@ git commit -m "feat: frontend push toggle'ı + service worker handler'ları + i1
 - Consumes: tüm önceki task'ların birleşik hali.
 - Produces: yok — kapanış görevi.
 
-- [ ] **Step 1: Tam backend regresyonu**
+- [x] **Step 1: Tam backend regresyonu**
 
 Run: `venv\Scripts\python.exe -m pytest tests/ -v`
-Expected: 780 passed (775'ten Task 4 sonrası + 5 Task 5 account_router testi — `test_delete_account_success...` testi YENİ eklenmedi, sadece genişletildi, sayıya dahil değil), hiç FAIL yok
+Expected: 779 passed (774'ten Task 4 sonrası + 5 Task 5 account_router testi — `test_delete_account_success...` testi YENİ eklenmedi, sadece genişletildi, sayıya dahil değil), hiç FAIL yok
 
-- [ ] **Step 2: Frontend tip kontrolü + build (tekrar, tüm değişikliklerle birlikte)**
+- [x] **Step 2: Frontend tip kontrolü + build (tekrar, tüm değişikliklerle birlikte)**
 
 Run: `cd frontend; npx tsc --noEmit`
 Expected: hata yok
 
-- [ ] **Step 3: `CLAUDE.md`'yi güncelle**
+- [x] **Step 3: `CLAUDE.md`'yi güncelle**
 
 - YOL HARİTASI madde 12'yi `~~Web Push bildirimleri (breaking news)~~ — ✅ tamamlandı` olarak işaretle, kısa özet ekle (mevcut kaynak paylaşım kararı, WebPushPort isim çakışması notu).
 - MİMARİ bölümündeki `adapters/notifications/` listesine `pywebpush_adapter.py` + `web_push_factory.py` ekle, `domain/ports/` listesine `push_subscription_port.py` + `web_push_port.py` ekle.
@@ -1355,7 +1355,7 @@ Expected: hata yok
 - BİLİNEN NOTLAR'daki env var listesine `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY` ekle.
 - **Prod deploy notu ekle:** `migrations/v2_5_push_subscriptions.sql` prod'da ELLE çalıştırılmalı (dev'de `create_all` otomatik ekler, prod'da migrations/ esastır — mevcut proje kuralı).
 
-- [ ] **Step 4: Commit + PR**
+- [x] **Step 4: Commit + PR**
 
 ```bash
 git add CLAUDE.md
