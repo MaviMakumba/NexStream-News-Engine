@@ -862,7 +862,7 @@ git commit -m "feat: worker DI wiring — push_repository + web_push (Task 4/7)"
 - Consumes: `PushSubscriptionRepository` (Task 1), `PushSubscription` (Task 1), `get_current_user`/`user_effective_tier` (mevcut `auth_utils`), `UserTier`/`tier_at_least` (mevcut `domain/models/user.py`).
 - Produces: yok (uç nokta — Task 6'da frontend tarafından çağrılacak).
 
-- [ ] **Step 1: Yeni testleri `test_account_router.py`'ye ekle**
+- [x] **Step 1: Yeni testleri `test_account_router.py`'ye ekle**
 
 Dosyanın importlarını güncelle — `from src.domain.models.user import User, UserTier, UserRole` satırının (üstte, `_make_user` tanımının hemen yanında) `UserTier` zaten import ediliyorsa dokunma, değilse ekle. `Push` testleri için dosyanın sonuna ekle:
 ```python
@@ -958,12 +958,12 @@ def test_delete_account_success_deletes_user_and_subscription_and_clears_cookie(
 
 **Not:** `test_delete_account_cancels_active_stripe_subscription` ve `test_delete_account_skips_stripe_cancel_when_no_customer_id` testleri de `patch("src.adapters.api.routers.account_router.SubscriberRepository")` kullanıyor — `PushSubscriptionRepository` artık gerçek (mock'lanmamış) haliyle çağrılacağından bu iki testte de `patch("src.adapters.api.routers.account_router.PushSubscriptionRepository")` eklenmeli (aksi halde gerçek DB'ye bağlanmaya çalışıp hata verir). Her ikisinde de `SubscriberRepository` patch'inin yanına aynı şekilde `PushSubscriptionRepository` patch'i ekle (mock nesnesini kullanmasan bile context manager'a dahil et).
 
-- [ ] **Step 2: Testleri çalıştır — yeni push testleri FAIL etmeli, delete_account testi FAIL etmeli**
+- [x] **Step 2: Testleri çalıştır — yeni push testleri FAIL etmeli, delete_account testi FAIL etmeli**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_account_router.py -v`
 Expected: yeni 5 test FAIL (404 — route yok) + `test_delete_account_success...` FAIL (`PushSubscriptionRepository` account_router'da tanımlı değil)
 
-- [ ] **Step 3: `account_router.py`'yi güncelle**
+- [x] **Step 3: `account_router.py`'yi güncelle**
 
 Import bloğuna ekle (mevcut `from src.adapters.repositories.subscriber_repository import SubscriberRepository` satırının altına):
 ```python
@@ -1033,12 +1033,12 @@ def delete_push_subscription(
     PushSubscriptionRepository(db).delete_by_email(current_user.email)
 ```
 
-- [ ] **Step 4: Testleri tekrar çalıştır — hepsi PASS olmalı**
+- [x] **Step 4: Testleri tekrar çalıştır — hepsi PASS olmalı**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_account_router.py -v`
 Expected: hepsi PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/adapters/api/routers/account_router.py tests/adapters/test_account_router.py
