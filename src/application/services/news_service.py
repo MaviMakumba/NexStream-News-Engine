@@ -30,6 +30,8 @@ if TYPE_CHECKING:
     from src.domain.ports.email_port import EmailPort
     from src.domain.ports.subscriber_port import SubscriberRepositoryPort
     from src.domain.ports.query_expansion_port import QueryExpansionPort
+    from src.domain.ports.push_subscription_port import PushSubscriptionRepositoryPort
+    from src.domain.ports.web_push_port import WebPushPort
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +99,8 @@ class NewsService:
         subscriber_repository: Optional["SubscriberRepositoryPort"] = None,
         email_port: Optional["EmailPort"] = None,
         query_expander: Optional["QueryExpansionPort"] = None,
+        push_repository: Optional["PushSubscriptionRepositoryPort"] = None,
+        web_push: Optional["WebPushPort"] = None,
     ):
         self.repository = repository
         self.analyzer = analyzer
@@ -104,6 +108,8 @@ class NewsService:
         self.subscriber_repository = subscriber_repository
         self.email_port = email_port
         self.query_expander = query_expander
+        self.push_repository = push_repository
+        self.web_push = web_push
 
     @staticmethod
     def _apply_analysis(article: Article, result: dict) -> None:
@@ -727,15 +733,35 @@ class NewsService:
         return {"article_id": article_id, "sources": sources}
 
     def _send_keyword_alerts(self, article: Article) -> None:
-        """'instant' frekanslı abonelere keyword eşleşmesinde anında e-posta yollar."""
+        """'instant' frekanslı abonelere keyword eşleşmesinde anında e-posta
+        (+varsa tarayıcı push) yollar. Push, email'in AYNI eşleşmesini paylaşır
+        — ayrı bir tetikleyici/keyword listesi yok (bkz. 2026-08-25 spec)."""
         if self.subscriber_repository is None or self.email_port is None:
             return
         for sub in self.subscriber_repository.get_active_subscribers():
             if sub.frequency != "instant" or not sub.keywords:
                 continue
             kw = matched_keyword(article, sub.keywords)
-            if kw is not None:
-                self.email_port.send_alert(sub.email, article, kw, sub.language)
+            if kw is None:
+                continue
+            self.email_port.send_alert(sub.email, article, kw, sub.language)
+            self._send_push_alerts(sub.email, article, kw)
+
+    def _send_push_alerts(self, email: str, article: Article, keyword: str) -> None:
+        """Email'den AYRI, fail-open bir adım — push hatası email'i asla
+        etkilemez, tek bir push subscription'ın hatası diğerlerini engellemez."""
+        if self.push_repository is None or self.web_push is None:
+            return
+        try:
+            for push_sub in self.push_repository.get_by_email(email):
+                ok = self.web_push.send(
+                    push_sub, title=article.title,
+                    body=f"Takip ettiğin '{keyword}' ile eşleşti", url=article.url,
+                )
+                if not ok:
+                    self.push_repository.delete_by_endpoint(push_sub.endpoint)
+        except Exception as e:
+            logger.error("Push bildirimi gönderilirken hata (email alert etkilenmedi): %s", e)
 
     def list_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None, min_quality: Optional[float] = None) -> List[Article]:
         return self.repository.get_news_paginated(limit, before_id, source, sentiment, topic, min_quality)
