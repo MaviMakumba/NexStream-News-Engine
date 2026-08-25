@@ -553,7 +553,7 @@ git commit -m "feat: WebPushPort + PyWebPushAdapter + VAPID settings + factory (
 - Consumes: `PushSubscriptionRepositoryPort.get_by_email`, `PushSubscriptionRepositoryPort.delete_by_endpoint` (Task 1), `WebPushPort.send` (Task 2).
 - Produces: `NewsService(..., push_repository: Optional[PushSubscriptionRepositoryPort] = None, web_push: Optional[WebPushPort] = None)` — Task 4'te worker DI'ında kullanılacak.
 
-- [ ] **Step 1: Yeni test senaryolarını `test_keyword_alerts.py`'ye ekle**
+- [x] **Step 1: Yeni test senaryolarını `test_keyword_alerts.py`'ye ekle**
 
 Dosyanın en üstündeki import bloğunu güncelle (mevcut `from src.domain.models.subscriber import Subscriber` satırının altına ekle):
 ```python
@@ -686,12 +686,12 @@ def test_multiple_push_subscriptions_for_same_subscriber_all_attempted():
     assert mock_web_push.send.call_count == 2
 ```
 
-- [ ] **Step 2: Testleri çalıştır — FAIL etmeli (constructor push_repository/web_push kabul etmiyor)**
+- [x] **Step 2: Testleri çalıştır — FAIL etmeli (constructor push_repository/web_push kabul etmiyor)**
 
 Run: `venv\Scripts\python.exe -m pytest tests/application/test_keyword_alerts.py -v`
 Expected: FAIL — `TypeError: NewsService.__init__() got an unexpected keyword argument 'push_repository'`
 
-- [ ] **Step 3: `news_service.py`'yi genişlet**
+- [x] **Step 3: `news_service.py`'yi genişlet**
 
 `TYPE_CHECKING` bloğunu güncelle (satır 29-32 civarı):
 ```python
@@ -760,17 +760,17 @@ Constructor'ı güncelle (mevcut `def __init__` — satır 92-106 civarı):
             logger.error("Push bildirimi gönderilirken hata (email alert etkilenmedi): %s", e)
 ```
 
-- [ ] **Step 4: Testleri tekrar çalıştır — hepsi PASS olmalı**
+- [x] **Step 4: Testleri tekrar çalıştır — hepsi PASS olmalı**
 
 Run: `venv\Scripts\python.exe -m pytest tests/application/test_keyword_alerts.py -v`
-Expected: 15 passed (6 mevcut + 9 yeni)
+Expected: 14 passed (6 mevcut + 8 yeni — gerçek uygulamada 9 değil 8 yeni test yazıldı, plan tahmini 1 fazlaydı)
 
-- [ ] **Step 5: Tam regresyon — bu dosyayı değiştirmek başka testi kırmamalı**
+- [x] **Step 5: Tam regresyon — bu dosyayı değiştirmek başka testi kırmamalı**
 
 Run: `venv\Scripts\python.exe -m pytest tests/application/test_news_service.py -v`
 Expected: mevcut tüm testler PASS (constructor'a yeni opsiyonel parametre eklendi, mevcut çağrılar etkilenmemeli)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/application/services/news_service.py tests/application/test_keyword_alerts.py
@@ -841,7 +841,7 @@ Expected: hata yok, sessizce çıkar (exit code 0)
 - [ ] **Step 4: Tam backend regresyonu**
 
 Run: `venv\Scripts\python.exe -m pytest tests/ -v`
-Expected: 775 passed (754 mevcut + 7 Task 1 repository + 5 Task 2 adapter + 9 Task 3 keyword_alerts), hiç FAIL yok
+Expected: 774 passed (754 mevcut + 7 Task 1 repository + 5 Task 2 adapter + 8 Task 3 keyword_alerts), hiç FAIL yok
 
 - [ ] **Step 5: Commit**
 
@@ -1340,7 +1340,7 @@ git commit -m "feat: frontend push toggle'ı + service worker handler'ları + i1
 - [ ] **Step 1: Tam backend regresyonu**
 
 Run: `venv\Scripts\python.exe -m pytest tests/ -v`
-Expected: 780 passed (775'ten Task 4 sonrası + 5 Task 5 account_router testi — `test_delete_account_success...` testi YENİ eklenmedi, sadece genişletildi, sayıya dahil değil), hiç FAIL yok
+Expected: 779 passed (774'ten Task 4 sonrası + 5 Task 5 account_router testi — `test_delete_account_success...` testi YENİ eklenmedi, sadece genişletildi, sayıya dahil değil), hiç FAIL yok
 
 - [ ] **Step 2: Frontend tip kontrolü + build (tekrar, tüm değişikliklerle birlikte)**
 
