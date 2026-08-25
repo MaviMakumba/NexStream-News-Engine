@@ -329,7 +329,7 @@ git commit -m "feat: push subscription domain model, port, ORM, migration, repos
 - Consumes: `PushSubscription` (Task 1).
 - Produces: `WebPushPort` (ABC: `send(subscription, title, body, url) -> bool`), `PyWebPushAdapter()`, `build_web_push() -> Optional[WebPushPort]` — Task 3, 4'te kullanılacak.
 
-- [ ] **Step 1: `pywebpush`'ı requirements.txt'e ekle ve lokal venv'e kur**
+- [x] **Step 1: `pywebpush`'ı requirements.txt'e ekle ve lokal venv'e kur**
 
 `requirements.txt`'in sonuna ekle:
 ```
@@ -338,7 +338,7 @@ pywebpush>=2.0.0
 
 Run: `venv\Scripts\python.exe -m pip install pywebpush` (zaten kuruluysa no-op geçer).
 
-- [ ] **Step 2: settings.py'e VAPID alanlarını ekle**
+- [x] **Step 2: settings.py'e VAPID alanlarını ekle**
 
 `src/infrastructure/config/settings.py`'de `sentry_traces_sample_rate: float = 0.05` satırından hemen sonra ekle:
 ```python
@@ -353,7 +353,7 @@ Run: `venv\Scripts\python.exe -m pip install pywebpush` (zaten kuruluysa no-op g
     vapid_subject: str = "mailto:no-reply@nexstream.news"
 ```
 
-- [ ] **Step 3: WebPushPort'u oluştur**
+- [x] **Step 3: WebPushPort'u oluştur**
 
 `src/domain/ports/web_push_port.py`:
 ```python
@@ -377,7 +377,7 @@ class WebPushPort(ABC):
         döner, hiçbir zaman exception fırlatmaz (fail-open)."""
 ```
 
-- [ ] **Step 4: Adapter testlerini yaz (pywebpush.webpush() mock'lanır)**
+- [x] **Step 4: Adapter testlerini yaz (pywebpush.webpush() mock'lanır)**
 
 `tests/adapters/test_pywebpush_adapter.py`:
 ```python
@@ -455,12 +455,12 @@ def test_send_exception_without_response_returns_false():
     assert result is False
 ```
 
-- [ ] **Step 5: Run testleri doğrula (FAIL etmeli)**
+- [x] **Step 5: Run testleri doğrula (FAIL etmeli)**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_pywebpush_adapter.py -v`
 Expected: FAIL — `ModuleNotFoundError`
 
-- [ ] **Step 6: PyWebPushAdapter'ı yaz**
+- [x] **Step 6: PyWebPushAdapter'ı yaz**
 
 `src/adapters/notifications/pywebpush_adapter.py`:
 ```python
@@ -510,7 +510,7 @@ class PyWebPushAdapter(WebPushPort):
             return False
 ```
 
-- [ ] **Step 7: Factory'yi yaz**
+- [x] **Step 7: Factory'yi yaz**
 
 `src/adapters/notifications/web_push_factory.py`:
 ```python
@@ -529,12 +529,12 @@ def build_web_push() -> Optional[WebPushPort]:
     return PyWebPushAdapter()
 ```
 
-- [ ] **Step 8: Testleri tekrar çalıştır — PASS olmalı**
+- [x] **Step 8: Testleri tekrar çalıştır — PASS olmalı**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_pywebpush_adapter.py -v`
 Expected: 5 passed
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add requirements.txt src/infrastructure/config/settings.py src/domain/ports/web_push_port.py src/adapters/notifications/pywebpush_adapter.py src/adapters/notifications/web_push_factory.py tests/adapters/test_pywebpush_adapter.py
