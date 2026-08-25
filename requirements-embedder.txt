@@ -6,4 +6,4 @@ uvicorn==0.52.3
 pydantic==2.12.5
 pydantic-settings==2.14.2
 python-dotenv==1.2.2
-sentence-transformers==3.3.1
+sentence-transformers==6.0.0
