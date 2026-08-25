@@ -215,6 +215,11 @@ services:
         condition: service_healthy
     command: python -m src.adapters.messaging.kafka_consumer
     environment:
+      # app'te vardı, worker'da unutulmuştu (25 Ağu 2026'da bulundu) — bu satır
+      # olmadan Sentry event'leri yanlışlıkla "development" etiketleniyor VE
+      # settings.py::_reject_unsafe_production_config guard'ı worker için hiç
+      # çalışmıyordu.
+      - ENVIRONMENT=production
       - DB_HOST=db
       - DB_PORT=5432
       - DB_USER=${DB_USER}
@@ -296,6 +301,9 @@ services:
         condition: service_healthy
     command: python -m src.adapters.scheduling.scheduler_service
     environment:
+      # worker'daki gibi — şu an davranışı etkilemiyor (scheduler init_sentry
+      # çağırmıyor) ama tutarlılık için ekledik, ileride Sentry eklenirse hazır.
+      - ENVIRONMENT=production
       - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
       - SCRAPE_SOURCES=TRT Haber,BBC Türkçe,Hürriyet,Hürriyet Spor,Sabah,CNN Türk,Sözcü,Habertürk,HT Spor,BBC Technology,BBC Sport
     deploy:
