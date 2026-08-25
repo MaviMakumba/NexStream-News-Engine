@@ -3,6 +3,25 @@ import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 
 
+@pytest.fixture(autouse=True)
+def _no_real_sentry_calls():
+    """`sentry_sdk.init()`'in HİÇBİR test sırasında gerçekten çağrılmamasını
+    garanti eder — `.env`'de (yerel geliştirmede kazayla) gerçek bir SENTRY_DSN
+    dursa bile.
+
+    25 Ağu 2026'da bulundu: `app_client` fixture'ı `src.main`'i reload eder,
+    o da modül seviyesinde `init_sentry("app")` çağırır (main.py:48) — bu hiç
+    mock'lanmıyordu. Yerel `.env`'e prod aktivasyonu için gerçek DSN eklenince
+    HER lokal test koşusu (router testlerinin büyük kısmı `app_client`
+    kullanıyor) sessizce gerçek Sentry'ye event gönderdi. `tests/infrastructure/
+    test_sentry.py`'deki testler `init_sentry()`'yi kendi başına doğru test
+    ediyor (settings + sentry_sdk.init ayrı ayrı mock'lanıyor) — bu fixture
+    onların YERİNE geçmiyor, sadece test SÜİTİNİN GENELİNİ gerçek ağ
+    çağrısından izole ediyor (autouse — hiçbir testin unutmasına gerek yok)."""
+    with patch("sentry_sdk.init"):
+        yield
+
+
 @pytest.fixture
 def app_client():
     """
