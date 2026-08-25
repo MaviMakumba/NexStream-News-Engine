@@ -179,6 +179,9 @@ export const UI: Record<Lang, Record<string, string>> = {
     newsletterKeywordsPlaceholder: "örn. deprem, seçim, Beşiktaş",
     newsletterSave: "Kaydet", newsletterSaved: "Kaydedildi ✓", newsletterUnsubscribe: "Aboneliği İptal Et",
     newsletterSubscribedNote: "Şu an abonesin.", newsletterNotSubscribedNote: "Henüz abone değilsin.",
+    pushLabel: "Bu tarayıcıda bildirimleri aç", pushSubscribedLabel: "Bu tarayıcıda bildirimler açık",
+    pushErrorLabel: "Bildirim izni alınamadı, tekrar dener misin?",
+    pushLockedReason: "Önce yukarıdan 'Anlık uyarı' seçip kaydetmelisin.",
     devModeBadge: "DEV MODE", devUpgraded: "Planınız yükseltildi (ödeme simülasyonu).",
     devDowngradeBtn: "Free'ye Dön (dev)", devDowngraded: "Planınız Free'ye düşürüldü.",
 
@@ -381,6 +384,9 @@ export const UI: Record<Lang, Record<string, string>> = {
     newsletterKeywordsPlaceholder: "e.g. earthquake, election, Beşiktaş",
     newsletterSave: "Save", newsletterSaved: "Saved ✓", newsletterUnsubscribe: "Unsubscribe",
     newsletterSubscribedNote: "You're currently subscribed.", newsletterNotSubscribedNote: "You're not subscribed yet.",
+    pushLabel: "Enable notifications in this browser", pushSubscribedLabel: "Notifications are on in this browser",
+    pushErrorLabel: "Couldn't get notification permission, try again?",
+    pushLockedReason: "First select 'Instant alerts' above and save.",
     devModeBadge: "DEV MODE", devUpgraded: "Your plan was upgraded (payment simulation).",
     devDowngradeBtn: "Back to Free (dev)", devDowngraded: "Your plan was downgraded to Free.",
 

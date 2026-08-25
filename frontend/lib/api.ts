@@ -230,6 +230,22 @@ export async function unsaveArticleApi(articleId: number): Promise<void> {
   await req(`${BASE}/account/saved/${articleId}`, { method: "DELETE" });
 }
 
+// ── Web push bildirimleri (v2.5) ────────────────────────────────────────────
+
+export async function subscribeToPushApi(endpoint: string, p256dh: string, auth: string): Promise<void> {
+  await req(`${BASE}/account/push-subscription`, {
+    method: "POST",
+    body: JSON.stringify({ endpoint, keys: { p256dh, auth } }),
+  });
+}
+
+export async function unsubscribeFromPushApi(endpoint: string): Promise<void> {
+  await req(`${BASE}/account/push-subscription`, {
+    method: "DELETE",
+    body: JSON.stringify({ endpoint }),
+  });
+}
+
 // ── Bülten aboneliği ─────────────────────────────────────────────────────────
 // /subscriptions/{email} GET/PATCH paylaşımlı X-API-Key ister (admin uçları),
 // bu yüzden okuma /account/newsletter üzerinden (kendi oturumunla) yapılıyor;
