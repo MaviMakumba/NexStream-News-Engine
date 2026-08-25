@@ -517,11 +517,15 @@ def test_delete_push_subscription_requires_auth(app_client):
     assert resp.status_code == 401
 
 
-def test_delete_push_subscription_removes_by_endpoint(app_client):
+def test_delete_push_subscription_removes_own_endpoint(app_client):
+    from src.domain.models.push_subscription import PushSubscription
     _override(app_client, _make_user(UserTier.PRO))
     try:
         with patch("src.adapters.api.routers.account_router.PushSubscriptionRepository") as MockRepo:
             repo = MagicMock()
+            repo.get_by_email.return_value = [
+                PushSubscription(email="me@test.com", endpoint="https://push.example.com/1", p256dh="k", auth="a"),
+            ]
             MockRepo.return_value = repo
             resp = app_client.request(
                 "DELETE", "/account/push-subscription",
@@ -531,4 +535,24 @@ def test_delete_push_subscription_removes_by_endpoint(app_client):
         _clear(app_client)
 
     assert resp.status_code == 200
+    repo.get_by_email.assert_called_once_with("me@test.com")
     repo.delete_by_endpoint.assert_called_once_with("https://push.example.com/1")
+
+
+def test_delete_push_subscription_refuses_someone_elses_endpoint(app_client):
+    """IDOR koruması: endpoint mevcut kullanıcıya ait değilse silinmemeli."""
+    _override(app_client, _make_user(UserTier.PRO))
+    try:
+        with patch("src.adapters.api.routers.account_router.PushSubscriptionRepository") as MockRepo:
+            repo = MagicMock()
+            repo.get_by_email.return_value = []  # bu kullanıcının hiç aboneliği yok
+            MockRepo.return_value = repo
+            resp = app_client.request(
+                "DELETE", "/account/push-subscription",
+                json={"endpoint": "https://push.example.com/someone-elses-device"},
+            )
+    finally:
+        _clear(app_client)
+
+    assert resp.status_code == 200   # idempotent — hata değil, sessizce no-op
+    repo.delete_by_endpoint.assert_not_called()

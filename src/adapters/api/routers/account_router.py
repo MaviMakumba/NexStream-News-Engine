@@ -221,7 +221,12 @@ def delete_push_subscription(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    PushSubscriptionRepository(db).delete_by_endpoint(req.endpoint)
+    """`endpoint` sahipliği DOĞRULANIR — aksi halde bir kullanıcı başka bir
+    kullanıcının endpoint'ini tahmin edip/öğrenip silebilirdi (IDOR)."""
+    repo = PushSubscriptionRepository(db)
+    own_endpoints = {sub.endpoint for sub in repo.get_by_email(current_user.email)}
+    if req.endpoint in own_endpoints:
+        repo.delete_by_endpoint(req.endpoint)
     return {"subscribed": False}
 
 
