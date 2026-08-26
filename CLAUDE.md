@@ -27,6 +27,7 @@ src/
 │   │   ├── messaging_port.py      # class MessagePublisherPort (ABC)
 │   │   ├── embedding_port.py      # class EmbeddingPort (ABC)
 │   │   ├── query_expansion_port.py # class QueryExpansionPort (ABC) — sorgu genişletme (v2.3)
+│   │   ├── question_answering_port.py # class QuestionAnsweringPort (ABC) + QuestionAnsweringError — RAG soru-cevap, AnalysisPort'tan AYRI (v2.6)
 │   │   ├── push_subscription_port.py # class PushSubscriptionRepositoryPort (ABC) — web push abonelik saklama (v2.5)
 │   │   └── web_push_port.py       # class WebPushPort (ABC) — VAPID push gönderimi, NotificationPort'la KARIŞTIRILMASIN (v2.5)
 │   ├── schemas/
@@ -43,6 +44,8 @@ src/
 │   │   ├── fallback_analyzer.py   # Groq dene, başarısızsa HF, hepsi olmazsa nötr (v1.8)
 │   │   ├── common.py              # Paylaşılan prompt + JSON parse + nötr fallback (v1.8)
 │   │   ├── groq_query_expander.py # Groq ile ilişkili terim üretir ("İstanbul"→"Beykoz"), fail-open (v2.3)
+│   │   ├── groq_question_answerer.py # RAG soru-cevap, TEK Groq çağrısı, 429'da FAIL-FAST (senkron istek, bkz. CLAUDE.md dersi) (v2.6)
+│   │   ├── rag_common.py          # build_rag_prompt + parse_rag_json — common.py'nin Q&A karşılığı (v2.6)
 │   │   ├── caching_query_expander.py # QueryExpansionPort'u CachePort ile saran decorator (v2.3)
 │   │   └── factory.py             # build_analyzer() + build_query_expander() — kompozisyon noktası (v1.8)
 │   ├── scrapers/
@@ -79,7 +82,7 @@ src/
 │           ├── subscription_router.py # /subscriptions: newsletter abonelikleri (v1.7)
 │           ├── feed_router.py    # /feed.xml RSS 2.0 (v1.7)
 │           ├── websocket_router.py # /ws/feed canlı akış (v1.7)
-│           └── v1/news_router_v1.py # /api/v1: sürümlü, kotalı public API (v1.7+)
+│           └── v1/news_router_v1.py # /api/v1: sürümlü, kotalı public API (v1.7+) — POST /news/ask RAG soru-cevap da SADECE burada (v2.6, legacy router'a bilinçli eklenmedi)
 ├── infrastructure/
 │   ├── config/
 │   │   ├── database.py           # SQLAlchemy engine — settings üzerinden bağlantı
@@ -211,8 +214,9 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v2.4 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 25 Ağustos 2026, commit `4e79475` = `main` HEAD, PR #51+#52+#53 dahil — **deploy artık tam otomatik**, main'e her merge'de GitHub Actions kendi kendine SSM'e bağlanıp redeploy ediyor, bkz. "Branch" notu aşağıda). İlk canlıya çıkış: 29 Temmuz 2026.
-- **Test sayısı:** 780 test, hepsi yeşil (backend, 25 Ağu 2026 — web push için +26 test); frontend `tsc --noEmit` + `next build` temiz. Paket ~30 saniye sürüyor (29 Tem 2026'da 400sn'den düşürüldü — bkz. CHANGELOG "v2.0" bloğu).
+- **Versiyon:** v2.6 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 26 Ağustos 2026, PR #70+#71+#72 dahil — **deploy artık tam otomatik**, main'e her merge'de GitHub Actions kendi kendine SSM'e bağlanıp redeploy ediyor, bkz. "Branch" notu aşağıda). İlk canlıya çıkış: 29 Temmuz 2026.
+- **Test sayısı:** 821 test, hepsi yeşil (backend, 26 Ağu 2026 — RAG soru-cevap için +38 test); frontend `tsc --noEmit` + `next build` temiz.
+- **26 Ağu 2026'da RAG tabanlı soru-cevap (roadmap #13) canlıya çıktı — bkz. YOL HARİTASI madde 13 ve BİLİNEN NOTLAR'daki "senkron LLM isteğinde fail-fast" dersi. Sıradaki oturumun İLK işi canlı QA'yı tamamlamak (5 senaryo hiç koşulmadı, `RETRIEVAL_THRESHOLD` kalibre edilmedi) ve kullanıcının önerdiği "LLM modüllerini tek sağlayıcıya bağlamanın fizibilitesi" sorusunu araştırmak — bkz. YOL HARİTASI madde 23.**
 - **Frontend:** Next.js 14 + React. 10 sinematik tema (varsayılan artık `day` — sıcak/aydınlık, `night` onun koyu kardeşi, `matrix` seçilebilir kaldı), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
@@ -410,13 +414,28 @@ GERÇEKTEN bekleyen işler var:
     **25 Ağu 2026'da kullanıcı kararı: sıradaki oturumun GERÇEK ilk işi bu
     madde DEĞİL, madde 16 (admin tablo sıralama, kısa/bounded) olmalı —
     RAG (madde 13) büyük bir mimari tur, önce kısa iş kapatılsın.**
-13. **RAG tabanlı "bu konuda soru sor" mini sohbet** — Perplexity/Artifact
-    tarzı soru-cevap; ChromaDB semantic search (embedding_port) + Groq analiz
-    hattı (analysis_port) zaten var, `AnalysisPort`'a yeni bir
-    `answer_question` metodu olarak modellenebilir. Portfolyo değeri yüksek
-    ama en büyük iş — kendi mimari tasarım turu ister. (19 Ağu 2026 rakip
-    taraması, madde #7) **19 Ağu 2026'da kota kısıtı nedeniyle bu oturuma
-    ERTELENDİ** — madde 12'den sonra ele alınmalı.
+13. ~~RAG tabanlı "bu konuda soru sor" mini sohbet~~ — ✅ 26 Ağu 2026'da
+    canlıya çıktı (spec: `docs/superpowers/specs/2026-08-26-rag-soru-cevap-design.md`,
+    plan: `docs/superpowers/plans/2026-08-26-rag-soru-cevap.md`, 13 görev,
+    inline TDD ile uygulandı, subagent kullanılmadı). `QuestionAnsweringPort`
+    (`GroqQuestionAnswerer`, `AnalysisPort`'tan AYRI — `QueryExpansionPort`
+    ile aynı gerekçe) + kanıt kapısı deterministik kodda çözülüyor (retrieval
+    skoru `RAG_RETRIEVAL_THRESHOLD` altındaysa Groq'a hiç gidilmiyor) + soru
+    başına EN FAZLA 1 Groq çağrısı. Endpoint bilinçli olarak sadece
+    `/api/v1/news/ask`'te (legacy router'a EKLENMEDİ) — `usage_tracking_middleware`
+    sadece `/api/v1/` path'lerini kota sayacına işliyor, spec bunu fark
+    etmemişti, brainstorming'de düzeltildi. Frontend: `/dashboard/ask`
+    (genel + habere-özel TAMAMEN ayrı sohbet oturumları, kalıcı saklama yok),
+    `NewsCard`'da "💬 Sor" butonu, `/account?prefillKeyword=` ile "haberdar
+    et" akışı. PR #70 (önce bağımsız bir keyword-alert substring bug'ı +
+    hesap sayfası chip UI'ı), #71 (RAG'ın kendisi), #72 (canlı QA'da bulunan
+    fail-fast hotfix'i, bkz. BİLİNEN NOTLAR).
+    **⚠️ EKSİK KALAN — sıradaki oturumun İLK işi:** Docker Desktop bu
+    oturumda kapalıydı, spec'in zorunlu tuttuğu 5 senaryolu canlı QA turu
+    (kanıtsız/tek-kaynak/çok-kaynak/dolaylı-alaka/multi-turn) VE tarayıcıda
+    oturum ayrımı/free-tier kilit ekranı kontrolü HİÇ yapılamadı —
+    `RETRIEVAL_THRESHOLD` (varsayılan 0.5) hâlâ kalibre edilmedi. Plan
+    dosyasının Task 13'ünde tam senaryo listesi kayıtlı.
 17. **Özet (summary) clickbait başlığı papağan gibi tekrarlamamalı** (19 Ağu
     2026, kullanıcı örnek verdi: "Fenerbahçe'ye müjde! Barcelona istiyor" gibi
     bir başlıkta özet de aynı belirsizliği koruyordu — hangi oyuncu (örn.
@@ -525,6 +544,32 @@ GERÇEKTEN bekleyen işler var:
     ortasında bitiyor (bu notun yazıldığı andan ~75 gün sonra) — bu karar o
     tarihten ÖNCE netleşmeli.** Sıradaki oturum kullanıcıya bu soruyu
     sormalı, cevaba göre roadmap'in geri kalanını yeniden sıralamalı.
+23. **LLM modüllerini TEK sağlayıcıya/modele bağlamanın fizibilite
+    incelemesi (26 Ağu 2026, kullanıcı önerdi — sıradaki oturumun İKİNCİ işi,
+    madde 13'ün QA'sından sonra) — henüz BAŞLANMADI, sadece bir SPIKE olarak
+    kayıtlı.** RAG canlı QA'sı sırasında somut kanıt bulundu: paylaşılan Groq
+    TPD kotası (`openai/gpt-oss-20b`) 26 Ağu 2026 öğleden sonra 199.555/200.000
+    token'a dayanmıştı — muhtemelen ağırlıklı olarak worker'ın haber analiz
+    hattından (her yeni haber = 1 çağrı, 17 kaynak × sürekli akış), RAG/sorgu
+    genişletme neredeyse hiç pay bulamıyordu. Kullanıcının önerisi: modülleri
+    (haber analizi / sorgu genişletme / RAG soru-cevap) tek model yerine
+    işin önemine göre farklı model/sağlayıcılara bölmek — küçük işler için
+    daha ucuz/hızlı bir model, kritik işler için güçlü model, çıktı kalitesi
+    düşmeden token tasarrufu + tıkanıklık önleme. **Araştırılması gereken
+    somut soru (canlı log mesajında ipucu var — bkz. BİLİNEN NOTLAR
+    "TPD kotası" maddesi): Groq'un 200.000 TPD limiti hesap-geneli mi yoksa
+    MODEL BAŞINA mı?** Log satırı "`Rate limit reached for model
+    openai/gpt-oss-20b ... on tokens per day (TPD): Limit 200000`" ifadesiyle
+    MODEL BAŞINA olduğunu ima ediyor — eğer öyleyse, farklı bir sağlayıcıya
+    geçmeden, sadece RAG/sorgu genişletme için Groq'un BAŞKA bir modelini
+    (ör. daha küçük/hızlı bir model) kullanmak bile ayrı bir 200k TPD havuzu
+    açabilir, çok daha ucuz bir çözüm olurdu — bu ihtimal önce (resmi Groq
+    rate-limit dokümantasyonundan) doğrulanmalı. Sonraki adım: (1) Groq'un
+    güncel rate-limit modelini resmi kaynaktan teyit et, (2) mevcut 3
+    LLM-tüketen modülün (GroqAnalyzer/GroqQueryExpander/GroqQuestionAnswerer)
+    gerçek günlük token payını kabaca ölç, (3) buna göre "aynı model, farklı
+    havuz" mu yoksa "gerçekten farklı model/sağlayıcı" mı gerektiğine karar
+    ver — bu bir SPIKE, kod değişikliği bu kararın SONRASINA ait.
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,
@@ -703,3 +748,5 @@ docker logs nexstream_chromadb --tail 20
 - **`ENVIRONMENT=production` guard'ı (v1.17, `_reject_unsafe_production_config`) sadece HTTP-yüzeyli servise değil, `settings`'i import eden HER servise "hepsi ya da hiçbiri" uygulanır (25 Ağu 2026'da canlıda crash-loop'a yol açtı):** Sentry aktivasyonu sırasında worker/scheduler'a da `ENVIRONMENT=production` eklendi (app'te zaten vardı, worker/scheduler'da unutulmuştu) — ama guard `API_KEY`/`CORS_ORIGINS`/`SESSION_COOKIE_SECURE`/`BILLING_DEV_MODE` hepsini kontrol ediyor, worker/scheduler'ın compose bloğunda bunlardan İKİSİ (API_KEY, CORS_ORIGINS) hiç geçilmiyordu (worker/scheduler bu değerleri FONKSİYONEL olarak hiç kullanmaz, sadece `app`'in HTTP/CORS/auth yüzeyi için anlamlıdır). Sonuç: `Settings()` modül-seviyesinde import anında (`from src.infrastructure.config.settings import settings`) `ValidationError` fırlattı, worker+scheduler container'ları ~6 dakika crash-loop'ta kaldı (haber alma/analiz VE scrape tetikleme o süre boyunca durdu, `app`/frontend/site erişimi ETKİLENMEDİ). **Ders: bir servise `ENVIRONMENT=production` eklerken, guard'ın kontrol ettiği TÜM alanları (şu an 4 tanesi) o servisin compose bloğunda da gerçek değerleriyle geçirmen gerekir — servisin o değerleri kullanıp kullanmadığı ÖNEMLİ DEĞİL, guard'a görünür olmaları yeterli. Deploy sonrası `docker inspect <container> --format '{{.State.Status}}'`/`RestartCount` ile HER ZAMAN doğrula, sadece `/api/health`'e bakmak yetmez (app sağlıklı görünürken worker sessizce çökebiliyor — bkz. [[feedback_internal_network_silent_failure]] ile aynı "healthy görünüp iş yapmama" ders sınıfı).**
 - **Yerel `.env`'e gerçek bir SENTRY_DSN eklemek test paketini sessizce prod'a "sızdırabilir" (25 Ağu 2026'da bulundu):** `tests/conftest.py::app_client` fixture'ı `src.main`'i reload ederken `init_sentry("app")`'ı hiç mock'lamıyordu — bu bir sorun değildi çünkü lokal `.env`'de `SENTRY_DSN` hep boştu, ama Sentry aktivasyonu sırasında geçici olarak gerçek DSN eklenince HER lokal test koşusu (router testlerinin büyük kısmı `app_client` kullanıyor) gerçek prod Sentry hesabına event gönderdi — testlerin BİLİNÇLİ olarak simüle ettiği hata senaryoları ("Groq analiz hatası", "SMTP gönderilemedi" vb., fail-open davranışı doğrulamak için) gerçek issue'lar gibi Sentry'ye düştü (24 sahte alarm). **Düzeltme iki katmanlı:** (1) `tests/conftest.py`'ye `sentry_sdk.init`'i test süiti genelinde mock'layan bir `autouse=True` fixture eklendi (`tests/infrastructure/test_sentry.py`'nin kendi nested mock'lamasını bozmuyor), (2) local `.env`'de `SENTRY_DSN` yine boş bırakıldı (prod SaaS entegrasyonlarının lokalde aktif olması zaten anlamsız — dev hataları prod dashboard'unu kirletir). **Ders: gerçek bir 3. parti entegrasyon anahtarını (Sentry/PostHog gibi) local `.env`'e eklerken, test suite'in o entegrasyonu GERÇEKTEN mock'ladığından ZATEN emin ol — "zaten hep boştu, hiç test edilmedi" bir varsayım, garanti değil.**
 - **Yeni bir "sahiplik kontrolü olmadan ID/endpoint ile silme" endpoint'i eklerken IDOR riski varsayılan sayılmalı (25 Ağu 2026, web push aboneliği eklerken otomatik güvenlik incelemesi bulup düzeltti):** `DELETE /account/push-subscription` ilk halinde `req.endpoint`'in `current_user`'a ait olup olmadığını hiç doğrulamadan doğrudan `delete_by_endpoint(req.endpoint)` çağırıyordu — endpoint tahmin edilebilir/öğrenilebilir olsaydı başka bir kullanıcının aboneliği silinebilirdi. Düzeltme: silme öncesi `get_by_email(current_user.email)` ile sahiplik doğrulanıyor, eşleşmezse sessizce no-op (idempotent-delete deseniyle tutarlı, hata fırlatmıyor). **Ders: `DELETE`/`PATCH` gibi bir yazma endpoint'i request body'den bir ID/endpoint/anahtar alıp bir kaynağı hedefliyorsa, o kaynağın `current_user`'a ait olduğunu SORGULAYARAK doğrula — sadece "girdi doğru formatta mı" yeterli değil, "bu girdi GERÇEKTEN bu kullanıcının mı" ayrı bir kontrol.**
+- **🔴 Senkron bir kullanıcı HTTP isteğinde çalışan bir LLM adapter'ı, arka plan worker'ının 429/Retry-After bekleme desenini KOPYALAMAMALI (26 Ağu 2026, RAG canlı QA'sında kullanıcı bulgusu — "hem haber kartından hem üst panelden düşünüyorda kaldı"):** `GroqQuestionAnswerer` ilk halinde `GroqAnalyzer`'ın (worker'da, arka planda çalışan) 429 → `time.sleep(retry_after)` desenini birebir kopyalamıştı. Groq'un TPD rate limit'i dolduğunda `Retry-After` değeri gözlemlenen **456-480 saniye** (~8 dakika) çıktı — bu, `POST /api/v1/news/ask` gibi SENKRON bir HTTP isteğinin içinde beklenince kullanıcıyı dakikalarca "Düşünüyor..." ekranında askıda bırakıyordu (canlı loglarla doğrulandı, PR #72 ile düzeltildi). **Düzeltme:** interaktif yolda 429'da HİÇ beklenmiyor, hemen `QuestionAnsweringError` fırlatılıyor (fail-fast) — kullanıcı birkaç saniye içinde net bir hata görüp isterse tekrar dener. **Ders: yeni bir LLM adapter'ı eklerken "bu hangi bağlamda çalışıyor" sorusu kritik — arka plan/worker bağlamında sabırla bekleyip retry etmek doğruyken, senkron/kullanıcı-yüzlü bir HTTP isteğinde AYNI bekleme kullanıcı deneyimini bozan bir bug'dır. Var olan bir adapter'ı "aynı HTTP deseni" diye kopyalarken çağrıldığı bağlamı da kopyalanıp kopyalanamayacağını sorgula.**
+- **Groq'un günlük (TPD) token kotası paylaşılan tek bir havuz — worker'ın haber analiz hattı (17 kaynak, sürekli akış) neredeyse TAMAMINI tüketebiliyor (26 Ağu 2026'da canlıda gözlemlendi: 199.555/200.000 kullanılmış), yeni bir LLM-tüketen özellik (RAG, sorgu genişletme) eklendiğinde pratikte hiç pay bulamayabilir.** Canlı log satırı ("`Rate limit reached for model openai/gpt-oss-20b ... on tokens per day (TPD): Limit 200000`") limitin MODEL BAŞINA olabileceğini ima ediyor ama bu resmi kaynaktan HENÜZ doğrulanmadı — bkz. YOL HARİTASI madde 23 (kullanıcının önerdiği "LLM modüllerini bölme" fizibilite incelemesi, sıradaki oturumun ikinci işi).
