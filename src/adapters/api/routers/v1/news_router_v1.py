@@ -19,8 +19,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from typing import Optional
 
-from src.domain.schemas.news_schema import NewsPage, NewsResponse, SearchRequest, SearchResult, TrendingResponse, RelatedResponse, StoryClusterResponse
+from src.domain.schemas.news_schema import (
+    NewsPage, NewsResponse, SearchRequest, SearchResult, TrendingResponse,
+    RelatedResponse, StoryClusterResponse, AskRequest, RagAnswerResponse,
+)
 from src.domain.models.user import User, UserTier, TIER_SEARCH_RESULT_CAP, tier_at_least
+from src.domain.ports.question_answering_port import QuestionAnsweringError
 from src.application.services.news_service import NewsService
 from src.dependencies import get_news_service
 from src.adapters.api.limiter import limiter
@@ -196,3 +200,36 @@ def get_story_cluster_v1(
     """"Bu haberi kim nasıl anlatıyor" — semantik olarak aynı olayı kapsayan
     diğer kaynaklar (v2.2). Tier gating yok — herkese açık şeffaflık özelliği."""
     return service.get_story_cluster(article_id, limit)
+
+
+@router.post("/news/ask", response_model=RagAnswerResponse)
+@limiter.limit("10/minute")
+def ask_question_v1(
+    request: Request,
+    body: AskRequest,
+    user: Optional[User] = Depends(check_tier_limit),
+    service: NewsService = Depends(get_news_service),
+):
+    """RAG tabanlı soru-cevap (roadmap #13) — kanıta dayalı, kanıt kapısı
+    deterministik kodda çözülür, soru başına en fazla 1 Groq çağrısı (kanıt
+    yoksa 0). Pro+ özelliği — her çağrı paylaşılan Groq kotasını tüketir,
+    bu yüzden get_related'ın 60/minute'undan daha sıkı bir rate limit alır."""
+    if not user or not tier_at_least(user_effective_tier(user), UserTier.PRO):
+        raise HTTPException(
+            status_code=403,
+            detail="Soru-cevap asistanı Pro plan gerektirir. / The Q&A assistant requires a Pro plan.",
+        )
+    try:
+        result = service.answer_question(
+            body.question,
+            article_id=body.article_id,
+            history=[m.model_dump() for m in body.history],
+        )
+    except QuestionAnsweringError:
+        raise HTTPException(
+            status_code=503,
+            detail="Şu an yanıt üretemiyorum, birazdan tekrar dene. / I can't answer right now, please try again shortly.",
+        )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Haber bulunamadı. / Article not found.")
+    return result
