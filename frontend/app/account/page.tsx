@@ -58,7 +58,8 @@ export default function AccountPage() {
   const [nlFrequency, setNlFrequency] = useState<"daily" | "instant" | "never">("never");
   const [nlTopics, setNlTopics] = useState<string[]>([]);
   const [nlSources, setNlSources] = useState<string[]>([]);
-  const [nlKeywords, setNlKeywords] = useState("");
+  const [nlKeywords, setNlKeywords] = useState<string[]>([]);
+  const [nlKeywordDraft, setNlKeywordDraft] = useState("");
   const [nlBusy, setNlBusy] = useState(false);
   const [nlSaved, setNlSaved] = useState(false);
   const [nlSubscribed, setNlSubscribed] = useState(false);
@@ -83,7 +84,7 @@ export default function AccountPage() {
         setNlFrequency(prefs.frequency ?? "daily");
         setNlTopics(prefs.preferred_topics ?? []);
         setNlSources(prefs.preferred_sources ?? []);
-        setNlKeywords((prefs.keywords ?? []).join(", "));
+        setNlKeywords(prefs.keywords ?? []);
       }
     }).catch(() => {});
   }, [loadUsage]);
@@ -172,6 +173,24 @@ export default function AccountPage() {
     setNlSources((cur) => (cur.includes(source) ? cur.filter((x) => x !== source) : [...cur, source]));
   }
 
+  // Anahtar kelime chip'leri (26 Ağu 2026) — eskiden tek bir virgülle-ayrılmış
+  // free-text input'tu ("gram altın" yazarken yanlışlıkla araya virgül kaçması
+  // "gram" ve "altın"ı AYRI iki anahtar kelimeye bölüyordu, "altın" tek başına
+  // da alakasız haberlerle eşleşiyordu — bkz. subscriber_matching.py). Şimdi
+  // her kelime/ifade kendi atomik chip'i, birbirine karışmıyor.
+  function addNlKeyword() {
+    const kw = nlKeywordDraft.trim();
+    if (!kw) return;
+    setNlKeywords((cur) => (cur.some((x) => x.toLowerCase() === kw.toLowerCase()) ? cur : [...cur, kw]));
+    setNlKeywordDraft("");
+    setNlSaved(false);
+  }
+
+  function removeNlKeyword(kw: string) {
+    setNlKeywords((cur) => cur.filter((x) => x !== kw));
+    setNlSaved(false);
+  }
+
   async function handleSaveNewsletter() {
     if (!user) return;
     setNlBusy(true);
@@ -179,7 +198,7 @@ export default function AccountPage() {
     try {
       await saveNewsletter(user.email, {
         frequency: nlFrequency,
-        keywords: nlKeywords.split(",").map((k) => k.trim()).filter(Boolean),
+        keywords: nlKeywords,
         preferred_sources: nlSources,
         preferred_topics: nlTopics,
         language: lang,
@@ -507,13 +526,37 @@ export default function AccountPage() {
 
           <div style={{ marginBottom: 18 }}>
             <span className="section-label" style={{ display: "block", marginBottom: 8 }}>{t.newsletterKeywordsLabel}</span>
-            <input type="text" value={nlKeywords}
-              onChange={(e) => { setNlKeywords(e.target.value); setNlSaved(false); }}
-              placeholder={t.newsletterKeywordsPlaceholder}
-              style={{
-                width: "100%", padding: "9px 12px", fontSize: "0.84rem", borderRadius: 8,
-                background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)",
-              }} />
+            {nlKeywords.length > 0 && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                {nlKeywords.map((kw) => (
+                  <span key={kw} className="badge" style={{
+                    background: "var(--accent-soft)", color: "var(--accent)", borderColor: "var(--accent-line)",
+                  }}>
+                    {kw}
+                    <button type="button" onClick={() => removeNlKeyword(kw)} aria-label={t.newsletterKeywordRemove}
+                      style={{
+                        background: "none", border: "none", color: "inherit", cursor: "pointer",
+                        fontSize: "0.9rem", lineHeight: 1, padding: 0, marginLeft: 2,
+                      }}>
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <input type="text" value={nlKeywordDraft}
+                onChange={(e) => setNlKeywordDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addNlKeyword(); } }}
+                placeholder={t.newsletterKeywordsPlaceholder}
+                style={{
+                  flex: 1, minWidth: 0, padding: "9px 12px", fontSize: "0.84rem", borderRadius: 8,
+                  background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)",
+                }} />
+              <button type="button" onClick={addNlKeyword} className="btn-secondary" style={{ fontSize: "0.82rem", padding: "0 16px" }}>
+                {t.newsletterKeywordAdd}
+              </button>
+            </div>
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>

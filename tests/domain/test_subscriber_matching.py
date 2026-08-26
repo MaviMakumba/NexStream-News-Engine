@@ -48,6 +48,32 @@ def test_matched_keyword_returns_first_match():
     assert matched_keyword(_article(), ["galatasaray", "beşiktaş", "fenerbahçe"]) == "beşiktaş"
 
 
+def test_matched_keyword_does_not_match_mid_word_substring():
+    """26 Ağu 2026 bug: 'altın' tek başına 'gözaltına alındı' içinde ham substring
+    olarak geçiyordu (göz+ALTINa) — kelime sınırı olmadan hiçbir dilbilgisel
+    ilişkisi yokken eşleşiyordu. Aynı bug sınıfı news_service._keyword_relevance'ta
+    zaten düzeltilmişti (\"Adana\"/\"havadan\"), burada da aynı desen gerekiyor."""
+    article = _article(title="Şüpheli gözaltına alındı", topic="Crime")
+    assert matched_keyword(article, ["altın"]) is None
+
+
+def test_matched_keyword_still_matches_inflected_suffix():
+    """Kelime sınırı SADECE baştan sabitlenmeli — çekim eklerini (ör. 'altının')
+    hâlâ yakalamalı, aksi halde meşru Türkçe kullanım kaybolur."""
+    article = _article(title="Gram altının fiyatı yükseldi", topic="Economy")
+    assert matched_keyword(article, ["altın"]) == "altın"
+
+
+def test_matched_keyword_multi_word_phrase_requires_exact_sequence():
+    """Çok kelimeli bir keyword ('gram altın') ifadenin YAN YANA geçmesini
+    gerektirmeli — sadece bileşenlerinden biri geçmesi yetmemeli."""
+    article = _article(title="Gram altın rekor kırdı", topic="Economy")
+    assert matched_keyword(article, ["gram altın"]) == "gram altın"
+
+    unrelated = _article(title="Altın kupa Beşiktaş'ta, gram et fiyatları da arttı", topic="Economy")
+    assert matched_keyword(unrelated, ["gram altın"]) is None
+
+
 # ── has_preferences ────────────────────────────────────────────────────────
 
 def test_has_preferences_false_when_all_empty():

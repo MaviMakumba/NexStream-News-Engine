@@ -6,6 +6,7 @@ kişiselleştirmesinde (newsletter_job.py) kullanılır — eskiden ikisi de ken
 keyword eşleştirme mantığını ayrı ayrı yazıyordu.
 """
 
+import re
 from typing import List, Optional
 from src.domain.models.article import Article
 from src.domain.models.subscriber import Subscriber
@@ -21,12 +22,21 @@ def _tr_lower(text: str) -> str:
 
 
 def matched_keyword(article: Article, keywords: List[str]) -> Optional[str]:
-    """Başlık/özet/içerikte geçen ilk anahtar kelimeyi döner, yoksa None."""
+    """Başlık/özet/içerikte geçen ilk anahtar kelimeyi döner, yoksa None.
+
+    Eşleşme kelimenin/ifadenin BAŞINDA aranır (`\\bifade`), metnin herhangi bir
+    yerinde geçen ham bir alt dizi olarak DEĞİL — aksi halde "altın" gibi bir
+    kök, "gözaltına" gibi dilbilgisel olarak alakasız bir kelimenin ORTASINDA
+    da eşleşir (26 Ağu 2026'da canlıda bulunan bug, news_service._keyword_relevance
+    ile aynı sınıf — bkz. o fonksiyonun docstring'i). Sağdan sınırlamıyoruz,
+    çünkü çekim eklerini ("altının") yakalamak istiyoruz. Çok kelimeli bir
+    keyword ("gram altın") için ifadenin YAN YANA geçmesi gerekir — boşluk da
+    literal karakter olarak regex'e dahil olur."""
     if not keywords:
         return None
     text = _tr_lower(f"{article.title} {article.summary or ''} {article.content[:500]}")
     for kw in keywords:
-        if _tr_lower(kw) in text:
+        if re.search(r"\b" + re.escape(_tr_lower(kw)), text):
             return kw
     return None
 
