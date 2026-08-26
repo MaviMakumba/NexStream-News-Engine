@@ -5,8 +5,8 @@
 // ayrıca paylaşımlı X-API-Key'i kabul eder (makine-makine / admin olmayan giriş).
 
 import type {
-  AccountUsage, AdminUserList, Article, BillingConfig, CheckoutResponse, MarketSnapshot, NewsPage, RelatedResponse,
-  SearchResult, Sponsor, StoryClusterResponse, TrendingResponse, UsageRow, User,
+  AccountUsage, AdminUserList, Article, AskMessage, BillingConfig, CheckoutResponse, MarketSnapshot, NewsPage,
+  RagAnswerResponse, RelatedResponse, SearchResult, Sponsor, StoryClusterResponse, TrendingResponse, UsageRow, User,
 } from "./types";
 
 export const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -163,6 +163,18 @@ export async function fetchRelated(id: number): Promise<RelatedResponse> {
 /** "Bu haberi kim nasıl anlatıyor" — aynı olayı kapsayan diğer kaynaklar (v2.2, herkese açık). */
 export async function fetchStoryCluster(id: number): Promise<StoryClusterResponse> {
   return req<StoryClusterResponse>(`${BASE}/api/v1/news/${id}/sources`);
+}
+
+// v2.6 — RAG soru-cevap (roadmap #13). article_id null ise genel mod.
+export async function askQuestion(body: {
+  question: string;
+  article_id?: number | null;
+  history: AskMessage[];
+}): Promise<RagAnswerResponse> {
+  return req<RagAnswerResponse>(`${BASE}/api/v1/news/ask`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 export async function fetchSources(): Promise<string[]> {
