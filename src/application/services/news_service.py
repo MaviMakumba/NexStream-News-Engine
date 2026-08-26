@@ -23,6 +23,7 @@ from src.domain.models.article import Article
 from src.domain.scoring.quality import compute_quality_score
 from src.domain.scoring.credibility import base_credibility, compute_credibility
 from src.domain.services.subscriber_matching import matched_keyword
+from src.domain.ports.question_answering_port import QuestionAnsweringError
 from src.adapters.api.metrics import articles_processed_total
 from src.infrastructure.config.settings import settings
 from typing import List, Optional, TYPE_CHECKING
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
     from src.domain.ports.query_expansion_port import QueryExpansionPort
     from src.domain.ports.push_subscription_port import PushSubscriptionRepositoryPort
     from src.domain.ports.web_push_port import WebPushPort
+    from src.domain.ports.question_answering_port import QuestionAnsweringPort
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +103,7 @@ class NewsService:
         query_expander: Optional["QueryExpansionPort"] = None,
         push_repository: Optional["PushSubscriptionRepositoryPort"] = None,
         web_push: Optional["WebPushPort"] = None,
+        qa_port: Optional["QuestionAnsweringPort"] = None,
     ):
         self.repository = repository
         self.analyzer = analyzer
@@ -110,6 +113,7 @@ class NewsService:
         self.query_expander = query_expander
         self.push_repository = push_repository
         self.web_push = web_push
+        self.qa_port = qa_port
 
     @staticmethod
     def _apply_analysis(article: Article, result: dict) -> None:
@@ -731,6 +735,131 @@ class NewsService:
 
         sources = sorted(combined.values(), key=lambda s: s["score"], reverse=True)[:limit]
         return {"article_id": article_id, "sources": sources}
+
+    # ── RAG soru-cevap (roadmap #13) ────────────────────────────────────────
+    # Kanıt kapısı deterministik kodda çözülür, soru başına en fazla 1 Groq
+    # çağrısı (kanıt yoksa 0). Bkz. spec
+    # docs/superpowers/specs/2026-08-26-rag-soru-cevap-design.md.
+
+    _NO_EVIDENCE_TEXT = {
+        "TR": "Takip ettiğim kaynaklarda bu konuda doğrulanabilir bir gelişme bulunmuyor.",
+        "EN": "I don't have verifiable coverage of this topic in the sources I track.",
+    }
+    _TR_CHARS = set("ğüşıöçĞÜŞİÖÇ")
+
+    @staticmethod
+    def _looks_turkish(text: str) -> bool:
+        """Kaba ama ücretsiz bir dil sezgisi — SADECE Groq'a hiç gidilmeyen
+        (kanıt kapısı kapalı) yolda kullanılan şablon cevabın dilini seçer.
+        LLM'in ürettiği gerçek cevaplar zaten prompt'taki bilingual kuralla
+        kendi dilini seçiyor; burada sadece kanıtsız durum için ucuz bir
+        varsayım gerekiyor. Türkçe'ye özgü karakter yoksa EN varsayılır —
+        aksansız Türkçe sorularda (nadir) yanlış tahmin edebilir, kabul
+        edilebilir bir sınır (sadece kanıt-yok şablonunu etkiler)."""
+        return any(ch in NewsService._TR_CHARS for ch in text)
+
+    def _no_evidence_response(self, question: str, general_mode: bool) -> dict:
+        lang = "TR" if self._looks_turkish(question) else "EN"
+        return {
+            "answer": self._NO_EVIDENCE_TEXT[lang],
+            "coverage": "none",
+            "corroboration_level": "none",
+            "sources": [],
+            "suggest_alert": general_mode,
+        }
+
+    def _retrieval_candidates(self, question: str, target: Optional[Article]) -> list:
+        """Genel modda hybrid_search, habere özel modda get_story_cluster
+        sonuçlarını ortak bir şekle (id/score/source, id daima int) normalize
+        eder. Malformed-result guard: id/score çözülemeyen adaylar sessizce
+        elenir (bkz. CLAUDE.md 'arama ilişkisel genişletme' dersi, aynı
+        defect class)."""
+        raw = self.hybrid_search(question, n_results=8) if target is None \
+            else self.get_story_cluster(target.id, limit=6).get("sources", [])
+        candidates = []
+        for c in raw:
+            try:
+                cid = int(c["id"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            candidates.append({"id": cid, "score": float(c.get("score", 0.0)), "source": c.get("source", "")})
+        return candidates
+
+    def answer_question(self, question: str, article_id: Optional[int] = None,
+                         history: Optional[list] = None) -> Optional[dict]:
+        """Kanıt kapısı: retrieval skorları `settings.rag_retrieval_threshold`
+        altındaysa Groq'a HİÇ gidilmez (kota harcanmaz). Habere özel modda
+        hedef makale eşikten muaftır — kullanıcı zaten O haberi soruyor.
+        Dönüş `None` ise (sadece habere özel modda) `article_id` bulunamadı
+        demektir, router 404 döner. Groq tüm denemeleri tüketirse
+        `QuestionAnsweringError` fırlatır (fail-open DEĞİL, bkz. spec 'Amaç')."""
+        if self.qa_port is None:
+            raise QuestionAnsweringError("Soru-cevap servisi yapılandırılmamış")
+        history = history or []
+
+        target: Optional[Article] = None
+        if article_id is not None:
+            target = self.repository.get_article_by_id(article_id)
+            if target is None:
+                return None
+
+        candidates = self._retrieval_candidates(question, target)
+        threshold = settings.rag_retrieval_threshold
+        passing = [c for c in candidates if c["score"] >= threshold]
+        if target is not None:
+            # Hedef eşikten muaf — kullanıcı zaten bu haberi soruyor, listenin
+            # başına eklenir (kanıt paketinde her zaman [1] o olur).
+            passing = [{"id": target.id, "source": target.source}] + \
+                [c for c in passing if c["id"] != target.id]
+
+        if not passing:
+            return self._no_evidence_response(question, general_mode=target is None)
+
+        distinct_sources = {c["source"] for c in passing if c["source"]}
+        corroboration_level = "multi_source" if len(distinct_sources) >= 2 else "single_source"
+
+        articles_by_id = {a.id: a for a in self.repository.get_articles_by_ids([c["id"] for c in passing])}
+        if target is not None:
+            articles_by_id[target.id] = target  # her ihtimale karşı en taze halini kullan
+
+        evidence_bundle = [articles_by_id[c["id"]] for c in passing if c["id"] in articles_by_id]
+        if not evidence_bundle:
+            return self._no_evidence_response(question, general_mode=target is None)
+
+        evidence_dicts = [
+            {
+                "index": i + 1,
+                "title": a.title,
+                "source": a.source,
+                "sentiment_label": a.sentiment_label or "Neutral",
+                "corroboration_count": a.corroboration_count or 0,
+                "published_at": (a.published_at or a.created_at).strftime("%Y-%m-%d")
+                    if (a.published_at or a.created_at) else "",
+            }
+            for i, a in enumerate(evidence_bundle)
+        ]
+
+        result = self.qa_port.answer(
+            question=question, sources=evidence_dicts, history=history,
+            corroboration_level=corroboration_level,
+        )
+
+        if result["coverage"] == "none":
+            return self._no_evidence_response(question, general_mode=target is None)
+
+        used = [i for i in result.get("used_sources", []) if isinstance(i, int) and 1 <= i <= len(evidence_bundle)]
+        sources = [
+            {"index": i, "title": evidence_bundle[i - 1].title,
+             "source": evidence_bundle[i - 1].source, "url": evidence_bundle[i - 1].url}
+            for i in used
+        ]
+        return {
+            "answer": result["answer"],
+            "coverage": result["coverage"],
+            "corroboration_level": corroboration_level,
+            "sources": sources,
+            "suggest_alert": False,
+        }
 
     def _send_keyword_alerts(self, article: Article) -> None:
         """'instant' frekanslı abonelere keyword eşleşmesinde anında e-posta

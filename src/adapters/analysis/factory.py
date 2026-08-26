@@ -6,8 +6,10 @@ from src.adapters.analysis.huggingface_analyzer import HuggingFaceAnalyzer
 from src.adapters.analysis.fallback_analyzer import FallbackAnalyzer
 from src.adapters.analysis.groq_query_expander import GroqQueryExpander
 from src.adapters.analysis.caching_query_expander import CachingQueryExpander
+from src.adapters.analysis.groq_question_answerer import GroqQuestionAnswerer
 from src.domain.ports.analysis_port import AnalysisPort
 from src.domain.ports.query_expansion_port import QueryExpansionPort
+from src.domain.ports.question_answering_port import QuestionAnsweringPort
 from src.domain.ports.cache_port import CachePort
 from src.infrastructure.config.settings import settings
 
@@ -51,3 +53,10 @@ def build_query_expander(cache: CachePort) -> Optional[QueryExpansionPort]:
         return None
 
     return CachingQueryExpander(GroqQueryExpander(), cache)
+
+
+def build_question_answerer() -> QuestionAnsweringPort:
+    """RAG soru-cevap kompozisyon noktası. Tek implementasyon var (Groq) —
+    HuggingFace'in Q&A karşılığı yok, build_analyzer()'daki fallback zinciri
+    YOK (YAGNI, bkz. spec 'Mimari & Bileşenler')."""
+    return GroqQuestionAnswerer()

@@ -144,6 +144,12 @@ class Settings(BaseSettings):
     # sadece arama eski (genişletmesiz) haline döner.
     search_query_expansion_enabled: bool = True
 
+    # ── RAG soru-cevap (roadmap #13) ────────────────────────────────────────
+    # Kanıt kapısı eşiği: hybrid_search/get_story_cluster skoru bu değerin
+    # altındaki adaylar Groq'a hiç gönderilmez (NewsService.answer_question).
+    # Gerçek sorularla kalibre edilecek — bkz. spec "Açık Noktalar".
+    rag_retrieval_threshold: float = 0.5
+
     # ── Retention (eski haber temizliği) ────────────────────────────────────
     # ChromaDB'den eski vektörleri kaldırır (Postgres etkilenmez, reindex ile geri gelir).
     chroma_retention_days: int = 90      # 0 = kapalı

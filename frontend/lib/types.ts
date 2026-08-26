@@ -171,3 +171,24 @@ export interface Sponsor {
   active_until: string;
   is_active: boolean;
 }
+
+// v2.6 — RAG soru-cevap (roadmap #13).
+export interface AskMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface RagSource {
+  index: number;
+  title: string;
+  source: string;
+  url: string;
+}
+
+export interface RagAnswerResponse {
+  answer: string;
+  coverage: "full" | "partial" | "none";
+  corroboration_level: "single_source" | "multi_source" | "none";
+  sources: RagSource[];
+  suggest_alert: boolean;
+}

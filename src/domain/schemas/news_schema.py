@@ -100,3 +100,33 @@ class StorySource(BaseModel):
 class StoryClusterResponse(BaseModel):
     article_id: int
     sources: List[StorySource] = Field(default_factory=list)
+
+
+# v2.6 — RAG soru-cevap ("kanıta dayalı haber asistanı", roadmap #13).
+class AskMessage(BaseModel):
+    role: str = Field(..., pattern="^(user|assistant)$")
+    content: str = Field(..., min_length=1, max_length=2000)
+
+
+class AskRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=500)
+    article_id: Optional[int] = None
+    # history uzunluğu sınırlanır: kota/prompt-boyutu koruması, paylaşılan
+    # Groq kotasını (bkz. CLAUDE.md BİLİNEN NOTLAR) tek bir istekle şişirmeyi
+    # önler — SearchRequest.n_results'ın üst sınır deseniyle aynı disiplin.
+    history: List[AskMessage] = Field(default_factory=list, max_length=20)
+
+
+class RagSource(BaseModel):
+    index: int
+    title: str
+    source: str
+    url: str
+
+
+class RagAnswerResponse(BaseModel):
+    answer: str
+    coverage: str            # "full" | "partial" | "none"
+    corroboration_level: str # "single_source" | "multi_source" | "none"
+    sources: List[RagSource] = Field(default_factory=list)
+    suggest_alert: bool = False

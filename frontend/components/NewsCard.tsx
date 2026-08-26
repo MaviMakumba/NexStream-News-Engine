@@ -262,6 +262,17 @@ export function NewsCard({ article }: { article: Article }) {
           </button>
         )}
 
+        <button onClick={() => router.push(`/dashboard/ask?articleId=${article.id}`)}
+                className="icon-chip">
+          <span className="icon-chip-glyph">💬</span> {t.askCardButton}
+          {!isPro && (
+            <span className="badge" style={{ background: "var(--accent-soft)", color: "var(--accent)",
+                                              borderColor: "var(--accent-line)", fontSize: "0.6rem" }}>
+              PRO
+            </span>
+          )}
+        </button>
+
         {canSpeak && (
           <button onClick={toggleListen} title={speaking ? t.stopListening : t.listenArticle}
                   aria-label={speaking ? t.stopListening : t.listenArticle}
