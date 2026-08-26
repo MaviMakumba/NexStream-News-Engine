@@ -425,15 +425,19 @@ GERÇEKTEN bekleyen işler var:
     ÇÖZMESİNİ, içerikten somut isim/varlık çıkarmasını isteyecek şekilde
     güçlendirilmeli. Bounded bir prompt-engineering işi, kendi test turu ister
     (gerçek örnek haberlerle önce/sonra karşılaştırması).
-16. **Admin panelinde /admin/users tablosu sıralanabilir olmalı** (19 Ağu 2026,
-    kullanıcı istedi) — sahibinden.com tarzı: sütun başlığına (ekstra buton
-    YOK, doğrudan yazının üstüne) tıklayınca sıralanır. 3 durumlu döngü:
-    1. tık = artan, 2. tık = azalan, 3. tık = varsayılana (sırasız/orijinal)
-    döner. Rol/Tier/Kayıt tarihi/Durum sütunlarının hepsi için geçerli —
-    örnek: rol sütununa basınca önce moderatörler sonra adminler üstte
-    gözükmeli (rank'e göre). Bounded bir frontend işi (`frontend/app/admin/
-    users/page.tsx`), backend değişikliği gerekmiyor (mevcut liste zaten
-    tamamı çekiyor, client-side sort yeterli).
+16. ~~Admin panelinde /admin/users tablosu sıralanabilir olmalı~~ — ✅ 26 Ağu
+    2026'da tamamlandı. Sahibinden.com tarzı: sütun başlığına (ekstra buton
+    YOK, doğrudan yazının üstüne) tıklayınca sıralanır. 3 durumlu döngü
+    (`frontend/app/admin/users/page.tsx::handleSort`): 1. tık = artan,
+    2. tık = azalan, 3. tık = `sortKey`/`sortDir` `null`'a dönüp varsayılana
+    (orijinal fetch sırası) döner — `users` state'i hiç mutasyona uğramıyor,
+    `displayedUsers` bir `useMemo` ile türetiliyor. Rol ve Tier sütunları
+    BİLİNÇLİ olarak alfabetik değil RANK'e göre sıralanıyor (`ROLE_RANK`/yeni
+    `TIER_RANK` — alfabetik olsaydı "admin" "moderator"dan önce gelirdi,
+    anlamsız). Durum sütunu `is_active` booleanına, Kayıt tarihi
+    `created_at` timestamp'ine göre. Aktif sütunda ▲/▼ ok göstergesi var.
+    Bounded bir frontend işi, backend değişikliği gerekmedi (mevcut liste
+    zaten tamamı çekiyor, client-side sort yeterliydi).
 15. ~~Test paketi sağlık denetimi~~ — ✅ 25 Ağu 2026'da yapıldı, **sonuç: paket
     sağlıklı, temizlik gerekmedi.** AST tabanlı bir tarama (751 test
     fonksiyonu) 3 soruyu kontrol etti: (1) **Ölü/orphan test yok** — tüm
