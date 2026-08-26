@@ -80,12 +80,20 @@ export default function AccountPage() {
     fetchSavedArticles().then(setSaved).catch(() => {});
     fetchMyNewsletter().then((prefs: NewsletterPrefs) => {
       setNlSubscribed(prefs.subscribed);
+      let initialKeywords = prefs.subscribed ? (prefs.keywords ?? []) : [];
       if (prefs.subscribed) {
         setNlFrequency(prefs.frequency ?? "daily");
         setNlTopics(prefs.preferred_topics ?? []);
         setNlSources(prefs.preferred_sources ?? []);
-        setNlKeywords(prefs.keywords ?? []);
       }
+      // RAG "haberdar et" akışından ön-doldurma (roadmap #13, bkz. AskPage
+      // suggest_alert) — mevcut listeye EKLENİR, üzerine yazmaz. Kullanıcı
+      // yine de kendi "Kaydet"e basmalı, otomatik kayıt YAPILMAZ.
+      const prefill = new URLSearchParams(window.location.search).get("prefillKeyword")?.trim();
+      if (prefill && !initialKeywords.some((k) => k.toLowerCase() === prefill.toLowerCase())) {
+        initialKeywords = [...initialKeywords, prefill];
+      }
+      setNlKeywords(initialKeywords);
     }).catch(() => {});
   }, [loadUsage]);
 
