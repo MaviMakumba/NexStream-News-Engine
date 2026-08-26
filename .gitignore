@@ -34,3 +34,6 @@ htmlcov/
 # Superpowers (worktrees + subagent-driven-development scratch state)
 .worktrees/
 .superpowers/
+
+# Staj defteri (kişisel/kurum gizli)
+docs/staj-defteri.md

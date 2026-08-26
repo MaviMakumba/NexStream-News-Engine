@@ -9,7 +9,7 @@
 // (backend PATCH /admin/users/{id}/role require_admin ister) — moderator için rol
 // sütunu salt-okunur rozet olarak gösterilir.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchUsers, updateUserActive, updateUserRole, updateUserTier } from "@/lib/api";
 import type { AdminUser, Role } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
@@ -21,6 +21,19 @@ const TIER_VALUES = ["", "free", "pro", "enterprise"];
 const ASSIGNABLE_TIERS = ["free", "pro", "enterprise"]; // filtre "" hariç
 const ROLE_RANK: Record<Role, number> = { user: 0, moderator: 1, admin: 2, owner: 3 };
 const ASSIGNABLE_ROLES: Role[] = ["user", "moderator", "admin"]; // owner asla atanamaz
+
+// Sıralanabilir sütunlar (roadmap #16) — sadece Rol/Tier/Kayıt tarihi/Durum.
+// Rol ve Tier ALFABETİK değil RANK'e göre sıralanır (aksi halde "admin"
+// alfabetik olarak "moderator"dan önce gelir, anlamsız bir sıra üretir).
+type SortKey = "tier" | "role" | "status" | "joined";
+type SortDir = "asc" | "desc";
+const TIER_RANK: Record<string, number> = { free: 0, pro: 1, enterprise: 2 };
+const SORT_VALUE: Record<SortKey, (u: AdminUser) => number> = {
+  tier: (u) => TIER_RANK[u.tier] ?? 0,
+  role: (u) => ROLE_RANK[u.role] ?? 0,
+  status: (u) => (u.is_active ? 1 : 0),
+  joined: (u) => new Date(u.created_at).getTime(),
+};
 
 const ROLE_STYLE: Record<Role, React.CSSProperties> = {
   user:      { background: "rgba(120,130,150,.12)", color: "var(--text2)", borderColor: "var(--border2)" },
@@ -47,6 +60,22 @@ export default function AdminUsersPage() {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [savingTierId, setSavingTierId] = useState<number | null>(null);
   const [savingActiveId, setSavingActiveId] = useState<number | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir | null>(null);
+
+  // Sahibinden.com tarzı 3 durumlu döngü: 1. tık artan, 2. tık azalan,
+  // 3. tık varsayılana (sırasız/orijinal fetch sırası) döner.
+  function handleSort(key: SortKey) {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir("asc");
+    } else if (sortDir === "asc") {
+      setSortDir("desc");
+    } else {
+      setSortKey(null);
+      setSortDir(null);
+    }
+  }
 
   const load = useCallback(async (key?: string) => {
     // Moderator/admin oturumu varsa anahtar gerekmez (cookie otomatik taşınır); yoksa girilen anahtar kullanılır.
@@ -117,6 +146,15 @@ export default function AdminUsersPage() {
     }
   }
 
+  // users state'inin kendisi hiç mutasyona uğramıyor — 3. tık'ta sortKey null
+  // olunca displayedUsers otomatik olarak orijinal fetch sırasına dönüyor.
+  const displayedUsers = useMemo(() => {
+    if (!sortKey || !sortDir) return users;
+    const getValue = SORT_VALUE[sortKey];
+    const sorted = [...users].sort((a, b) => getValue(a) - getValue(b));
+    return sortDir === "asc" ? sorted : sorted.reverse();
+  }, [users, sortKey, sortDir]);
+
   const payingCount = users.filter((u) => u.is_paying).length;
 
   const actorRank = ROLE_RANK[(user?.role ?? "user") as Role] ?? 0;
@@ -178,19 +216,34 @@ export default function AdminUsersPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.84rem" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {[t.colEmail, t.colTier, t.colRole, t.colStatus, t.colEmailVerified, t.colPaying, t.colJoined].map((h) => (
-                      <th key={h} style={{
-                        padding: "14px 20px", textAlign: "left",
-                        color: "var(--text3)", fontWeight: 700, textTransform: "uppercase",
-                        letterSpacing: "0.06em", fontSize: "0.7rem",
-                      }}>
-                        {h}
+                    {([
+                      { label: t.colEmail },
+                      { label: t.colTier, key: "tier" as const },
+                      { label: t.colRole, key: "role" as const },
+                      { label: t.colStatus, key: "status" as const },
+                      { label: t.colEmailVerified },
+                      { label: t.colPaying },
+                      { label: t.colJoined, key: "joined" as const },
+                    ]).map((h) => (
+                      <th key={h.label}
+                          onClick={h.key ? () => handleSort(h.key!) : undefined}
+                          style={{
+                            padding: "14px 20px", textAlign: "left",
+                            color: "var(--text3)", fontWeight: 700, textTransform: "uppercase",
+                            letterSpacing: "0.06em", fontSize: "0.7rem",
+                            cursor: h.key ? "pointer" : "default",
+                            userSelect: h.key ? "none" : undefined,
+                          }}>
+                        {h.label}
+                        {h.key && sortKey === h.key && (
+                          <span style={{ marginLeft: 4 }}>{sortDir === "asc" ? "▲" : "▼"}</span>
+                        )}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((u) => (
+                  {displayedUsers.map((u) => (
                     <tr key={u.id} style={{ borderBottom: "1px solid var(--border)", transition: "background 0.1s" }}
                         onMouseEnter={(e) => (e.currentTarget.style.background = "var(--border)")}
                         onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
