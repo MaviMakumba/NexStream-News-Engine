@@ -12,6 +12,20 @@ import { askQuestion, ApiError } from "@/lib/api";
 import type { AskMessage, RagAnswerResponse } from "@/lib/types";
 import { UI } from "@/lib/i18n";
 
+// Kaynak URL'leri backend'in evidence_bundle'ından (Article.url) geliyor —
+// RSS scraping'den, doğrudan kullanıcı girdisi değil. Yine de bu sayfa bir
+// LLM sentezinin çıktısına bağlı olduğu için, tıklanabilir bir link olarak
+// render etmeden önce http(s) şeması dışındakileri (ör. javascript:) elemek
+// ucuz ve zarasız bir savunma katmanı (bkz. otomatik güvenlik incelemesi).
+function isSafeHttpUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 type SessionId = "general" | `article:${number}`;
 
 interface ChatMessage extends AskMessage {
@@ -123,10 +137,16 @@ export default function AskPage() {
                 <div style={{ marginTop: 8, fontSize: "0.78rem", color: "var(--text3)" }}>
                   {t.askSourcesLabel}{" "}
                   {m.meta.sources.map((s) => (
-                    <a key={s.index} href={s.url} target="_blank" rel="noopener noreferrer"
-                       style={{ color: "var(--accent)", marginRight: 8 }}>
-                      [{s.index}] {s.source}
-                    </a>
+                    isSafeHttpUrl(s.url) ? (
+                      <a key={s.index} href={s.url} target="_blank" rel="noopener noreferrer"
+                         style={{ color: "var(--accent)", marginRight: 8 }}>
+                        [{s.index}] {s.source}
+                      </a>
+                    ) : (
+                      <span key={s.index} style={{ color: "var(--text3)", marginRight: 8 }}>
+                        [{s.index}] {s.source}
+                      </span>
+                    )
                   ))}
                 </div>
               )}
