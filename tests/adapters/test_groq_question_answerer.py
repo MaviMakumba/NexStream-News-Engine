@@ -27,16 +27,22 @@ def test_answer_returns_parsed_result():
     assert result["used_sources"] == [1]
 
 
-def test_answer_retries_on_rate_limit():
+def test_answer_fails_fast_on_rate_limit_without_waiting():
+    """26 Ağu 2026 canlı bug: bu adapter interaktif bir HTTP isteğinde
+    çalışıyor — Groq'un dakikalarca sürebilen Retry-After'ını (bkz. CLAUDE.md)
+    beklemek kullanıcıyı 'Düşünüyor...' ekranında askıda bırakıyordu.
+    429'da artık HİÇ beklemeden hemen QuestionAnsweringError fırlatılmalı."""
     qa = GroqQuestionAnswerer()
     rate_limit_response = MagicMock()
     rate_limit_response.status_code = 429
-    rate_limit_response.headers = {"retry-after": "1"}
+    rate_limit_response.headers = {"retry-after": "480"}
     rate_limit_response.raise_for_status = MagicMock()
-    success = make_mock_response('{"coverage": "full", "answer": "OK", "used_sources": [1]}')
-    with patch("requests.post", side_effect=[rate_limit_response, success]), patch("time.sleep"):
-        result = qa.answer("Ne oldu?", _sources(), [], "single_source")
-    assert result["coverage"] == "full"
+
+    with patch("requests.post", return_value=rate_limit_response), \
+         patch("src.adapters.analysis.groq_question_answerer.time.sleep") as mock_sleep:
+        with pytest.raises(QuestionAnsweringError):
+            qa.answer("Ne oldu?", _sources(), [], "single_source")
+    mock_sleep.assert_not_called()
 
 
 def test_answer_raises_after_exhausting_json_parse_errors():

@@ -9,6 +9,16 @@ GroqAnalyzer'daki rate-limit/retry HTTP deseninin (429 → Retry-After bekle,
 AnalysisPort'un aksine SESSİZ NÖTR FALLBACK YOK: tüm denemeler başarısız
 olursa QuestionAnsweringError fırlatılır — bir soruya "kibarca uydurulmuş"
 bir cevap vermek, açık bir hata vermekten daha kötü (bkz. spec "Amaç").
+
+26 Ağu 2026'da canlıda bulunan bug: bu adapter ilk halinde GroqAnalyzer'ın
+429 → Retry-After bekle deseni birebir kopyalanmıştı. GroqAnalyzer arka plan
+worker'ında çalıştığı için bu doğru — ama bu adapter SENKRON bir kullanıcı
+HTTP isteğinin (POST /api/v1/news/ask) içinde çalışıyor. Groq'un TPD rate
+limit'i gözlemlenen Retry-After değerleri 3-7+ dakika (bkz. CLAUDE.md) —
+bunu olduğu gibi `time.sleep()` ile beklemek kullanıcıyı dakikalarca
+"Düşünüyor..." ekranında askıda bırakıyordu (canlıda doğrulandı). Bu yüzden
+429'da BEKLEMEDEN hemen QuestionAnsweringError fırlatılır (fail-fast) —
+kullanıcı birkaç saniye içinde net bir hata görüp isterse tekrar dener.
 """
 
 import json
@@ -42,7 +52,7 @@ class GroqQuestionAnswerer(QuestionAnsweringPort):
             "reasoning_effort": "low",
         }
 
-        for attempt in range(5):
+        for attempt in range(3):
             try:
                 start = time.time()
                 r = requests.post(self.api_url, headers=headers, json=payload, timeout=30)
@@ -50,10 +60,13 @@ class GroqQuestionAnswerer(QuestionAnsweringPort):
 
                 if r.status_code == 429:
                     groq_rate_limit_total.inc()
-                    wait = int(r.headers.get("retry-after", 5))
-                    logger.warning("Groq rate limit (soru-cevap), %ds bekleniyor...", wait)
-                    time.sleep(wait)
-                    continue
+                    # Fail-fast: Retry-After'ı BEKLEME (bkz. modül docstring'i,
+                    # 26 Ağu 2026 canlı bug'ı). Interaktif bir istek dakikalarca
+                    # askıda kalamaz — kullanıcı hemen net bir hata görmeli.
+                    logger.warning(
+                        "Groq rate limit (soru-cevap) — interaktif istek beklemeden başarısız sayılıyor"
+                    )
+                    raise QuestionAnsweringError("Groq şu an kotasını doldurmuş, birazdan tekrar dene")
 
                 r.raise_for_status()
                 content = r.json()["choices"][0]["message"]["content"]
@@ -62,10 +75,12 @@ class GroqQuestionAnswerer(QuestionAnsweringPort):
             except json.JSONDecodeError:
                 logger.warning("Groq soru-cevap JSON parse hatası, deneme %d", attempt + 1)
                 continue
+            except QuestionAnsweringError:
+                raise
             except Exception as e:
                 logger.error("Groq soru-cevap hatası: %s", e)
-                if attempt < 2:
-                    time.sleep(5)
+                if attempt < 1:
+                    time.sleep(2)
                 continue
 
         raise QuestionAnsweringError("Groq: tüm denemeler başarısız (soru-cevap)")
