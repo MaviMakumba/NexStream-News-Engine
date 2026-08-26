@@ -814,3 +814,138 @@ def test_hybrid_search_ranks_by_coverage():
     assert results[0]["score"] == 0.9
     assert results[1]["id"] == "2"
     assert results[1]["score"] == 0.45
+
+
+# ── answer_question (RAG) ────────────────────────────────────────────────────
+
+from src.domain.ports.question_answering_port import QuestionAnsweringError
+
+
+def make_service_with_qa():
+    service, mock_repo, mock_analyzer = make_service()
+    mock_qa = MagicMock()
+    service.qa_port = mock_qa
+    return service, mock_repo, mock_qa
+
+
+def _evidence_article(article_id, source="BBC", sentiment_label="Neutral", corroboration_count=0):
+    a = Article(title=f"Article {article_id}", source=source, url=f"http://x/{article_id}", content="content")
+    a.id = article_id
+    a.sentiment_label = sentiment_label
+    a.corroboration_count = corroboration_count
+    return a
+
+
+def test_answer_question_no_evidence_skips_groq_call():
+    """Retrieval boşsa (genel mod) Groq HİÇ ÇAĞRILMAZ + NO_EVIDENCE + suggest_alert=True."""
+    service, mock_repo, mock_qa = make_service_with_qa()
+    with patch.object(service, "hybrid_search", return_value=[]):
+        result = service.answer_question("Beşiktaş'ın sağ kanat transferi ne durumda?")
+    mock_qa.answer.assert_not_called()
+    assert result["coverage"] == "none"
+    assert result["suggest_alert"] is True
+    assert result["sources"] == []
+
+
+def test_answer_question_article_mode_invalid_id_returns_none():
+    service, mock_repo, mock_qa = make_service_with_qa()
+    mock_repo.get_article_by_id.return_value = None
+    result = service.answer_question("Bu haberde ne oldu?", article_id=999)
+    assert result is None
+    mock_qa.answer.assert_not_called()
+
+
+def test_answer_question_raises_when_qa_port_none():
+    """qa_port opsiyonel bağımlılık — None ise anlamlı bir hata (fail-loud)."""
+    service, mock_repo, _ = make_service()
+    with pytest.raises(QuestionAnsweringError):
+        service.answer_question("Ne oldu?")
+
+
+def test_answer_question_corroboration_level_multi_source():
+    service, mock_repo, mock_qa = make_service_with_qa()
+    candidates = [
+        {"id": "1", "score": 0.9, "source": "BBC"},
+        {"id": "2", "score": 0.8, "source": "Sözcü"},
+    ]
+    mock_repo.get_articles_by_ids.return_value = [
+        _evidence_article(1, source="BBC"), _evidence_article(2, source="Sözcü"),
+    ]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Cevap.", "used_sources": [1, 2]}
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        result = service.answer_question("Ne oldu?")
+    assert result["corroboration_level"] == "multi_source"
+    assert mock_qa.answer.call_args.kwargs["corroboration_level"] == "multi_source"
+
+
+def test_answer_question_corroboration_level_single_source():
+    service, mock_repo, mock_qa = make_service_with_qa()
+    candidates = [{"id": "1", "score": 0.9, "source": "BBC"}]
+    mock_repo.get_articles_by_ids.return_value = [_evidence_article(1, source="BBC")]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Cevap.", "used_sources": [1]}
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        result = service.answer_question("Ne oldu?")
+    assert result["corroboration_level"] == "single_source"
+
+
+def test_answer_question_ignores_model_answer_when_coverage_none():
+    """Model coverage='none' derse 'answer' alanı NE OLURSA OLSUN göz ardı
+    edilir, dürüst şablona düşülür (Adım 6, spec)."""
+    service, mock_repo, mock_qa = make_service_with_qa()
+    candidates = [{"id": "1", "score": 0.9, "source": "BBC"}]
+    mock_repo.get_articles_by_ids.return_value = [_evidence_article(1)]
+    mock_qa.answer.return_value = {"coverage": "none", "answer": "UYDURULMUŞ CEVAP", "used_sources": [1]}
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        result = service.answer_question("İlgisiz bir soru")
+    assert result["answer"] != "UYDURULMUŞ CEVAP"
+    assert result["coverage"] == "none"
+    assert result["sources"] == []
+
+
+def test_answer_question_clamps_out_of_range_used_sources():
+    service, mock_repo, mock_qa = make_service_with_qa()
+    candidates = [{"id": "1", "score": 0.9, "source": "BBC"}]
+    mock_repo.get_articles_by_ids.return_value = [_evidence_article(1)]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Cevap.", "used_sources": [1, 99]}
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        result = service.answer_question("Ne oldu?")
+    assert [s["index"] for s in result["sources"]] == [1]
+
+
+def test_answer_question_article_mode_target_always_included():
+    """Habere özel modda hedef, retrieval eşiğinden MUAF — story cluster boş
+    dönse bile hedefin kendisi kanıt paketine girer, Groq çağrılır."""
+    service, mock_repo, mock_qa = make_service_with_qa()
+    target = _evidence_article(5, source="TRT")
+    mock_repo.get_article_by_id.return_value = target
+    mock_repo.get_articles_by_ids.return_value = [target]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Cevap.", "used_sources": [1]}
+    with patch.object(service, "get_story_cluster", return_value={"article_id": 5, "sources": []}):
+        result = service.answer_question("Bu haberde ne oldu?", article_id=5)
+    mock_qa.answer.assert_called_once()
+    assert result["coverage"] == "full"
+
+
+def test_answer_question_passes_history_to_qa_port():
+    service, mock_repo, mock_qa = make_service_with_qa()
+    candidates = [{"id": "1", "score": 0.9, "source": "BBC"}]
+    mock_repo.get_articles_by_ids.return_value = [_evidence_article(1)]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Cevap.", "used_sources": [1]}
+    history = [{"role": "user", "content": "İstanbul'da ne oldu?"}, {"role": "assistant", "content": "..."}]
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        service.answer_question("Peki ya İzmir'de?", history=history)
+    assert mock_qa.answer.call_args.kwargs["history"] == history
+
+
+def test_no_evidence_response_turkish_question_returns_turkish_text():
+    service, mock_repo, mock_qa = make_service_with_qa()
+    with patch.object(service, "hybrid_search", return_value=[]):
+        result = service.answer_question("Beşiktaş'ın yeni hocası kim olacak?")
+    assert result["answer"] == NewsService._NO_EVIDENCE_TEXT["TR"]
+
+
+def test_no_evidence_response_english_question_returns_english_text():
+    service, mock_repo, mock_qa = make_service_with_qa()
+    with patch.object(service, "hybrid_search", return_value=[]):
+        result = service.answer_question("Who will be the new coach?")
+    assert result["answer"] == NewsService._NO_EVIDENCE_TEXT["EN"]
