@@ -86,6 +86,7 @@ export function Navbar() {
   const navLinks = [
     { href: "/dashboard",        label: t.dashboard },
     { href: "/dashboard/search", label: t.search },
+    { href: "/dashboard/ask",    label: t.askNavLabel },
     ...(user?.is_moderator ? [{ href: "/admin/users", label: t.admin }] : []),
   ];
 
