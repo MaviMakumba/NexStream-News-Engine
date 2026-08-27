@@ -330,50 +330,14 @@ GERÇEKTEN bekleyen işler var:
    otomatik iptal, ilişkili tüm satırlar — sessions/token'lar/usage_log/
    bülten aboneliği — kalıcı silinir). Frontend'de /account sayfasında
    "Tehlikeli Bölge".
-9. ~~Analytics/hata takibi~~ — ✅ **TAMAMEN tamamlandı, 25 Ağu 2026'da AKTİVE
-   edildi ve canlıda doğrulandı** (Sentry hem `app` hem `worker`'da
-   `environment=production` etiketiyle event gönderiyor, PostHog EU host'a
-   bağlı, key frontend bundle'ına gömülü). Her ikisi de SaaS ücretsiz
-   katman — VPS'e yeni bir servis/RAM eklemiyor (RAM zaten dar, self-host
-   GlitchTip/Umami gibi seçenekler bilinçli olarak elendi):
-   - **Sentry (hata takibi):** `src/infrastructure/observability/sentry.py::init_sentry()`
-     — `app` ve `worker` her ikisinde de çağrılıyor, `SENTRY_DSN` boşsa tamamen
-     no-op (diğer opsiyonel entegrasyonlarla — Redis/HuggingFace/Resend — aynı
-     desen), kurulum kendi içinde try/except'li (asla açılışı engellemez).
-     3 yeni test.
-   - **PostHog (kullanıcı sinyali/analytics):** `frontend/components/AnalyticsProvider.tsx`
-     — `NEXT_PUBLIC_POSTHOG_KEY` boşsa no-op, doluysa App Router pageview'larını
-     `usePathname` ile elle gönderir (`useSearchParams` DEĞİL — Suspense
-     gerektirir), autocapture açık (tıklamalar otomatik yakalanır).
-   - `docker-compose.prod.yml` + `frontend/Dockerfile`'a env var'lar eklendi
-     (aşağıdaki BİLİNEN NOTLAR'da tam liste). `/privacy` sayfası (TR+EN)
-     güncellendi — eskiden "takip/reklam çerezi kullanılmıyor" diye KESİN bir
-     iddiası vardı, bu artık yanlış olurdu; PostHog/Sentry'nin varlığı ve
-     reklam amaçlı KULLANILMADIĞI açıkça belirtildi.
-   - **Aktivasyon 25 Ağu 2026'da tamamlandı:** kullanıcı Sentry (DE region) +
-     PostHog (EU Cloud — `us.i.posthog.com` varsayılanı **çalışmaz**, EU
-     hesapları `NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com` şart)
-     hesabı açtı, DSN/key hem lokal hem prod `.env`'e eklendi, `docker compose
-     up --build -d` ile aktive edildi (PostHog key build-time ARG olduğu için
-     frontend REBUILD gerekiyor, sadece restart yetmez). **Frontend Sentry (Next.js
-     SDK, kaynak haritası/build-config entegrasyonu) bilinçli olarak
-     YAPILMADI** — gerçek hesap açılmadan `@sentry/nextjs` kurulum sihirbazı
-     zaten interaktif çalışmıyor, ayrıca `next.config.js`'e dokunup build'i
-     kırma riski taşıyordu; backend zaten kapsıyor, frontend hata takibi
-     küçük bir takip işi olarak kalsın.
-   - **Ayrıca fark edilen küçük bir eksik (henüz yapılmadı):** `/privacy` ve
-     `/terms`'te "bizimle iletişime geçin" deniyor ama gerçek bir iletişim
-     kanalı (e-posta/`/contact` sayfası) YOK — telif itiraz/takedown süreci
-     için de faydalı olurdu (bkz. BİLİNEN NOTLAR'daki telif değerlendirmesi).
-     Küçük, bağımsız bir sonraki iş.
-10. ~~Rakip taraması sonrası quick-win paketi~~ — ✅ 19 Ağu 2026'da tamamlandı
-    (Ground News/Feedly/Inoreader/FreshRSS taraması, detay için scratchpad'deki
-    araştırma raporuna bak). Kaydet/sonra oku (`/account/saved`, v2.2),
-    kaynak "corroboration" rozeti (veri zaten vardı, sadece UI'a eklendi),
-    tarayıcı-yerel TTS (Web Speech API).
-    **19 Ağu 2026'da canlıya deploy edildi ve SSM üzerinden uçtan uca doğrulandı**
-    (bkz. MEVCUT DURUM). Okuma süresi tahmini 20 Ağu 2026'da KALDIRILDI —
-    bkz. madde 18.
+9. ~~Analytics/hata takibi~~ — ✅ 25 Ağu 2026, canlıda doğrulandı (Sentry
+   `app`+`worker`'da, PostHog EU host'ta). Detay: `docs/CHANGELOG.md`.
+   **Ayrı ve hâlâ açık:** `/privacy`+`/terms`'te "bizimle iletişime geçin"
+   deniyor ama gerçek bir iletişim kanalı (e-posta/`/contact`) YOK — telif
+   itiraz/takedown süreci için de faydalı olur, küçük bağımsız bir iş.
+10. ~~Rakip taraması sonrası quick-win paketi~~ — ✅ 19 Ağu 2026, canlıda
+    doğrulandı. Kaydet/sonra oku, corroboration rozeti, tarayıcı-yerel TTS.
+    Detay: `docs/CHANGELOG.md`.
 18. **Gerçek makale metni scraping (okuma süresi için)** — 20 Ağu 2026'da
     okuma süresi rozeti kaldırıldı: hesap DB'de sakladığımız `content` alanına
     (RSS `<description>`/`<summary>`, ~30-80 kelimelik teaser) dayanıyordu,
@@ -385,73 +349,21 @@ GERÇEKTEN bekleyen işler var:
     bir roadmap maddesi — ingest anında mı yoksa on-demand mı çekileceği de
     ayrı bir karar (ingest anında tüm kaynaklar için ekstra HTTP + parse
     maliyeti, on-demand kart açıldığında gecikme).
-11. ~~Story cluster görünümü~~ — ✅ 19 Ağu 2026'da tamamlandı. "Bu haberi kim
-    nasıl anlatıyor" — `GET /news/{id}/sources` + `/api/v1/news/{id}/sources`
-    (tier gating YOK, herkese açık — corroboration rozeti gibi şeffaflık
-    özelliği). `ChromaSearchRepository.find_similar` zaten indexlenmiş
-    embedding'i tekrar hesaplamadan (`collection.get`) benzerlik araması
-    yapıyor, dedup eşiğinden (0.92) daha gevşek bir eşikle (0.72) aynı
-    olayı farklı kaynakların anlattığı makaleleri yakalıyor. `NewsService.
-    get_story_cluster` orkestrasyon, `NewsCard`'da kart footer'ında
-    "🔗 Kaynaklar" toggle'ı.
-12. ~~Web Push bildirimleri (breaking news)~~ — ✅ 25 Ağu 2026'da tamamlandı
-    (spec: `docs/superpowers/specs/2026-08-25-web-push-bildirimleri-design.md`,
-    plan: `docs/superpowers/plans/2026-08-25-web-push-bildirimleri.md`, worktree'de
-    inline uygulandı, subagent kullanılmadı). Mevcut "Anlık Uyarılar" (instant)
-    e-posta aboneliğinin AYNI keyword eşleşmesini ikinci bir kanal olarak
-    paylaşıyor — ayrı bir "breaking news" kavramı icat edilmedi. Yeni
-    `WebPushPort` + `PyWebPushAdapter` (pywebpush + VAPID) + `PushSubscriptionRepositoryPort`
-    — isim bilinçli olarak `NotificationPort` (mevcut, `/ws/feed` için) ile
-    ÇAKIŞMASIN diye farklı seçildi. `NewsService._send_keyword_alerts` push'u
-    email'in AYNI döngüsünde, email'den SONRA fail-open bir adım olarak
-    tetikliyor. Pro+ gating + giriş zorunlu (`_assert_instant_allowed` ile aynı
-    mantık). VAPID anahtarları `npx web-push generate-vapid-keys` ile üretildi
-    (3. parti hesap gerekmiyor), hem lokal hem prod `.env`'de hazır.
-    **Otomatik güvenlik incelemesi bir IDOR bulup düzeltti:** `DELETE
-    /account/push-subscription` endpoint sahipliğini hiç doğrulamıyordu —
-    düzeltildi, artık sadece `current_user.email`'e ait abonelikler
-    silinebiliyor (bkz. BİLİNEN NOTLAR).
-    **25 Ağu 2026'da kullanıcı kararı: sıradaki oturumun GERÇEK ilk işi bu
-    madde DEĞİL, madde 16 (admin tablo sıralama, kısa/bounded) olmalı —
-    RAG (madde 13) büyük bir mimari tur, önce kısa iş kapatılsın.**
-13. ~~RAG tabanlı "bu konuda soru sor" mini sohbet~~ — ✅ 26 Ağu 2026'da
-    canlıya çıktı (spec: `docs/superpowers/specs/2026-08-26-rag-soru-cevap-design.md`,
-    plan: `docs/superpowers/plans/2026-08-26-rag-soru-cevap.md`, 13 görev,
-    inline TDD ile uygulandı, subagent kullanılmadı). `QuestionAnsweringPort`
-    (`GroqQuestionAnswerer`, `AnalysisPort`'tan AYRI — `QueryExpansionPort`
-    ile aynı gerekçe) + kanıt kapısı deterministik kodda çözülüyor (retrieval
-    skoru `RAG_RETRIEVAL_THRESHOLD` altındaysa Groq'a hiç gidilmiyor) + soru
-    başına EN FAZLA 1 Groq çağrısı. Endpoint bilinçli olarak sadece
-    `/api/v1/news/ask`'te (legacy router'a EKLENMEDİ) — `usage_tracking_middleware`
-    sadece `/api/v1/` path'lerini kota sayacına işliyor, spec bunu fark
-    etmemişti, brainstorming'de düzeltildi. Frontend: `/dashboard/ask`
-    (genel + habere-özel TAMAMEN ayrı sohbet oturumları, kalıcı saklama yok),
-    `NewsCard`'da "💬 Sor" butonu, `/account?prefillKeyword=` ile "haberdar
-    et" akışı. PR #70 (önce bağımsız bir keyword-alert substring bug'ı +
-    hesap sayfası chip UI'ı), #71 (RAG'ın kendisi), #72 (canlı QA'da bulunan
-    fail-fast hotfix'i, bkz. BİLİNEN NOTLAR).
-    **27 Ağu 2026'da kullanıcı gerçek canlı QA'ya başladı (Docker yine
-    kapalıydı, tarayıcıda canlı siteyle test edildi) — 6 GERÇEK bug bulunup
-    aynı oturumda düzeltildi (PR #73/#74/#75):**
-    1. E-posta/push keyword alert'te "altın" (gold) kökü "altında"/"altındaki"
-       ("alt" [under] kelimesinin çekimi) ile harf düzeyinde çakışıyordu —
-       `_FALSE_FRIEND_WORDS` istisnasıyla çözüldü (bkz. BİLİNEN NOTLAR).
-    2. RAG "soru sor" Groq'un paylaşımlı TPD kotası dolduğu için sürekli 503
-       dönüyordu — `GroqQuestionAnswerer` + `GroqQueryExpander` ayrı modele
-       (`gpt-oss-120b`) taşındı, roadmap #23'ün spike'ı bu vesileyle cevaplandı.
-    3. Kanıt-yok şablonu TR sitede aksansız Türkçe soruda İngilizce geliyordu
-       — `AskRequest.language` eklendi, frontend'in kesin bildiği arayüz dili
-       karakter-sezgisinden ÖNCE kullanılıyor artık.
-    4. `RETRIEVAL_THRESHOLD` 0.5→0.4: gerçekten ilgili bir haber (%46 skor)
-       eşik yüzünden reddediliyordu — İLK gerçek kalibrasyon verisi.
-    5. "Haberdar et" önerisi sohbetin SON mesajını (takip sorusu, konu
-       taşımayabilir — "sence tekrar yükselir mi?") değil İLK mesajını
-       kullanacak şekilde düzeltildi.
-    6. Python'un `.lower()`'ı Türkçe büyük "İ"yi bozup (`\b`-anchor kaçıyordu,
-       "İsrailli" başlığı "israil" sorgusuyla hiç eşleşmiyordu) + doğal dilli
-       sorulardaki soru parçacıkları ("mı", "kim", "nedir") coverage bölenini
-       şişirip skoru yapay düşürüyordu — ikisi de düzeltildi (`_lower_tr_safe`
-       + `_TR_QUESTION_STOPWORDS`, SADECE `_canonical_terms`'i etkiler).
+11. ~~Story cluster görünümü~~ — ✅ 19 Ağu 2026, "Bu haberi kim nasıl anlatıyor"
+    (`GET /news/{id}/sources`, ChromaDB 0.72 eşik). Detay: `docs/CHANGELOG.md`.
+12. ~~Web Push bildirimleri~~ — ✅ 25 Ağu 2026. `WebPushPort`+`PyWebPushAdapter`,
+    mevcut "Anlık Uyarılar" e-posta akışının 2. kanalı, Pro+ gating. Otomatik
+    güvenlik incelemesi bir IDOR bulup düzeltti (bkz. BİLİNEN NOTLAR). Detay:
+    `docs/CHANGELOG.md`.
+13. RAG tabanlı "bu konuda soru sor" mini sohbet — ✅ 26 Ağu 2026 canlıya
+    çıktı (`QuestionAnsweringPort`/`GroqQuestionAnswerer`, deterministik kanıt
+    kapısı, soru başına en fazla 1 Groq çağrısı, `/api/v1/news/ask` sadece).
+    27 Ağu 2026'da canlı QA'da 6 GERÇEK bug bulunup düzeltildi (false-friend
+    keyword, Groq model-ayrımı, dil eşlemesi, eşik kalibrasyonu, "haberdar et"
+    kaynağı, dotted-İ + soru-parçacığı skor seyreltmesi — PR #70-#75). Detay:
+    `docs/CHANGELOG.md`. **27 Ağu 2026'da bu oturumda ayrıca RAG kanıt paketine
+    `content` eklendi** (eskiden sadece başlık gidiyordu, LLM en basit detayı
+    bile göremiyordu) — bkz. `rag_common.py`/`news_service.py::answer_question`.
 
     **Canlı diagnostik script'iyle (SSM üzerinden container içinde gerçek
     DI-wired `NewsService.hybrid_search` çağrısı) bulunan, BİLİNÇLİ OLARAK
@@ -483,78 +395,25 @@ GERÇEKTEN bekleyen işler var:
     güçlendirilmeli. Bounded bir prompt-engineering işi, kendi test turu ister
     (gerçek örnek haberlerle önce/sonra karşılaştırması).
 16. ~~Admin panelinde /admin/users tablosu sıralanabilir olmalı~~ — ✅ 26 Ağu
-    2026'da tamamlandı. Sahibinden.com tarzı: sütun başlığına (ekstra buton
-    YOK, doğrudan yazının üstüne) tıklayınca sıralanır. 3 durumlu döngü
-    (`frontend/app/admin/users/page.tsx::handleSort`): 1. tık = artan,
-    2. tık = azalan, 3. tık = `sortKey`/`sortDir` `null`'a dönüp varsayılana
-    (orijinal fetch sırası) döner — `users` state'i hiç mutasyona uğramıyor,
-    `displayedUsers` bir `useMemo` ile türetiliyor. Rol ve Tier sütunları
-    BİLİNÇLİ olarak alfabetik değil RANK'e göre sıralanıyor (`ROLE_RANK`/yeni
-    `TIER_RANK` — alfabetik olsaydı "admin" "moderator"dan önce gelirdi,
-    anlamsız). Durum sütunu `is_active` booleanına, Kayıt tarihi
-    `created_at` timestamp'ine göre. Aktif sütunda ▲/▼ ok göstergesi var.
-    Bounded bir frontend işi, backend değişikliği gerekmedi (mevcut liste
-    zaten tamamı çekiyor, client-side sort yeterliydi).
-15. ~~Test paketi sağlık denetimi~~ — ✅ 25 Ağu 2026'da yapıldı, **sonuç: paket
-    sağlıklı, temizlik gerekmedi.** AST tabanlı bir tarama (751 test
-    fonksiyonu) 3 soruyu kontrol etti: (1) **Ölü/orphan test yok** — tüm
-    `from src....` import'ları gerçek modüllere çözülüyor (tek "hit" bir
-    paket-import false-positive'iydi, `src/adapters/analysis/__init__.py`
-    zaten var). (2) **Skip/xfail/TODO/FIXME işaretli 0 test** — birikmiş
-    atıl test borcu yok. (3) **"Mock'un kendisini test etme" şüphesi
-    incelendi:** ilk kaba tarama 62 "şüpheli" işaretledi ama bunların
-    çoğu `pytest.raises(...)`/`mock.assert_called_with(...)` gibi assert
-    OLMAYAN ama gerçek doğrulama YAPAN kalıplardı (AST'de yakalanmadı,
-    metodoloji düzeltildi). Gerçek "hiç doğrulama yok" adayı sadece 9'a
-    indi, hepsi incelendi — hepsi **bilinçli "exception fırlatmamalı"
-    testleri** (ör. `test_null_cache_delete_does_nothing`,
-    `test_broadcast_no_connections_no_send`), projenin "Exception'ları
-    yut, logla, fallback dön" felsefesiyle (bkz. KODLAMA KURALLARI) birebir
-    örtüşüyor — atıl değil, kasıtlı ve doğru. Aynı isimde birden fazla test
-    fonksiyonu taraması da sadece 1 "duplicate" buldu, o da meşru (iki farklı
-    `EmbeddingPort` adaptörünün AYNI kontratı sağladığını doğrulayan iki ayrı
-    dosyadaki aynı isimli test — kasıtlı, silinmemeli).
-14. ~~Kullanıcı banlama (moderatör/admin)~~ — ✅ 19 Ağu 2026'da tamamlandı.
-    `PATCH /admin/users/{id}/active` — `update_user_role` ile birebir aynı
-    kademeli yetki deseni (hedefin rolü actor'dan KESİNLİKLE düşük olmalı,
-    owner hiç hedef olamaz, kendi kendini banlayamazsın), banlarken
-    `delete_sessions_for_user` ile tüm oturumlar da düşürülür. Admin panelinde
-    durum sütununda Banla/Banı Kaldır butonu.
-19. ~~Arama ilişkisel sorgu genişletme (query expansion)~~ — ✅ 20 Ağu 2026'da
-    tamamlandı, tek oturumda planlanıp uygulandı (spec: `docs/superpowers/
-    specs/2026-08-20-arama-iliskisel-genisletme-design.md`). "İstanbul"
-    araması "Beykoz" gibi ilişkili haberleri de düşük skorla yakalasın diye
-    Groq'a `QueryExpansionPort` (`GroqQueryExpander`, cache'li
-    `CachingQueryExpander`) üzerinden ikincil terim üretiliyor;
-    `NewsService.hybrid_search` bunu `_keyword_relevance`'a `secondary_terms`
-    olarak geçiyor, tamamen fail-open (Groq başarısız olursa eski davranış
-    aynen sürer). `SEARCH_QUERY_EXPANSION_ENABLED` ile açık/kapalı.
-    `get_news_service` DI'da `build_query_expander(get_cache())` ile bağlandı.
-
-19. ~~Deploy pipeline'ı main merge'ine bağla~~ — ✅ **TAMAMEN çözüldü** (24-25
-    Ağu 2026, iki aşamada). 24 Ağu: prod artık ayrı bir dal
-    (`optimize/t3-small-ram`) yerine doğrudan `main`'den deploy ediliyor, bkz.
-    MEVCUT DURUM "Branch" notu — drift kaynağı ortadan kalktı. 25 Ağu:
-    `.github/workflows/tests.yml`'e main'e her push'ta (test+frontend
-    geçerse) SSM üzerinden otomatik redeploy + `/api/health` doğrulaması yapan
-    bir `deploy` job'ı eklendi (PR #52), kullanıcı gerekli iki GitHub Secret'ı
-    ekledi, `gh run rerun --failed` ile UÇTAN UCA doğrulandı (otomasyon
-    gerçekten kendi başına SSM'e bağlanıp deploy yaptı). **Artık main'e her
-    merge tam otomatik prod'a çıkıyor** — elle SSM adımı sadece manuel
-    müdahale/debug için saklı kaldı.
-20. ~~"Kaynaklar" (story cluster) UI'ının kullanışlılığı~~ — ✅ 24 Ağu 2026'da
-    çözüldü. Canlı veriyle test edilince kullanıcının şikayeti hem UI hem
-    kod tarafında doğrulandı: (1) panel gerçekten İlgili Haberler'in görsel
-    bir kopyasıydı (aynı kart stili) — kaynak adına göre tekilleştirilmiş
-    rozet/pill satırına çevrildi (`NewsCard.tsx`); (2) "tam çalışmıyor"
-    algısının arkasında GERÇEK bir skorlama bug'ı vardı — bkz. BİLİNEN
-    NOTLAR'daki "jenerik entity" maddesi. `_find_corroborating_articles`
-    düzeltildi, 2 regresyon testi eklendi (746 test yeşil). **Aynı gün içinde
-    kullanıcı "başka yerde de aynı bug olabilir mi" diye sorunca tarama
-    genişletildi, `get_related` (Pro+ ücretli özellik) VE `get_story_cluster`'ın
-    semantik tarafında da aynı bug sınıfı bulunup düzeltildi (PR #50, +7 test,
-    751 test yeşil) — detay BİLİNEN NOTLAR'da.**
-21. **Entity chip → arama (bounded, TASARIM SUNULDU, ONAY BEKLİYOR)** — kullanıcı
+    2026. Sahibinden.com tarzı, 3 durumlu döngü, client-side sort. Detay:
+    `docs/CHANGELOG.md`.
+15. ~~Test paketi sağlık denetimi~~ — ✅ 25 Ağu 2026, **sonuç: paket sağlıklı,
+    temizlik gerekmedi** (AST taraması: ölü test yok, skip/xfail yok, "mock'un
+    kendini test etme" şüphelileri incelendi, hepsi kasıtlı). Detay:
+    `docs/CHANGELOG.md`.
+14. ~~Kullanıcı banlama (moderatör/admin)~~ — ✅ 19 Ağu 2026. `PATCH
+    /admin/users/{id}/active`, `update_user_role` ile aynı kademeli yetki
+    deseni. Detay: `docs/CHANGELOG.md`.
+19. ~~Arama ilişkisel sorgu genişletme (query expansion)~~ — ✅ 20 Ağu 2026.
+    `QueryExpansionPort`/`GroqQueryExpander`, fail-open, `SEARCH_QUERY_
+    EXPANSION_ENABLED`. Detay: `docs/CHANGELOG.md`.
+20. ~~Deploy pipeline'ı main merge'ine bağla~~ — ✅ 24-25 Ağu 2026, uçtan uca
+    doğrulandı (bkz. MEVCUT DURUM "Branch" notu — güncel akış orada). Detay:
+    `docs/CHANGELOG.md`.
+21. ~~"Kaynaklar" (story cluster) UI'ının kullanışlılığı~~ — ✅ 24 Ağu 2026,
+    gerçek bir skorlama bug'ı da bulup düzeltti (bkz. BİLİNEN NOTLAR "jenerik
+    entity" maddesi). Detay: `docs/CHANGELOG.md`.
+22. **Entity chip → arama (bounded, TASARIM SUNULDU, ONAY BEKLİYOR)** — kullanıcı
     24 Ağu 2026'da önerdi: `NewsCard`'daki entity chip'lerine (persons/
     organizations/locations rozetleri) tıklayınca `/dashboard/search?q=<isim>`'e
     gitsin — `TrendingPills`'in zaten kullandığı AYNI navigasyon deseni
@@ -564,46 +423,18 @@ GERÇEKTEN bekleyen işler var:
     frontend değişikliği, `NewsCard.tsx`'teki `<span className="badge">`
     entity chip'lerini `useRouter` + `router.push` çağıran bir `<button>`'a
     çevirmek).
-22. **Stratejik "buzdağı" değerlendirmesi yapıldı (24 Ağu 2026) — sıradaki
-    oturumun gerçek ilk gündemi bu olmalı, roadmap sıralamasından ÖNCE.**
-    Kullanıcı "dünyaya bakıp rasyonel sıralasak" dedi, gerçek web araştırması
-    (SaaS PMF aşamaları, 2026'nın AI/haber-toplama hukuki iklimi) + projenin
-    tam durumu temel alınarak bir Artifact hazırlandı (kullanıcının kendi
-    Artifacts galerisinde, "Buzdağının Neresindeyiz?" başlığıyla — URL bu
-    oturumun transkriptinde). **Ortaya çıkan asıl soru roadmap'te bir madde
-    DEĞİL, bir FORK:** proje bilinçli olarak "bitmiş bir portfolyo parçası"
-    olarak mı bırakılacak, yoksa gerçekten kullanıcı bulunmaya çalışılan bir
-    ürüne mi dönüştürülecek? Cevap portfolyo ise mevcut derinlik zaten yeterli
-    (roadmap'teki küçük maddeler sırayla temizlenebilir). Cevap ürünse,
-    sıradaki iş roadmap'te bir sonraki madde DEĞİL — analytics/hata takibi
-    (madde 9, hiç başlanmadı, ölçüm olmadan hangi özelliğin işe yaradığı
-    bilinemiyor) ve gerçek kullanıcı bulma (3 kişiye siteyi kullandırıp
-    izlemek). **Ayrıca somut bir son tarih var: AWS kredisi ~Kasım 2026
-    ortasında bitiyor (bu notun yazıldığı andan ~75 gün sonra) — bu karar o
-    tarihten ÖNCE netleşmeli.** Sıradaki oturum kullanıcıya bu soruyu
-    sormalı, cevaba göre roadmap'in geri kalanını yeniden sıralamalı.
-23. ✅ **LLM modüllerini bölme fizibilitesi — SPIKE sorusu 27 Ağu 2026'da
-    CEVAPLANDI + RAG için somut düzeltme yapıldı.** Resmi Groq rate-limit
-    dokümanı (model tablosunda her model FARKLI bir TPD sayısıyla listeleniyor,
-    ör. `openai/gpt-oss-20b`/`120b` 200K, `qwen/qwen3.8-27b` 2M) VE canlı bir
-    ampirik test (aynı anahtarla iki farklı modele art arda istek atılıp
-    `x-ratelimit-remaining-requests` header'ının HER model için BAĞIMSIZ
-    azaldığı gözlemlendi — paylaşımlı tek sayaç olsaydı ikinci modelin sayacı
-    da düşerdi, düşmedi) TPD kotasının **MODEL BAŞINA ayrı bir havuz**
-    olduğunu kesinleştirdi. Sonuç: farklı bir SAĞLAYICIYA geçmeye gerek yok —
-    aynı Groq hesabında farklı bir MODEL seçmek bile bağımsız bir kota açıyor.
-    `GroqQuestionAnswerer` bu bilgiyle `openai/gpt-oss-20b`'den (GroqAnalyzer/
-    worker ile paylaşılan, neredeyse sürekli dolu havuz) `openai/gpt-oss-120b`'ye
-    taşındı — aynı gpt-oss ailesinde kalındığı için JSON-güvenli
-    (`message.reasoning` `content`'ten ayrı döner, qwen ailesi gibi
-    `<think>`'i content'e gömmüyor), canlı bir istekle doğrulandı. **Bu
-    canlıda gerçek bir bug'ı çözdü:** worker'ın sürekli tükettiği paylaşımlı
-    20b havuzu RAG'a pay bırakmıyordu, 26-27 Ağu arasında `/api/v1/news/ask`
-    3 ayrı kez 429→503 ile "Şu an yanıt üretemiyorum" dönmüştü (kullanıcı
-    bunu "soru sor çalışmıyor" olarak bildirdi). **Kalan iş (opsiyonel,
-    düşük öncelik):** `GroqQueryExpander` hâlâ analyzer'la AYNI 20b modelini
-    paylaşıyor (fail-open olduğu için sessizce arka planda düşüyor, RAG kadar
-    görünür değil) — aynı taşıma isteğe bağlı bir sonraki adım.
+23. ~~Stratejik "buzdağı" değerlendirmesi~~ — ✅ 24 Ağu 2026'da karar verildi:
+    proje ŞİMDİLİK bilinçli olarak portfolyo olarak kalıyor (bkz. MEVCUT
+    DURUM "Hedef" satırı — güncel karar orada). Artifact ("Buzdağının
+    Neresindeyiz?") ve araştırmanın tam detayı: `docs/CHANGELOG.md`. Somut
+    son tarih hâlâ geçerli: AWS kredisi ~Kasım 2026 ortasında bitiyor, o
+    tarihten önce yeniden gözden geçirilecek.
+24. ~~LLM modüllerini bölme fizibilitesi~~ — ✅ SPIKE sorusu 27 Ağu 2026'da
+    cevaplandı: Groq TPD kotası MODEL BAŞINA ayrı bir havuz (bkz. BİLİNEN
+    NOTLAR), `GroqQuestionAnswerer` bu bilgiyle `gpt-oss-120b`'ye taşındı.
+    Detay: `docs/CHANGELOG.md`. **Kalan iş (opsiyonel, düşük öncelik):**
+    `GroqQueryExpander` hâlâ analyzer'la aynı 20b modelini paylaşıyor, aynı
+    taşıma isteğe bağlı bir sonraki adım.
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,
@@ -816,4 +647,4 @@ docker logs nexstream_chromadb --tail 20
 - **Yerel `.env`'e gerçek bir SENTRY_DSN eklemek test paketini sessizce prod'a "sızdırabilir" (25 Ağu 2026'da bulundu):** `tests/conftest.py::app_client` fixture'ı `src.main`'i reload ederken `init_sentry("app")`'ı hiç mock'lamıyordu — bu bir sorun değildi çünkü lokal `.env`'de `SENTRY_DSN` hep boştu, ama Sentry aktivasyonu sırasında geçici olarak gerçek DSN eklenince HER lokal test koşusu (router testlerinin büyük kısmı `app_client` kullanıyor) gerçek prod Sentry hesabına event gönderdi — testlerin BİLİNÇLİ olarak simüle ettiği hata senaryoları ("Groq analiz hatası", "SMTP gönderilemedi" vb., fail-open davranışı doğrulamak için) gerçek issue'lar gibi Sentry'ye düştü (24 sahte alarm). **Düzeltme iki katmanlı:** (1) `tests/conftest.py`'ye `sentry_sdk.init`'i test süiti genelinde mock'layan bir `autouse=True` fixture eklendi (`tests/infrastructure/test_sentry.py`'nin kendi nested mock'lamasını bozmuyor), (2) local `.env`'de `SENTRY_DSN` yine boş bırakıldı (prod SaaS entegrasyonlarının lokalde aktif olması zaten anlamsız — dev hataları prod dashboard'unu kirletir). **Ders: gerçek bir 3. parti entegrasyon anahtarını (Sentry/PostHog gibi) local `.env`'e eklerken, test suite'in o entegrasyonu GERÇEKTEN mock'ladığından ZATEN emin ol — "zaten hep boştu, hiç test edilmedi" bir varsayım, garanti değil.**
 - **Yeni bir "sahiplik kontrolü olmadan ID/endpoint ile silme" endpoint'i eklerken IDOR riski varsayılan sayılmalı (25 Ağu 2026, web push aboneliği eklerken otomatik güvenlik incelemesi bulup düzeltti):** `DELETE /account/push-subscription` ilk halinde `req.endpoint`'in `current_user`'a ait olup olmadığını hiç doğrulamadan doğrudan `delete_by_endpoint(req.endpoint)` çağırıyordu — endpoint tahmin edilebilir/öğrenilebilir olsaydı başka bir kullanıcının aboneliği silinebilirdi. Düzeltme: silme öncesi `get_by_email(current_user.email)` ile sahiplik doğrulanıyor, eşleşmezse sessizce no-op (idempotent-delete deseniyle tutarlı, hata fırlatmıyor). **Ders: `DELETE`/`PATCH` gibi bir yazma endpoint'i request body'den bir ID/endpoint/anahtar alıp bir kaynağı hedefliyorsa, o kaynağın `current_user`'a ait olduğunu SORGULAYARAK doğrula — sadece "girdi doğru formatta mı" yeterli değil, "bu girdi GERÇEKTEN bu kullanıcının mı" ayrı bir kontrol.**
 - **🔴 Senkron bir kullanıcı HTTP isteğinde çalışan bir LLM adapter'ı, arka plan worker'ının 429/Retry-After bekleme desenini KOPYALAMAMALI (26 Ağu 2026, RAG canlı QA'sında kullanıcı bulgusu — "hem haber kartından hem üst panelden düşünüyorda kaldı"):** `GroqQuestionAnswerer` ilk halinde `GroqAnalyzer`'ın (worker'da, arka planda çalışan) 429 → `time.sleep(retry_after)` desenini birebir kopyalamıştı. Groq'un TPD rate limit'i dolduğunda `Retry-After` değeri gözlemlenen **456-480 saniye** (~8 dakika) çıktı — bu, `POST /api/v1/news/ask` gibi SENKRON bir HTTP isteğinin içinde beklenince kullanıcıyı dakikalarca "Düşünüyor..." ekranında askıda bırakıyordu (canlı loglarla doğrulandı, PR #72 ile düzeltildi). **Düzeltme:** interaktif yolda 429'da HİÇ beklenmiyor, hemen `QuestionAnsweringError` fırlatılıyor (fail-fast) — kullanıcı birkaç saniye içinde net bir hata görüp isterse tekrar dener. **Ders: yeni bir LLM adapter'ı eklerken "bu hangi bağlamda çalışıyor" sorusu kritik — arka plan/worker bağlamında sabırla bekleyip retry etmek doğruyken, senkron/kullanıcı-yüzlü bir HTTP isteğinde AYNI bekleme kullanıcı deneyimini bozan bir bug'dır. Var olan bir adapter'ı "aynı HTTP deseni" diye kopyalarken çağrıldığı bağlamı da kopyalanıp kopyalanamayacağını sorgula.**
-- **Groq'un günlük (TPD) token kotası paylaşılan tek bir havuz — worker'ın haber analiz hattı (17 kaynak, sürekli akış) neredeyse TAMAMINI tüketebiliyor (26 Ağu 2026'da canlıda gözlemlendi: 199.555/200.000 kullanılmış), yeni bir LLM-tüketen özellik (RAG, sorgu genişletme) eklendiğinde pratikte hiç pay bulamayabilir.** Canlı log satırı ("`Rate limit reached for model openai/gpt-oss-20b ... on tokens per day (TPD): Limit 200000`") limitin MODEL BAŞINA olabileceğini ima ediyor ama bu resmi kaynaktan HENÜZ doğrulanmadı — bkz. YOL HARİTASI madde 23 (kullanıcının önerdiği "LLM modüllerini bölme" fizibilite incelemesi, sıradaki oturumun ikinci işi).
+- **Groq'un günlük (TPD) token kotası MODEL BAŞINA ayrı bir havuz — paylaşılan tek bir sayaç DEĞİL (27 Ağu 2026'da hem resmi rate-limit dokümanıyla hem canlı ampirik testle DOĞRULANDI, bkz. CHANGELOG "LLM modülü bölme spike'ı"):** worker'ın haber analiz hattı (17 kaynak, sürekli akış) `openai/gpt-oss-20b` havuzunu neredeyse TAMAMEN tüketiyordu (26 Ağu 2026'da 199.555/200.000) ve RAG/sorgu-genişletme aynı modeli paylaştığı için pay bulamıyordu — çözüm farklı bir SAĞLAYICIYA geçmek değil, aynı Groq hesabında FARKLI bir MODEL seçmekti (`GroqQuestionAnswerer` artık `openai/gpt-oss-120b`'de, bağımsız kota). Yeni bir LLM-tüketen özellik eklerken worker'ın modeliyle AYNI modeli paylaşıp paylaşmadığını kontrol et — paylaşıyorsa aynı tıkanıklığı miras alır.
