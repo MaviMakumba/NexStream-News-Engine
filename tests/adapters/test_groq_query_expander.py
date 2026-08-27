@@ -1,11 +1,24 @@
 """tests/adapters/test_groq_query_expander.py"""
 from unittest.mock import patch, MagicMock
+from src.adapters.analysis.groq_analyzer import GroqAnalyzer
 from src.adapters.analysis.groq_query_expander import GroqQueryExpander
 from src.adapters.api.metrics import (
     groq_latency_seconds,
     groq_rate_limit_total,
     query_expansion_total,
 )
+
+
+def test_uses_separate_model_from_analyzer_to_avoid_shared_tpd_starvation():
+    """27 Ağu 2026'da canlı QA diagnostiğinde bulundu: GroqQueryExpander hâlâ
+    GroqAnalyzer (worker, sürekli akış) ile AYNI modeli (openai/gpt-oss-20b)
+    kullanıyordu, aynı gün GroqQuestionAnswerer için doğrulanan model-başına
+    TPD kotası (roadmap #23) gereği bu paylaşımlı havuz neredeyse hep dolu
+    çıktı (canlı diagnostik script'inde 199.651/200.000 gözlendi, arka arkaya
+    6 sorguda TÜMÜNDE \"Sorgu genişletme başarısız (429)\" düştü — fail-open
+    olduğu için arama bozulmuyor ama genişletme özelliği fiilen hiç
+    çalışmıyor). GroqQuestionAnswerer'la AYNI çözüm: ayrı bir modele taşı."""
+    assert GroqQueryExpander().model != GroqAnalyzer().model
 
 
 def _expansion_count(result: str) -> float:
