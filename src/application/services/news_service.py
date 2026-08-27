@@ -70,6 +70,26 @@ _TR_SUFFIXES = (
     "ın", "in", "un", "ün",
     "ı", "i", "u", "ü",
 )
+# Doğal dilli sorularda (RAG) hiçbir konu bilgisi taşımayan Türkçe soru
+# parçacıkları — 27 Ağu 2026'da canlı QA'da bulundu: "israil türkiye savaşı
+# çıkar mı" gibi bir soruda "mı" tek başına coverage bölenini şişirip
+# gerçekten ilgili bir haberin skorunu yapay olarak düşürüyordu. `_TR_SUFFIXES`
+# İSİM çekim ekleri içindir, "-dir/-dır" (ek-fiil/copula) burada YOK — bu
+# yüzden "nedir"/"kimdir" gibi bileşik formlar stemlemeyle küçülmüyor,
+# AYRICA literal olarak listelenmesi gerekiyor. Sadece `_canonical_terms`
+# (relevans skoru) etkilenir, `_tokenize` (SQL aday havuzu) etkilenmez —
+# oraya girmesi zararsız, aday kümesini daraltmaz sadece biraz genişletir.
+_TR_QUESTION_STOPWORDS = frozenset({
+    "mı", "mi", "mu", "mü",
+    "mıdır", "midir", "mudur", "müdür",
+    "kim", "kimdir",
+    "ne", "nedir",
+    "nasıl", "nasıldır",
+    "neden", "niçin",
+    "hangi", "hangisi",
+    "nerede", "nerededir",
+    "kaç", "kaçtır",
+})
 # Hem semantik hem keyword aramada çıkan sonuç daha güvenilirdir → küçük bonus.
 _DOUBLE_HIT_BONUS = 0.10
 # LLM sorgu genişletmesinden gelen ikincil terimlerin skor ağırlığı — asıl
@@ -361,6 +381,23 @@ class NewsService:
         return max(0.0, 1.0 - age_days / window)
 
     @staticmethod
+    def _lower_tr_safe(text: str) -> str:
+        """Python'un varsayılan `.lower()`'ı Türkçe büyük "İ"yi (U+0130) tek
+        bir "i" değil "i" + birleşen nokta işaretine (U+0307) çeviriyor —
+        bu da `\\b`-anchor'lı bir regex eşleşmesinin başlangıç noktasını
+        bozup KAÇMASINA yol açıyor ("İsrailli".lower() metninde "israil"
+        hiç eşleşmiyordu, 27 Ağu 2026'da RAG canlı QA'sında bulundu).
+
+        `subscriber_matching._tr_lower`'ın AKSİNE düz ASCII "I"ya
+        DOKUNMUYORUZ — kaynakların 6'sı İngilizce (BBC Technology, TechCrunch
+        vb.), "Israel"/"Iran"/"Instagram" gibi kelimelerin baş harfi düz ASCII
+        "I" ve Python'un varsayılan davranışı (I→i) bunlar için zaten DOĞRU.
+        Türkçe'nin büyük noktasız I'sını (İngilizce'de hiç yok) "ı"ya çeviren
+        ek dönüşüm SADECE tek-dilli (TR) bir korpus için güvenli — burada
+        TR+EN karışık bir korpus var, o dönüşüm İngilizce içeriği bozardı."""
+        return text.replace("İ", "i").lower()
+
+    @staticmethod
     def _stem_tr(word: str) -> str:
         """Türkçe ad çekim ekini kırpar ("beşiktaşın" → "beşiktaş").
 
@@ -407,9 +444,15 @@ class NewsService:
         alakasız ama görece yüksek skorlu (~0.5) sonuçların altına düşmesine,
         yani aramanın komple alakasız sonuçlarla dolmasına yol açıyordu
         (18 Ağu 2026'da canlıda `"beşiktaşın"` ile bulundu — bkz. CLAUDE.md).
+
+        Ayrıca Türkçe soru parçacıklarını (`_TR_QUESTION_STOPWORDS`) eler —
+        RAG'ın doğal dilli sorularında ("... çıkar mı?", "... nedir?") bunlar
+        hiçbir konu bilgisi taşımadan böleni şişirip skoru yapay düşürüyordu
+        (27 Ağu 2026'da canlı QA'da bulundu).
         """
-        tokens = [w for w in re.findall(r"\w+", query.lower()) if len(w) >= 2]
-        return [NewsService._stem_tr(t) for t in tokens]
+        tokens = [w for w in re.findall(r"\w+", NewsService._lower_tr_safe(query)) if len(w) >= 2]
+        stems = [NewsService._stem_tr(t) for t in tokens]
+        return [s for s in stems if s not in _TR_QUESTION_STOPWORDS]
 
     @staticmethod
     def _coverage_score(title: str, summary: str, content: str, terms: List[str]) -> float:
@@ -465,9 +508,9 @@ class NewsService:
         kalıcı olarak gömülü kalırlardı (20 Ağu 2026, bkz. spec "arama ilişkisel
         genişletme").
         """
-        title = article.title.lower() if article.title else ""
-        summary = article.summary.lower() if article.summary else ""
-        content = article.content.lower() if article.content else ""
+        title = NewsService._lower_tr_safe(article.title) if article.title else ""
+        summary = NewsService._lower_tr_safe(article.summary) if article.summary else ""
+        content = NewsService._lower_tr_safe(article.content) if article.content else ""
 
         base = NewsService._coverage_score(title, summary, content, query_terms)
         secondary = NewsService._coverage_score(title, summary, content, secondary_terms or [])

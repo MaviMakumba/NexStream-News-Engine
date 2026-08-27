@@ -214,9 +214,9 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v2.6 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 26 Ağustos 2026, PR #70+#71+#72 dahil — **deploy artık tam otomatik**, main'e her merge'de GitHub Actions kendi kendine SSM'e bağlanıp redeploy ediyor, bkz. "Branch" notu aşağıda). İlk canlıya çıkış: 29 Temmuz 2026.
-- **Test sayısı:** 824 test, hepsi yeşil (backend, 27 Ağu 2026 — false-friend keyword + model-ayrımı testleri için +3 test); frontend `tsc --noEmit` + `next build` temiz.
-- **26 Ağu 2026'da RAG tabanlı soru-cevap (roadmap #13) canlıya çıktı — bkz. YOL HARİTASI madde 13 ve BİLİNEN NOTLAR'daki "senkron LLM isteğinde fail-fast" dersi. 27 Ağu 2026'da roadmap #23'ün spike'ı cevaplandı + RAG ayrı modele (`gpt-oss-120b`) taşınarak canlıdaki "soru sor çalışmıyor" şikayeti kök nedeniyle düzeltildi (bkz. YOL HARİTASI madde 23), aynı gün e-posta keyword alert'teki "altın"/"altında" yanlış-dost eşleşme bug'ı da düzeltildi (bkz. BİLİNEN NOTLAR). Sıradaki oturumun İLK işi HÂLÂ madde 13'ün canlı QA'sını tamamlamak (5 senaryo hiç koşulmadı, `RETRIEVAL_THRESHOLD` kalibre edilmedi) — bugünkü model değişikliği bunu KOLAYLAŞTIRIR (artık worker'ın kotasıyla yarışmıyor) ama yerine geçmez.**
+- **Versiyon:** v2.6 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 27 Ağustos 2026, PR #70-#75 dahil — **deploy artık tam otomatik**, main'e her merge'de GitHub Actions kendi kendine SSM'e bağlanıp redeploy ediyor, bkz. "Branch" notu aşağıda). İlk canlıya çıkış: 29 Temmuz 2026.
+- **Test sayısı:** 833 test, hepsi yeşil (backend, 27 Ağu 2026 — canlı QA'da bulunan 6 bug için +9 test); frontend `tsc --noEmit` + `next build` temiz.
+- **26-27 Ağu 2026'da RAG tabanlı soru-cevap (roadmap #13) canlıya çıktı ve kullanıcının gerçek canlı QA'sında (Docker yine kapalıydı, tarayıcı + SSM diagnostik script'iyle) 6 GERÇEK bug bulunup düzeltildi — tam liste YOL HARİTASI madde 13'te (false-friend keyword, Groq model-ayrımı [roadmap #23 spike'ı cevaplandı], dil eşlemesi, eşik kalibrasyonu, alert-keyword kaynağı, dotted-İ + soru-parçacığı skoru seyreltmesi). 7. bir bulgu (genel "maçın heyecanı" şablon içeriğinin retrieval'ı boğması) BİLİNÇLİ olarak bugün çözülmedi, ayrı bir tasarım turu gerektiriyor — sıradaki oturumun İLK gündemi bu + spec'in tam 5 senaryolu QA turu.**
 - **Frontend:** Next.js 14 + React. 10 sinematik tema (varsayılan artık `day` — sıcak/aydınlık, `night` onun koyu kardeşi, `matrix` seçilebilir kaldı), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
@@ -430,12 +430,50 @@ GERÇEKTEN bekleyen işler var:
     et" akışı. PR #70 (önce bağımsız bir keyword-alert substring bug'ı +
     hesap sayfası chip UI'ı), #71 (RAG'ın kendisi), #72 (canlı QA'da bulunan
     fail-fast hotfix'i, bkz. BİLİNEN NOTLAR).
-    **⚠️ EKSİK KALAN — sıradaki oturumun İLK işi:** Docker Desktop bu
-    oturumda kapalıydı, spec'in zorunlu tuttuğu 5 senaryolu canlı QA turu
-    (kanıtsız/tek-kaynak/çok-kaynak/dolaylı-alaka/multi-turn) VE tarayıcıda
-    oturum ayrımı/free-tier kilit ekranı kontrolü HİÇ yapılamadı —
-    `RETRIEVAL_THRESHOLD` (varsayılan 0.5) hâlâ kalibre edilmedi. Plan
-    dosyasının Task 13'ünde tam senaryo listesi kayıtlı.
+    **27 Ağu 2026'da kullanıcı gerçek canlı QA'ya başladı (Docker yine
+    kapalıydı, tarayıcıda canlı siteyle test edildi) — 6 GERÇEK bug bulunup
+    aynı oturumda düzeltildi (PR #73/#74/#75):**
+    1. E-posta/push keyword alert'te "altın" (gold) kökü "altında"/"altındaki"
+       ("alt" [under] kelimesinin çekimi) ile harf düzeyinde çakışıyordu —
+       `_FALSE_FRIEND_WORDS` istisnasıyla çözüldü (bkz. BİLİNEN NOTLAR).
+    2. RAG "soru sor" Groq'un paylaşımlı TPD kotası dolduğu için sürekli 503
+       dönüyordu — `GroqQuestionAnswerer` + `GroqQueryExpander` ayrı modele
+       (`gpt-oss-120b`) taşındı, roadmap #23'ün spike'ı bu vesileyle cevaplandı.
+    3. Kanıt-yok şablonu TR sitede aksansız Türkçe soruda İngilizce geliyordu
+       — `AskRequest.language` eklendi, frontend'in kesin bildiği arayüz dili
+       karakter-sezgisinden ÖNCE kullanılıyor artık.
+    4. `RETRIEVAL_THRESHOLD` 0.5→0.4: gerçekten ilgili bir haber (%46 skor)
+       eşik yüzünden reddediliyordu — İLK gerçek kalibrasyon verisi.
+    5. "Haberdar et" önerisi sohbetin SON mesajını (takip sorusu, konu
+       taşımayabilir — "sence tekrar yükselir mi?") değil İLK mesajını
+       kullanacak şekilde düzeltildi.
+    6. Python'un `.lower()`'ı Türkçe büyük "İ"yi bozup (`\b`-anchor kaçıyordu,
+       "İsrailli" başlığı "israil" sorgusuyla hiç eşleşmiyordu) + doğal dilli
+       sorulardaki soru parçacıkları ("mı", "kim", "nedir") coverage bölenini
+       şişirip skoru yapay düşürüyordu — ikisi de düzeltildi (`_lower_tr_safe`
+       + `_TR_QUESTION_STOPWORDS`, SADECE `_canonical_terms`'i etkiler).
+
+    **Canlı diagnostik script'iyle (SSM üzerinden container içinde gerçek
+    DI-wired `NewsService.hybrid_search` çağrısı) bulunan, BİLİNÇLİ OLARAK
+    BUGÜN ÇÖZÜLMEYEN 7. bir bulgu — sonraki oturumun gündemi:** "Beşiktaş
+    maçı saati" gibi bir soruda retrieval GERÇEKTEN doğru haberi buluyor
+    (%59.4 skor, eşiği geçiyor) ama kanıt paketi bunun yanına "Filenin
+    Sultanları, Almanya karşısında! Maçın heyecanı canlı yayın ile" gibi
+    TAMAMEN ALAKASIZ (farklı spor dalı/takım) ama "maç" kelimesini paylaşan
+    ve ChromaDB'ye genel "maç" temasıyla semantik olarak benzeyen şablon
+    içeriklerle doluyor — LLM bu gürültü içinde "asıl soruyu (saat) hiçbiri
+    cevaplamıyor" deyip kanıtsız şablonuna düşüyor. Bu, 24 Ağu 2026'da
+    corroboration/related/story-cluster'da çözülen "jenerik entity" bug
+    sınıfının RAG retrieval'daki YENİ bir görünümü — ama oradaki
+    `_distinguishing_entity_keys` çözümü doğrudan uygulanamaz (o ingest-
+    zamanı entity-overlap'e dayanıyor, bu SORGU-zamanı semantik+keyword
+    karışımı bir problem). Gerçek bir çözüm muhtemelen sorguda geçen özel
+    isim/varlığın (ör. "Beşiktaş") kanıt paketindeki HER makalede literal
+    olarak doğrulanmasını gerektirecek — bounded bir hızlı yama değil, ayrı
+    bir tasarım turu ister. `RETRIEVAL_THRESHOLD` kalibrasyonu artık kısmen
+    ilerledi (madde 4) ama spec'in tam 5 senaryolu QA turu (kanıtsız/tek-
+    kaynak/çok-kaynak/dolaylı-alaka/multi-turn) VE tarayıcıda oturum ayrımı/
+    free-tier kilit ekranı kontrolü HÂLÂ tam yapılmadı.
 17. **Özet (summary) clickbait başlığı papağan gibi tekrarlamamalı** (19 Ağu
     2026, kullanıcı örnek verdi: "Fenerbahçe'ye müjde! Barcelona istiyor" gibi
     bir başlıkta özet de aynı belirsizliği koruyordu — hangi oyuncu (örn.

@@ -8,6 +8,13 @@ isimleri üretti (Fatih, Beyoğlu, Kadıköy...), 0.8sn. Her hata yolu
 (429/timeout/bozuk JSON/model kaldırılmış) boş liste ile sonuçlanır —
 arama ASLA bu adaptör yüzünden bozulmaz (projenin "Exception'ları yut,
 logla, fallback dön" kuralı).
+
+27 Ağu 2026'da canlı QA diagnostiğinde bulundu: GroqAnalyzer (worker, 17
+kaynak sürekli akış) ile AYNI modeli (openai/gpt-oss-20b) paylaşıyordu —
+GroqQuestionAnswerer için doğrulanan model-başına-ayrı-TPD-havuzu bilgisiyle
+(roadmap #23) `openai/gpt-oss-120b`'ye taşındı. Fail-open olduğu için
+paylaşımlı kota dolunca arama ASLA bozulmuyordu ama genişletme özelliği
+sessizce hep boş dönüyordu (canlıda art arda 6 sorguda 6'sı da 429).
 """
 
 import json
@@ -50,7 +57,10 @@ _MAX_TERMS = 6
 class GroqQueryExpander(QueryExpansionPort):
     def __init__(self):
         self.api_key = settings.groq_api_key
-        self.model = "openai/gpt-oss-20b"
+        # GroqAnalyzer'dan (openai/gpt-oss-20b) BİLİNÇLİ olarak farklı — bkz.
+        # modül docstring'i "27 Ağu 2026" (GroqQuestionAnswerer'daki aynı
+        # düzeltmeyle tutarlı, ayrı bir TPD havuzu açar).
+        self.model = "openai/gpt-oss-120b"
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
 
     def expand(self, query: str) -> List[str]:
