@@ -57,13 +57,18 @@ tıklama/hover'da bileşen dökümü.
 
 ### `_distinguishing_query_terms(query: str) -> list[str]` (yeni, `news_service.py`)
 
-Sorgunun ORİJİNAL (küçültülmemiş) halinden büyük harfle başlayan kelimeleri
-çıkarır (`"Beşiktaş maçı saat kaçta"` → `["Beşiktaş"]`). Cümle başındaki
-büyük harf yanlış-pozitif riski taşır (`"Dün ne oldu"` → `"Dün"` özel isim
-değil) — bu yüzden sadece **cümle başı hariç** büyük harfle başlayan
-kelimeler VEYA sorgu tek kelimeyse (cümle başı ayrımı anlamsız) tüm büyük
-harfli kelimeler alınır. Soru parçacıkları (`_TR_QUESTION_STOPWORDS`) zaten
-elenir (mevcut `_canonical_terms` deseniyle tutarlı).
+Sorgunun ORİJİNAL (küçültülmemiş) halinden büyük harfle başlayan TÜM
+kelimeleri çıkarır (`"Beşiktaş maçı saat kaçta"` → `["Beşiktaş"]`). **Cümle
+başını hariç tutmuyoruz** — ilk tasarımda düşünülmüştü (`"Dün ne oldu"` gibi
+sentence-initial yanlış-pozitiflerden kaçınmak için) ama plan yazımı
+sırasında fark edildi: bu uygulamadaki sorgular (arama kutusu + RAG soruları)
+tipik olarak TAM CÜMLE değil, **konu-önce** yazılıyor — "Beşiktaş maçı saat
+kaçta", "Trump ne dedi" gibi, özel isim genelde İLK kelime. İlk kelimeyi
+hariç tutmak dünkü canlı bug'ın ait olduğu TAM SENARYOYU (sorgu "Beşiktaş"
+ile başlıyor) kaçırırdı. Sentence-initial yanlış-pozitif riski KABUL
+EDİLDİ — ceza sert değil çarpımsal (`_GROUNDING_PENALTY = 0.3`, sıfır değil),
+yanlışlıkla yakalanan bir "Dün" gibi kelime en fazla bir sonucu geriye iter,
+elemez.
 
 ### `_grounding_factor(distinguishing_terms: list[str], article_text: str) -> float` (yeni)
 
@@ -97,6 +102,21 @@ count` gibi sayısal alanlarla ÇALIŞIRKEN hep bu deseni kullan). Skor aralığ
 zaten `[0, 1]` (bkz. `domain/scoring/credibility.py`) — `None` durumunda
 (henüz hesaplanmamış eski satır) nötr `0.5` varsayılır, `0.7 + 0.3*0.5 =
 0.85` — hafif bir belirsizlik cezası.
+
+### Veri kaynağı — `quality_score`/`credibility_score` her adayda hazır DEĞİL
+
+Plan yazımı sırasında bulundu: ChromaDB'nin sakladığı metadata (`index_article`)
+sadece title/source/url/summary/sentiment_label/topic/published_at içeriyor —
+`quality_score`/`credibility_score`/`corroboration_count` YOK. Yani SADECE
+semantik eşleşen (keyword tarafında hiç geçmeyen) bir aday için bu sinyaller
+elde hazır değil. Çözüm: ChromaDB metadata'sını genişletmek (eski indexlenmiş
+vektörler için geriye dönük eksik kalır, migration/staleness sorunu) YERİNE,
+`hybrid_search` `combined` id kümesini kurduktan hemen sonra `repository.
+get_articles_by_ids(list(combined_ids))` ile TÜM adayların `Article`
+nesnelerini TEK bir SQL sorgusuyla çeker (`answer_question`'ın zaten kullandığı
+aynı desen — `IN` sorgusu, N+1 değil). Bu tek çekim hem credibility fold-in
+hem trust-score hem de grounding-factor'ün metin kaynağı (title+FULL content,
+sadece Chroma'nın kısıtlı summary'si değil) için kullanılır.
 
 ### Birleştirme
 
