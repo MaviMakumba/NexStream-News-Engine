@@ -19,6 +19,21 @@ bunu olduğu gibi `time.sleep()` ile beklemek kullanıcıyı dakikalarca
 "Düşünüyor..." ekranında askıda bırakıyordu (canlıda doğrulandı). Bu yüzden
 429'da BEKLEMEDEN hemen QuestionAnsweringError fırlatılır (fail-fast) —
 kullanıcı birkaç saniye içinde net bir hata görüp isterse tekrar dener.
+
+27 Ağu 2026'da canlıda bulunan İKİNCİ bug (roadmap #23'ün spike'ı buradan
+çözüldü): bu adapter GroqAnalyzer (worker, 17 kaynak sürekli akış) ile AYNI
+modeli (openai/gpt-oss-20b) kullanıyordu. Groq'un günlük token kotası (TPD)
+MODEL BAŞINA ayrı bir havuz — resmi rate-limit dokümantasyonundaki tabloda
+her model farklı bir TPD sayısıyla listeleniyor (aynı sayı olsa bile ayrı
+sayaçlar — canlı ortamda iki modele art arda istek atılıp
+`x-ratelimit-remaining-requests` header'ının HER model için BAĞIMSIZ
+azaldığı doğrulandı, bkz. CLAUDE.md). Worker'ın sürekli tükettiği paylaşımlı
+havuz RAG'a neredeyse hiç pay bırakmıyordu (canlıda aynı gün içinde 3 ayrı
+429→503 gözlemlendi — "soru sor" kullanıcıya kalıcı bozuk gibi görünüyordu).
+Çözüm: RAG'ı `openai/gpt-oss-120b`'ye taşımak — AYRI bir TPD havuzu açıyor,
+aynı gpt-oss ailesinde kalındığı için `message.reasoning`/`content` ayrımı
+korunuyor (qwen ailesi `<think>`'i content'e gömüp JSON parse'ı bozuyor,
+bkz. CLAUDE.md "Groq modelleri" notu — o yüzden qwen'e GEÇİLMEDİ).
 """
 
 import json
@@ -38,7 +53,10 @@ logger = logging.getLogger(__name__)
 class GroqQuestionAnswerer(QuestionAnsweringPort):
     def __init__(self):
         self.api_key = settings.groq_api_key
-        self.model = "openai/gpt-oss-20b"
+        # GroqAnalyzer'dan (openai/gpt-oss-20b) BİLİNÇLİ olarak farklı — aynı
+        # modeli paylaşmak worker'ın sürekli tükettiği TPD havuzunu RAG'la
+        # paylaştırıp aç bırakıyordu, bkz. modül docstring'i "27 Ağu 2026".
+        self.model = "openai/gpt-oss-120b"
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
 
     def answer(self, question: str, sources: list, history: list, corroboration_level: str) -> dict:

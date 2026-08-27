@@ -7,9 +7,37 @@ keyword eşleştirme mantığını ayrı ayrı yazıyordu.
 """
 
 import re
-from typing import List, Optional
+from typing import Dict, FrozenSet, List, Optional
 from src.domain.models.article import Article
 from src.domain.models.subscriber import Subscriber
+
+# Bilinen "yanlış dost" (false friend) çakışmaları: bir kök harf düzeyinde
+# BAŞKA, dilbilgisel olarak alakasız bir kelimenin çekimli haliyle çakışıyorsa
+# (ör. "altın" [gold] kökü, "alt" [under] kelimesinin "altı"+buffer "n"+"da/daki"
+# çekimiyle üretilen "altında"/"altındaki" ile TAM AYNI harfleri paylaşıyor).
+# \b-anchor tek başına bunu ayıklayamaz çünkü çakışan kelimenin önünde GERÇEK
+# bir kelime sınırı var (gözaltı bug'ından farkı — orada sınır yoktu). Gerçek
+# morfolojik analiz olmadan bu ayrım yapılamaz (bkz. `_stem_tr` benzeri
+# "pragmatik, gerçek analiz değil" felsefesi), bu yüzden bilinen çakışan TAM
+# kelimeler için küçük, elle bakımı yapılan bir istisna listesi tutuyoruz
+# (27 Ağu 2026'da canlıda "gram altın" e-posta uyarısıyla bulundu — "İşgal
+# altındaki topraklar" yanlışlıkla eşleşiyordu).
+_FALSE_FRIEND_WORDS: Dict[str, FrozenSet[str]] = {
+    "altın": frozenset({"altında", "altındaki", "altından", "altındayken"}),
+}
+
+
+def _term_occurs_in(term: str, text: str) -> bool:
+    """`term` metinde bilinen bir yanlış-dost istisnası OLMADAN en az bir
+    yerde geçiyor mu. `term`/`text` çağıran tarafta zaten `_tr_lower` ile
+    küçültülmüş olmalı."""
+    exclusions = _FALSE_FRIEND_WORDS.get(term)
+    if not exclusions:
+        return bool(re.search(r"\b" + re.escape(term), text))
+    for m in re.finditer(r"\b" + re.escape(term) + r"\w*", text):
+        if m.group(0) not in exclusions:
+            return True
+    return False
 
 
 def _tr_lower(text: str) -> str:
@@ -31,12 +59,19 @@ def matched_keyword(article: Article, keywords: List[str]) -> Optional[str]:
     ile aynı sınıf — bkz. o fonksiyonun docstring'i). Sağdan sınırlamıyoruz,
     çünkü çekim eklerini ("altının") yakalamak istiyoruz. Çok kelimeli bir
     keyword ("gram altın") için ifadenin YAN YANA geçmesi gerekir — boşluk da
-    literal karakter olarak regex'e dahil olur."""
+    literal karakter olarak regex'e dahil olur.
+
+    Bu \\b-anchor tek başına yetmiyor bazı köklerde: "altın" (gold) ile
+    "altında"/"altındaki" ("alt" [under] kelimesinin çekimli hali) harf
+    düzeyinde TAM AYNI — ikisinin de önünde gerçek bir kelime sınırı var,
+    gerçek morfolojik analiz olmadan ayırt edilemez (27 Ağu 2026'da canlıda
+    bulundu). `_term_occurs_in` bilinen böyle çakışmaları `_FALSE_FRIEND_WORDS`
+    istisna listesiyle eler."""
     if not keywords:
         return None
     text = _tr_lower(f"{article.title} {article.summary or ''} {article.content[:500]}")
     for kw in keywords:
-        if re.search(r"\b" + re.escape(_tr_lower(kw)), text):
+        if _term_occurs_in(_tr_lower(kw), text):
             return kw
     return None
 

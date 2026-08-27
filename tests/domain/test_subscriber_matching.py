@@ -64,6 +64,30 @@ def test_matched_keyword_still_matches_inflected_suffix():
     assert matched_keyword(article, ["altın"]) == "altın"
 
 
+def test_matched_keyword_does_not_match_false_friend_altinda():
+    """27 Ağu 2026 bug: 'altın' (gold) kökü 'altında'/'altındaki' ("alt" [under]
+    kelimesinin çekimli hali, "altı" + buffer "n" + "da/daki") ile harf
+    düzeyinde çakışıyor — 'İşgal altındaki topraklar' gibi altınla hiç ilgisi
+    olmayan bir haber 'altın' uyarısını tetikliyordu. Bu ikisi gerçek
+    morfolojik analiz olmadan ayırt edilemez (aynı harfler), bu yüzden bilinen
+    çakışan tam kelimeler için küçük bir istisna listesi (_FALSE_FRIEND_WORDS)
+    gerekiyor — \\b-anchor tek başına yetmiyor çünkü 'altında' önünde gerçek
+    bir kelime sınırı var (bkz. gözaltı bug'ından farkı)."""
+    article = _article(title="İşgal altındaki topraklarda gerginlik sürüyor", topic="World")
+    assert matched_keyword(article, ["altın"]) is None
+
+    article2 = _article(title="Baskı altında geçen bir yıl", topic="Politics")
+    assert matched_keyword(article2, ["altın"]) is None
+
+
+def test_matched_keyword_false_friend_does_not_block_real_gold_locative():
+    """İstisna sadece BİLİNEN çakışan tam kelimeleri engellemeli — 'altın'ın
+    kendi çekimli hallerinden biri değilse (ör. 'altını', 'altınla') hâlâ
+    normal şekilde eşleşmeli."""
+    article = _article(title="Altını çeyrek çeyrek biriktirenler kazandı", topic="Economy")
+    assert matched_keyword(article, ["altın"]) == "altın"
+
+
 def test_matched_keyword_multi_word_phrase_requires_exact_sequence():
     """Çok kelimeli bir keyword ('gram altın') ifadenin YAN YANA geçmesini
     gerektirmeli — sadece bileşenlerinden biri geçmesi yetmemeli."""

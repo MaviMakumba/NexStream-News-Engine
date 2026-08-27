@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
+from src.adapters.analysis.groq_analyzer import GroqAnalyzer
 from src.adapters.analysis.groq_question_answerer import GroqQuestionAnswerer
 from src.domain.ports.question_answering_port import QuestionAnsweringError
 
@@ -15,6 +16,20 @@ def make_mock_response(content: str, status_code: int = 200):
 def _sources():
     return [{"index": 1, "title": "Başlık", "source": "BBC", "sentiment_label": "Neutral",
              "corroboration_count": 1, "published_at": "2026-08-20"}]
+
+
+def test_uses_separate_model_from_analyzer_to_avoid_shared_tpd_starvation():
+    """27 Ağu 2026 canlı bug: RAG ve haber analiz hattı (worker, 17 kaynak,
+    sürekli akış) AYNI Groq modelini (openai/gpt-oss-20b) kullanıyordu.
+    Groq'un günlük token kotası (TPD) MODEL BAŞINA ayrı bir havuz (resmi
+    docs tablosu + canlı 429 yanıtının model adını belirtmesiyle doğrulandı,
+    bkz. CLAUDE.md roadmap #23) — worker'ın sürekli tükettiği paylaşımlı
+    havuz RAG'ı neredeyse hiç pay bulamaz hale getiriyordu, canlıda 3 ayrı
+    503 ("Groq rate limit ... interaktif istek beklemeden başarısız") ile
+    gözlemlendi. RAG'ı ayrı bir modele (gpt-oss ailesinden, JSON-güvenli —
+    qwen ailesi <think>'i content'e gömüp parse'ı bozuyor) taşımak bağımsız
+    bir TPD havuzu açıyor."""
+    assert GroqQuestionAnswerer().model != GroqAnalyzer().model
 
 
 def test_answer_returns_parsed_result():
