@@ -53,6 +53,13 @@ export default function AskPage() {
 
   const sessionId: SessionId = articleId != null ? (`article:${articleId}` as const) : "general";
   const messages = sessions[sessionId] ?? [];
+  // "Haberdar et" önerisi için takip edilecek konu SOHBETİN İLK sorusundan
+  // gelir, o an kanıtsız kalan son mesajdan DEĞİL — 27 Ağu 2026'da canlıda
+  // bulundu: çok turlu bir sohbette "sence tekrar yükselir mi?" gibi bir
+  // takip sorusu tek başına hiçbir konu bilgisi taşımıyor, keyword olarak
+  // eklenince tamamen işlevsiz kalıyordu. İlk soru genelde asıl konuyu
+  // taşır, takipler ona atıfla devam eder.
+  const topicKeyword = messages.find((m) => m.role === "user")?.content ?? "";
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -68,7 +75,7 @@ export default function AskPage() {
     setSessions((cur) => ({ ...cur, [sessionId]: [...(cur[sessionId] ?? []), userMsg] }));
     setBusy(true);
     try {
-      const res = await askQuestion({ question, article_id: articleId, history });
+      const res = await askQuestion({ question, article_id: articleId, history, language: lang });
       const assistantMsg: ChatMessage = { role: "assistant", content: res.answer, meta: res };
       setSessions((cur) => ({ ...cur, [sessionId]: [...(cur[sessionId] ?? []), assistantMsg] }));
     } catch (err: unknown) {
@@ -151,7 +158,7 @@ export default function AskPage() {
                 </div>
               )}
               {m.meta?.suggest_alert && (
-                <Link href={`/account?prefillKeyword=${encodeURIComponent(messages[i - 1]?.content ?? "")}`}
+                <Link href={`/account?prefillKeyword=${encodeURIComponent(topicKeyword)}`}
                       className="btn-secondary" style={{ marginTop: 8, fontSize: "0.78rem", display: "inline-block" }}>
                   {t.askSuggestAlertBtn}
                 </Link>

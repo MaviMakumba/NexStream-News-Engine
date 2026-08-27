@@ -147,8 +147,15 @@ class Settings(BaseSettings):
     # ── RAG soru-cevap (roadmap #13) ────────────────────────────────────────
     # Kanıt kapısı eşiği: hybrid_search/get_story_cluster skoru bu değerin
     # altındaki adaylar Groq'a hiç gönderilmez (NewsService.answer_question).
-    # Gerçek sorularla kalibre edilecek — bkz. spec "Açık Noktalar".
-    rag_retrieval_threshold: float = 0.5
+    # 0.5 varsayımıydı, 27 Ağu 2026'da canlı QA'da İLK gerçek kalibrasyon
+    # verisiyle 0.4'e indirildi: "İsrail Türkiye savaşı çıkar mı?" sorusuna
+    # doğrudan ilgili bir haber ("İsrailli bakandan Türkiye açıklaması!")
+    # arama sayfasında %46 (0.46) skorla listeleniyordu — gerçekten ilgili
+    # olduğu halde 0.5 eşiği yüzünden RAG'a hiç girmiyor, "bilgim yok"
+    # dönüyordu. Hâlâ TEK bir veri noktasına dayanıyor — daha fazla gerçek
+    # soruyla (özellikle alakasız adayların ne skorla geldiğini de gözlemleyip
+    # yanlış-pozitif riskini kontrol ederek) yeniden kalibre edilmeli.
+    rag_retrieval_threshold: float = 0.4
 
     # ── Retention (eski haber temizliği) ────────────────────────────────────
     # ChromaDB'den eski vektörleri kaldırır (Postgres etkilenmez, reindex ile geri gelir).

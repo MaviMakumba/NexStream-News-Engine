@@ -949,3 +949,33 @@ def test_no_evidence_response_english_question_returns_english_text():
     with patch.object(service, "hybrid_search", return_value=[]):
         result = service.answer_question("Who will be the new coach?")
     assert result["answer"] == NewsService._NO_EVIDENCE_TEXT["EN"]
+
+
+def test_no_evidence_response_ui_language_overrides_char_heuristic():
+    """27 Ağu 2026'da canlıda bulundu: kullanıcı TR arayüzdeyken aksansız
+    Türkçe yazınca (\"gram altin tekrar cikar mi\" — hiç ğüşıöç yok)
+    `_looks_turkish` karakter sezgisi yanlışlıkla EN tahmin ediyordu, site
+    TR iken cevap İngilizce geliyordu. Frontend zaten kesin bilinen arayüz
+    dilini gönderebiliyor — bu, karakter sezgisinden ÖNCE gelmeli."""
+    service, mock_repo, mock_qa = make_service_with_qa()
+    with patch.object(service, "hybrid_search", return_value=[]):
+        result = service.answer_question("gram altin tekrar cikar mi", ui_language="TR")
+    assert result["answer"] == NewsService._NO_EVIDENCE_TEXT["TR"]
+
+
+def test_no_evidence_response_ui_language_none_falls_back_to_heuristic():
+    """ui_language verilmezse (ör. eski istemci/doğrudan API kullanımı) eski
+    karakter-sezgisi davranışı AYNEN korunur — geriye uyumluluk."""
+    service, mock_repo, mock_qa = make_service_with_qa()
+    with patch.object(service, "hybrid_search", return_value=[]):
+        result = service.answer_question("gram altin tekrar cikar mi")
+    assert result["answer"] == NewsService._NO_EVIDENCE_TEXT["EN"]
+
+
+def test_no_evidence_response_invalid_ui_language_falls_back_to_heuristic():
+    """Bozuk/tanınmayan bir `ui_language` değeri sessizce göz ardı edilir,
+    çökme yerine eski heuristiğe düşülür (fail-open)."""
+    service, mock_repo, mock_qa = make_service_with_qa()
+    with patch.object(service, "hybrid_search", return_value=[]):
+        result = service.answer_question("Who will be the new coach?", ui_language="fr-FR")
+    assert result["answer"] == NewsService._NO_EVIDENCE_TEXT["EN"]

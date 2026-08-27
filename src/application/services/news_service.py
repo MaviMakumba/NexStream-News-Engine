@@ -758,8 +758,13 @@ class NewsService:
         edilebilir bir sınır (sadece kanıt-yok şablonunu etkiler)."""
         return any(ch in NewsService._TR_CHARS for ch in text)
 
-    def _no_evidence_response(self, question: str, general_mode: bool) -> dict:
-        lang = "TR" if self._looks_turkish(question) else "EN"
+    def _no_evidence_response(self, question: str, general_mode: bool,
+                               ui_language: Optional[str] = None) -> dict:
+        ui_language = ui_language.upper() if isinstance(ui_language, str) else None
+        if ui_language in self._NO_EVIDENCE_TEXT:
+            lang = ui_language
+        else:
+            lang = "TR" if self._looks_turkish(question) else "EN"
         return {
             "answer": self._NO_EVIDENCE_TEXT[lang],
             "coverage": "none",
@@ -786,13 +791,21 @@ class NewsService:
         return candidates
 
     def answer_question(self, question: str, article_id: Optional[int] = None,
-                         history: Optional[list] = None) -> Optional[dict]:
+                         history: Optional[list] = None,
+                         ui_language: Optional[str] = None) -> Optional[dict]:
         """Kanıt kapısı: retrieval skorları `settings.rag_retrieval_threshold`
         altındaysa Groq'a HİÇ gidilmez (kota harcanmaz). Habere özel modda
         hedef makale eşikten muaftır — kullanıcı zaten O haberi soruyor.
         Dönüş `None` ise (sadece habere özel modda) `article_id` bulunamadı
         demektir, router 404 döner. Groq tüm denemeleri tüketirse
-        `QuestionAnsweringError` fırlatır (fail-open DEĞİL, bkz. spec 'Amaç')."""
+        `QuestionAnsweringError` fırlatır (fail-open DEĞİL, bkz. spec 'Amaç').
+
+        `ui_language` (opsiyonel, "TR"/"EN") — SADECE kanıt-yok şablonunun
+        dilini seçer, frontend'in kesin bildiği arayüz dili. 27 Ağu 2026'da
+        canlıda bulundu: `_looks_turkish` karakter sezgisi aksansız Türkçe
+        soruda ("gram altin tekrar cikar mi" — hiç ğüşıöç yok) yanlış EN
+        tahmin ediyordu, TR sitede cevap İngilizce geliyordu. Verilmezse
+        (eski istemci/doğrudan API) eski heuristiğe düşülür."""
         if self.qa_port is None:
             raise QuestionAnsweringError("Soru-cevap servisi yapılandırılmamış")
         history = history or []
@@ -813,7 +826,7 @@ class NewsService:
                 [c for c in passing if c["id"] != target.id]
 
         if not passing:
-            return self._no_evidence_response(question, general_mode=target is None)
+            return self._no_evidence_response(question, general_mode=target is None, ui_language=ui_language)
 
         distinct_sources = {c["source"] for c in passing if c["source"]}
         corroboration_level = "multi_source" if len(distinct_sources) >= 2 else "single_source"
@@ -824,7 +837,7 @@ class NewsService:
 
         evidence_bundle = [articles_by_id[c["id"]] for c in passing if c["id"] in articles_by_id]
         if not evidence_bundle:
-            return self._no_evidence_response(question, general_mode=target is None)
+            return self._no_evidence_response(question, general_mode=target is None, ui_language=ui_language)
 
         evidence_dicts = [
             {
@@ -845,7 +858,7 @@ class NewsService:
         )
 
         if result["coverage"] == "none":
-            return self._no_evidence_response(question, general_mode=target is None)
+            return self._no_evidence_response(question, general_mode=target is None, ui_language=ui_language)
 
         used = [i for i in result.get("used_sources", []) if isinstance(i, int) and 1 <= i <= len(evidence_bundle)]
         sources = [
