@@ -115,6 +115,12 @@ class AskRequest(BaseModel):
     # Groq kotasını (bkz. CLAUDE.md BİLİNEN NOTLAR) tek bir istekle şişirmeyi
     # önler — SearchRequest.n_results'ın üst sınır deseniyle aynı disiplin.
     history: List[AskMessage] = Field(default_factory=list, max_length=20)
+    # Opsiyonel, frontend'in kesin bildiği arayüz dili ("TR"/"EN") — SADECE
+    # kanıt-yok şablonunun dilini seçer (bkz. NewsService._no_evidence_response
+    # docstring'i, 27 Ağu 2026 canlı bug'ı: aksansız Türkçe soruda karakter
+    # sezgisi yanlış EN tahmin ediyordu). Tanınmayan/boş değer sessizce eski
+    # heuristiğe düşer, doğrulama hatası fırlatmaz.
+    language: Optional[str] = None
 
 
 class RagSource(BaseModel):

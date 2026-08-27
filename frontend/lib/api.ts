@@ -166,10 +166,14 @@ export async function fetchStoryCluster(id: number): Promise<StoryClusterRespons
 }
 
 // v2.6 — RAG soru-cevap (roadmap #13). article_id null ise genel mod.
+// `language` opsiyonel — arayüzün kesin bildiği dil, backend'in kanıt-yok
+// şablonu için kullandığı karakter-sezgisi yerine geçer (27 Ağu 2026 bug'ı:
+// aksansız Türkçe soruda TR sitede İngilizce cevap geliyordu).
 export async function askQuestion(body: {
   question: string;
   article_id?: number | null;
   history: AskMessage[];
+  language?: "TR" | "EN";
 }): Promise<RagAnswerResponse> {
   return req<RagAnswerResponse>(`${BASE}/api/v1/news/ask`, {
     method: "POST",

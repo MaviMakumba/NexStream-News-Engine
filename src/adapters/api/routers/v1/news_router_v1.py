@@ -224,6 +224,7 @@ def ask_question_v1(
             body.question,
             article_id=body.article_id,
             history=[m.model_dump() for m in body.history],
+            ui_language=body.language,
         )
     except QuestionAnsweringError:
         raise HTTPException(

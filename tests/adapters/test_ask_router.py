@@ -110,6 +110,24 @@ def test_ask_endpoint_passes_article_id_and_history(app_client):
         article_id=42,
         history=[{"role": "user", "content": "İstanbul'da ne oldu?"},
                  {"role": "assistant", "content": "..."}],
+        ui_language=None,
+    )
+
+
+def test_ask_endpoint_passes_language_through_to_service(app_client):
+    """27 Ağu 2026 canlı bug'ının regresyon testi — frontend'in gönderdiği
+    arayüz dili (\"TR\"/\"EN\") servise `ui_language` olarak ulaşmalı, kanıt-yok
+    şablonunun dilini karakter sezgisinden daha güvenilir şekilde seçsin diye."""
+    mock_service = MagicMock()
+    mock_service.answer_question.return_value = _PAYLOAD
+    _override_pro(app_client, mock_service)
+    try:
+        app_client.post("/api/v1/news/ask", json={"question": "gram altin tekrar cikar mi", "language": "TR"})
+    finally:
+        _clear(app_client)
+
+    mock_service.answer_question.assert_called_once_with(
+        "gram altin tekrar cikar mi", article_id=None, history=[], ui_language="TR",
     )
 
 
