@@ -4,9 +4,9 @@ from src.adapters.analysis.rag_common import build_rag_prompt, parse_rag_json
 
 
 def _source(index=1, title="Test Başlık", source="BBC", sentiment_label="Neutral",
-            corroboration_count=1, published_at="2026-08-20"):
+            corroboration_count=1, published_at="2026-08-20", content="Test içerik metni."):
     return {"index": index, "title": title, "source": source, "sentiment_label": sentiment_label,
-            "corroboration_count": corroboration_count, "published_at": published_at}
+            "corroboration_count": corroboration_count, "published_at": published_at, "content": content}
 
 
 def test_build_rag_prompt_includes_numbered_evidence():
@@ -25,6 +25,14 @@ def test_build_rag_prompt_includes_history():
     history = [{"role": "user", "content": "İstanbul'da ne oldu?"}]
     prompt = build_rag_prompt("Peki ya İzmir'de?", [_source()], history, "single_source")
     assert "İstanbul'da ne oldu?" in prompt
+
+
+def test_build_rag_prompt_includes_evidence_content():
+    """Kanıt sadece başlık değil, elimizde olan content'i de içermeli — LLM
+    başlıkta olmayan ama teaser'da geçen detayları (27 Ağu 2026 canlı
+    bulgusu) görebilsin."""
+    prompt = build_rag_prompt("Ne oldu?", [_source(content="Trossard kafilede yer almadı.")], [], "single_source")
+    assert "Trossard kafilede yer almadı." in prompt
 
 
 def test_build_rag_prompt_notes_multi_source_corroboration():

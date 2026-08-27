@@ -6,7 +6,7 @@ bile prompt/parse mantığını adapter sınıfından ayrı tutmak, common.py il
 aynı disiplini korur (test edilebilirlik, gelecekte ikinci bir LLM sağlayıcı
 eklenirse paylaşılabilirlik).
 
-Kanıt olarak prompt'a gömülen haber başlıkları RSS'ten geliyor — teorik
+Kanıt olarak prompt'a gömülen haber başlıkları/içerikleri RSS'ten geliyor — teorik
 olarak güvenilmeyen/dış içerik (indirect prompt injection riski: kötü
 niyetli bir başlık modele "talimat" gibi görünmeye çalışabilir).
 `build_rag_prompt` kanıt bloğunu modele DATA olarak işaretleyen açık bir
@@ -27,7 +27,7 @@ def build_rag_prompt(question: str, sources: list, history: list, corroboration_
     evidence_lines = "\n".join(
         f'[{s["index"]}] Title: "{s["title"]}" | Source: {s["source"]} | '
         f'Sentiment: {s["sentiment_label"]} | Corroborating sources: {s["corroboration_count"]} | '
-        f'Date: {s["published_at"]}'
+        f'Date: {s["published_at"]} | Content: "{s.get("content", "")}"'
         for s in sources
     )
     history_text = "\n".join(f'{h["role"]}: {h["content"]}' for h in history) if history else "(none)"
