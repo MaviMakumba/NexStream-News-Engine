@@ -215,8 +215,8 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 ## MEVCUT DURUM
 
 - **Versiyon:** v2.6 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 26 Ağustos 2026, PR #70+#71+#72 dahil — **deploy artık tam otomatik**, main'e her merge'de GitHub Actions kendi kendine SSM'e bağlanıp redeploy ediyor, bkz. "Branch" notu aşağıda). İlk canlıya çıkış: 29 Temmuz 2026.
-- **Test sayısı:** 821 test, hepsi yeşil (backend, 26 Ağu 2026 — RAG soru-cevap için +38 test); frontend `tsc --noEmit` + `next build` temiz.
-- **26 Ağu 2026'da RAG tabanlı soru-cevap (roadmap #13) canlıya çıktı — bkz. YOL HARİTASI madde 13 ve BİLİNEN NOTLAR'daki "senkron LLM isteğinde fail-fast" dersi. Sıradaki oturumun İLK işi canlı QA'yı tamamlamak (5 senaryo hiç koşulmadı, `RETRIEVAL_THRESHOLD` kalibre edilmedi) ve kullanıcının önerdiği "LLM modüllerini tek sağlayıcıya bağlamanın fizibilitesi" sorusunu araştırmak — bkz. YOL HARİTASI madde 23.**
+- **Test sayısı:** 824 test, hepsi yeşil (backend, 27 Ağu 2026 — false-friend keyword + model-ayrımı testleri için +3 test); frontend `tsc --noEmit` + `next build` temiz.
+- **26 Ağu 2026'da RAG tabanlı soru-cevap (roadmap #13) canlıya çıktı — bkz. YOL HARİTASI madde 13 ve BİLİNEN NOTLAR'daki "senkron LLM isteğinde fail-fast" dersi. 27 Ağu 2026'da roadmap #23'ün spike'ı cevaplandı + RAG ayrı modele (`gpt-oss-120b`) taşınarak canlıdaki "soru sor çalışmıyor" şikayeti kök nedeniyle düzeltildi (bkz. YOL HARİTASI madde 23), aynı gün e-posta keyword alert'teki "altın"/"altında" yanlış-dost eşleşme bug'ı da düzeltildi (bkz. BİLİNEN NOTLAR). Sıradaki oturumun İLK işi HÂLÂ madde 13'ün canlı QA'sını tamamlamak (5 senaryo hiç koşulmadı, `RETRIEVAL_THRESHOLD` kalibre edilmedi) — bugünkü model değişikliği bunu KOLAYLAŞTIRIR (artık worker'ın kotasıyla yarışmıyor) ama yerine geçmez.**
 - **Frontend:** Next.js 14 + React. 10 sinematik tema (varsayılan artık `day` — sıcak/aydınlık, `night` onun koyu kardeşi, `matrix` seçilebilir kaldı), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
@@ -544,32 +544,28 @@ GERÇEKTEN bekleyen işler var:
     ortasında bitiyor (bu notun yazıldığı andan ~75 gün sonra) — bu karar o
     tarihten ÖNCE netleşmeli.** Sıradaki oturum kullanıcıya bu soruyu
     sormalı, cevaba göre roadmap'in geri kalanını yeniden sıralamalı.
-23. **LLM modüllerini TEK sağlayıcıya/modele bağlamanın fizibilite
-    incelemesi (26 Ağu 2026, kullanıcı önerdi — sıradaki oturumun İKİNCİ işi,
-    madde 13'ün QA'sından sonra) — henüz BAŞLANMADI, sadece bir SPIKE olarak
-    kayıtlı.** RAG canlı QA'sı sırasında somut kanıt bulundu: paylaşılan Groq
-    TPD kotası (`openai/gpt-oss-20b`) 26 Ağu 2026 öğleden sonra 199.555/200.000
-    token'a dayanmıştı — muhtemelen ağırlıklı olarak worker'ın haber analiz
-    hattından (her yeni haber = 1 çağrı, 17 kaynak × sürekli akış), RAG/sorgu
-    genişletme neredeyse hiç pay bulamıyordu. Kullanıcının önerisi: modülleri
-    (haber analizi / sorgu genişletme / RAG soru-cevap) tek model yerine
-    işin önemine göre farklı model/sağlayıcılara bölmek — küçük işler için
-    daha ucuz/hızlı bir model, kritik işler için güçlü model, çıktı kalitesi
-    düşmeden token tasarrufu + tıkanıklık önleme. **Araştırılması gereken
-    somut soru (canlı log mesajında ipucu var — bkz. BİLİNEN NOTLAR
-    "TPD kotası" maddesi): Groq'un 200.000 TPD limiti hesap-geneli mi yoksa
-    MODEL BAŞINA mı?** Log satırı "`Rate limit reached for model
-    openai/gpt-oss-20b ... on tokens per day (TPD): Limit 200000`" ifadesiyle
-    MODEL BAŞINA olduğunu ima ediyor — eğer öyleyse, farklı bir sağlayıcıya
-    geçmeden, sadece RAG/sorgu genişletme için Groq'un BAŞKA bir modelini
-    (ör. daha küçük/hızlı bir model) kullanmak bile ayrı bir 200k TPD havuzu
-    açabilir, çok daha ucuz bir çözüm olurdu — bu ihtimal önce (resmi Groq
-    rate-limit dokümantasyonundan) doğrulanmalı. Sonraki adım: (1) Groq'un
-    güncel rate-limit modelini resmi kaynaktan teyit et, (2) mevcut 3
-    LLM-tüketen modülün (GroqAnalyzer/GroqQueryExpander/GroqQuestionAnswerer)
-    gerçek günlük token payını kabaca ölç, (3) buna göre "aynı model, farklı
-    havuz" mu yoksa "gerçekten farklı model/sağlayıcı" mı gerektiğine karar
-    ver — bu bir SPIKE, kod değişikliği bu kararın SONRASINA ait.
+23. ✅ **LLM modüllerini bölme fizibilitesi — SPIKE sorusu 27 Ağu 2026'da
+    CEVAPLANDI + RAG için somut düzeltme yapıldı.** Resmi Groq rate-limit
+    dokümanı (model tablosunda her model FARKLI bir TPD sayısıyla listeleniyor,
+    ör. `openai/gpt-oss-20b`/`120b` 200K, `qwen/qwen3.8-27b` 2M) VE canlı bir
+    ampirik test (aynı anahtarla iki farklı modele art arda istek atılıp
+    `x-ratelimit-remaining-requests` header'ının HER model için BAĞIMSIZ
+    azaldığı gözlemlendi — paylaşımlı tek sayaç olsaydı ikinci modelin sayacı
+    da düşerdi, düşmedi) TPD kotasının **MODEL BAŞINA ayrı bir havuz**
+    olduğunu kesinleştirdi. Sonuç: farklı bir SAĞLAYICIYA geçmeye gerek yok —
+    aynı Groq hesabında farklı bir MODEL seçmek bile bağımsız bir kota açıyor.
+    `GroqQuestionAnswerer` bu bilgiyle `openai/gpt-oss-20b`'den (GroqAnalyzer/
+    worker ile paylaşılan, neredeyse sürekli dolu havuz) `openai/gpt-oss-120b`'ye
+    taşındı — aynı gpt-oss ailesinde kalındığı için JSON-güvenli
+    (`message.reasoning` `content`'ten ayrı döner, qwen ailesi gibi
+    `<think>`'i content'e gömmüyor), canlı bir istekle doğrulandı. **Bu
+    canlıda gerçek bir bug'ı çözdü:** worker'ın sürekli tükettiği paylaşımlı
+    20b havuzu RAG'a pay bırakmıyordu, 26-27 Ağu arasında `/api/v1/news/ask`
+    3 ayrı kez 429→503 ile "Şu an yanıt üretemiyorum" dönmüştü (kullanıcı
+    bunu "soru sor çalışmıyor" olarak bildirdi). **Kalan iş (opsiyonel,
+    düşük öncelik):** `GroqQueryExpander` hâlâ analyzer'la AYNI 20b modelini
+    paylaşıyor (fail-open olduğu için sessizce arka planda düşüyor, RAG kadar
+    görünür değil) — aynı taşıma isteğe bağlı bir sonraki adım.
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,
@@ -669,6 +665,39 @@ docker logs nexstream_chromadb --tail 20
 
 - **Telif hakkı risk değerlendirmesi (24 Ağu 2026, resmi kaynaklardan araştırıldı — FSEK, EUR-Lex, 17 U.S.C.):**
   Mevcut model (17 kaynaktan RSS `<description>` teaser'ı, tam makale metni HİÇ çekilmiyor/saklanmıyor, LLM kendi özetini üretiyor, her kart kaynağa açık link taşıyor) **DÜŞÜK risk** sayıldı. Gerekçe: FSEK madde 36/37, günlük haberlerin "kısaltılarak basın özetleri şeklinde" kaynak gösterilerek serbestçe iktibas edilmesine açıkça izin veriyor — bu tam olarak projenin yaptığı şey. **Tek somut risk noktası kaynak gösteriminin doğruluğu/yeterliliği** — FSEK m.71/3 ve 71/5 kaynak göstermeden veya yetersiz/yanlış kaynak göstererek iktibası AYRI birer suç sayıyor (6 ay-2 yıl hapis/adli para, ama m.75 gereği soruşturma sadece hak sahibinin ŞİKAYETİYLE başlıyor, resen değil) — her kartta kaynak adı+tarih+link'in doğru/görünür olduğundan emin olunmalı. AB'nin "basın yayıncıları hakkı" (2019/790 m.15) muhtemelen bizi bağlamıyor (kısa-alıntı istisnası + BBC/Guardian zaten AB üyesi değil, UK merkezli). ABD fair use tarafında da (Fox News v. TVEyes emsali) kısa-özet+zorunlu-dış-link modeli lehimize (kaynağa trafiği ENGELLEMİYOR, TVEyes'ın aksine ikame etmiyor). 2026'nın büyük telif gündemi (Anthropic'in $1.5 milyarlık model-eğitimi uzlaşması, AB'nin Google'a "AI Overviews trafik çalıyor" soruşturması) yapısal olarak bambaşka bir sorunu hedefliyor, projeye uygulanmıyor. Şirketsiz/şahıs olarak devam etmek telif sorumluluğunu artırmıyor/azaltmıyor (ayrı bir konu: vergi — bkz. YOL HARİTASI madde 2). **Somut aksiyon:** her kartta kaynak gösteriminin FSEK standardına uyduğunu teyit et, tam makale metni saklama kararına (roadmap madde 18, bilinçli ertelendi) SADIK kal — o satıra geçilirse risk profili kökten değişir. Basit bir takedown/itiraz e-postası (footer/`/contact`) eklemek düşük maliyetli bir güvence.
+- **Türkçe "yanlış dost" (false friend) kök çakışması — \b-anchor tek başına
+  yetmiyor (27 Ağu 2026'da canlıda "gram altın" e-posta uyarısıyla bulundu):**
+  "altın" (gold) kökü Adana/gözaltı sınıfından FARKLI bir sorun yaşıyordu —
+  "altında"/"altındaki" ("alt" [under] kelimesinin "altı"+buffer "n"+"da/daki"
+  çekimi) harf düzeyinde TAM AYNI önekte başlıyor VE önünde GERÇEK bir kelime
+  sınırı var ("İşgal altındaki topraklar" gibi), bu yüzden `\baltın` regex'i
+  meşru şekilde eşleşiyordu — gerçek morfolojik analiz olmadan ayırt edilemez
+  (Türkçe'de "alt" ailesi — altında/altına/altından — çok yaygın, "altın"ın
+  kendi çekimleriyle harf düzeyinde çakışıyor). Çözüm hardcoded stoplist
+  değil, `subscriber_matching.py::_FALSE_FRIEND_WORDS` — kök→bilinen çakışan
+  TAM KELİMELER sözlüğü, sadece o tam kelimeleri istisna tutuyor (`altını`/
+  `altınla` gibi gerçek çekimleri ETKİLEMİYOR). Yeni bir keyword-eşleştirme
+  şikayeti gelirse önce bu sınıfı (harf-düzeyinde-çakışan-ama-alakasız-kök)
+  kontrol et — arama tarafındaki `news_service._stem_tr`/`_canonical_terms`
+  AYNI riski taşıyor (hatta "altın"ı "ın" son ekini kırpıp "alt"a indiriyor,
+  e-posta tarafından DAHA GENİŞ bir versiyonu) ama bu oturumda kapsam dışı
+  bırakıldı, sadece e-posta/push keyword alert tarafı (`subscriber_matching.
+  matched_keyword`) düzeltildi.
+- **`frontend/lib/api.ts`'teki TÜM `/api/v1/*` çağrıları (`${BASE}/api/v1/...`)
+  nginx'in dedicated `/api/v1/` bloğunu HİÇ kullanmıyor, şans eseri çalışıyor
+  (27 Ağu 2026'da RAG log incelemesinde bulundu, henüz düzeltilmedi):** prod'da
+  `NEXT_PUBLIC_API_URL=/api` (BASE zaten "/api" içeriyor), bu yüzden
+  `${BASE}/api/v1/news/ask` gibi bir çağrı tarayıcıdan gerçekte
+  `/api/api/v1/news/ask`'e gidiyor — nginx'in `/api/v1/` location'ı bu path'i
+  HİÇ eşleştirmiyor (segment 2 "api" değil "v1" olmalıydı). Bunun yerine genel
+  `/api/` bloğu eşleşiyor, TEK bir "/api" segmentini kırpıyor, tesadüfen doğru
+  backend path'ine (`/api/v1/news/ask`) iniyor — yani bugün ÇALIŞIYOR ama
+  dedicated v1 bloğunu (varsa farklı timeout/header ayarları) tamamen atlayarak,
+  kırılgan bir tesadüfle. Kalıcı düzeltme iki yoldan biri: `api.ts`'teki v1
+  çağrılarını `${BASE}/v1/...`'e çevirmek (BASE zaten "/api" içerdiği için) YA
+  DA nginx `/api/v1/` bloğunu path'i olduğu gibi bırakacak şekilde güncellemek.
+  Bounded, ayrı bir sonraki iş — bugünkü RAG/keyword düzeltmeleriyle karışmasın
+  diye bilinçli olarak dokunulmadı.
 - Groq free tier: 14.400 req/gün — production'da dikkat
 - Scraper limit: 25 haber/kaynak/çalışma
 - DB duplicate kontrolü var — aynı URL tekrar kaydedilmez
