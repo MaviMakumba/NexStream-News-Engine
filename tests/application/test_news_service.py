@@ -745,6 +745,38 @@ def test_keyword_relevance_still_matches_inflected_word_start():
     assert relevance == 0.9  # 1/1 × 0.9 (title)
 
 
+def test_keyword_relevance_dotted_capital_i_title_still_matches():
+    """27 Ağu 2026'da RAG canlı QA'sında bulundu: Python'un varsayılan
+    `.lower()`'ı Türkçe büyük "İ"yi (U+0130) tek bir "i" değil "i" + birleşen
+    nokta işaretine çeviriyor ("İsrailli".lower() -> "i̇srailli") — bu da
+    "\\bisrail" gibi bir eşleşmenin başlangıç noktasını bozup KAÇMASINA yol
+    açıyordu. "İsrailli bakandan Türkiye açıklaması!" başlıklı gerçek bir
+    haber "israil" sorgusuyla hiç eşleşmiyordu (RAG kanıt kapısı yanlışlıkla
+    "kanıt yok" diyordu)."""
+    article = make_article()
+    article.title = "İsrailli bakandan Türkiye açıklaması!"
+    article.summary = None
+    article.content = "alakasız içerik"
+    relevance = NewsService._keyword_relevance(article, NewsService._canonical_terms("israil"))
+    assert relevance == 0.9  # 1/1 × 0.9 (title)
+
+
+def test_keyword_relevance_english_capital_i_not_corrupted_to_turkish_dotless():
+    """Düzeltme SADECE Türkçe'ye özgü "İ"yi (U+0130) hedeflemeli, düz ASCII
+    "I"ya DOKUNMAMALI — kaynakların 6'sı İngilizce (BBC Technology, TechCrunch
+    vb.), "Israel"/"Iran"/"Instagram" gibi kelimelerin baş harfi düz ASCII "I".
+    Türkçe'nin büyük noktasız I'sı (İngilizce'de yok) gibi ele alınıp "ı"ya
+    çevrilirse İngilizce içerikte kelime baştan bozulur, hiçbir zaman eşleşmez
+    — subscriber_matching._tr_lower'ın AKSİNE burada bilinçli olarak farklı
+    davranmalı (bkz. news_service.py yorum)."""
+    article = make_article()
+    article.title = "Israel warns of further escalation"
+    article.summary = None
+    article.content = "alakasız içerik"
+    relevance = NewsService._keyword_relevance(article, NewsService._canonical_terms("israel"))
+    assert relevance == 0.9  # 1/1 × 0.9 (title)
+
+
 # ── _canonical_terms + skor seyreltme regresyonu (18 Ağu 2026'da canlıda bulundu) ──
 
 
@@ -755,6 +787,27 @@ def test_canonical_terms_uses_stem_not_both_forms():
 
 def test_canonical_terms_no_suffix_unchanged():
     assert NewsService._canonical_terms("yapay zeka") == ["yapay", "zeka"]
+
+
+def test_canonical_terms_drops_turkish_question_particles():
+    """27 Ağu 2026'da RAG canlı QA'sında bulundu: doğal dilli sorularda
+    ("israil türkiye savaşı çıkar mı", "alparslan kuytul kim") soru
+    parçacıkları ("mı", "kim") hiçbir konu bilgisi taşımadığı halde coverage
+    bölenini şişiriyor, gerçekten ilgili haberlerin skorunu yapay olarak
+    düşürüyordu. Bunlar SADECE _canonical_terms'ten (relevans skoru) elenir
+    — _tokenize (SQL aday havuzu) etkilenmez, zararsız."""
+    assert NewsService._canonical_terms("israil türkiye savaşı çıkar mı") == \
+        ["israil", "türki", "savaş", "çıkar"]
+    assert NewsService._canonical_terms("alparslan kuytul kim") == ["alparslan", "kuytul"]
+
+
+def test_canonical_terms_question_particle_filter_handles_copula_form():
+    """`_TR_SUFFIXES` isim-çekim ekleri içindir, "-dir/-dır" (ek-fiil/copula)
+    bunların arasında YOK — yani "nedir" ("ne"+"dir") stemleme ile "ne"ye
+    İNMEZ, filtre bu bileşik formu da AYRICA (literal) tanımalı, yoksa
+    "yapay zeka nedir" gibi çok sık bir soru kalıbı hâlâ boşuna bölen
+    şişirir."""
+    assert NewsService._canonical_terms("yapay zeka nedir") == ["yapay", "zeka"]
 
 
 def test_keyword_relevance_turkish_suffix_does_not_dilute_score():
