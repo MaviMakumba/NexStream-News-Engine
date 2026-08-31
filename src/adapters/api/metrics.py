@@ -50,3 +50,16 @@ query_expansion_total = Counter(
     "Total query expansion attempts by result",
     ["result"],
 )
+
+# 31 Ağu 2026 (roadmap #25, TPD maliyeti düşürme) — o zamana kadar Groq'un
+# GERÇEK token tüketimi hiç yakalanmıyordu, TPD kısıtı sadece rate-limit
+# header'larından/canlı gözlemden TAHMİN ediliyordu (bkz. CLAUDE.md BİLİNEN
+# NOTLAR). Groq'un OpenAI-uyumlu yanıtındaki `usage` alanı artık burada
+# sayılıyor — Grafana'da gerçek prompt/completion oranı ve model başına
+# günlük toplam görülebilir, bir sonraki maliyet-azaltma turu tahmine değil
+# ölçüme dayanabilir. `kind`: "prompt" | "completion".
+groq_tokens_total = Counter(
+    "nexstream_groq_tokens_total",
+    "Total Groq tokens consumed, from the API's own usage field",
+    ["model", "kind"],
+)

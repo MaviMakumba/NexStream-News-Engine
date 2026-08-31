@@ -25,6 +25,16 @@ header'ları okunuyor — kalan bütçe güvenlik payının altına düşünce, 
 gelmesini BEKLEMEDEN, Groq'un kendi bildirdiği süre kadar proaktif bekleniyor
 (bkz. `_throttle_for_remaining_budget`). Kendi kendini kalibre eder, prompt
 uzunluğu/model davranışı değişse de sabit bir sayıya bağlı kalmaz.
+
+31 Ağu 2026 (roadmap #25, TPD maliyeti düşürme, 1. adım): şablon prompt'u
+(`common.py::build_analysis_prompt`) sıkıştırıldı VE Groq yanıtındaki gerçek
+`usage.prompt_tokens`/`completion_tokens` artık `nexstream_groq_tokens_total`
+metriğine işleniyor (bkz. `_record_token_usage`) — TPD kısıtı bundan sonra
+tahmine değil Grafana'daki gerçek veriye dayanabilir. Near-duplicate haberlerin
+`is_near_duplicate` kontrolünden ÖNCE (news_service.py) tam Groq analizi
+alması bilinçli olarak bugün kapsam dışı bırakıldı — `is_duplicate` şu an
+feed'den filtrelenmiyor, analizi atlamak görünür bir kalite regresyonu
+(boş/nötr kart) demek, ayrı bir ürün kararı gerektiriyor.
 """
 
 import json
@@ -34,7 +44,7 @@ import time
 from src.domain.ports.analysis_port import AnalysisPort, AnalysisError
 from src.adapters.analysis.common import build_analysis_prompt, parse_analysis_json, neutral_result
 from src.infrastructure.config.settings import settings
-from src.adapters.api.metrics import groq_latency_seconds, groq_rate_limit_total
+from src.adapters.api.metrics import groq_latency_seconds, groq_rate_limit_total, groq_tokens_total
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +100,20 @@ class GroqAnalyzer(AnalysisPort):
             )
             time.sleep(wait)
 
+    def _record_token_usage(self, usage) -> None:
+        """Groq'un OpenAI-uyumlu `usage` alanını nexstream_groq_tokens_total'a
+        işler — TPD maliyetinin artık tahmine değil gerçek veriye dayanmasını
+        sağlar (bkz. CLAUDE.md roadmap #25). `usage` eksik/dict-değilse (farklı
+        bir API sürümü, test mock'u) sessizce atlanır, analiz sonucunu etkilemez."""
+        if not isinstance(usage, dict):
+            return
+        prompt_tokens = usage.get("prompt_tokens")
+        completion_tokens = usage.get("completion_tokens")
+        if isinstance(prompt_tokens, int):
+            groq_tokens_total.labels(model=self.model, kind="prompt").inc(prompt_tokens)
+        if isinstance(completion_tokens, int):
+            groq_tokens_total.labels(model=self.model, kind="completion").inc(completion_tokens)
+
     def analyze_text(self, text: str) -> dict:
         try:
             return self.analyze_or_raise(text)
@@ -127,7 +151,9 @@ class GroqAnalyzer(AnalysisPort):
 
                 r.raise_for_status()
                 self._throttle_for_remaining_budget(r.headers)
-                content = r.json()["choices"][0]["message"]["content"]
+                data = r.json()
+                self._record_token_usage(data.get("usage"))
+                content = data["choices"][0]["message"]["content"]
                 return parse_analysis_json(content, text)
 
             except json.JSONDecodeError:
