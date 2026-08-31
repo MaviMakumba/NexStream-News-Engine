@@ -120,6 +120,56 @@ def make_service_with_search():
     return service, mock_repo, mock_search
 
 
+# ── _distinguishing_query_terms / _grounding_factor (sorgu-varlık doğrulaması) ─
+
+def test_distinguishing_query_terms_extracts_capitalized_first_word():
+    # Dünkü canlı bug'ın TAM senaryosu: sorgu konu-önce yazılıyor, özel isim
+    # genelde İLK kelime — cümle-başı hariç tutulsaydı bu senaryo kaçırılırdı.
+    assert NewsService._distinguishing_query_terms("Beşiktaş maçı saat kaçta") == ["Beşiktaş"]
+
+
+def test_distinguishing_query_terms_single_word_query_still_checked():
+    assert NewsService._distinguishing_query_terms("Beşiktaş") == ["Beşiktaş"]
+
+
+def test_distinguishing_query_terms_strips_trailing_punctuation():
+    assert NewsService._distinguishing_query_terms("bu akşam Beşiktaş? maçı var mı") == ["Beşiktaş"]
+
+
+def test_distinguishing_query_terms_empty_for_all_lowercase_query():
+    assert NewsService._distinguishing_query_terms("maç saat kaçta") == []
+
+
+def test_distinguishing_query_terms_multiple_capitalized_words():
+    assert NewsService._distinguishing_query_terms("Beşiktaş Zalgiris maçı") == ["Beşiktaş", "Zalgiris"]
+
+
+def test_grounding_factor_neutral_when_no_distinguishing_terms():
+    article = Article(title="Herhangi bir haber", source="BBC", url="u", content="içerik")
+    assert NewsService._grounding_factor([], article) == 1.0
+
+
+def test_grounding_factor_full_when_term_present_in_title():
+    article = Article(title="Beşiktaş kazandı", source="BBC", url="u", content="içerik")
+    assert NewsService._grounding_factor(["Beşiktaş"], article) == 1.0
+
+
+def test_grounding_factor_full_when_term_present_only_in_content():
+    article = Article(title="Maç sonucu", source="BBC", url="u", content="Beşiktaş sahadan galip ayrıldı")
+    assert NewsService._grounding_factor(["Beşiktaş"], article) == 1.0
+
+
+def test_grounding_factor_penalized_when_term_absent():
+    article = Article(title="Filenin Sultanları kazandı", source="BBC", url="u", content="voleybol maçı")
+    assert NewsService._grounding_factor(["Beşiktaş"], article) == 0.3
+
+
+def test_grounding_factor_case_insensitive_dotted_i_safe():
+    # dotted-İ dersi: sorgudaki "İstanbul" makaledeki "istanbul" ile eşleşmeli
+    article = Article(title="istanbulda etkinlik", source="BBC", url="u", content="içerik")
+    assert NewsService._grounding_factor(["İstanbul"], article) == 1.0
+
+
 def test_hybrid_search_without_expander_matches_old_behavior():
     """query_expander verilmezse davranış eskisiyle BİREBİR aynı kalmalı."""
     service, mock_repo, _ = make_service()

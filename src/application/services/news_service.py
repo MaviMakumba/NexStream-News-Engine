@@ -92,6 +92,11 @@ _TR_QUESTION_STOPWORDS = frozenset({
 })
 # Hem semantik hem keyword aramada çıkan sonuç daha güvenilirdir → küçük bonus.
 _DOUBLE_HIT_BONUS = 0.10
+# Sorgudaki özel isim (grounding terimi) hiçbir adayda literal geçmiyorsa
+# uygulanan çarpımsal ceza — sert filtre DEĞİL, fail-open: en yüksek semantik
+# skorlu sonuç yine de (düşük skorla) görünür kalır (roadmap #21'in ikinci
+# turu — "maç heyecanı" şablon gürültüsü bug'ının kökü, bkz. CLAUDE.md).
+_GROUNDING_PENALTY = 0.3
 # LLM sorgu genişletmesinden gelen ikincil terimlerin skor ağırlığı — asıl
 # (birincil) eşleşmeyi asla domine etmesin diye 1.0'ın belirgin altında.
 _EXPANSION_WEIGHT = 0.4
@@ -406,6 +411,35 @@ class NewsService:
         ek dönüşüm SADECE tek-dilli (TR) bir korpus için güvenli — burada
         TR+EN karışık bir korpus var, o dönüşüm İngilizce içeriği bozardı."""
         return text.replace("İ", "i").lower()
+
+    @staticmethod
+    def _distinguishing_query_terms(query: str) -> List[str]:
+        """Sorgudaki özel isim adaylarını çıkarır — büyük harfle başlayan TÜM
+        kelimeler (cümle başı DAHİL — bu uygulamadaki sorgular tam cümle
+        değil, konu-önce yazılıyor: "Beşiktaş maçı saat kaçta" gibi, özel isim
+        genelde İLK kelime; cümle-başını hariç tutmak dünkü canlı bug'ın tam
+        senaryosunu kaçırırdı). Sentence-initial yanlış-pozitif riski
+        (ör. "Dün ne oldu") kabul edildi — ceza sert değil çarpımsal
+        (`_GROUNDING_PENALTY`, sıfır değil), en fazla bir sonucu geriye iter."""
+        terms = []
+        for w in query.split():
+            stripped = w.strip(".,!?;:\"'()")
+            if stripped and stripped[0].isupper():
+                terms.append(stripped)
+        return terms
+
+    @staticmethod
+    def _grounding_factor(distinguishing_terms: List[str], article: Article) -> float:
+        """Sorgudaki özel isim(ler) bu makalede LİTERAL olarak geçiyor mu.
+        Geçmiyorsa `_GROUNDING_PENALTY` çarpanı uygulanır — dünkü "maç" bug'ının
+        (semantik olarak benzer ama alakasız içerik) kök nedenini kapatır."""
+        if not distinguishing_terms:
+            return 1.0
+        text = NewsService._lower_tr_safe(f"{article.title} {article.content}")
+        for term in distinguishing_terms:
+            if re.search(r"\b" + re.escape(NewsService._lower_tr_safe(term)), text):
+                return 1.0
+        return _GROUNDING_PENALTY
 
     @staticmethod
     def _stem_tr(word: str) -> str:
