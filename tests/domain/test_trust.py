@@ -1,4 +1,4 @@
-from src.domain.scoring.trust import compute_trust_score
+from src.domain.scoring.trust import compute_trust_score, trust_score_breakdown
 
 
 def test_all_zero_scores_zero():
@@ -34,3 +34,29 @@ def test_zero_is_not_treated_as_none():
 def test_result_is_always_int():
     result = compute_trust_score(0.73, 0.61, 2)
     assert isinstance(result, int)
+
+
+# ── trust_score_breakdown (kullanıcı isteği, 31 Ağu 2026: rozetteki metin her
+# haberde AYNI statik yüzdeleri yazıyordu, GERÇEK haber-başına puan istendi) ──
+
+def test_breakdown_parts_sum_to_total_score():
+    """Kullanıcıya gösterilecek 3 parça, gösterilen toplamla TUTARSIZ
+    görünmemeli — round(sum) yerine sum(round(parça)) kullanılır, ki
+    kullanıcı kendi toplayınca aynı sayıyı bulsun."""
+    for q, c, corr in [(1.0, 1.0, 10), (0.0, 0.0, 0), (0.73, 0.61, 2), (None, None, 0), (0.5, 0.0, 0)]:
+        breakdown = trust_score_breakdown(q, c, corr)
+        assert sum(breakdown.values()) == compute_trust_score(q, c, corr)
+
+
+def test_breakdown_has_three_keys_capped_at_component_weight():
+    breakdown = trust_score_breakdown(1.0, 1.0, 10)
+    assert breakdown == {"quality": 35, "credibility": 45, "corroboration": 20}
+
+
+def test_breakdown_zero_scores_all_zero():
+    assert trust_score_breakdown(0.0, 0.0, 0) == {"quality": 0, "credibility": 0, "corroboration": 0}
+
+
+def test_breakdown_none_uses_neutral_default():
+    breakdown = trust_score_breakdown(None, None, 0)
+    assert breakdown == {"quality": 18, "credibility": 22, "corroboration": 0}

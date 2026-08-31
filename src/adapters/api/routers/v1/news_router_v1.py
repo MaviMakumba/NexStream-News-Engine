@@ -39,20 +39,22 @@ router = APIRouter(prefix="/api/v1", tags=["API v1"], dependencies=[Depends(chec
 _EXPORT_FIELDS = [
     "id", "title", "source", "url", "published_at", "created_at",
     "topic", "sentiment_label", "sentiment_score", "quality_score",
-    "credibility_score", "corroboration_count", "trust_score", "is_duplicate",
-    "entities", "summary", "content",
+    "credibility_score", "corroboration_count", "trust_score",
+    "trust_breakdown", "is_duplicate", "entities", "summary", "content",
 ]
 
 
 def _export_row(article) -> dict:
-    """JSON çıktısı için — `entities` iç içe obje olarak kalır."""
+    """JSON çıktısı için — `entities`/`trust_breakdown` iç içe obje olarak kalır."""
     return NewsResponse.model_validate(article).model_dump(mode="json")
 
 
 def _export_csv_row(article) -> dict:
-    """CSV çıktısı için — `entities` düz bir hücreye sığması için JSON string'e çevrilir."""
+    """CSV çıktısı için — `entities`/`trust_breakdown` düz bir hücreye sığması
+    için JSON string'e çevrilir (nested obje CSV hücresine yazılamaz)."""
     row = _export_row(article)
     row["entities"] = json.dumps(row["entities"], ensure_ascii=False) if row["entities"] else ""
+    row["trust_breakdown"] = json.dumps(row["trust_breakdown"], ensure_ascii=False)
     return row
 
 

@@ -23,6 +23,18 @@ class SearchRequest(BaseModel):
     sentiment: Optional[str] = Field(None, pattern="^(Positive|Negative|Neutral)$")
 
 
+# 31 Ağu 2026 (kullanıcı isteği): trust_score'un HANGİ bileşenden kaç puan
+# geldiğini gösterir — NewsCard'ın güven rozeti hover metninde her haber
+# için AYNI statik yüzdeler yerine gerçek sayıyı gösterebilmesi için. Tek
+# doğruluk kaynağı `domain/scoring/trust.py::trust_score_breakdown` —
+# frontend'in kendi kopyası (NewsCard.tsx) sadece MAX puanları (35/45/20)
+# formatlamak için tutuyor, hesabın kendisini değil.
+class TrustBreakdown(BaseModel):
+    quality: int = 0
+    credibility: int = 0
+    corroboration: int = 0
+
+
 class SearchResult(BaseModel):
     id: str
     title: str
@@ -52,6 +64,7 @@ class NewsResponse(BaseModel):
     credibility_score: Optional[float] = None
     corroboration_count: int = 0
     trust_score: int = 0
+    trust_breakdown: TrustBreakdown = Field(default_factory=TrustBreakdown)
 
     model_config = {"from_attributes": True}
 

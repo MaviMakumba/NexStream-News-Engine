@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
-from src.domain.scoring.trust import compute_trust_score
+from src.domain.scoring.trust import compute_trust_score, trust_score_breakdown
 
 @dataclass
 class Article:
@@ -36,3 +36,9 @@ class Article:
         (bkz. `compute_trust_score` docstring'i: corroboration_count zamanla
         artabilir, saklanan bir değer bu durumda bayatlar)."""
         return compute_trust_score(self.quality_score, self.credibility_score, self.corroboration_count)
+
+    @property
+    def trust_breakdown(self) -> dict:
+        """`trust_score`'un hangi bileşenden kaç puan geldiği — NewsCard'ın
+        güven rozeti hover metninde haber-başına gerçek sayı göstermek için."""
+        return trust_score_breakdown(self.quality_score, self.credibility_score, self.corroboration_count)
