@@ -61,6 +61,14 @@ class Settings(BaseSettings):
         "CNN Türk,Sözcü,Habertürk,HT Spor,Anadolu Ajansı,AA Ekonomi,"
         "BBC Technology,BBC Sport,Guardian Tech,TechCrunch,Hacker News,The Verge"
     )
+    # Worker kaynakları SIRAYLA işler (bkz. kafka_consumer.py) — Groq rate limit
+    # ağırlaşınca tek bir yoğun kaynak (ör. TRT Haber) TÜM yeni haberlerini
+    # bitirmeden sıradaki kaynağa geçilemiyor, bu da diğer 16 kaynağı (CNN Türk
+    # dahil) saatlerce aç bırakabiliyordu (31 Ağu 2026'da canlıda bulundu).
+    # Bu limit kaynak başına çalıştırma başına en fazla kaç YENİ haber analiz
+    # edileceğini sınırlar; kalanlar bir sonraki taramada (10dk'da bir) işlenir.
+    # 0 = sınırsız (eski davranış).
+    worker_max_new_articles_per_run: int = 5
 
     # ── API güvenliği ──────────────────────────────────────────────────────
     # Paylaşımlı makine-makine anahtarı (X-API-Key). İnsan kullanıcılar için
