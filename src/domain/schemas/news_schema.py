@@ -97,6 +97,7 @@ class StorySource(BaseModel):
     source: str
     url: str
     score: float
+    trust_score: int = 0
 
 
 class StoryClusterResponse(BaseModel):

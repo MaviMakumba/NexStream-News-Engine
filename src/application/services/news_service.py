@@ -838,13 +838,31 @@ class NewsService:
                     s for s in semantic if distinguishing & semantic_entities.get(s["id"], set())
                 ]
 
-        combined: dict = {s["id"]: s for s in verified_semantic}
+        try:
+            semantic_articles = self.repository.get_articles_by_ids([s["id"] for s in verified_semantic]) if verified_semantic else []
+        except Exception as e:
+            logger.warning("Story cluster trust_score için makale çekimi başarısız: %s", e)
+            semantic_articles = []
+        semantic_articles_by_id = {a.id: a for a in semantic_articles}
+
+        combined: dict = {}
+        for s in verified_semantic:
+            a = semantic_articles_by_id.get(s["id"])
+            combined[s["id"]] = {
+                **s,
+                "trust_score": compute_trust_score(
+                    a.quality_score if a else None,
+                    a.credibility_score if a else None,
+                    a.corroboration_count if a else 0,
+                ),
+            }
 
         if target:
             for cand, score in self._find_corroborating_articles(target):
                 combined.setdefault(cand.id, {
                     "id": cand.id, "title": cand.title, "source": cand.source,
                     "url": cand.url, "score": score,
+                    "trust_score": compute_trust_score(cand.quality_score, cand.credibility_score, cand.corroboration_count),
                 })
 
         sources = sorted(combined.values(), key=lambda s: s["score"], reverse=True)[:limit]
