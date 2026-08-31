@@ -619,6 +619,61 @@ karar artık tahmine değil bu metriğe dayanabilir. 7 yeni test (856/856
 yeşil), TDD ile inline (subagent'sız) yapıldı, merge+deploy+health check
 doğrulandı.
 
+**✅ Arama skoru yeniden tasarımı + görünür güven rozeti (31 Ağu 2026, aynı gün
+üçüncü oturum, PR #80):** 27 Ağu 2026'da yazılan planın uygulanması —
+`superpowers:executing-plans` ile inline (subagent'sız), 6 task TDD.
+`compute_trust_score` (saf domain fonksiyonu, `domain/scoring/trust.py`,
+%35 quality + %45 credibility + %20 corroboration, `or 0.5` DEĞİL `is not
+None` kontrolü) + `Article.trust_score`/`NewsResponse.trust_score` property'si
++ `NewsService._distinguishing_query_terms`/`_grounding_factor` (sorgudaki
+büyük harfli kelimeler özel isim adayı sayılır, adayda literal geçmiyorsa
+×0.3 ceza — cümle başı DAHİL, çünkü bu uygulamadaki sorgular konu-önce
+yazılıyor) + `hybrid_search`'e grounding+credibility+trust_score entegrasyonu
++ `get_story_cluster` kaynaklarına trust_score + `NewsCard`'da görünür güven
+rozeti (eski quality-only rozetin yerine, hover'da yüzde breakdown'ı).
+
+Bu, 24 Ağu 2026'daki "jenerik entity" bug sınıfının (ingest-zamanı entity-
+overlap) RAG/arama retrieval'daki SORGU-zamanı görünümünü kapatıyor — dünkü
+"Beşiktaş maçı saati" örneğinde "Filenin Sultanları, Almanya karşısında!"
+gibi alakasız ama "maç" temasıyla semantik benzeyen içerikler artık
+grounding cezasıyla geriye düşüyor.
+
+**Uygulama sırasında planın öngörmediği 3 gerçek bulgu çıktı, tam test
+paketi çalıştırılınca ortaya çıktı, hepsi düzeltildi:**
+1. `NewsResponse.trust_score` eklenmesi `/api/v1/news/export` CSV yolunu
+   kırdı — `_EXPORT_FIELDS` listesi (`csv.DictWriter(extrasaction="raise")`
+   ile kullanılıyor) yeni alanla senkron değildi, eklendi.
+2. Planın Task 5'i `test_news_service.py`'yi hedefliyordu ama
+   `get_story_cluster` testleri gerçekte ayrı bir dosyada
+   (`test_story_cluster.py`) yaşıyordu — 4 mevcut test tam-dict eşitliği
+   yaptığı için trust_score alanıyla güncellendi. Biri ayrıca semantik
+   olarak değişti: "hedefin entity'si yoksa `get_articles_by_ids` hiç
+   çağrılmamalı" iddiası artık geçersizdi (entity doğrulaması için değil
+   ama trust_score için TAM BİR KEZ çağrılıyor), assertion buna göre
+   güncellendi.
+3. Plan'ın bir testi (`no_distinguishing_term_leaves_ranking_unchanged`)
+   `published_at=None` kullanıyordu — bu, `_decay_factor`'ü recency=0 için
+   floor'a (0.5) düşürüyor, testin İZOLE etmek istediği grounding/
+   credibility sinyalinden bağımsız bir etki katıyordu. Gerçekçi bir
+   `published_at` (şimdi) ile decay=1.0'a sabitlendi, testin amacına
+   (SADECE grounding+credibility'yi izole etmek) geri döndürüldü.
+
+Ayrıca 8 mevcut `hybrid_search` skor-sabiti testi `credibility_factor=0.85`
+(credibility_score=None varsayılanı, `0.7+0.3*0.5`) yansıtacak şekilde
+güncellendi — sıralama/davranış BİREBİR aynı kaldı, sadece mutlak skor
+sayısı küçüldü (regresyon değil, plan'ın öngördüğü davranış).
+
+Backend test sayısı 856→881 (+25), 881/881 yeşil, frontend `tsc --noEmit` +
+`next build` temiz. Eski
+`feature/arama-skoru-ve-guven-rozeti` dalı (27 Ağu'dan kalma, main
+2bcdc60'tan çok geride, main'e merge edilmiş her şeyi geri alırdı)
+ARTIK GEREKSİZDİ — gerçek değeri (spec/plan/SMTP fix/RAG content fix)
+zaten main'e ayrı yoldan geçmişti, doğrulanıp silinmeden bırakıldı (Bash
+classifier `git branch -D`'yi engelledi), yeni iş temiz bir dal
+(`feature/arama-skoru-ve-guven-rozeti-v2`) üzerinde yapıldı. Tam döngü
+(TDD ile inline → PR #80 → CI yeşil → kullanıcı onayı → squash-merge →
+otomatik SSM deploy → health check) uçtan uca doğrulandı.
+
 **✅ RAG canlı QA'sında 6 gerçek bug bulunup düzeltildi (27 Ağu 2026, PR #73/#74/#75):**
 Kullanıcı gerçek canlı QA'ya başladı (Docker yine kapalıydı, tarayıcıda canlı
 siteyle test edildi):
