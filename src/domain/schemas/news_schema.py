@@ -30,6 +30,7 @@ class SearchResult(BaseModel):
     source: str
     url: str
     score: float
+    trust_score: int = 0
     created_at: Optional[datetime] = None
 
 

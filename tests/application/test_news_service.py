@@ -14,6 +14,7 @@ _OLD_DATE = datetime.now(timezone.utc) - timedelta(days=100)
 def make_service():
     mock_repo = MagicMock()
     mock_repo.bulk_exists.return_value = set()
+    mock_repo.get_articles_by_ids.return_value = []
     mock_analyzer = MagicMock()
     mock_analyzer.analyze_text.return_value = {
         "sentiment_score": 0.8,
@@ -460,7 +461,8 @@ def test_hybrid_search_returns_semantic_results():
     results = service.hybrid_search("yapay zeka", n_results=5)
 
     assert len(results) == 1
-    assert results[0]["score"] == 0.9
+    # credibility_score=None (fetch edilmedi) -> credibility_factor=0.85: 0.9*0.85
+    assert results[0]["score"] == 0.765
     # candidate_size = max(5*3, 20) = 20
     mock_search.search.assert_called_once_with("yapay zeka", 20, None, None)
 
@@ -484,7 +486,8 @@ def test_hybrid_search_merges_keyword_only_results():
     assert "2" in result_ids
     # "keyword" başlıkta geçiyor → skor 0.90 > semantic 0.50 → keyword result önde
     assert results[0]["id"] == "2"
-    assert results[0]["score"] == 0.90
+    # credibility_score=None -> credibility_factor=0.85: 0.90*0.85
+    assert results[0]["score"] == 0.765
 
 
 def test_hybrid_search_deduplicates_overlapping_results():
@@ -513,7 +516,8 @@ def test_hybrid_search_falls_back_to_keyword_when_no_search_repo():
 
     assert len(results) == 1
     assert results[0]["id"] == "5"
-    assert results[0]["score"] == 0.90  # "fallback" başlıkta → 0.90
+    # "fallback" başlıkta → 0.90, credibility_score=None -> credibility_factor=0.85
+    assert results[0]["score"] == 0.765
 
 
 def test_hybrid_search_boosts_result_found_in_both():
@@ -530,8 +534,8 @@ def test_hybrid_search_boosts_result_found_in_both():
     results = service.hybrid_search("real madrid")
 
     assert results[0]["id"] == "1"
-    # max(sem=0.6, kw=0.9) + bonus=0.10 = 1.0 (cap)
-    assert results[0]["score"] == 1.0
+    # max(sem=0.6, kw=0.9) + bonus=0.10 = 1.0 (cap), credibility_score=None -> 0.85
+    assert results[0]["score"] == 0.85
 
 
 def test_hybrid_search_keyword_only_ranks_above_low_semantic():
@@ -548,7 +552,8 @@ def test_hybrid_search_keyword_only_ranks_above_low_semantic():
     results = service.hybrid_search("real madrid", n_results=2)
 
     assert results[0]["id"] == "7"   # başlık eşleşmesi (0.90) önde
-    assert results[0]["score"] == 0.90
+    # credibility_score=None -> credibility_factor=0.85: 0.90*0.85
+    assert results[0]["score"] == 0.765
     assert results[1]["id"] == "99"  # düşük semantic (0.30) arkada
 
 
@@ -592,6 +597,110 @@ def test_recency_factor_zero_beyond_window():
 def test_recency_factor_accepts_iso_string():
     iso = datetime.now(timezone.utc).isoformat()
     assert NewsService._recency_factor(iso) > 0.999
+
+
+# ── hybrid_search grounding/credibility/trust_score entegrasyonu ──────────────
+
+def test_hybrid_search_penalizes_semantic_result_missing_query_entity():
+    """Dünkü 'maç' bug'ı: yüksek semantik skorlu ama sorgudaki özel ismi
+    (Beşiktaş) içermeyen bir sonuç, düşük semantik skorlu ama özel ismi
+    içeren bir sonucun ALTINA düşmeli."""
+    service, mock_repo, mock_search = make_service_with_search()
+
+    off_topic = make_article("https://x.com/1")
+    off_topic.id = 1
+    off_topic.title = "Filenin Sultanları kazandı"
+    off_topic.content = "voleybol maçı heyecanı"
+
+    on_topic = make_article("https://x.com/2")
+    on_topic.id = 2
+    on_topic.title = "Beşiktaş kazandı"
+    on_topic.content = "futbol maçı sonucu"
+
+    mock_search.search.return_value = [
+        {"id": "1", "title": off_topic.title, "summary": "", "source": "BBC", "url": off_topic.url, "score": 0.85, "published_at": None},
+        {"id": "2", "title": on_topic.title, "summary": "", "source": "BBC", "url": on_topic.url, "score": 0.50, "published_at": None},
+    ]
+    mock_repo.keyword_search.return_value = []
+    mock_repo.get_articles_by_ids.return_value = [off_topic, on_topic]
+
+    results = service.hybrid_search("Beşiktaş maçı saat kaçta", n_results=5)
+
+    scores = {r["id"]: r["score"] for r in results}
+    assert scores["2"] > scores["1"]
+
+
+def test_hybrid_search_no_distinguishing_term_leaves_ranking_unchanged():
+    """Sorguda özel isim yoksa (ör. 'futbol haberleri') grounding hiç devreye
+    girmemeli — mevcut sıralama davranışı bozulmamalı. credibility_score=None
+    olduğu için 0.7+0.3*0.5=0.85 credibility_factor'ü yine de uygulanır
+    (grounding'den BAĞIMSIZ bir çarpan), bu yüzden 0.7 değil 0.595 beklenir.
+    published_at bilinçli olarak "şimdi" veriliyor — recency decay'i 1.0'a
+    sabitleyip bu testi SADECE grounding+credibility'yi izole etmesi için
+    (decay ayrı testlerde zaten kapsanıyor, bkz. _decay_factor bloğu)."""
+    service, mock_repo, mock_search = make_service_with_search()
+    art = make_article("https://x.com/1")
+    art.id = 1
+    mock_search.search.return_value = [
+        {"id": "1", "title": art.title, "summary": "", "source": "BBC", "url": art.url, "score": 0.7,
+         "published_at": datetime.now(timezone.utc).isoformat()},
+    ]
+    mock_repo.keyword_search.return_value = []
+    mock_repo.get_articles_by_ids.return_value = [art]
+
+    results = service.hybrid_search("futbol haberleri", n_results=5)
+
+    assert results[0]["score"] == 0.595
+
+
+def test_hybrid_search_low_credibility_source_dampened_not_zeroed():
+    service, mock_repo, mock_search = make_service_with_search()
+    art = make_article("https://x.com/1")
+    art.id = 1
+    art.credibility_score = 0.0
+    mock_search.search.return_value = [
+        {"id": "1", "title": art.title, "summary": "", "source": "BBC", "url": art.url, "score": 0.8, "published_at": None},
+    ]
+    mock_repo.keyword_search.return_value = []
+    mock_repo.get_articles_by_ids.return_value = [art]
+
+    results = service.hybrid_search("haberler", n_results=5)
+
+    assert 0 < results[0]["score"] < 0.8  # geriye düştü ama sıfırlanmadı
+
+
+def test_hybrid_search_results_include_trust_score():
+    service, mock_repo, mock_search = make_service_with_search()
+    art = make_article("https://x.com/1")
+    art.id = 1
+    art.quality_score = 1.0
+    art.credibility_score = 1.0
+    art.corroboration_count = 10
+    mock_search.search.return_value = [
+        {"id": "1", "title": art.title, "summary": "", "source": "BBC", "url": art.url, "score": 0.9, "published_at": None},
+    ]
+    mock_repo.keyword_search.return_value = []
+    mock_repo.get_articles_by_ids.return_value = [art]
+
+    results = service.hybrid_search("haberler", n_results=5)
+
+    assert results[0]["trust_score"] == 100
+
+
+def test_hybrid_search_get_articles_by_ids_failure_is_fail_open():
+    """Article fetch'i patlarsa arama çökmemeli, sadece grounding/credibility/
+    trust_score nötr değerlere düşmeli."""
+    service, mock_repo, mock_search = make_service_with_search()
+    mock_search.search.return_value = [
+        {"id": "1", "title": "Bir haber", "summary": "", "source": "BBC", "url": "u", "score": 0.6, "published_at": None},
+    ]
+    mock_repo.keyword_search.return_value = []
+    mock_repo.get_articles_by_ids.side_effect = Exception("db down")
+
+    results = service.hybrid_search("haberler", n_results=5)
+
+    assert len(results) == 1
+    assert results[0]["trust_score"] == 40  # None/None/0 nötr varsayılan
 
 
 # ── _decay_factor ─────────────────────────────────────────────────────────────
@@ -644,7 +753,8 @@ def test_hybrid_search_recency_decay_reorders_equal_relevance_results():
     assert [r["id"] for r in results] == ["3", "2", "1"]  # taze → orta → eski
     scores = [r["score"] for r in results]
     assert scores[0] > scores[1] > scores[2]               # çarpımsal decay artık gerçekten ayrıştırıyor
-    assert scores[2] == pytest.approx(0.5, abs=0.001)       # very_old: relevance(1.0) * floor(0.5)
+    # very_old: relevance(1.0) * floor(0.5) * credibility_factor(0.85, credibility_score=None)
+    assert scores[2] == pytest.approx(0.425, abs=0.001)
 
 
 def test_hybrid_search_passes_filters_to_both():
@@ -934,9 +1044,10 @@ def test_hybrid_search_ranks_by_coverage():
 
     assert len(results) == 2
     assert results[0]["id"] == "1"
-    assert results[0]["score"] == 0.9
+    # credibility_score=None -> credibility_factor=0.85: 0.9*0.85, 0.45*0.85
+    assert results[0]["score"] == 0.765
     assert results[1]["id"] == "2"
-    assert results[1]["score"] == 0.45
+    assert results[1]["score"] == pytest.approx(0.3825)
 
 
 # ── answer_question (RAG) ────────────────────────────────────────────────────

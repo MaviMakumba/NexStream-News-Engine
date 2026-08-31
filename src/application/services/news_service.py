@@ -24,6 +24,7 @@ from src.domain.scoring.quality import compute_quality_score
 from src.domain.scoring.credibility import base_credibility, compute_credibility
 from src.domain.services.subscriber_matching import matched_keyword
 from src.domain.ports.question_answering_port import QuestionAnsweringError
+from src.domain.scoring.trust import compute_trust_score
 from src.adapters.api.metrics import articles_processed_total
 from src.infrastructure.config.settings import settings
 from typing import List, Optional, TYPE_CHECKING
@@ -241,6 +242,7 @@ class NewsService:
         candidate_size = min(max(n_results * _CANDIDATE_MULTIPLIER, _MIN_CANDIDATES), _MAX_CANDIDATES)
         query_terms = self._tokenize(query)  # includes Turkish stems for better recall (SQL adayı)
         relevance_terms = self._canonical_terms(query)  # coverage skoru için — bkz. docstring
+        distinguishing_terms = self._distinguishing_query_terms(query)
 
         expanded_terms: List[str] = []
         if self.query_expander:
@@ -324,8 +326,22 @@ class NewsService:
             if relevance > 0:
                 keyword_by_id[str(article.id)] = (relevance, article)
 
+        candidate_ids = set(semantic_by_id) | set(keyword_by_id)
+        candidate_ids_int: List[int] = []
+        for cid in candidate_ids:
+            try:
+                candidate_ids_int.append(int(cid))
+            except (TypeError, ValueError):
+                continue
+        try:
+            fetched = self.repository.get_articles_by_ids(candidate_ids_int) if candidate_ids_int else []
+        except Exception as e:
+            logger.warning("Grounding/credibility için makale çekimi başarısız, nötr değerlerle devam: %s", e)
+            fetched = []
+        articles_by_id = {str(a.id): a for a in fetched}
+
         combined = []
-        for article_id in set(semantic_by_id) | set(keyword_by_id):
+        for article_id in candidate_ids:
             sem_score = semantic_by_id[article_id]["score"] if article_id in semantic_by_id else 0.0
             kw_score = keyword_by_id[article_id][0] if article_id in keyword_by_id else 0.0
 
@@ -354,11 +370,22 @@ class NewsService:
 
             relevance = min(round(base + bonus, 4), 1.0)
             recency = self._recency_factor(date_value)
-            final = round(relevance * self._decay_factor(recency), 4)
+
+            matched_article = articles_by_id.get(article_id)
+            grounding = self._grounding_factor(distinguishing_terms, matched_article) if matched_article else 1.0
+            cred = matched_article.credibility_score if matched_article and matched_article.credibility_score is not None else 0.5
+            credibility_factor = 0.7 + 0.3 * cred
+
+            final = round(relevance * self._decay_factor(recency) * grounding * credibility_factor, 4)
 
             data["score"] = final
             data["created_at"] = date_value
             data["_recency_factor"] = recency
+            data["trust_score"] = compute_trust_score(
+                matched_article.quality_score if matched_article else None,
+                matched_article.credibility_score if matched_article else None,
+                matched_article.corroboration_count if matched_article else 0,
+            )
             combined.append(data)
 
         # Aynı (skor, tazelik) çiftine sahip sonuçlar için ikincil anahtar yine
