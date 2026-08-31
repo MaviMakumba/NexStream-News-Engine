@@ -36,3 +36,16 @@ def test_article_default_date():
         content="içerik"
     )
     assert isinstance(article.created_at, datetime)
+
+
+def test_article_trust_score_property():
+    article = Article(
+        title="T", source="BBC", url="u", content="c",
+        quality_score=1.0, credibility_score=1.0, corroboration_count=10,
+    )
+    assert article.trust_score == 100
+
+
+def test_article_trust_score_defaults_when_unscored():
+    article = Article(title="T", source="BBC", url="u", content="c")
+    assert article.trust_score == 40  # None/None/0 -> nötr varsayılanlar

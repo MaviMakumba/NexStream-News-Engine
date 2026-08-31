@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
+from src.domain.scoring.trust import compute_trust_score
+
 @dataclass
 class Article:
     title: str
@@ -27,3 +29,10 @@ class Article:
     credibility_score: Optional[float] = None
     corroboration_count: int = 0
     id: Optional[int] = None
+
+    @property
+    def trust_score(self) -> int:
+        """0-100 görünür güven skoru — okuma anında hesaplanır, saklanmaz
+        (bkz. `compute_trust_score` docstring'i: corroboration_count zamanla
+        artabilir, saklanan bir değer bu durumda bayatlar)."""
+        return compute_trust_score(self.quality_score, self.credibility_score, self.corroboration_count)
