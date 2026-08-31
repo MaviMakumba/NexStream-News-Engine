@@ -6,6 +6,7 @@ mock'lanır, saf orkestrasyon doğrulanır (asıl benzerlik hesabı ChromaSearch
 
 from unittest.mock import MagicMock
 from src.application.services.news_service import NewsService
+from src.domain.scoring.trust import compute_trust_score
 
 
 def _service(search_repository=None):
@@ -27,8 +28,10 @@ def test_story_cluster_returns_sources_from_search_repository():
 
     result = service.get_story_cluster(1, limit=6)
 
+    # trust_score=40: get_articles_by_ids mock'lanmadı (bare MagicMock, boş
+    # iterable), quality/credibility None + corroboration 0 nötr varsayılanı.
     assert result == {"article_id": 1, "sources": [
-        {"id": 2, "title": "Başka kaynak", "source": "TRT", "url": "u2", "score": 0.81},
+        {"id": 2, "title": "Başka kaynak", "source": "TRT", "url": "u2", "score": 0.81, "trust_score": 40},
     ]}
     search_repo.find_similar.assert_called_once_with(1, n_results=6)
 
@@ -63,8 +66,10 @@ def test_story_cluster_falls_back_to_entity_overlap_when_semantic_finds_nothing(
     service = NewsService(repository=repo, analyzer=MagicMock(), search_repository=search_repo)
     result = service.get_story_cluster(1, limit=6)
 
+    # trust_score=40: corroborating Article'ın quality/credibility/corroboration
+    # alanları hiç set edilmedi, nötr varsayılanlara düşer.
     assert result["sources"] == [
-        {"id": 2, "title": "Farklı kelimelerle aynı olay", "source": "TRT", "url": "u2", "score": 1.0},
+        {"id": 2, "title": "Farklı kelimelerle aynı olay", "source": "TRT", "url": "u2", "score": 1.0, "trust_score": 40},
     ]
 
 
@@ -147,15 +152,20 @@ def test_story_cluster_keeps_semantic_matches_with_entity_overlap():
     service = NewsService(repository=repo, analyzer=MagicMock(), search_repository=search_repo)
     result = service.get_story_cluster(1, limit=6)
 
+    # trust_score=40: same_event'in quality/credibility/corroboration alanları
+    # set edilmedi (repo.get_articles_by_ids mock'u trust_score fetch'i için de
+    # aynı [same_event]'i döner), nötr varsayılanlara düşer.
     assert result["sources"] == [
-        {"id": 2, "title": "Farklı kelimelerle aynı yangın", "source": "TRT", "url": "u2", "score": 0.91},
+        {"id": 2, "title": "Farklı kelimelerle aynı yangın", "source": "TRT", "url": "u2", "score": 0.91, "trust_score": 40},
     ]
 
 
 def test_story_cluster_keeps_semantic_matches_when_target_has_no_entities():
     """Hedefin hiç ayırt edici entity'si yoksa (ör. NER hiçbir şey çıkaramadı)
-    semantik doğrulama atlanır — hepsini elemek, hiç doğrulayamamaktan daha
-    kötü bir varsayılan olurdu. Gereksiz `get_articles_by_ids` sorgusu da atılmamalı."""
+    semantik ENTITY doğrulaması atlanır — hepsini elemek, hiç doğrulayamamaktan
+    daha kötü bir varsayılan olurdu. `get_articles_by_ids` yine de TAM BİR KEZ
+    çağrılır — artık entity doğrulaması için değil, trust_score için (roadmap
+    "arama skoru + güven rozeti" turu, 31 Ağu 2026)."""
     from src.domain.models.article import Article
 
     search_repo = MagicMock()
@@ -168,11 +178,36 @@ def test_story_cluster_keeps_semantic_matches_when_target_has_no_entities():
                       entities={"persons": [], "organizations": [], "locations": []})
     repo.get_article_by_id.return_value = target
     repo.get_recent_articles_with_entities.return_value = []
+    repo.get_articles_by_ids.return_value = []
 
     service = NewsService(repository=repo, analyzer=MagicMock(), search_repository=search_repo)
     result = service.get_story_cluster(1, limit=6)
 
     assert result["sources"] == [
-        {"id": 2, "title": "Bir eşleşme", "source": "TRT", "url": "u2", "score": 0.81},
+        {"id": 2, "title": "Bir eşleşme", "source": "TRT", "url": "u2", "score": 0.81, "trust_score": 40},
     ]
-    repo.get_articles_by_ids.assert_not_called()
+    repo.get_articles_by_ids.assert_called_once_with([2])
+
+
+# ── trust_score entegrasyonu (arama skoru + güven rozeti tasarımı, 31 Ağu 2026) ─
+
+def test_get_story_cluster_sources_include_trust_score():
+    from src.domain.models.article import Article
+
+    search_repo = MagicMock()
+    search_repo.find_similar.return_value = [
+        {"id": 2, "title": "Farklı kelimelerle aynı olay", "source": "TRT", "url": "u2", "score": 0.81},
+    ]
+
+    repo = MagicMock()
+    target = Article(id=1, title="Hedef", source="BBC", url="u1", content="c", entities=None)
+    scored = Article(id=2, title="Farklı kelimelerle aynı olay", source="TRT", url="u2", content="c",
+                      quality_score=0.8, credibility_score=0.9, corroboration_count=5)
+    repo.get_article_by_id.return_value = target
+    repo.get_articles_by_ids.return_value = [scored]
+
+    service = NewsService(repository=repo, analyzer=MagicMock(), search_repository=search_repo)
+    result = service.get_story_cluster(1, limit=6)
+
+    assert len(result["sources"]) == 1
+    assert result["sources"][0]["trust_score"] == compute_trust_score(0.8, 0.9, 5)

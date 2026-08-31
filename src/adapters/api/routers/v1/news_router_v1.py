@@ -39,7 +39,7 @@ router = APIRouter(prefix="/api/v1", tags=["API v1"], dependencies=[Depends(chec
 _EXPORT_FIELDS = [
     "id", "title", "source", "url", "published_at", "created_at",
     "topic", "sentiment_label", "sentiment_score", "quality_score",
-    "credibility_score", "corroboration_count", "is_duplicate",
+    "credibility_score", "corroboration_count", "trust_score", "is_duplicate",
     "entities", "summary", "content",
 ]
 

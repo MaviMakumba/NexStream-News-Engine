@@ -27,6 +27,16 @@ function corroborationText(count: number, lang: "TR" | "EN"): string {
   return `${count} source${count === 1 ? "" : "s"} confirm`;
 }
 
+// Güven rozeti breakdown'ı (arama skoru + güven rozeti tasarımı) — backend'deki
+// domain/scoring/trust.py::compute_trust_score ağırlıklarıyla (0.35/0.45/0.20)
+// elle senkronize. Ağırlıklar değişirse burası da güncellenmeli.
+function trustScoreText(score: number, lang: "TR" | "EN"): string {
+  if (lang === "TR") {
+    return `${score}/100 — %45 kaynak güvenilirliği, %35 içerik kalitesi, %20 çoklu kaynak doğrulaması`;
+  }
+  return `${score}/100 — 45% source credibility, 35% content quality, 20% multi-source corroboration`;
+}
+
 // "Kaynaklar" panelini kaynak ADINA göre tekilleştirir (24 Ağu 2026, kullanıcı
 // geri bildirimi: panel İlgili Haberler'in bir kopyası gibi duruyordu). Aynı
 // kaynaktan birden fazla makale eşleşirse (semantik + entity-overlap birleşimi)
@@ -175,10 +185,11 @@ export function NewsCard({ article }: { article: Article }) {
               🔗 {article.corroboration_count}
             </span>
           )}
-          {article.quality_score != null && (
-            <span className="badge" style={{ background: "rgba(0,0,0,.25)", color: "var(--text3)",
-                                             borderColor: "var(--border)" }}>
-              ✦ {(article.quality_score * 100).toFixed(0)}
+          {article.trust_score != null && (
+            <span className="badge" title={trustScoreText(article.trust_score, lang)}
+                  style={{ background: "rgba(0,0,0,.25)", color: "var(--text3)",
+                           borderColor: "var(--border)" }}>
+              ✦ {article.trust_score}
             </span>
           )}
         </div>

@@ -30,6 +30,7 @@ class SearchResult(BaseModel):
     source: str
     url: str
     score: float
+    trust_score: int = 0
     created_at: Optional[datetime] = None
 
 
@@ -50,6 +51,7 @@ class NewsResponse(BaseModel):
     quality_score: Optional[float] = None
     credibility_score: Optional[float] = None
     corroboration_count: int = 0
+    trust_score: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -95,6 +97,7 @@ class StorySource(BaseModel):
     source: str
     url: str
     score: float
+    trust_score: int = 0
 
 
 class StoryClusterResponse(BaseModel):

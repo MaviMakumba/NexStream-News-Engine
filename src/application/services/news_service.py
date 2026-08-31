@@ -24,6 +24,7 @@ from src.domain.scoring.quality import compute_quality_score
 from src.domain.scoring.credibility import base_credibility, compute_credibility
 from src.domain.services.subscriber_matching import matched_keyword
 from src.domain.ports.question_answering_port import QuestionAnsweringError
+from src.domain.scoring.trust import compute_trust_score
 from src.adapters.api.metrics import articles_processed_total
 from src.infrastructure.config.settings import settings
 from typing import List, Optional, TYPE_CHECKING
@@ -92,6 +93,11 @@ _TR_QUESTION_STOPWORDS = frozenset({
 })
 # Hem semantik hem keyword aramada çıkan sonuç daha güvenilirdir → küçük bonus.
 _DOUBLE_HIT_BONUS = 0.10
+# Sorgudaki özel isim (grounding terimi) hiçbir adayda literal geçmiyorsa
+# uygulanan çarpımsal ceza — sert filtre DEĞİL, fail-open: en yüksek semantik
+# skorlu sonuç yine de (düşük skorla) görünür kalır (roadmap #21'in ikinci
+# turu — "maç heyecanı" şablon gürültüsü bug'ının kökü, bkz. CLAUDE.md).
+_GROUNDING_PENALTY = 0.3
 # LLM sorgu genişletmesinden gelen ikincil terimlerin skor ağırlığı — asıl
 # (birincil) eşleşmeyi asla domine etmesin diye 1.0'ın belirgin altında.
 _EXPANSION_WEIGHT = 0.4
@@ -236,6 +242,7 @@ class NewsService:
         candidate_size = min(max(n_results * _CANDIDATE_MULTIPLIER, _MIN_CANDIDATES), _MAX_CANDIDATES)
         query_terms = self._tokenize(query)  # includes Turkish stems for better recall (SQL adayı)
         relevance_terms = self._canonical_terms(query)  # coverage skoru için — bkz. docstring
+        distinguishing_terms = self._distinguishing_query_terms(query)
 
         expanded_terms: List[str] = []
         if self.query_expander:
@@ -319,8 +326,22 @@ class NewsService:
             if relevance > 0:
                 keyword_by_id[str(article.id)] = (relevance, article)
 
+        candidate_ids = set(semantic_by_id) | set(keyword_by_id)
+        candidate_ids_int: List[int] = []
+        for cid in candidate_ids:
+            try:
+                candidate_ids_int.append(int(cid))
+            except (TypeError, ValueError):
+                continue
+        try:
+            fetched = self.repository.get_articles_by_ids(candidate_ids_int) if candidate_ids_int else []
+        except Exception as e:
+            logger.warning("Grounding/credibility için makale çekimi başarısız, nötr değerlerle devam: %s", e)
+            fetched = []
+        articles_by_id = {str(a.id): a for a in fetched}
+
         combined = []
-        for article_id in set(semantic_by_id) | set(keyword_by_id):
+        for article_id in candidate_ids:
             sem_score = semantic_by_id[article_id]["score"] if article_id in semantic_by_id else 0.0
             kw_score = keyword_by_id[article_id][0] if article_id in keyword_by_id else 0.0
 
@@ -349,11 +370,22 @@ class NewsService:
 
             relevance = min(round(base + bonus, 4), 1.0)
             recency = self._recency_factor(date_value)
-            final = round(relevance * self._decay_factor(recency), 4)
+
+            matched_article = articles_by_id.get(article_id)
+            grounding = self._grounding_factor(distinguishing_terms, matched_article) if matched_article else 1.0
+            cred = matched_article.credibility_score if matched_article and matched_article.credibility_score is not None else 0.5
+            credibility_factor = 0.7 + 0.3 * cred
+
+            final = round(relevance * self._decay_factor(recency) * grounding * credibility_factor, 4)
 
             data["score"] = final
             data["created_at"] = date_value
             data["_recency_factor"] = recency
+            data["trust_score"] = compute_trust_score(
+                matched_article.quality_score if matched_article else None,
+                matched_article.credibility_score if matched_article else None,
+                matched_article.corroboration_count if matched_article else 0,
+            )
             combined.append(data)
 
         # Aynı (skor, tazelik) çiftine sahip sonuçlar için ikincil anahtar yine
@@ -406,6 +438,35 @@ class NewsService:
         ek dönüşüm SADECE tek-dilli (TR) bir korpus için güvenli — burada
         TR+EN karışık bir korpus var, o dönüşüm İngilizce içeriği bozardı."""
         return text.replace("İ", "i").lower()
+
+    @staticmethod
+    def _distinguishing_query_terms(query: str) -> List[str]:
+        """Sorgudaki özel isim adaylarını çıkarır — büyük harfle başlayan TÜM
+        kelimeler (cümle başı DAHİL — bu uygulamadaki sorgular tam cümle
+        değil, konu-önce yazılıyor: "Beşiktaş maçı saat kaçta" gibi, özel isim
+        genelde İLK kelime; cümle-başını hariç tutmak dünkü canlı bug'ın tam
+        senaryosunu kaçırırdı). Sentence-initial yanlış-pozitif riski
+        (ör. "Dün ne oldu") kabul edildi — ceza sert değil çarpımsal
+        (`_GROUNDING_PENALTY`, sıfır değil), en fazla bir sonucu geriye iter."""
+        terms = []
+        for w in query.split():
+            stripped = w.strip(".,!?;:\"'()")
+            if stripped and stripped[0].isupper():
+                terms.append(stripped)
+        return terms
+
+    @staticmethod
+    def _grounding_factor(distinguishing_terms: List[str], article: Article) -> float:
+        """Sorgudaki özel isim(ler) bu makalede LİTERAL olarak geçiyor mu.
+        Geçmiyorsa `_GROUNDING_PENALTY` çarpanı uygulanır — dünkü "maç" bug'ının
+        (semantik olarak benzer ama alakasız içerik) kök nedenini kapatır."""
+        if not distinguishing_terms:
+            return 1.0
+        text = NewsService._lower_tr_safe(f"{article.title} {article.content}")
+        for term in distinguishing_terms:
+            if re.search(r"\b" + re.escape(NewsService._lower_tr_safe(term)), text):
+                return 1.0
+        return _GROUNDING_PENALTY
 
     @staticmethod
     def _stem_tr(word: str) -> str:
@@ -777,13 +838,31 @@ class NewsService:
                     s for s in semantic if distinguishing & semantic_entities.get(s["id"], set())
                 ]
 
-        combined: dict = {s["id"]: s for s in verified_semantic}
+        try:
+            semantic_articles = self.repository.get_articles_by_ids([s["id"] for s in verified_semantic]) if verified_semantic else []
+        except Exception as e:
+            logger.warning("Story cluster trust_score için makale çekimi başarısız: %s", e)
+            semantic_articles = []
+        semantic_articles_by_id = {a.id: a for a in semantic_articles}
+
+        combined: dict = {}
+        for s in verified_semantic:
+            a = semantic_articles_by_id.get(s["id"])
+            combined[s["id"]] = {
+                **s,
+                "trust_score": compute_trust_score(
+                    a.quality_score if a else None,
+                    a.credibility_score if a else None,
+                    a.corroboration_count if a else 0,
+                ),
+            }
 
         if target:
             for cand, score in self._find_corroborating_articles(target):
                 combined.setdefault(cand.id, {
                     "id": cand.id, "title": cand.title, "source": cand.source,
                     "url": cand.url, "score": score,
+                    "trust_score": compute_trust_score(cand.quality_score, cand.credibility_score, cand.corroboration_count),
                 })
 
         sources = sorted(combined.values(), key=lambda s: s["score"], reverse=True)[:limit]
