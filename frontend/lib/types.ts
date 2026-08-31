@@ -61,6 +61,7 @@ export interface Article {
   quality_score?: number;
   credibility_score?: number;
   corroboration_count?: number;
+  trust_score?: number;
   created_at: string;
   published_at?: string;
 }
@@ -80,6 +81,7 @@ export interface SearchResult {
   sentiment_label?: string;
   topic?: string;
   score: number;
+  trust_score?: number;
   created_at: string;
 }
 
@@ -131,6 +133,7 @@ export interface StorySource {
   source: string;
   url: string;
   score: number;
+  trust_score?: number;
 }
 
 export interface StoryClusterResponse {
