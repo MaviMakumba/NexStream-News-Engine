@@ -233,6 +233,43 @@ def test_parses_empty_duration_as_zero():
     assert GroqAnalyzer._parse_duration("") == 0.0
 
 
+# ── Token Usage Metriği (roadmap #25, TPD maliyeti ölçümü) ──────────────────
+
+def test_records_token_usage_metric_when_present():
+    """Groq yanıtındaki gerçek usage alanı groq_tokens_total'a işlenir."""
+    from src.adapters.api.metrics import groq_tokens_total
+
+    analyzer = GroqAnalyzer()
+    response_json = '{"sentiment_score": 0.0, "sentiment_label": "Neutral", "summary": "OK."}'
+    mock = make_mock_response(response_json)
+    mock.json.return_value = {
+        "choices": [{"message": {"content": response_json}}],
+        "usage": {"prompt_tokens": 530, "completion_tokens": 210, "total_tokens": 740},
+    }
+
+    before_prompt = groq_tokens_total.labels(model=analyzer.model, kind="prompt")._value.get()
+    before_completion = groq_tokens_total.labels(model=analyzer.model, kind="completion")._value.get()
+
+    with patch("requests.post", return_value=mock):
+        analyzer.analyze_text("Some news.")
+
+    after_prompt = groq_tokens_total.labels(model=analyzer.model, kind="prompt")._value.get()
+    after_completion = groq_tokens_total.labels(model=analyzer.model, kind="completion")._value.get()
+    assert after_prompt == before_prompt + 530
+    assert after_completion == before_completion + 210
+
+
+def test_missing_usage_field_does_not_crash():
+    """usage alanı yoksa (eski/farklı bir API yanıtı) analiz yine de tamamlanır."""
+    analyzer = GroqAnalyzer()
+    response_json = '{"sentiment_score": 0.0, "sentiment_label": "Neutral", "summary": "OK."}'
+
+    with patch("requests.post", return_value=make_mock_response(response_json)):
+        result = analyzer.analyze_text("Some news.")
+
+    assert result["sentiment_label"] == "Neutral"
+
+
 def test_non_dict_like_headers_does_not_crash():
     """headers gerçek bir dict değilse (ör. .get() de mock'lanmış bir MagicMock
     döndürüyorsa — test_ner_prompt.py'nin sade mock'u gibi), proaktif throttle

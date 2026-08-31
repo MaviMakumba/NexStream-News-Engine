@@ -67,3 +67,12 @@ def test_groq_rate_limit_counter():
     groq_rate_limit_total.inc()
     after = groq_rate_limit_total._value.get()
     assert after == before + 1
+
+
+def test_groq_tokens_total_counter():
+    """roadmap #25 — Groq'un gerçek usage alanından beslenen token sayacı."""
+    from src.adapters.api.metrics import groq_tokens_total
+    before = groq_tokens_total.labels(model="openai/gpt-oss-20b", kind="prompt")._value.get()
+    groq_tokens_total.labels(model="openai/gpt-oss-20b", kind="prompt").inc(530)
+    after = groq_tokens_total.labels(model="openai/gpt-oss-20b", kind="prompt")._value.get()
+    assert after == before + 530
