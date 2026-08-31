@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Article, RelatedArticle, StorySource } from "@/lib/types";
+import type { Article, RelatedArticle, StorySource, TrustBreakdown } from "@/lib/types";
 import { SentimentBadge } from "./SentimentBadge";
 import { fetchRelated, fetchStoryCluster } from "@/lib/api";
 import { useSettings } from "@/lib/settings-context";
@@ -27,14 +27,31 @@ function corroborationText(count: number, lang: "TR" | "EN"): string {
   return `${count} source${count === 1 ? "" : "s"} confirm`;
 }
 
-// Güven rozeti breakdown'ı (arama skoru + güven rozeti tasarımı) — backend'deki
-// domain/scoring/trust.py::compute_trust_score ağırlıklarıyla (0.35/0.45/0.20)
-// elle senkronize. Ağırlıklar değişirse burası da güncellenmeli.
-function trustScoreText(score: number, lang: "TR" | "EN"): string {
-  if (lang === "TR") {
-    return `${score}/100 — %45 kaynak güvenilirliği, %35 içerik kalitesi, %20 çoklu kaynak doğrulaması`;
+// Güven rozeti hover metni — 31 Ağu 2026'da kullanıcı fark etti: eskiden HER
+// haberde AYNI statik yüzdeleri yazıyordu ("%45 kaynak güvenilirliği" gibi),
+// o haberin GERÇEKTEN kaç puan aldığını göstermiyordu. Artık backend'in
+// gönderdiği gerçek dökümü (`trust_breakdown`) kullanıyor — hesabın kendisi
+// tek doğruluk kaynağı olan `domain/scoring/trust.py::trust_score_breakdown`'da,
+// burada sadece MAX puanlar (35/45/20, ağırlıkların kendisi) elle senkronize.
+// `trust_breakdown` eksikse (ör. deploy öncesi cache'lenmiş eski bir yanıt)
+// eski statik metne düşülür — kart hiç kırılmasın diye.
+const _TRUST_MAX = { quality: 35, credibility: 45, corroboration: 20 };
+
+function trustScoreText(score: number, lang: "TR" | "EN", breakdown?: TrustBreakdown): string {
+  if (!breakdown) {
+    if (lang === "TR") {
+      return `${score}/100 — %45 kaynak güvenilirliği, %35 içerik kalitesi, %20 çoklu kaynak doğrulaması`;
+    }
+    return `${score}/100 — 45% source credibility, 35% content quality, 20% multi-source corroboration`;
   }
-  return `${score}/100 — 45% source credibility, 35% content quality, 20% multi-source corroboration`;
+  if (lang === "TR") {
+    return `${score}/100 — Kaynak güvenilirliği: ${breakdown.credibility}/${_TRUST_MAX.credibility}, `
+      + `İçerik kalitesi: ${breakdown.quality}/${_TRUST_MAX.quality}, `
+      + `Çoklu kaynak doğrulaması: ${breakdown.corroboration}/${_TRUST_MAX.corroboration}`;
+  }
+  return `${score}/100 — Source credibility: ${breakdown.credibility}/${_TRUST_MAX.credibility}, `
+    + `Content quality: ${breakdown.quality}/${_TRUST_MAX.quality}, `
+    + `Multi-source corroboration: ${breakdown.corroboration}/${_TRUST_MAX.corroboration}`;
 }
 
 // "Kaynaklar" panelini kaynak ADINA göre tekilleştirir (24 Ağu 2026, kullanıcı
@@ -186,7 +203,7 @@ export function NewsCard({ article }: { article: Article }) {
             </span>
           )}
           {article.trust_score != null && (
-            <span className="badge" title={trustScoreText(article.trust_score, lang)}
+            <span className="badge" title={trustScoreText(article.trust_score, lang, article.trust_breakdown)}
                   style={{ background: "rgba(0,0,0,.25)", color: "var(--text3)",
                            borderColor: "var(--border)" }}>
               ✦ {article.trust_score}

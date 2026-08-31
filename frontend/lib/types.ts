@@ -43,6 +43,15 @@ export interface CheckoutResponse {
   tier?: Tier;
 }
 
+// trust_score'un hangi bileşenden kaç puan geldiği — backend
+// domain/scoring/trust.py::trust_score_breakdown ile birebir, tek doğruluk
+// kaynağı orası (bkz. NewsCard.tsx::trustScoreText).
+export interface TrustBreakdown {
+  quality: number;      // en fazla 35
+  credibility: number;  // en fazla 45
+  corroboration: number; // en fazla 20
+}
+
 export interface Article {
   id: number;
   title: string;
@@ -62,6 +71,7 @@ export interface Article {
   credibility_score?: number;
   corroboration_count?: number;
   trust_score?: number;
+  trust_breakdown?: TrustBreakdown;
   created_at: string;
   published_at?: string;
 }
