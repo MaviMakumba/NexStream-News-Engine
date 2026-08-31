@@ -148,11 +148,19 @@ class NewsService:
         article.entities = result.get("entities")
         article.topic = result.get("topic", "Other")
 
-    async def update_news_from_source(self, scraper: NewsScraperPort):
+    async def update_news_from_source(self, scraper: NewsScraperPort, max_new_articles: Optional[int] = None):
         """Tek kaynağı uçtan uca işler: çek → analiz et → skorla → kaydet → indexle.
 
         Groq rate limit'ini korumak için analizler sıralı ve 2sn aralıklı çalışır;
         ChromaDB/alert hataları kaydı engellemez (PostgreSQL tek doğruluk kaynağı).
+
+        max_new_articles: bu çalıştırmada en fazla kaç YENİ haber analiz edilsin
+        (None = sınırsız, eski davranış). Groq rate limit'e takılınca tek bir
+        yoğun kaynağın TÜM yeni haberlerini bitirmeden worker sıradaki kaynağa
+        geçemiyordu — bir kaynak diğer 16'sını saatlerce aç bırakabiliyordu.
+        Limit dolarsa kalan haberler bu turda kaydedilmez, bulk_exists onları
+        hâlâ "yeni" göreceği için bir sonraki taramada (scheduler 10dk'da bir
+        tetikler) işlenmeye devam eder.
         """
         logger.info("Güncelleme başladı: %s", scraper.__class__.__name__)
         articles: List[Article] = await scraper.fetch_news()
@@ -160,6 +168,8 @@ class NewsService:
         # Bulk duplicate check — tek SQL sorgusu, N+1 elimine edildi
         existing_urls = self.repository.bulk_exists([a.url for a in articles])
         new_articles = [a for a in articles if a.url not in existing_urls]
+        if max_new_articles is not None:
+            new_articles = new_articles[:max_new_articles]
         logger.info("%s: %d/%d yeni haber analiz edilecek", scraper.__class__.__name__, len(new_articles), len(articles))
 
         saved_count = 0

@@ -58,6 +58,26 @@ def test_update_multiple_articles():
 
     assert mock_repo.save_article.call_count == 3
 
+def test_update_respects_max_new_articles_cap():
+    """max_new_articles verilirse bu çalıştırmada sadece o kadarı analiz edilir —
+    kalanlar kaydedilmediği için (bulk_exists hâlâ 'yeni' görecek) sonraki taramaya
+    kalır. Bir kaynağın devasa yeni-haber kuyruğu, worker'ı diğer 16 kaynaktan
+    saatlerce alıkoymasın diye (bkz. CLAUDE.md 'startup scrape' notu)."""
+    service, mock_repo, mock_analyzer = make_service()
+    mock_scraper = MagicMock()
+    mock_scraper.fetch_news = AsyncMock(return_value=[
+        make_article("https://bbc.com/1"),
+        make_article("https://bbc.com/2"),
+        make_article("https://bbc.com/3"),
+    ])
+    mock_repo.save_article.return_value = True
+
+    with patch("src.application.services.news_service.asyncio.sleep", new=AsyncMock()):
+        asyncio.run(service.update_news_from_source(mock_scraper, max_new_articles=2))
+
+    assert mock_repo.save_article.call_count == 2
+    assert mock_analyzer.analyze_text.call_count == 2
+
 def test_update_empty_source():
     """Scraper boş liste dönerse hata vermemeli"""
     service, mock_repo, mock_analyzer = make_service()

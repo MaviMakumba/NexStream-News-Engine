@@ -64,7 +64,11 @@ async def _process(scraper):
             push_repository=push_repo,
             web_push=build_web_push(),
         )
-        await service.update_news_from_source(scraper)
+        # Kaynak başına haber sayısını sınırla — tek bir yoğun kaynak Groq rate
+        # limit'e takılınca TÜM yeni haberlerini bitirmeden sıradaki kaynağa
+        # geçilemiyordu, diğer 16 kaynak saatlerce aç kalıyordu (bkz. settings.py).
+        cap = settings.worker_max_new_articles_per_run or None
+        await service.update_news_from_source(scraper, max_new_articles=cap)
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, service.reanalyze_missed, 3)
     finally:
