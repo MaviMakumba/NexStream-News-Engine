@@ -674,6 +674,33 @@ classifier `git branch -D`'yi engelledi), yeni iş temiz bir dal
 (TDD ile inline → PR #80 → CI yeşil → kullanıcı onayı → squash-merge →
 otomatik SSM deploy → health check) uçtan uca doğrulandı.
 
+**✅ Güven rozeti hover'ında gerçek puan dökümü (31 Ağu 2026, aynı gün PR
+#80'in hemen ardından, PR #81):** kullanıcı geri bildirimi — rozetin hover
+metni HER haberde AYNI statik yüzdeleri yazıyordu ("%45 kaynak
+güvenilirliği, %35 içerik kalitesi, %20 çoklu kaynak doğrulaması"), o
+haberin GERÇEKTEN kaç puan aldığını göstermiyordu. `domain/scoring/
+trust.py::trust_score_breakdown()` eklendi — quality/credibility/
+corroboration'ın 100 puanlık toplama kaç kattığını ayrı ayrı döner (tek
+doğruluk kaynağı). `compute_trust_score` artık bu üç parçanın TOPLAMI
+(`round(sum)` DEĞİL `sum(round(parça))`) — kullanıcı hover'daki 3 sayıyı
+elle toplasa kartın üstündeki toplam sayıyla HER ZAMAN eşleşsin diye
+bilinçli tercih (aksi halde ±1 tutarsızlık riski vardı). `Article.
+trust_breakdown` property + `NewsResponse.trust_breakdown` (nested
+`TrustBreakdown` şeması) + CSV export'ta `entities` ile aynı desen (JSON
+string'e çevrilir). Frontend'de `trustScoreText` artık gerçek dökümü
+gösteriyor: "71/100 — Kaynak güvenilirliği: 40/45, İçerik kalitesi: 25/35,
+Çoklu kaynak doğrulaması: 6/20" — breakdown eksikse (deploy öncesi
+cache'lenmiş eski bir yanıt) eski statik metne düşülür, kart kırılmaz.
+5 yeni test, 886/886 yeşil.
+
+**Oturum içi bir hata da bu PR'da düzeltildi:** PR #80 merge edilip deploy
+doğrulandıktan sonra `git checkout main` yapılmıştı (deploy'u izlemek için)
+— hemen ardından bu yeni istek geldiğinde branch açmak unutulup 2 commit
+doğrudan `main`'e atıldı. Fark edilince (henüz push edilmemişti, tamamen
+geri alınabilirdi) `git branch <yeni-dal> HEAD` + `git branch -f main
+origin/main` ile temiz şekilde düzeltildi — main hiç etkilenmedi. Ders
+CLAUDE.md BİLİNEN NOTLAR'a işlendi.
+
 **✅ RAG canlı QA'sında 6 gerçek bug bulunup düzeltildi (27 Ağu 2026, PR #73/#74/#75):**
 Kullanıcı gerçek canlı QA'ya başladı (Docker yine kapalıydı, tarayıcıda canlı
 siteyle test edildi):
