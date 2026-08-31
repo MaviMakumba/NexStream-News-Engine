@@ -598,6 +598,27 @@ düşürmek.
 (GitHub Actions otomatik SSM deploy job'ı ile, health check dahil
 doğrulandı). 849/849 test yeşil.
 
+**✅ Groq TPD maliyeti — 1. dilim (31 Ağu 2026, aynı gün sonraki oturum, PR #79):**
+Yukarıdaki madde 25'in "önce ölç, sonra karar ver" seçeneğiyle ele alındı.
+Statik/analitik ölçüm (prompt+`max_tokens` tahmini) kayıtlı gerçek ölçümle
+(199.555/200.000, ~206 haber/gün → ~969 token/haber) çapraz doğrulandı —
+canlıya dokunmadan, SSM diagnostiği gerekmeden. Bulgular: (1) `GroqQuery
+Expander`/`GroqQuestionAnswerer` zaten 120b'ye taşınmış (roadmap #24
+notu eskimişti, düzeltildi) — 20b TPD havuzunun tek tüketicisi artık worker'ın
+haber analiz hattı; (2) `text[:1000]` kırpması gerçek RSS teaser boyutları
+(~30-80 kelime) nedeniyle neredeyse hiç devreye girmiyor, elendi; (3)
+`is_near_duplicate` kontrolü Groq analizinden SONRA çalışıyor — near-duplicate
+haberler bile tam analiz alıyor, gerçek bir israf ama `is_duplicate` feed'i
+filtrelemediği için düzeltmek ürün kararı gerektiriyor, bugün kapsam dışı.
+**Uygulanan güvenli dilim:** `common.py::build_analysis_prompt` şablonu
+~278→~192 token'a sıkıştırıldı (aynı alan sözleşmesi + kalibrasyon örnekleri,
+haber başına ~86 token/~%9 TPD kazancı) + Groq'un gerçek `usage.prompt_
+tokens`/`completion_tokens` alanı `nexstream_groq_tokens_total` metriğine
+işlenmeye başladı (`groq_analyzer.py::_record_token_usage`) — bir sonraki
+karar artık tahmine değil bu metriğe dayanabilir. 7 yeni test (856/856
+yeşil), TDD ile inline (subagent'sız) yapıldı, merge+deploy+health check
+doğrulandı.
+
 **✅ RAG canlı QA'sında 6 gerçek bug bulunup düzeltildi (27 Ağu 2026, PR #73/#74/#75):**
 Kullanıcı gerçek canlı QA'ya başladı (Docker yine kapalıydı, tarayıcıda canlı
 siteyle test edildi):
