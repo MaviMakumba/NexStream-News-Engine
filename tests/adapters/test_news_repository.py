@@ -71,6 +71,54 @@ def test_get_latest_news():
     assert len(articles) == 2
     assert all(isinstance(a, Article) for a in articles)
 
+def test_get_latest_news_orders_by_published_at_not_created_at():
+    """Ana akış YAYIN tarihine göre sıralanmalı, DB'ye kayıt zamanına göre değil —
+    worker bir kaynağın tüm yeni haberlerini art arda kaydettiği için created_at
+    kaynak bazında kümeleniyordu (kayıt sırası yayın sırasıyla örtüşmeyebiliyor)."""
+    db = make_session()
+    repo = NewsRepository(db)
+
+    old = make_article("https://bbc.com/old")
+    old.published_at = datetime(2026, 8, 5, tzinfo=timezone.utc)
+    repo.save_article(old)
+
+    new = make_article("https://bbc.com/new")
+    new.published_at = datetime(2026, 8, 25, tzinfo=timezone.utc)
+    repo.save_article(new)
+
+    # created_at'i KASTEN published_at ile ters çeviriyoruz — "old" daha SONRA
+    # kaydedilmiş gibi (created_at daha yeni), "new" daha ÖNCE kaydedilmiş gibi.
+    db.query(NewsORM).filter(NewsORM.url == "https://bbc.com/old").update(
+        {"created_at": datetime(2026, 8, 30, tzinfo=timezone.utc)}
+    )
+    db.query(NewsORM).filter(NewsORM.url == "https://bbc.com/new").update(
+        {"created_at": datetime(2026, 8, 1, tzinfo=timezone.utc)}
+    )
+    db.commit()
+
+    articles = repo.get_latest_news(limit=2)
+
+    assert [a.url for a in articles] == ["https://bbc.com/new", "https://bbc.com/old"]
+
+
+def test_get_latest_news_falls_back_to_created_at_when_published_at_null():
+    """published_at NULL ise created_at'e düşer (v1.4 öncesi scrape'ler gibi) —
+    get_articles_for_export'taki coalesce deseniyle aynı disiplin."""
+    db = make_session()
+    repo = NewsRepository(db)
+
+    no_pub_date = make_article("https://bbc.com/no-date")  # published_at None kalır
+    repo.save_article(no_pub_date)
+
+    dated = make_article("https://bbc.com/dated")
+    dated.published_at = datetime(2020, 1, 1, tzinfo=timezone.utc)  # çok eski
+    repo.save_article(dated)
+
+    articles = repo.get_latest_news(limit=2)
+
+    assert articles[0].url == "https://bbc.com/no-date"
+
+
 def test_get_latest_news_sentiment_filter():
     """Sentiment filtresi çalışıyor mu?"""
     db = make_session()
