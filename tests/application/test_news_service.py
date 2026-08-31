@@ -990,6 +990,38 @@ def test_answer_question_passes_history_to_qa_port():
     assert mock_qa.answer.call_args.kwargs["history"] == history
 
 
+def test_answer_question_evidence_includes_article_content():
+    """Kanıt paketi artık sadece başlık değil, elimizde olan content'i de
+    taşımalı — LLM başlıkta olmayan ama teaser'da geçen detayları görebilsin
+    (27 Ağu 2026 canlı bulgusu: 'Trossard kafilede yer almadı' gibi bilgiler
+    content'te varken hiç prompt'a girmiyordu)."""
+    service, mock_repo, mock_qa = make_service_with_qa()
+    candidates = [{"id": "1", "score": 0.9, "source": "BBC"}]
+    article = _evidence_article(1)
+    article.content = "Trossard kafilede yer almadı."
+    mock_repo.get_articles_by_ids.return_value = [article]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Cevap.", "used_sources": [1]}
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        service.answer_question("Trossard kadroda mı?")
+    sources = mock_qa.answer.call_args.kwargs["sources"]
+    assert sources[0]["content"] == "Trossard kafilede yer almadı."
+
+
+def test_answer_question_evidence_content_truncated_to_500_chars():
+    """`matched_keyword`'ün zaten kullandığı content[:500] kırpma
+    konvansiyonuyla tutarlı — sınırsız uzun bir content prompt'u şişirmesin."""
+    service, mock_repo, mock_qa = make_service_with_qa()
+    candidates = [{"id": "1", "score": 0.9, "source": "BBC"}]
+    article = _evidence_article(1)
+    article.content = "x" * 800
+    mock_repo.get_articles_by_ids.return_value = [article]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Cevap.", "used_sources": [1]}
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        service.answer_question("Ne oldu?")
+    sources = mock_qa.answer.call_args.kwargs["sources"]
+    assert len(sources[0]["content"]) == 500
+
+
 def test_no_evidence_response_turkish_question_returns_turkish_text():
     service, mock_repo, mock_qa = make_service_with_qa()
     with patch.object(service, "hybrid_search", return_value=[]):

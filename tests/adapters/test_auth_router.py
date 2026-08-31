@@ -219,6 +219,24 @@ def test_register_normalizes_email_case_before_uniqueness_check_and_storage(clie
     assert created_user.email == "boss@company.com"
 
 
+def test_register_never_dials_real_smtp_when_email_adapter_left_unmocked(client):
+    """27 Ağu 2026'da CANLIDA bulundu: bu dosyadaki birden fazla register testi
+    (test_register_creates_user, test_register_tier_defaults_to_free, vb.)
+    `get_email_adapter`'ı hiç mock'lamıyordu — `.env`'deki GERÇEK SMTP_USER/
+    SMTP_PASSWORD ile her tam test koşusunda gerçek bir doğrulama maili
+    gönderiliyordu (test@/new@/ok@example.com — Null MX, kullanıcının kendi
+    Gmail'ine 3 bounce olarak geri döndü; Boss@Company.com ise GERÇEK bir
+    şirkete gitmiş olabilirdi). 25 Ağu 2026'daki Sentry sızıntısıyla (bkz.
+    conftest `_no_real_sentry_calls`) BİREBİR AYNI bug sınıfı — bu test
+    conftest'e eklenen ağ-izolasyon fixture'ının smtplib.SMTP'yi GERÇEKTEN
+    engellediğini kanıtlar, bireysel testlerin unutmasına güvenmez."""
+    import smtplib
+    assert isinstance(smtplib.SMTP, MagicMock), (
+        "smtplib.SMTP patch'lenmemiş — get_email_adapter'ı mock'lamayı unutan "
+        "bir test gerçek bir e-posta gönderebilir (bkz. bu testin docstring'i)"
+    )
+
+
 # ── Login ─────────────────────────────────────────────────────────────────────
 
 def test_login_success_sets_session_cookie(client):

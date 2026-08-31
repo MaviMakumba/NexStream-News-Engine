@@ -110,11 +110,20 @@ class NewsRepository(NewsRepositoryPort):
             return False
 
     def get_latest_news(self, limit: int, sentiment_filter: Optional[str] = None) -> List[Article]:
+        """Ana akış — YAYIN tarihine göre sıralanır, kayıt zamanına göre DEĞİL.
+
+        31 Ağu 2026 öncesi `created_at.desc()` kullanıyordu: worker bir kaynağın
+        TÜM yeni haberlerini art arda kaydettiği için created_at kaynak bazında
+        kümeleniyordu (aynı kaynağın 20+ haberi arka arkaya görünüyordu, kullanıcı
+        bulgusu). `published_at` NULL ise (v1.4 öncesi scrape'ler) `created_at`e
+        düşer — `get_articles_for_export`'taki coalesce deseniyle aynı disiplin.
+        """
         query = self.db.query(NewsORM)
         if sentiment_filter:
             query = query.filter(NewsORM.sentiment_label.ilike(f"%{sentiment_filter}%"))
 
-        rows = query.order_by(NewsORM.created_at.desc()).limit(limit).all()
+        effective_date = func.coalesce(NewsORM.published_at, NewsORM.created_at)
+        rows = query.order_by(effective_date.desc()).limit(limit).all()
         return [self._to_domain(row) for row in rows]
 
     def get_all_articles(self) -> List[Article]:

@@ -410,6 +410,197 @@ formu (18 Ağustos 2026, aynı oturumun devamı, TAMAMLANDI):**
 **✅ Go-live hazırlık turu (8 Temmuz 2026, tamamlandı):**
 Temel SEO (generateMetadata, robots.ts, sitemap.ts), `/privacy`+`/terms`, nginx `/api/v1/` prefix-korumalı location bloğu + WebSocket header'ları (bu WS header eklemesi go-live turunda yapılmıştı — sonradan v2.1.1'de `websockets` paketinin hiç pinlenmemiş olması nedeniyle bu header'lar ASGI seviyesinde işe yaramadığı ortaya çıktı), `frontend/lib/api.ts::BASE` export edildi, landing sayfasına canlı semantik arama demosu.
 
+---
+
+## TAMAMLANAN MİLESTONE'LAR (v1.18 → v2.6, 19–27 Ağustos 2026)
+
+`CLAUDE.md` 18 Ağustos'ta bu dosyaya ayrıştırıldıktan sonra biriken bir haftalık
+yoğun geliştirme — roadmap'in ✅ işaretli maddelerinin tam anlatısı burada,
+`CLAUDE.md`'de sadece 1-2 satırlık pointer'lar kaldı.
+
+**✅ Hesap silme endpoint'i (19 Ağu 2026, tamamlandı):**
+`DELETE /account` — parola + checkbox onayı, owner rolü hariç, Stripe
+aboneliği varsa otomatik iptal, ilişkili tüm satırlar (sessions/token'lar/
+usage_log/bülten aboneliği) kalıcı silinir. Frontend'de /account sayfasında
+"Tehlikeli Bölge".
+
+**✅ Kullanıcı banlama — moderatör/admin (19 Ağu 2026, tamamlandı):**
+`PATCH /admin/users/{id}/active` — `update_user_role` ile birebir aynı
+kademeli yetki deseni (hedefin rolü actor'dan kesinlikle düşük olmalı, owner
+hiç hedef olamaz, kendi kendini banlayamazsın), banlarken
+`delete_sessions_for_user` ile tüm oturumlar da düşürülür. Admin panelinde
+durum sütununda Banla/Banı Kaldır butonu.
+
+**✅ Rakip taraması sonrası quick-win paketi (19 Ağu 2026, canlıya deploy edildi ve SSM üzerinden uçtan uca doğrulandı):**
+Ground News/Feedly/Inoreader/FreshRSS taraması (detay için scratchpad'deki
+araştırma raporuna bak). Kaydet/sonra oku (`/account/saved`, v2.2), kaynak
+"corroboration" rozeti (veri zaten vardı, sadece UI'a eklendi), tarayıcı-yerel
+TTS (Web Speech API). Okuma süresi tahmini 20 Ağu 2026'da KALDIRILDI (bkz.
+roadmap madde 18 — gerçek makale metni hiç çekilmediği için yanıltıcıydı).
+
+**✅ Story cluster görünümü (19 Ağu 2026, tamamlandı):**
+"Bu haberi kim nasıl anlatıyor" — `GET /news/{id}/sources` +
+`/api/v1/news/{id}/sources` (tier gating yok, herkese açık — corroboration
+rozeti gibi şeffaflık özelliği). `ChromaSearchRepository.find_similar` zaten
+indexlenmiş embedding'i tekrar hesaplamadan (`collection.get`) benzerlik
+araması yapıyor, dedup eşiğinden (0.92) daha gevşek bir eşikle (0.72) aynı
+olayı farklı kaynakların anlattığı makaleleri yakalıyor. `NewsService.
+get_story_cluster` orkestrasyon, `NewsCard`'da kart footer'ında
+"🔗 Kaynaklar" toggle'ı.
+
+**✅ Arama ilişkisel sorgu genişletme — query expansion (20 Ağu 2026, tamamlandı):**
+"İstanbul" araması "Beykoz" gibi ilişkili haberleri de düşük skorla yakalasın
+diye Groq'a `QueryExpansionPort` (`GroqQueryExpander`, cache'li
+`CachingQueryExpander`) üzerinden ikincil terim üretiliyor; `NewsService.
+hybrid_search` bunu `_keyword_relevance`'a `secondary_terms` olarak geçiyor,
+tamamen fail-open (Groq başarısız olursa eski davranış aynen sürer).
+`SEARCH_QUERY_EXPANSION_ENABLED` ile açık/kapalı. `get_news_service` DI'da
+`build_query_expander(get_cache())` ile bağlandı.
+
+**✅ "Kaynaklar" (story cluster) UI'ının kullanışlılığı (24 Ağu 2026, çözüldü):**
+Canlı veriyle test edilince kullanıcının şikayeti hem UI hem kod tarafında
+doğrulandı: (1) panel gerçekten İlgili Haberler'in görsel bir kopyasıydı
+(aynı kart stili) — kaynak adına göre tekilleştirilmiş rozet/pill satırına
+çevrildi (`NewsCard.tsx`); (2) "tam çalışmıyor" algısının arkasında GERÇEK
+bir skorlama bug'ı vardı — bkz. `CLAUDE.md` BİLİNEN NOTLAR'daki "jenerik
+entity" maddesi. `_find_corroborating_articles` düzeltildi, 2 regresyon
+testi eklendi (746 test yeşil). **Aynı gün içinde kullanıcı "başka yerde de
+aynı bug olabilir mi" diye sorunca tarama genişletildi**, `get_related`
+(Pro+ ücretli özellik) VE `get_story_cluster`'ın semantik tarafında da aynı
+bug sınıfı bulunup düzeltildi (PR #50, +7 test, 751 test yeşil).
+
+**✅ Deploy pipeline'ı main merge'ine bağla (24-25 Ağu 2026, iki aşamada TAMAMEN çözüldü):**
+24 Ağu: prod artık ayrı bir dal (`optimize/t3-small-ram`) yerine doğrudan
+`main`'den deploy ediliyor — drift kaynağı ortadan kalktı (PR #48/#47 main'e
+merge edilmişti ama prod hâlâ eski daldan deploy ediliyordu, `groq_query_
+expander.py` prod'da hiç yoktu). 25 Ağu: `.github/workflows/tests.yml`'e
+main'e her push'ta (test+frontend geçerse) SSM üzerinden otomatik redeploy +
+`/api/health` doğrulaması yapan bir `deploy` job'ı eklendi (PR #52), kullanıcı
+gerekli iki GitHub Secret'ı ekledi, `gh run rerun --failed` ile uçtan uca
+doğrulandı (otomasyon gerçekten kendi başına SSM'e bağlanıp deploy yaptı).
+Artık main'e her merge tam otomatik prod'a çıkıyor — elle SSM adımı sadece
+manuel müdahale/debug için saklı kaldı.
+
+**✅ Analytics/hata takibi — Sentry + PostHog (25 Ağu 2026, AKTİVE edildi ve canlıda doğrulandı):**
+Sentry hem `app` hem `worker`'da `environment=production` etiketiyle event
+gönderiyor, PostHog EU host'a bağlı, key frontend bundle'ına gömülü. Her
+ikisi de SaaS ücretsiz katman — VPS'e yeni bir servis/RAM eklemiyor (self-host
+GlitchTip/Umami gibi seçenekler bilinçli olarak elendi).
+- **Sentry:** `src/infrastructure/observability/sentry.py::init_sentry()` —
+  `SENTRY_DSN` boşsa tamamen no-op, kurulum kendi içinde try/except'li. 3 yeni test.
+- **PostHog:** `frontend/components/AnalyticsProvider.tsx` — App Router
+  pageview'larını `usePathname` ile elle gönderir (`useSearchParams` DEĞİL —
+  Suspense gerektirir), autocapture açık.
+- `/privacy` sayfası (TR+EN) güncellendi — eskiden "takip/reklam çerezi
+  kullanılmıyor" diye kesin bir iddiası vardı, PostHog/Sentry'nin varlığı ve
+  reklam amaçlı KULLANILMADIĞI açıkça belirtildi.
+- Kullanıcı Sentry (DE region) + PostHog (EU Cloud —
+  `NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com` şart, `us.` varsayılanı
+  çalışmaz) hesabı açtı, `docker compose up --build -d` ile aktive etti
+  (PostHog key build-time ARG olduğu için frontend REBUILD gerekiyor).
+  **Frontend Sentry (Next.js SDK) bilinçli olarak YAPILMADI** — backend zaten
+  kapsıyor, `next.config.js`'e dokunup build'i kırma riski taşıyordu.
+
+**✅ Web Push bildirimleri — breaking news (25 Ağu 2026, tamamlandı):**
+Spec: `docs/superpowers/specs/2026-08-25-web-push-bildirimleri-design.md`,
+plan: `docs/superpowers/plans/2026-08-25-web-push-bildirimleri.md`,
+worktree'de inline uygulandı, subagent kullanılmadı. Mevcut "Anlık Uyarılar"
+(instant) e-posta aboneliğinin AYNI keyword eşleşmesini ikinci bir kanal
+olarak paylaşıyor — ayrı bir "breaking news" kavramı icat edilmedi. Yeni
+`WebPushPort` + `PyWebPushAdapter` (pywebpush + VAPID) +
+`PushSubscriptionRepositoryPort` — isim bilinçli olarak `NotificationPort`
+(mevcut, `/ws/feed` için) ile çakışmasın diye farklı seçildi. Pro+ gating +
+giriş zorunlu. VAPID anahtarları `npx web-push generate-vapid-keys` ile
+üretildi (3. parti hesap gerekmiyor). **Otomatik güvenlik incelemesi bir IDOR
+bulup düzeltti:** `DELETE /account/push-subscription` endpoint sahipliğini
+hiç doğrulamıyordu — düzeltildi, artık sadece `current_user.email`'e ait
+abonelikler silinebiliyor.
+
+**✅ Admin panelinde /admin/users tablosu sıralanabilir (26 Ağu 2026, tamamlandı):**
+Sahibinden.com tarzı: sütun başlığına (ekstra buton yok) tıklayınca
+sıralanır. 3 durumlu döngü (`frontend/app/admin/users/page.tsx::handleSort`):
+1. tık = artan, 2. tık = azalan, 3. tık = varsayılana döner — `users` state'i
+hiç mutasyona uğramıyor, `displayedUsers` bir `useMemo` ile türetiliyor. Rol
+ve Tier sütunları bilinçli olarak alfabetik değil RANK'e göre sıralanıyor.
+Bounded bir frontend işi, backend değişikliği gerekmedi.
+
+**✅ Test paketi sağlık denetimi (25 Ağu 2026, yapıldı — sonuç: paket sağlıklı, temizlik gerekmedi):**
+AST tabanlı bir tarama (751 test fonksiyonu) 3 soruyu kontrol etti: (1)
+**Ölü/orphan test yok** — tüm `from src....` import'ları gerçek modüllere
+çözülüyor. (2) **Skip/xfail/TODO/FIXME işaretli 0 test.** (3) **"Mock'un
+kendisini test etme" şüphesi incelendi:** ilk kaba tarama 62 "şüpheli"
+işaretledi ama çoğu `pytest.raises(...)`/`mock.assert_called_with(...)` gibi
+gerçek doğrulama yapan kalıplardı (metodoloji düzeltildi). Gerçek aday
+sadece 9'a indi, hepsi incelendi — hepsi bilinçli "exception fırlatmamalı"
+testleri, projenin "Exception'ları yut, logla, fallback dön" felsefesiyle
+birebir örtüşüyor.
+
+**✅ RAG tabanlı "bu konuda soru sor" mini sohbet (26 Ağu 2026, canlıya çıktı):**
+Spec: `docs/superpowers/specs/2026-08-26-rag-soru-cevap-design.md`, plan:
+`docs/superpowers/plans/2026-08-26-rag-soru-cevap.md`, 13 görev, inline TDD
+ile uygulandı, subagent kullanılmadı. `QuestionAnsweringPort`
+(`GroqQuestionAnswerer`, `AnalysisPort`'tan AYRI — `QueryExpansionPort` ile
+aynı gerekçe) + kanıt kapısı deterministik kodda çözülüyor (retrieval skoru
+`RAG_RETRIEVAL_THRESHOLD` altındaysa Groq'a hiç gidilmiyor) + soru başına en
+fazla 1 Groq çağrısı. Endpoint bilinçli olarak sadece `/api/v1/news/ask`'te
+(legacy router'a EKLENMEDİ) — `usage_tracking_middleware` sadece `/api/v1/`
+path'lerini kota sayacına işliyor, spec bunu fark etmemişti, brainstorming'de
+düzeltildi. Frontend: `/dashboard/ask` (genel + habere-özel tamamen ayrı
+sohbet oturumları, kalıcı saklama yok), `NewsCard`'da "💬 Sor" butonu,
+`/account?prefillKeyword=` ile "haberdar et" akışı. PR #70 (önce bağımsız bir
+keyword-alert substring bug'ı + hesap sayfası chip UI'ı), #71 (RAG'ın
+kendisi), #72 (canlı QA'da bulunan fail-fast hotfix'i).
+
+**✅ RAG canlı QA'sında 6 gerçek bug bulunup düzeltildi (27 Ağu 2026, PR #73/#74/#75):**
+Kullanıcı gerçek canlı QA'ya başladı (Docker yine kapalıydı, tarayıcıda canlı
+siteyle test edildi):
+1. E-posta/push keyword alert'te "altın" (gold) kökü "altında"/"altındaki"
+   ("alt" [under] kelimesinin çekimi) ile harf düzeyinde çakışıyordu —
+   `_FALSE_FRIEND_WORDS` istisnasıyla çözüldü.
+2. RAG "soru sor" Groq'un paylaşımlı TPD kotası dolduğu için sürekli 503
+   dönüyordu — `GroqQuestionAnswerer` + `GroqQueryExpander` ayrı modele
+   (`gpt-oss-120b`) taşındı ("LLM modülü bölme" spike'ı bu vesileyle cevaplandı).
+3. Kanıt-yok şablonu TR sitede aksansız Türkçe soruda İngilizce geliyordu —
+   `AskRequest.language` eklendi, frontend'in kesin bildiği arayüz dili
+   karakter-sezgisinden ÖNCE kullanılıyor artık.
+4. `RETRIEVAL_THRESHOLD` 0.5→0.4: gerçekten ilgili bir haber (%46 skor) eşik
+   yüzünden reddediliyordu — ilk gerçek kalibrasyon verisi.
+5. "Haberdar et" önerisi sohbetin SON mesajını (takip sorusu, konu
+   taşımayabilir) değil İLK mesajını kullanacak şekilde düzeltildi.
+6. Python'un `.lower()`'ı Türkçe büyük "İ"yi bozup (`\b`-anchor kaçıyordu,
+   "İsrailli" başlığı "israil" sorgusuyla hiç eşleşmiyordu) + doğal dilli
+   sorulardaki soru parçacıkları ("mı", "kim", "nedir") coverage bölenini
+   şişirip skoru yapay düşürüyordu — ikisi de düzeltildi (`_lower_tr_safe` +
+   `_TR_QUESTION_STOPWORDS`).
+
+**✅ LLM modüllerini bölme fizibilitesi — spike (27 Ağu 2026, CEVAPLANDI):**
+Resmi Groq rate-limit dokümanı (model tablosunda her model FARKLI bir TPD
+sayısıyla listeleniyor, ör. `openai/gpt-oss-20b`/`120b` 200K,
+`qwen/qwen3.8-27b` 2M) VE canlı bir ampirik test (aynı anahtarla iki farklı
+modele art arda istek atılıp `x-ratelimit-remaining-requests` header'ının
+HER model için BAĞIMSIZ azaldığı gözlemlendi) TPD kotasının **MODEL BAŞINA
+ayrı bir havuz** olduğunu kesinleştirdi. Sonuç: farklı bir SAĞLAYICIYA
+geçmeye gerek yok — aynı Groq hesabında farklı bir MODEL seçmek bile
+bağımsız bir kota açıyor. `GroqQuestionAnswerer` bu bilgiyle
+`openai/gpt-oss-20b`'den (GroqAnalyzer/worker ile paylaşılan, neredeyse
+sürekli dolu havuz) `openai/gpt-oss-120b`'ye taşındı — aynı gpt-oss ailesinde
+kalındığı için JSON-güvenli, canlı bir istekle doğrulandı. Bu canlıda gerçek
+bir bug'ı çözdü: worker'ın sürekli tükettiği paylaşımlı 20b havuzu RAG'a pay
+bırakmıyordu, 26-27 Ağu arasında `/api/v1/news/ask` 3 ayrı kez 429→503 ile
+"Şu an yanıt üretemiyorum" dönmüştü.
+
+**✅ Stratejik "buzdağı" değerlendirmesi (24 Ağu 2026, yapıldı):**
+Kullanıcı "dünyaya bakıp rasyonel sıralasak" dedi, gerçek web araştırması
+(SaaS PMF aşamaları, 2026'nın AI/haber-toplama hukuki iklimi) + projenin tam
+durumu temel alınarak bir Artifact hazırlandı (kullanıcının kendi Artifacts
+galerisinde, "Buzdağının Neresindeyiz?" başlığıyla). Ortaya çıkan asıl soru
+roadmap'te bir madde değil, bir FORK'tu: proje bilinçli olarak "bitmiş bir
+portfolyo parçası" olarak mı bırakılacak, yoksa gerçekten kullanıcı
+bulunmaya çalışılan bir ürüne mi dönüştürülecek? **Karar (aynı gün):** proje
+ŞİMDİLİK bilinçli olarak portfolyo olarak kalıyor (bkz. `CLAUDE.md` MEVCUT
+DURUM "Hedef" satırı) — AWS kredisi tükenmeden önce (~Kasım 2026 ortası)
+tekrar gözden geçirilecek.
+
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu, custom (Stripe dışı) billing portalı, App Store/Play Store (sadece PWA)
 

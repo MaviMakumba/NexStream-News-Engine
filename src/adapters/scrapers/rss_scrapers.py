@@ -121,7 +121,12 @@ class SabahScraper(BaseRssScraper):
 
 class CNNTurkScraper(BaseRssScraper):
     def __init__(self):
-        self.url = "https://www.cnnturk.com/feed/rss/guncel/rss.xml"
+        # 31 Ağu 2026: eski URL (feed/rss/guncel/rss.xml) CNN Türk'ün KENDİ
+        # tarafında donmuş — 1 Temmuz 2026'dan beri hiç güncellenmiyor (200
+        # dönüyor ama içerik ~2 ay eski), bu yüzden CNN Türk hiç haber
+        # kazandırmıyordu (dedup her seferinde aynı eski URL'leri görüyordu).
+        # feed/rss/all/news canlı doğrulandı (güncel pubDate), aynı yapı.
+        self.url = "https://www.cnnturk.com/feed/rss/all/news"
         self.source_name = "CNN Türk"
         self.limit = 25
 

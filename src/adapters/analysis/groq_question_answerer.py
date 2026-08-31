@@ -39,6 +39,7 @@ bkz. CLAUDE.md "Groq modelleri" notu — o yüzden qwen'e GEÇİLMEDİ).
 import json
 import logging
 import time
+from datetime import datetime, timezone
 
 import requests
 
@@ -60,7 +61,10 @@ class GroqQuestionAnswerer(QuestionAnsweringPort):
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
 
     def answer(self, question: str, sources: list, history: list, corroboration_level: str) -> dict:
-        prompt = build_rag_prompt(question, sources, history, corroboration_level)
+        # "Bugün" burada (adapter sınırında) hesaplanır — build_rag_prompt saf/
+        # test edilebilir kalır (wall-clock'a bağımlı değil), bkz. rag_common.py.
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        prompt = build_rag_prompt(question, sources, history, corroboration_level, today)
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
         payload = {
             "model": self.model,

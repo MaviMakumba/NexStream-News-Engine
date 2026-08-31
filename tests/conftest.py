@@ -22,6 +22,32 @@ def _no_real_sentry_calls():
         yield
 
 
+@pytest.fixture(autouse=True)
+def _no_real_email_calls():
+    """`smtplib.SMTP`/`requests.post`'un HİÇBİR test sırasında gerçek bir ağ
+    bağlantısı açmamasını garanti eder — `.env`'de (yerel geliştirmede)
+    gerçek SMTP_USER/SMTP_PASSWORD ve RESEND_API_KEY dursa bile.
+
+    27 Ağu 2026'da canlıda bulundu (Sentry'nin 25 Ağu'daki sızıntısıyla
+    BİREBİR AYNI bug sınıfı): `test_auth_router.py`'deki birden fazla
+    register testi `get_email_adapter`'ı hiç mock'lamıyordu — her tam test
+    koşusunda `auth_router.register()`'ın koşulsuz çağırdığı
+    `_send_verification_email` GERÇEK SMTP kimlik bilgileriyle gerçek bir
+    doğrulama maili gönderdi (test@/new@/ok@example.com — Null MX, kullanıcının
+    kendi Gmail'ine bounce olarak geri döndü; Boss@Company.com ise gerçek bir
+    üçüncü tarafa gitmiş olabilirdi). Sentry'deki gibi TEK bir yeri mock'lamak
+    (`get_email_adapter`) yeterli değil — yeni bir router/endpoint aynı hatayı
+    tekrar yapabilir. Bunun yerine ağ SINIRININ kendisi (`smtplib.SMTP` +
+    Resend'in kullandığı `requests.post`) kapatılıyor — hangi kod yolu
+    çağırırsa çağırsın gerçek bir bağlantı asla açılamaz. Var olan testlerin
+    kendi `patch("smtplib.SMTP", ...)`/`patch("requests.post", ...)` blokları
+    bunun ÜSTÜNE güvenle katmanlanır (mock.patch iç içe geçince normal şekilde
+    geri yüklenir), bu fixture onların yerine geçmiyor, sadece unutulursa
+    diye bir güvenlik ağı."""
+    with patch("smtplib.SMTP"), patch("requests.post"):
+        yield
+
+
 @pytest.fixture
 def app_client():
     """

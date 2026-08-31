@@ -891,6 +891,12 @@ class NewsService:
                 "corroboration_count": a.corroboration_count or 0,
                 "published_at": (a.published_at or a.created_at).strftime("%Y-%m-%d")
                     if (a.published_at or a.created_at) else "",
+                # Eskiden kanıt paketi SADECE başlığı taşıyordu — elimizde zaten
+                # duran RSS teaser'ı (content) LLM'e hiç gösterilmiyordu,
+                # "başlıkta olmayan basit bir detay" bile cevaplanamıyordu
+                # (27 Ağu 2026 canlı bulgusu). `matched_keyword`'ün kullandığı
+                # content[:500] kırpma konvansiyonuyla tutarlı.
+                "content": (a.content or "")[:500],
             }
             for i, a in enumerate(evidence_bundle)
         ]
