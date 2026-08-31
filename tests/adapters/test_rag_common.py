@@ -2,6 +2,8 @@ import json
 import pytest
 from src.adapters.analysis.rag_common import build_rag_prompt, parse_rag_json
 
+_TODAY = "2026-08-31"
+
 
 def _source(index=1, title="Test Başlık", source="BBC", sentiment_label="Neutral",
             corroboration_count=1, published_at="2026-08-20", content="Test içerik metni."):
@@ -10,20 +12,20 @@ def _source(index=1, title="Test Başlık", source="BBC", sentiment_label="Neutr
 
 
 def test_build_rag_prompt_includes_numbered_evidence():
-    prompt = build_rag_prompt("Ne oldu?", [_source()], [], "single_source")
+    prompt = build_rag_prompt("Ne oldu?", [_source()], [], "single_source", today=_TODAY)
     assert "[1]" in prompt
     assert "Test Başlık" in prompt
     assert "BBC" in prompt
 
 
 def test_build_rag_prompt_includes_question():
-    prompt = build_rag_prompt("Beşiktaş ne yaptı?", [_source()], [], "single_source")
+    prompt = build_rag_prompt("Beşiktaş ne yaptı?", [_source()], [], "single_source", today=_TODAY)
     assert "Beşiktaş ne yaptı?" in prompt
 
 
 def test_build_rag_prompt_includes_history():
     history = [{"role": "user", "content": "İstanbul'da ne oldu?"}]
-    prompt = build_rag_prompt("Peki ya İzmir'de?", [_source()], history, "single_source")
+    prompt = build_rag_prompt("Peki ya İzmir'de?", [_source()], history, "single_source", today=_TODAY)
     assert "İstanbul'da ne oldu?" in prompt
 
 
@@ -31,18 +33,34 @@ def test_build_rag_prompt_includes_evidence_content():
     """Kanıt sadece başlık değil, elimizde olan content'i de içermeli — LLM
     başlıkta olmayan ama teaser'da geçen detayları (27 Ağu 2026 canlı
     bulgusu) görebilsin."""
-    prompt = build_rag_prompt("Ne oldu?", [_source(content="Trossard kafilede yer almadı.")], [], "single_source")
+    prompt = build_rag_prompt("Ne oldu?", [_source(content="Trossard kafilede yer almadı.")], [], "single_source", today=_TODAY)
     assert "Trossard kafilede yer almadı." in prompt
 
 
 def test_build_rag_prompt_notes_multi_source_corroboration():
-    prompt = build_rag_prompt("Ne oldu?", [_source()], [], "multi_source")
+    prompt = build_rag_prompt("Ne oldu?", [_source()], [], "multi_source", today=_TODAY)
     assert "multiple" in prompt.lower()
 
 
 def test_build_rag_prompt_notes_single_source_caveat():
-    prompt = build_rag_prompt("Ne oldu?", [_source()], [], "single_source")
+    prompt = build_rag_prompt("Ne oldu?", [_source()], [], "single_source", today=_TODAY)
     assert "single source" in prompt.lower()
+
+
+# ── Tarih-farkındalığı (31 Ağu 2026, kullanıcı bulgusu: eski habere göre cevap veriliyordu) ──
+
+def test_build_rag_prompt_includes_todays_date():
+    """Model 'bugün'ü bilmeden bir kanıtın ne kadar eski olduğunu anlayamaz."""
+    prompt = build_rag_prompt("Ne oldu?", [_source()], [], "single_source", today=_TODAY)
+    assert _TODAY in prompt
+
+
+def test_build_rag_prompt_instructs_to_prefer_latest_evidence_on_conflict():
+    """Aynı konuda birden fazla tarihli kanıt varsa modele en yeniyi esas
+    alması açıkça söylenmeli — sadece tarihi göstermek yetmiyordu (model
+    hangisine öncelik vereceğini bilmiyordu, 31 Ağu 2026 kullanıcı bulgusu)."""
+    prompt = build_rag_prompt("Ne oldu?", [_source()], [], "single_source", today=_TODAY)
+    assert "most recent" in prompt.lower() or "latest" in prompt.lower()
 
 
 def test_parse_rag_json_valid_response():
