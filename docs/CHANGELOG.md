@@ -551,6 +551,53 @@ sohbet oturumları, kalıcı saklama yok), `NewsCard`'da "💬 Sor" butonu,
 keyword-alert substring bug'ı + hesap sayfası chip UI'ı), #71 (RAG'ın
 kendisi), #72 (canlı QA'da bulunan fail-fast hotfix'i).
 
+**✅ Haber akışı kümelenmesi + RAG tarih-farkındalığı + worker starvation (31 Ağu 2026, PR #77/#78):**
+Kullanıcı canlıda iki sorun bildirdi: haberlerin sürekli aynı kaynaktan arka
+arkaya gelmesi, ve RAG'ın "gram altın haftaya nasıl başladı" sorusunda güncel
+değil bir hafta önceki habere göre cevap vermesi. Kapsamlı SSM canlı
+diagnostiğiyle (worker log analizi, 300 satırlık DB run-length sıralama
+testi, container içi `hybrid_search`/`answer_question` çağrıları, RSS feed
+curl doğrulaması) araştırıldı, TDD ile 5 düzeltme yapıldı:
+
+- **PR #77 (4 düzeltme):**
+  1. Groq TPM tavanına yakınken 429'u beklemeden proaktif throttle
+     (`groq_analyzer.py`, `x-ratelimit-remaining-tokens`/`reset-tokens`
+     header'larını okuyor).
+  2. Ana akış artık `created_at` değil `published_at`'e (coalesce ile) göre
+     sıralanıyor (`news_repository.py`) — 300 haberlik canlı örneklemde 0
+     sıralama ihlali doğrulandı (öncesi 20-25+ aynı-kaynak dizisi, sonrası
+     en uzun dizi 6).
+  3. CNN Türk RSS URL'i güncellendi — eski adres 1 Temmuz'dan beri kaynağın
+     kendi tarafında donmuştu.
+  4. RAG prompt'una bugünün tarihi + "birden fazla kanıt aynı konuyu farklı
+     tarihlerde anlatıyorsa EN YENİSİNİ esas al" kuralı eklendi
+     (`rag_common.py`/`groq_question_answerer.py`).
+- **PR #78 (asıl kök sebep, ayrı bir oturum turunda bulundu):** worker
+  (`kafka_consumer.py`) kaynakları SIRAYLA ve bir kaynağın TÜM yeni
+  haberlerini bitirmeden bir sonrakine geçmeden işliyordu — Groq rate limit
+  ağırlaşınca TRT Haber (registry'de 1. sırada, yoğun kaynak) worker'ı
+  SAATLERCE kilitleyip CNN Türk (6. sırada) dahil diğer 16 kaynağı aç
+  bırakabiliyordu (canlıda 40 dakika boyunca SADECE TRT Haber işlendiği
+  doğrulandı). `NewsService.update_news_from_source`'a `max_new_articles`
+  parametresi + yeni ayar `worker_max_new_articles_per_run` (varsayılan 5)
+  eklendi — kaynak başına çalıştırma başına en fazla N yeni haber işlenir,
+  kalanlar dedup'ta hâlâ "yeni" göründüğü için bir sonraki taramada devam
+  eder.
+
+**Kalıcı, bilinçli olarak bugün çözülmeyen bulgu:** proaktif TPM throttle
+bekleme sürelerini başlangıçta kısalttı (430-520s → 73-237s) ama 40 dakikalık
+gözlemde tekrar eski seviyeye (420-439s) tırmandı ve hiç tetiklenmedi (0/10
+olay) — asıl kısıtın TPM değil **TPD (günlük) kota** olduğu ortaya çıktı:
+günlük ~206 haberlik hacim `gpt-oss-20b`'nin 200K TPD tavanına zaten çok
+yakın/üstünde. Kullanıcı isteğiyle sıradaki oturumun İLK gündem maddesi
+olarak not düşüldü (`CLAUDE.md` YOL HARİTASI madde 25) — iki olası kol:
+haber başına token maliyetini düşürmek ya da günlük analiz hacmini
+düşürmek.
+
+İki PR de TDD ile inline (subagent'sız) yapıldı, merge+deploy edildi
+(GitHub Actions otomatik SSM deploy job'ı ile, health check dahil
+doğrulandı). 849/849 test yeşil.
+
 **✅ RAG canlı QA'sında 6 gerçek bug bulunup düzeltildi (27 Ağu 2026, PR #73/#74/#75):**
 Kullanıcı gerçek canlı QA'ya başladı (Docker yine kapalıydı, tarayıcıda canlı
 siteyle test edildi):
