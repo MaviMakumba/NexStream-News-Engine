@@ -236,18 +236,29 @@ export function NewsCard({ article }: { article: Article }) {
       )}
 
       {/* Entity chips — tıklayınca arama sayfasına gider (TrendingPills'in
-          kullandığı aynı router.push deseni, 25 Ağu 2026). */}
+          kullandığı aynı router.push deseni, 25 Ağu 2026).
+
+          maxWidth+ellipsis (1 Eyl 2026, kullanıcı bulgusu — iPhone 12, dikey
+          mod): .badge class'ı white-space:nowrap + flex-shrink:0 kullanıyor
+          (kısa sabit metinli rozetler — "71/100" gibi — için doğru davranış).
+          Ama entity isimleri KEYFİ uzunlukta olabiliyor (uzun kişi/kurum/yer
+          adı) — chip hiç kırılmadığı/küçülmediği için doğal genişliğinde
+          kalıp kartın dışına taşıyordu, bu da SAYFAYI viewport'tan geniş
+          yapıp yatay kaydırmaya yol açıyordu. Global .badge class'ı yerine
+          (diğer kısa-metinli rozetleri bozmamak için) SADECE burada bir üst
+          sınır + kısaltma ekleniyor. */}
       {entities.length > 0 && (
         <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 5 }}>
           {entities.map((e) => (
             <button key={e} type="button"
                     onClick={() => router.push(`/dashboard/search?q=${encodeURIComponent(e)}`)}
-                    className="badge" style={{
+                    className="badge" title={e} style={{
               background: "var(--accent-soft)",
               color: "var(--accent)",
               borderColor: "var(--accent-line)",
               fontSize: "0.68rem",
               fontFamily: "inherit", margin: 0, cursor: "pointer",
+              maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis",
             }}>
               {e}
             </button>
@@ -364,8 +375,11 @@ export function NewsCard({ article }: { article: Article }) {
                   <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                     <span style={{ fontSize: "0.72rem", color: "var(--text3)" }}>{r.source}</span>
                     {(r.common_entities ?? []).slice(0, 3).map((e) => (
-                      <span key={e} className="badge"
-                            style={{ background: "rgba(0,0,0,.2)", color: "var(--text3)", borderColor: "var(--border)" }}>
+                      // maxWidth+ellipsis: entity chip'leriyle AYNI taşma riski
+                      // (bkz. yukarıdaki not) — keyfi uzunlukta entity ismi.
+                      <span key={e} className="badge" title={e}
+                            style={{ background: "rgba(0,0,0,.2)", color: "var(--text3)", borderColor: "var(--border)",
+                                     maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>
                         {e}
                       </span>
                     ))}
