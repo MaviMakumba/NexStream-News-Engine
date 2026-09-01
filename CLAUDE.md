@@ -333,7 +333,20 @@ GERÇEKTEN bekleyen işler var:
      yakalıyor, kod tarafında düzeltme gerektirebilir.
    Review/merge kararı hâlâ kullanıcıda, ama artık netlik var: 3'ü bitti,
    4'ü gerçek iş istiyor (özellikle Next 16 + React/react-dom + Tailwind 4
-   birbirini etkileyebilir, birlikte planlanmalı).
+   birbirini etkileyebilir, birlikte planlanmalı). **Not:** eski Next.js PR'ı
+   (#31) Dependabot tarafından supersede edildi, yerine daha yeni bir sürüme
+   (16.3.2) bump yapan #60 açıldı — aşağıdaki yeni batch'in bir parçası.
+   **27 Ağu 2026'da fark edildi: 24 Ağu 2026'da (haftalık Dependabot taraması)
+   YUKARIDAKİ 4'ün DIŞINDA 12 yeni PR daha açılmış, HİÇ TRİYAJ EDİLMEDİ**
+   (#54-65: aiokafka, pydantic-settings, prometheus-client, python-dotenv,
+   pytest, next→16.3.2 [#60, üstteki notu bak], lxml, bcrypt≥5, sentence-
+   transformers 3→6, aws-actions/configure-aws-credentials 4→6, redis≥8,
+   requests). Toplamda şu an **16 açık Dependabot PR'ı var** (4 bilinen kırık
+   + 12 yeni/incelenmemiş). Sonraki oturumun gündemine eklenmeli — düşük
+   riskli olanlar (patch/minor pip bump'ları, dev-only tip paketleri) muhtemelen
+   19/25 Ağu'daki gibi hızlı doğrulanıp merge edilebilir, majör bump'lar
+   (sentence-transformers 3→6, redis≥8, aws-actions v6) daha dikkatli
+   incelenmeli.
 8. ~~Hesap silme endpoint'i~~ — ✅ 19 Ağu 2026'da tamamlandı. `DELETE /account`
    (parola + checkbox onayı, owner rolü hariç, Stripe aboneliği varsa
    otomatik iptal, ilişkili tüm satırlar — sessions/token'lar/usage_log/
