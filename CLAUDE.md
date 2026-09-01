@@ -435,16 +435,17 @@ GERÇEKTEN bekleyen işler var:
 21. ~~"Kaynaklar" (story cluster) UI'ının kullanışlılığı~~ — ✅ 24 Ağu 2026,
     gerçek bir skorlama bug'ı da bulup düzeltti (bkz. BİLİNEN NOTLAR "jenerik
     entity" maddesi). Detay: `docs/CHANGELOG.md`.
-22. **Entity chip → arama (bounded, TASARIM SUNULDU, ONAY BEKLİYOR)** — kullanıcı
-    24 Ağu 2026'da önerdi: `NewsCard`'daki entity chip'lerine (persons/
-    organizations/locations rozetleri) tıklayınca `/dashboard/search?q=<isim>`'e
-    gitsin — `TrendingPills`'in zaten kullandığı AYNI navigasyon deseni
-    (`dashboard/page.tsx`'te `router.push`). Tasarım kullanıcıya sunuldu ama
-    oturum başka bir konuya (buzdağı analizi) kayınca onay/red netleşmedi —
-    sıradaki oturumun İLK işi bu olmalı (kullanıcı onaylarsa küçük bir
-    frontend değişikliği, `NewsCard.tsx`'teki `<span className="badge">`
-    entity chip'lerini `useRouter` + `router.push` çağıran bir `<button>`'a
-    çevirmek).
+22. ~~Entity chip → arama~~ — ✅ 24 Ağu 2026'da AYNI GÜN merge edildi (PR #51,
+    `feat: entity chip'leri arama sayfasına yönlendiren buton yap`) — bu madde
+    o zaman "onay bekliyor" diye işaretlenmiş kalmıştı, roadmap güncellenmemiş
+    (1 Eyl 2026'da fark edilip düzeltildi). `NewsCard.tsx`'teki entity chip'leri
+    `TrendingPills`'in kullandığı AYNI `router.push('/dashboard/search?q=...')`
+    desenini kullanan `<button>`. **Ders: bir işi "sıradaki oturumun İLK işi
+    olmalı" diye not düşüp session'ı bitirmek, o işin GERÇEKTEN yapıldığını
+    session-end güncellemesinin yakaladığından emin olmayı gerektirir — burada
+    aynı gün içinde başka bir dalda/PR'da yapılmış ama roadmap maddesi
+    kapatılmamış, bir sonraki oturum onu hâlâ "bekliyor" sanıp tekrar
+    gündeme getirdi.**
 23. ~~Stratejik "buzdağı" değerlendirmesi~~ — ✅ 24 Ağu 2026'da karar verildi:
     proje ŞİMDİLİK bilinçli olarak portfolyo olarak kalıyor (bkz. MEVCUT
     DURUM "Hedef" satırı — güncel karar orada). Artifact ("Buzdağının
