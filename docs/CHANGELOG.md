@@ -412,7 +412,7 @@ Temel SEO (generateMetadata, robots.ts, sitemap.ts), `/privacy`+`/terms`, nginx 
 
 ---
 
-## TAMAMLANAN MİLESTONE'LAR (v1.18 → v2.6, 19–27 Ağustos 2026)
+## TAMAMLANAN MİLESTONE'LAR (v1.18 → v2.9, 19 Ağustos – 1 Eylül 2026)
 
 `CLAUDE.md` 18 Ağustos'ta bu dosyaya ayrıştırıldıktan sonra biriken bir haftalık
 yoğun geliştirme — roadmap'in ✅ işaretli maddelerinin tam anlatısı burada,
@@ -750,6 +750,110 @@ bulunmaya çalışılan bir ürüne mi dönüştürülecek? **Karar (aynı gün)
 ŞİMDİLİK bilinçli olarak portfolyo olarak kalıyor (bkz. `CLAUDE.md` MEVCUT
 DURUM "Hedef" satırı) — AWS kredisi tükenmeden önce (~Kasım 2026 ortası)
 tekrar gözden geçirilecek.
+
+**✅ 31 Ağu 2026 — canlıda iki kullanıcı bulgusu (haber sıralaması + RAG'ın eski habere göre cevap vermesi), 5 gerçek düzeltme, 4 PR:**
+Kullanıcı iki sorun bildirdi: haberlerin sürekli aynı kaynaktan arka arkaya
+gelmesi + RAG'ın "gram altın haftaya nasıl başladı" gibi bir soruda güncel
+değil bir hafta önceki habere göre cevap vermesi. Kapsamlı SSM canlı
+diagnostiğiyle (worker log analizi, DB run-length sıralama testi, container
+içi `hybrid_search`/`answer_question` çağrıları, RSS feed curl doğrulaması)
+araştırıldı.
+- **PR #77:** (1) Groq TPM tavanına yakınken 429'u beklemeden proaktif
+  throttle (`groq_analyzer.py`, `x-ratelimit-remaining-tokens`/
+  `reset-tokens` header'ları), (2) ana akış `created_at` değil
+  `published_at`'e (coalesce ile) göre sıralanıyor (`news_repository.py`),
+  (3) CNN Türk RSS URL'i güncellendi (eski adres donmuştu), (4) RAG
+  prompt'una bugünün tarihi + "en yeni kanıtı esas al" kuralı eklendi.
+- **PR #78 (asıl kök sebep):** `kafka_consumer.py` worker'ı kaynakları
+  SIRAYLA ve bir kaynağın TÜM yeni haberlerini bitirmeden bir sonrakine
+  geçmeden işliyordu — Groq rate limit ağırlaşınca tek bir yoğun kaynak
+  (TRT Haber) worker'ı SAATLERCE kilitleyip diğer 16 kaynağı aç
+  bırakabiliyordu (canlıda 40dk boyunca SADECE TRT Haber işlendi
+  doğrulandı). `NewsService.update_news_from_source`'a `max_new_articles`
+  parametresi + `worker_max_new_articles_per_run` (varsayılan 5).
+- **Bulgu:** throttle düzeltmesi bekleme sürelerini kısalttı ama 40dk'lık
+  gözlemde tekrar eski seviyeye tırmandı ve proaktif throttle hiç
+  tetiklenmedi — asıl kısıtın TPM değil TPD (günlük kota) olduğu
+  düşünüldü (bu teşhis 1 Eylül'de YANLIŞ çıktı, bkz. aşağıdaki "leaky
+  bucket" bulgusu).
+- **PR #79 (aynı gün, sonraki oturum):** "önce ölç, sonra karar ver" —
+  `common.py::build_analysis_prompt` şablonu ~278→~192 token'a sıkıştırıldı
+  (haber başına ~86 token, ~%9 TPD kazancı beklentisi), `groq_analyzer.py`
+  Groq'un gerçek `usage.prompt_tokens`/`completion_tokens` alanını
+  `nexstream_groq_tokens_total` metriğine işlemeye başladı.
+- **PR #80 (aynı gün, üçüncü oturum):** arama skoru yeniden tasarımı +
+  görünür güven rozeti planı TAMAMEN uygulandı — `compute_trust_score` (saf
+  domain fonksiyonu), `_distinguishing_query_terms`/`_grounding_factor`
+  (sorgu-varlık doğrulaması, "maç heyecanı" bug'ının kökü), `hybrid_search`'e
+  grounding+credibility+trust_score entegrasyonu, `NewsCard`'da görünür
+  güven rozeti. Uygulama sırasında 3 beklenmeyen bulgu çıktı (CSV export
+  alan senkronizasyonu, yanlış test dosyası varsayımı, recency-decay floor
+  testi kirliliği), hepsi düzeltildi. 27 yeni test, 881/881 yeşil.
+- **PR #81 (aynı gün, hemen ardından):** güven rozetinin hover metni HER
+  haberde AYNI statik yüzdeleri yazıyordu — `trust_score_breakdown()`
+  eklendi (quality/credibility/corroboration ayrı ayrı, tek doğruluk
+  kaynağı), `compute_trust_score` artık bunun TOPLAMI. Frontend hover'ı
+  gerçek sayı gösteriyor. 5 yeni test, 886/886 yeşil.
+- **Oturum içi hata:** PR #80 merge+deploy doğrulaması sonrası `git checkout
+  main` yapılıp yeni bir dal açılmadan 2 commit doğrudan main'e atıldı
+  (henüz push edilmemişken fark edilip temizce kurtarıldı) — ders
+  `CLAUDE.md` BİLİNEN NOTLAR'da.
+
+**✅ 1 Eylül 2026 — Groq rate-limit kök nedeni + canlı güvenlik/UX taraması, 6 PR:**
+Kullanıcı "kaldığımız yerden devam edelim, token/kuyruk loglarını inceleyelim"
+dedi — roadmap #25'in devamına SSM canlı diagnostiğiyle başlandı.
+- **PR #85 (asıl kırılım):** Groq'un rate limit'i canlıda gerçek header
+  probe'larıyla incelendi (worker container'ından art arda küçük istekler
+  atılıp `x-ratelimit-remaining-requests`/`reset-requests` izlendi) —
+  Groq'un limiti bir GÜNLÜK KOTA değil, sürekli dolan bir leaky bucket
+  olduğu kanıtlandı (`reset-requests` her ek istekte tam 86.4s artıyordu =
+  86400s/1000RPD). Günlük toplam tüketim rahattı (~115K/200K token,
+  ~300-400/1000 istek) ama worker 3 yerde patlama halinde istek atıyordu:
+  makale-arası 2sn (RPM=30'u hedefliyordu, asıl darboğaz TPM=8000'e göre
+  yetersizdi), `reanalyze_missed` hiç throttle'sızdı, kaynaklar arası hiç
+  bekleme yoktu. Tek doğruluk kaynağı `settings.groq_request_interval_
+  seconds` (4.0s, TPM=8000 ÷ ölçülen ~514 token/istek ortalaması ile
+  hesaplandı) üçünde de kullanılacak şekilde düzeltildi (`news_service.py`
+  + `kafka_consumer.py::_process`). TDD, 4 yeni test.
+- **PR #86:** `/admin/*` uçları `include_in_schema=False` ile public
+  OpenAPI şemasından (`/docs`) gizlendi — kullanıcı "API docs'ta admin
+  kısmı da gözüküyor" dedi. Çağrı hâlâ `require_moderator`/`require_admin`/
+  `require_owner` ile korunuyor, sadece anonim ziyaretçiye admin API
+  yüzeyini Swagger'da sergilemeyi kesti. 2 yeni test.
+- **Dal temizliği:** 5 ölü dal (merge olmuş/gereksiz) + `optimize/t3-small-
+  ram` (eski, emekli prod-deploy dalı) silindi, PR #76 (Dependabot birikim
+  notu, 5 gündür açık kalmış) ve PR #87 (roadmap madde 22'nin aslında 24
+  Ağu'da PR #51 ile zaten yapılmış olduğunu düzelten docs commit) merge
+  edildi.
+- **Site trafiği analiz edildi** (kullanıcı "reklam alabilmek için ne
+  durumdayız" diye sordu) — PostHog'un frontend anahtarı sadece
+  capture-only olduğu için nginx `docker logs` (dosya değil, `/dev/stdout`
+  symlink'i — bkz. CLAUDE.md BİLİNEN NOTLAR) üzerinden gerçek trafik
+  incelendi: son 2 haftada 50.233 istek/1455 IP görünüyordu ama %60'ı
+  (30.424 istek) tek bir kötücül exploit-scanner botuydu (`.env`,
+  `docker-compose.key`, `phpinfo.php` gibi path'leri deniyordu, hiçbir şey
+  sızmamış), geri kalanının önemli kısmı da GPTBot/ClaudeBot/PerplexityBot
+  gibi meşru AI botları + kullanıcının kendi test trafiği. Gerçek organik
+  üçüncü-taraf insan trafiği pratik olarak sıfıra yakın. **PR #88** ile o
+  IP nginx'te `deny` edildi (canlı `nginx -t` ile syntax doğrulandı).
+  AdSense başvurusunun ertelenmesi kararı bu veriyle somutlaştı.
+- **PR #90 — mobil responsive bug (kullanıcı bulgusu, iPhone 12 dikey
+  mod):** `/dashboard`'da ekran sağa kaydırılabiliyor, uzun entity
+  chip'leri karttan taşıyordu. Kök neden: `.badge` class'ı
+  `white-space:nowrap`+`flex-shrink:0` kullanıyor (kısa sabit metinler
+  için doğru) ama entity isimleri keyfi uzunlukta — chip hiç kırılmadığı/
+  küçülmediği için doğal genişliğinde kalıp kartın (ve sayfanın) dışına
+  taşıyordu. `NewsCard.tsx`'teki entity chip'lerine (+ İlgili Haberler
+  panelindeki `common_entities`, aynı risk) `maxWidth`+ellipsis eklendi,
+  `html`'e savunma amaçlı `overflow-x:hidden`. Canlı tarayıcı doğrulaması
+  bu ortamda Playwright/Chromium indirme sorunu yüzünden yapılamadı
+  (bkz. CLAUDE.md BİLİNEN NOTLAR) — build+curl smoke-test'e güvenilerek
+  deploy edildi, kullanıcı telefondan doğrulayacak.
+- **Dependabot:** React+react-dom (#21+#22, Dependabot'un YANLIŞ ayırdığı
+  iki PR) birleştirilip 19.2.8'e çekildi — **PR #89 hâlâ AÇIK**, aynı
+  Playwright/Chromium sorunu yüzünden hydration kontrolü tamamlanamadı.
+  Next.js 16 (#82, CI zaten yeşil, React 18 ile de derleniyor), Tailwind 4
+  (#23, build kırık), TypeScript 7 (#18, build kırık) hâlâ bekliyor.
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu, custom (Stripe dışı) billing portalı, App Store/Play Store (sadece PWA)
