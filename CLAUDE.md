@@ -214,22 +214,21 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v2.8 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 31 Ağustos 2026, PR #81 dahil — **deploy artık tam otomatik**, main'e her merge'de GitHub Actions kendi kendine SSM'e bağlanıp redeploy ediyor, bkz. "Branch" notu aşağıda). İlk canlıya çıkış: 29 Temmuz 2026.
-- **Test sayısı:** 886 test, hepsi yeşil (backend, 31 Ağu 2026 — PR #81 için +5); frontend `tsc --noEmit` + `next build` temiz.
-- **31 Ağu 2026'da kullanıcı canlıda iki sorun bildirdi** (haberlerin sürekli aynı kaynaktan arka arkaya gelmesi + RAG'ın "gram altın haftaya nasıl başladı" gibi bir soruda güncel değil bir hafta önceki habere göre cevap vermesi) — kapsamlı SSM canlı diagnostiğiyle (worker log analizi, DB run-length sıralama testi, container içi `hybrid_search`/`answer_question` çağrıları, RSS feed curl doğrulaması) araştırıldı ve TDD ile **5 gerçek düzeltme** yapıldı, ikisi de PR'a alınıp merge+deploy edildi:
-  - **PR #77:** (1) Groq TPM tavanına yakınken 429'u beklemeden proaktif throttle (`groq_analyzer.py`, `x-ratelimit-remaining-tokens`/`reset-tokens` header'larını okuyor), (2) ana akış artık `created_at` değil `published_at`'e (coalesce ile) göre sıralanıyor (`news_repository.py`), (3) CNN Türk RSS URL'i güncellendi (eski adres 1 Temmuz'dan beri kaynağın kendi tarafında donmuştu), (4) RAG prompt'una bugünün tarihi + "birden fazla kanıt aynı konuyu farklı tarihlerde anlatıyorsa EN YENİSİNİ esas al" kuralı eklendi (`rag_common.py`/`groq_question_answerer.py`).
-  - **PR #78 (asıl kök sebep):** `kafka_consumer.py`'daki worker, kaynakları (`SCRAPER_REGISTRY`) SIRAYLA ve bir kaynağın TÜM yeni haberlerini bitirmeden bir sonrakine geçmeden işliyordu — Groq rate limit ağırlaşınca (bkz. BİLİNEN NOTLAR) tek bir yoğun kaynak (TRT Haber, registry'de 1. sırada) worker'ı SAATLERCE kilitleyip CNN Türk (6. sırada) dahil diğer 16 kaynağı aç bırakabiliyordu — canlıda 40 dakika boyunca SADECE TRT Haber'in işlendiği doğrulandı. Düzeltme: `NewsService.update_news_from_source`'a `max_new_articles` parametresi + yeni ayar `worker_max_new_articles_per_run` (varsayılan 5) — kaynak başına çalıştırma başına en fazla N yeni haber işlenir, kalanlar dedup'ta hâlâ "yeni" göründüğü için bir sonraki 10dk'lık taramada devam eder.
-  - **Kalıcı, çözülmeyen bulgu — sıradaki oturumun gündeminde:** throttle düzeltmesi (PR #77/1) bekleme sürelerini kısalttı (430-520s → başlangıçta 73-237s) ama **40 dakikalık gözlemde tekrar eski seviyeye (420-439s) tırmandı** ve proaktif throttle hiç tetiklenmedi (0 kez) — bu, asıl kısıtın TPM değil **TPD (günlük) kota** olduğunu gösteriyor: günlük ~206 haberlik hacim, `openai/gpt-oss-20b`'nin 200K TPD tavanına zaten çok yakın/üstünde. **Bkz. YOL HARİTASI madde 25.**
-  - **Aynı gün, sonraki oturum (PR #79):** madde 25'in "önce ölç, sonra karar ver" seçeneğiyle ele alındı — ölçüm + 1. güvenli dilim (prompt sıkıştırma + gerçek `nexstream_groq_tokens_total` metriği) yapılıp merge+deploy edildi. Detay: YOL HARİTASI madde 25. Canlı SSM kontrolüyle 1. dilimin TEK BAŞINA yeterli OLMADIĞI doğrulandı (worker restart sonrası ~20 dakikada 5 kez 429, sadece 1 başarılı analiz) — ama ölçüm iki redeploy'un yarattığı yapay patlamayla kirlenmişti, kullanıcı temiz veri için beklemeyi seçti; **madde 25'in devamı hâlâ sıradaki oturumun gündeminde** (bkz. madde 25'in kendisi).
-  - **Aynı gün, üçüncü oturum (PR #80):** arama-skoru-ve-güven-rozeti planı (aşağıdaki madde) uygulandı, merge+deploy edildi — detay aşağıda.
-- **26-27 Ağu 2026'da RAG tabanlı soru-cevap (roadmap #13) canlıya çıktı ve kullanıcının gerçek canlı QA'sında (Docker yine kapalıydı, tarayıcı + SSM diagnostik script'iyle) 6 GERÇEK bug bulunup düzeltildi — tam liste `docs/CHANGELOG.md`'de (false-friend keyword, Groq model-ayrımı, dil eşlemesi, eşik kalibrasyonu, alert-keyword kaynağı, dotted-İ + soru-parçacığı skoru seyreltmesi).**
-- **27 Ağu 2026'da (aynı gün, yeni oturum) 7. bulgu üzerine çalışıldı ama daha derin bir işe evrildi:** kullanıcı sözlük-tabanlı istisna yerine gerçek bir skorlama istedi, brainstorm "hybrid_search'ün TÜM skor mekanizmasını yeniden tasarlama (sorgu-varlık doğrulaması + credibility fold-in) + görünür bir güven rozeti" işine büyüdü. Ayrıca aynı oturumda: RAG kanıt paketine `content` eklendi (bounded fix — eskiden sadece başlık gidiyordu), test süitinde GERÇEK bir SMTP/Resend sızıntısı bulunup kapatıldı (bkz. BİLİNEN NOTLAR), CLAUDE.md/README/CHANGELOG bölünüp güncellendi (819→650 satır). Spec: `docs/superpowers/specs/2026-08-27-arama-skoru-ve-guven-rozeti-design.md`, plan: `docs/superpowers/plans/2026-08-27-arama-skoru-ve-guven-rozeti.md` (6 task, TDD).
-  - **✅ 31 Ağu 2026'da (aynı gün, üçüncü oturum, PR #80) plan TAMAMEN uygulandı, merge+deploy+health check doğrulandı** — `superpowers:executing-plans` ile inline (subagent'sız). `compute_trust_score` (saf domain fonksiyonu, `domain/scoring/trust.py`) + `Article.trust_score`/`NewsResponse.trust_score` + `_distinguishing_query_terms`/`_grounding_factor` (sorgu-varlık doğrulaması, dünkü "maç heyecanı" bug'ının kökü kapandı) + `hybrid_search`'e grounding+credibility+trust_score entegrasyonu + `get_story_cluster` kaynaklarına trust_score + `NewsCard`'da görünür güven rozeti (eski quality-only rozetin yerine, hover'da breakdown). **Uygulama sırasında planın öngörmediği 3 gerçek bulgu çıktı, hepsi düzeltildi:** (1) `NewsResponse.trust_score` `/api/v1/news/export` CSV yolunu kırdı (`_EXPORT_FIELDS` listesi DictWriter ile senkron değildi), (2) planın hedeflediği test dosyası (`test_news_service.py`) yerine gerçek `get_story_cluster` testleri ayrı bir dosyada (`test_story_cluster.py`) yaşıyordu, 4'ü tam-dict eşitliği yaptığı için güncellendi, (3) bir plan testinin `published_at=None` varsayımı recency decay floor'unu tetikleyip testin izole etmek istediği sinyali bozuyordu. 27 yeni test, 881/881 yeşil. `feature/arama-skoru-ve-guven-rozeti` (eski, 27 Ağu'dan kalma, main 2bcdc60'tan çok geride) dalı ARTIK GEREKSİZDİ — gerçek değeri (spec/plan/SMTP fix/RAG content fix) zaten main'e ayrı yoldan geçmişti, silinmeden bırakıldı (Bash classifier `git branch -D`'yi engelledi), yeni iş `feature/arama-skoru-ve-guven-rozeti-v2`'de yapıldı. Full-article-scraping (madde 18) brainstorm'u hâlâ duraklatılmış durumda — kaldığı yer: kapsam RAG-only/on-demand, cache Redis-TTL kararı verildi. Spec'in tam 5 senaryolu QA turu da hâlâ yapılmadı.
-  - **✅ Aynı gün, hemen ardından (PR #81) — kullanıcı geri bildirimi:** güven rozetinin hover metni HER haberde AYNI statik yüzdeleri yazıyordu ("%45 kaynak güvenilirliği" gibi), o haberin GERÇEKTEN kaç puan aldığını göstermiyordu. `domain/scoring/trust.py::trust_score_breakdown()` eklendi (quality/credibility/corroboration puanları ayrı ayrı, tek doğruluk kaynağı) — `compute_trust_score` artık bunun TOPLAMI (`round(sum)` değil `sum(round(parça))`, kullanıcı hover'daki 3 sayıyı elle toplasa kartın üstündeki toplamla HER ZAMAN eşleşsin diye). `NewsResponse.trust_breakdown` (nested şema) + CSV export'ta `entities` ile aynı desen. Frontend'de hover artık gerçek sayı gösteriyor: "71/100 — Kaynak güvenilirliği: 40/45, İçerik kalitesi: 25/35, Çoklu kaynak doğrulaması: 6/20". 5 yeni test, 886/886 yeşil, merge+deploy+health check doğrulandı. **Oturum içi bir hata da burada düzeltildi** — bkz. BİLİNEN NOTLAR "PR #80 sonrası main'e doğrudan commit" notu.
+- **Versiyon:** v2.9 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 1 Eylül 2026, PR #91 dahil — deploy tam otomatik, main'e her merge'de GitHub Actions SSM'e bağlanıp redeploy ediyor). İlk canlıya çıkış: 29 Temmuz 2026.
+- **Test sayısı:** 892 test, hepsi yeşil (backend); frontend `next build` temiz (React 18 ile — bkz. Dependabot notu aşağıda).
+- **31 Ağu 2026 (PR #77-81):** iki canlı sorun (haber sıralaması + RAG'ın eski habere göre cevap vermesi) SSM diagnostiğiyle bulunup düzeltildi; RAG'da 6 bug daha (26-27 Ağu); arama skoru + görünür güven rozeti planı uygulandı. Tam kronoloji `docs/CHANGELOG.md`'de.
+- **1 Eylül 2026 (bu oturum) — roadmap #25'in devamı + canlı güvenlik/UX taraması, hepsi merge+deploy edildi:**
+  - **PR #85 (asıl kırılım, madde 25):** Groq rate-limit'i canlıda header probe'larıyla incelendi — Groq'un limiti gerçek bir günlük kota DEĞİL, sürekli dolan bir "leaky bucket" (kanıt: `x-ratelimit-reset-requests` kullanılan istek başına tam 86.4s artıyor = 86400s/1000RPD). Günlük toplam tüketim (TPD/RPD) rahattı ama worker 3 yerde patlama halinde istek atıyordu: (1) makale-arası 2sn RPM=30'u hedefliyordu, asıl darboğaz TPM=8000'e göre yetersizdi, (2) `reanalyze_missed` hiç throttle'sızdı, (3) kaynaklar arası hiç bekleme yoktu. Tek doğruluk kaynağı `settings.groq_request_interval_seconds` (4.0s) üçünde de kullanılacak şekilde düzeltildi. **Sonraki oturumun ilk işi: birkaç günlük gözlemle 429 sıklığının gerçekten düştüğünü doğrulamak.**
+  - **PR #86:** `/admin/*` uçları public OpenAPI şemasından (`/docs`) gizlendi (`include_in_schema=False`) — auth davranışı aynı, sadece anonim ziyaretçiye admin API yüzeyini Swagger'da sergilemeyi kesti.
+  - **Site trafiği analiz edildi (nginx `docker logs`, gerçek dosya değil — bkz. BİLİNEN NOTLAR):** gerçek organik trafik neredeyse sıfır — "50K istek/1455 IP" rakamının %60'ı tek bir kötücül exploit-scanner botuydu (213.136.90.179, **PR #88** ile nginx'te `deny` edildi), geri kalanı büyük ölçüde AI/arama botları + kullanıcının kendi test trafiği. AdSense başvurusu bu veriyle de ERTELENMELİ kararı doğrulandı (bkz. YOL HARİTASI madde 2).
+  - **PR #90 + PR #91 — mobil responsive bug, 2 parça (kullanıcı bulgusu, iPhone 12 dikey mod):** `/dashboard`'da ekran sağa kaydırılabiliyor, uzun entity chip'leri karttan taşıyordu. Kök neden: `.badge` class'ı `white-space:nowrap`+`flex-shrink:0` kullanıyor (kısa sabit metinler için doğru) ama entity isimleri keyfi uzunlukta — `NewsCard.tsx`'teki entity chip'lerine (+ İlgili Haberler panelindeki `common_entities`, aynı risk) `maxWidth`+ellipsis eklendi, `html`'e de savunma amaçlı `overflow-x:hidden` (PR #90). **Kullanıcı deploy sonrası hemen test edip AYNI SINIF ikinci bir bug daha buldu:** kart FOOTER'ındaki aksiyon satırı (İlgili/Kaynaklar/Sor/Dinle/Kaydet/Habere git) — bu sefer `.icon-chip`'in kendisi değil, onu saran satırın hiç `flexWrap` olmaması sebebiyle taşıyordu, `flexWrap:"wrap"` eklendi (PR #91). **Canlı tarayıcı doğrulaması ikisinde de yapılamadı** (bkz. BİLİNEN NOTLAR, playwright/Chromium indirme sorunu) — **kullanıcı deploy sonrası telefondan kontrol etmeli, aynı `.badge`/`.icon-chip` deseniyle KART İÇİNDE başka bir yerde de benzer bir taşma olabileceğini akılda tut.**
+  - **Roadmap madde 22 (entity chip→arama) aslında 24 Ağu'da (PR #51) zaten yapılmıştı** — roadmap "onay bekliyor" diye işaretlenmiş kalmıştı, düzeltildi (PR #87). Docs-drift dersi BİLİNEN NOTLAR'da.
+  - **Dependabot:** React+react-dom (#21+#22, yanlış ayrılmış PR'lar) birleştirilip 19.2.8'e çekildi (**PR #89, hâlâ AÇIK** — build+curl smoke test geçti ama canlı tarayıcı/hydration doğrulaması yapılamadı, bu ortamda Chromium indirmesi ısrarla ağ sorunuyla kesintili kalıyor). Next.js 14→16 (#82), Tailwind 3→4 (#23), TypeScript 5→7 (#18) hâlâ ayrı/bekliyor.
+  - **5 ölü dal + 1 eski deploy dalı (`optimize/t3-small-ram`) temizlendi.**
 - **Frontend:** Next.js 14 + React. 10 sinematik tema (varsayılan artık `day` — sıcak/aydınlık, `night` onun koyu kardeşi, `matrix` seçilebilir kaldı), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
-- **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest` + Dependabot (pip+npm+github-actions, haftalık) — 8 açık Dependabot PR'ı bekliyor (hepsi major-bump, review/merge kararı kullanıcıda).
+- **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest` + Dependabot (pip+npm+github-actions, haftalık) — 18 açık Dependabot PR'ı var (çoğu pip/npm patch-bump, review bekliyor; 4 major-bump'ın durumu YOL HARİTASI madde 7'de).
 - **Branch — 24 Ağu 2026'da deploy mimarisi değişti:** PR #48 ve #47 21 Ağu 2026'da main'e merge edilmişti ama **prod hâlâ ayrı `optimize/t3-small-ram` dalından deploy ediliyordu** — karşılaştırma yapılınca o dalın PR #47'nin (arama sorgu genişletme) dosyalarını hiç içermediği ortaya çıktı (canlı site sessizce eski kalmıştı, `groq_query_expander.py` prod'da yoktu). Kullanıcı kararıyla **`optimize/t3-small-ram` emekliye ayrıldı, prod artık doğrudan `main`'den deploy ediliyor** — roadmap madde 19'un (deploy'u main'e bağlama) drift kısmı bu şekilde çözüldü (tam otomatik CI/CD tetikleyicisi hâlâ yok, deploy hâlâ elle SSM ile tetikleniyor). Sunucuda `git checkout main && git reset --hard origin/main` yapıldı, redeploy sonrası canlı bir arama isteğiyle yeni kodun çalıştığı doğrulandı (`groq_query_expander` log satırı göründü, o dosya bir önceki deploy'da yoktu). **Yeni akış: main'den kısa ömürlü feature branch aç → PR → merge → SSM'de `git checkout main && git reset --hard origin/main` → `docker compose -f docker-compose.prod.yml up --build -d`.** `optimize/t3-small-ram` dalı (yerel+uzak) siliniMEDİ, sadece kullanılmıyor — silme kararı ayrı, henüz verilmedi.
 
 **25 Ağu 2026'da roadmap madde 19'un kalan kısmı (tam otomatik CI/CD) tamamlandı:**
@@ -309,44 +308,27 @@ GERÇEKTEN bekleyen işler var:
    delege/proxy edemezsin (Cloudflare bir zone'un TAMAMINA nameserver olmak
    ister, DuckDNS'in alt alan adı değil) — gerçek bir domain satın almak
    gerekiyor (~$10-15/yıl, tek seferlik). Kullanıcıya açıklandı, karar bekliyor.
-7. **Dependabot PR'ları** — 19 Ağu 2026'da düşük riskli 12 tanesi merge edildi.
-   **25 Ağu 2026'da kalan 8 major-bump tekrar triyaj edildi:** 3 tanesi
-   güvenle merge edildi (CI + tam lokal test paketiyle doğrulanarak) —
-   `@types/node` 20→26 (sadece tip, dev-only), `feedgen` 0.9→1.0 (küçük/
-   test-kapsamlı kullanım alanı, `/feed.xml`), `stripe` SDK 7→15 (kod zaten
-   dev-mode'da devre dışı, canlı risk yok). **Kalan 4 tanesi gerçekten kırık,
-   ayrı bir oturumda ele alınmalı:**
-   - **Next.js 14→16 (#31):** CI (build) YEŞİL ama runtime/davranış
-     doğrulaması yapılmadı — App Router'da major sürümler arası genelde
-     davranış farkı olur, gerçek smoke-test (dev server + sayfa gezme)
-     gerektirir, körlemesine merge edilmemeli.
-   - **Tailwind 3→4 (#23):** build KIRIK — `tailwindcss` artık doğrudan
-     PostCSS plugin'i değil, ayrı `@tailwindcss/postcss` paketi + postcss
-     config güncellemesi gerekiyor (Tailwind'in kendi resmi v4 migration
-     adımı, iyi belgelenmiş).
-   - **React + react-dom (#21 + #22):** İKİSİ DE ayrı ayrı ERESOLVE
-     (peer-dependency) hatasıyla kırık — çünkü biri diğerinin bump'ını
-     bekliyor. **Muhtemel çözüm: ikisini AYNI ANDA/birlikte bir dalda
-     bump'lamak** (tek tek değil), sonra test etmek.
-   - **TypeScript 5→7 (#18):** build KIRIK ("Failed to compile", webpack
-     hatası) — muhtemelen daha katı tip kontrolü gerçek bir tip hatasını
-     yakalıyor, kod tarafında düzeltme gerektirebilir.
-   Review/merge kararı hâlâ kullanıcıda, ama artık netlik var: 3'ü bitti,
-   4'ü gerçek iş istiyor (özellikle Next 16 + React/react-dom + Tailwind 4
-   birbirini etkileyebilir, birlikte planlanmalı). **Not:** eski Next.js PR'ı
-   (#31) Dependabot tarafından supersede edildi, yerine daha yeni bir sürüme
-   (16.3.2) bump yapan #60 açıldı — aşağıdaki yeni batch'in bir parçası.
-   **27 Ağu 2026'da fark edildi: 24 Ağu 2026'da (haftalık Dependabot taraması)
-   YUKARIDAKİ 4'ün DIŞINDA 12 yeni PR daha açılmış, HİÇ TRİYAJ EDİLMEDİ**
-   (#54-65: aiokafka, pydantic-settings, prometheus-client, python-dotenv,
-   pytest, next→16.3.2 [#60, üstteki notu bak], lxml, bcrypt≥5, sentence-
-   transformers 3→6, aws-actions/configure-aws-credentials 4→6, redis≥8,
-   requests). Toplamda şu an **16 açık Dependabot PR'ı var** (4 bilinen kırık
-   + 12 yeni/incelenmemiş). Sonraki oturumun gündemine eklenmeli — düşük
-   riskli olanlar (patch/minor pip bump'ları, dev-only tip paketleri) muhtemelen
-   19/25 Ağu'daki gibi hızlı doğrulanıp merge edilebilir, majör bump'lar
-   (sentence-transformers 3→6, redis≥8, aws-actions v6) daha dikkatli
-   incelenmeli.
+7. **Dependabot PR'ları** — 19/25 Ağu'da düşük riskli olanlar merge edildi
+   (kronoloji: `docs/CHANGELOG.md`). **1 Eyl 2026 durumu (18 açık PR):**
+   - ✅ **React + react-dom (#21+#22) birleştirildi** — Dependabot ikisini
+     YANLIŞ ayırmıştı (her biri tek başına diğerinin major bump'ını
+     bekleyip ERESOLVE veriyordu). `fix/react-19-upgrade` dalında ikisi
+     BİRLİKTE 19.2.8'e çekildi, **PR #89 hâlâ AÇIK** — `npm run build` +
+     curl smoke-test (5 sayfa, sunucu tarafı hata yok) geçti ama gerçek
+     tarayıcı/hydration konsolu kontrol edilemedi (bu ortamda Playwright'ın
+     Chromium indirmesi ısrarla ağ sorunuyla kesintili kaldı, bkz. BİLİNEN
+     NOTLAR). **Sonraki oturum: hydration kontrolünü tamamlayıp PR #89'u
+     merge et, ya da kullanıcı telefon/tarayıcıdan doğrularsa direkt merge.**
+   - **Next.js 14→16 (#82):** CI (build) YEŞİL, React 18 ile de derleniyor
+     (React 19'a sıkı bağımlı değilmiş — peer range daha geniş). Runtime
+     smoke-test (dev server + sayfa gezme) hâlâ yapılmadı.
+   - **Tailwind 3→4 (#23):** build KIRIK — `@tailwindcss/postcss` paketi +
+     postcss config güncellemesi gerekiyor (resmi v4 migration adımı).
+   - **TypeScript 5→7 (#18):** build KIRIK — muhtemelen daha katı tip
+     kontrolü gerçek bir hatayı yakalıyor.
+   - Geri kalan ~14 PR (npm/pip patch-minor bump'lar) hiç triyaj edilmedi.
+   Review/merge kararı kullanıcıda; Next 16 + Tailwind 4 + TS 7 birbirini
+   etkileyebilir, birlikte planlanmalı.
 8. ~~Hesap silme endpoint'i~~ — ✅ 19 Ağu 2026'da tamamlandı. `DELETE /account`
    (parola + checkbox onayı, owner rolü hariç, Stripe aboneliği varsa
    otomatik iptal, ilişkili tüm satırlar — sessions/token'lar/usage_log/
@@ -459,30 +441,25 @@ GERÇEKTEN bekleyen işler var:
     taşımak~~ — ✅ bu da 27 Ağu 2026'da yapılmış (kodda zaten `gpt-oss-120b`,
     bu not 31 Ağu 2026'da eskimiş haliyle yakalanıp düzeltildi). **20b TPD
     havuzunun artık TEK tüketicisi worker'ın haber analiz hattı.**
-25. **Groq günlük token/hacim maliyetini düşürme — 1. dilim ✅ (31 Ağu 2026,
-    PR #79, merge+deploy+doğrulandı), devamı sıradaki oturumun gündeminde.**
-    Kullanıcı "önce ölç, sonra karar ver" dedi — statik/analitik ölçüm yapıldı
-    (haber başına ~969 token, kayıtlı 26 Ağu ölçümüyle (199.555/200.000)
-    örtüşüyor) ve 20b TPD havuzunun TEK tüketicisinin artık worker'ın haber
-    analiz hattı olduğu doğrulandı (bkz. madde 24). **Yapılan 1. dilim
-    (güvenli/bounded, kaliteye dokunmuyor):** `common.py::build_analysis_
-    prompt` şablon metni ~278→~192 token'a sıkıştırıldı (aynı alan
-    sözleşmesi + aynı sentiment kalibrasyon örnekleri) — haber başına ~86
-    token, günlük ~%9 TPD kazancı; `groq_analyzer.py` artık Groq'un gerçek
-    `usage.prompt_tokens`/`completion_tokens` alanını `nexstream_groq_
-    tokens_total` metriğine işliyor, bundan sonraki kararlar tahmine değil
-    Grafana'daki gerçek veriye dayanabilir. `text[:1000]` kırpması bilinçli
-    dokunulmadı (gerçek RSS teaser'ları ~30-80 kelime, limit neredeyse hiç
-    devreye girmiyor — bu lever elendi). **Kapsam dışı bırakılan gerçek bir
-    israf — sıradaki oturumun ilk maddesi olabilir:** `news_service.py`'de
-    `is_near_duplicate` kontrolü Groq analizinden SONRA çalışıyor, yani
-    near-duplicate haberler bile TAM analiz alıyor — ama `is_duplicate` şu an
-    feed'den hiçbir yerde filtrelenmiyor, analizi atlamak görünür bir kalite
-    regresyonu (boş/nötr kart) demek — önce "duplicate'ler feed'den
-    gizlensin mi" ürün kararı gerekiyor. Yeni `nexstream_groq_tokens_total`
-    metriğiyle birkaç günlük gerçek veri toplandıktan sonra 1. dilimin
-    yeterli olup olmadığı ölçülüp, gerekirse tamamlayıcı kol (b) — hacim
-    azaltma — değerlendirilmeli.
+25. **Groq günlük token/hacim maliyetini düşürme — 1. dilim (PR #79, 31 Ağu)
+    ✅ + 2. dilim: burst-pacing kök neden düzeltmesi (PR #90 DEĞİL, PR #85,
+    1 Eyl 2026) ✅, devamı hâlâ sıradaki oturumun gündeminde.**
+    1. dilim (prompt sıkıştırma + gerçek token metriği) kronolojisi:
+    `docs/CHANGELOG.md`. **1 Eyl 2026'da temiz veriyle (18 saatlik worker
+    uptime, redeploy kirliliği yok) ölçüldü: haber başına ~514 token
+    (eski ~969 tahmininin yaklaşık yarısı, 1. dilim beklenenden iyi
+    çalışmış) — ama rate limit şiddeti DEĞİŞMEMİŞTİ (18 saatte 195×429,
+    bekleme ~%90 uptime).** Canlı Groq header probe'larıyla kök neden
+    bulundu: darboğaz token/istek HACMİ değil, isteklerin BURST halinde
+    atılması (bkz. MEVCUT DURUM'daki PR #85 özeti + BİLİNEN NOTLAR "leaky
+    bucket" notu) — 3 boşluk kapatıldı, `groq_request_interval_seconds`
+    tek doğruluk kaynağı oldu. **Sonraki oturumun ilk işi: birkaç günlük
+    gözlemle (worker log'unda `rate limit` sıklığı) PR #85'in gerçekten
+    işe yarayıp yaramadığını doğrulamak.** İşe yaramazsa/kısmen yararsa
+    devreye girecek tamamlayıcı kol hâlâ aynı: `news_service.py`'de
+    `is_near_duplicate` kontrolü Groq analizinden SONRA çalışıyor —
+    near-duplicate haberler bile tam analiz alıyor, ama `is_duplicate`
+    feed'i filtrelemediği için önce "gizlensin mi" ürün kararı gerekiyor.
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,
@@ -703,3 +680,9 @@ docker logs nexstream_chromadb --tail 20
 - **Yeni bir "sahiplik kontrolü olmadan ID/endpoint ile silme" endpoint'i eklerken IDOR riski varsayılan sayılmalı (25 Ağu 2026, web push aboneliği eklerken otomatik güvenlik incelemesi bulup düzeltti):** `DELETE /account/push-subscription` ilk halinde `req.endpoint`'in `current_user`'a ait olup olmadığını hiç doğrulamadan doğrudan `delete_by_endpoint(req.endpoint)` çağırıyordu — endpoint tahmin edilebilir/öğrenilebilir olsaydı başka bir kullanıcının aboneliği silinebilirdi. Düzeltme: silme öncesi `get_by_email(current_user.email)` ile sahiplik doğrulanıyor, eşleşmezse sessizce no-op (idempotent-delete deseniyle tutarlı, hata fırlatmıyor). **Ders: `DELETE`/`PATCH` gibi bir yazma endpoint'i request body'den bir ID/endpoint/anahtar alıp bir kaynağı hedefliyorsa, o kaynağın `current_user`'a ait olduğunu SORGULAYARAK doğrula — sadece "girdi doğru formatta mı" yeterli değil, "bu girdi GERÇEKTEN bu kullanıcının mı" ayrı bir kontrol.**
 - **🔴 Senkron bir kullanıcı HTTP isteğinde çalışan bir LLM adapter'ı, arka plan worker'ının 429/Retry-After bekleme desenini KOPYALAMAMALI (26 Ağu 2026, RAG canlı QA'sında kullanıcı bulgusu — "hem haber kartından hem üst panelden düşünüyorda kaldı"):** `GroqQuestionAnswerer` ilk halinde `GroqAnalyzer`'ın (worker'da, arka planda çalışan) 429 → `time.sleep(retry_after)` desenini birebir kopyalamıştı. Groq'un TPD rate limit'i dolduğunda `Retry-After` değeri gözlemlenen **456-480 saniye** (~8 dakika) çıktı — bu, `POST /api/v1/news/ask` gibi SENKRON bir HTTP isteğinin içinde beklenince kullanıcıyı dakikalarca "Düşünüyor..." ekranında askıda bırakıyordu (canlı loglarla doğrulandı, PR #72 ile düzeltildi). **Düzeltme:** interaktif yolda 429'da HİÇ beklenmiyor, hemen `QuestionAnsweringError` fırlatılıyor (fail-fast) — kullanıcı birkaç saniye içinde net bir hata görüp isterse tekrar dener. **Ders: yeni bir LLM adapter'ı eklerken "bu hangi bağlamda çalışıyor" sorusu kritik — arka plan/worker bağlamında sabırla bekleyip retry etmek doğruyken, senkron/kullanıcı-yüzlü bir HTTP isteğinde AYNI bekleme kullanıcı deneyimini bozan bir bug'dır. Var olan bir adapter'ı "aynı HTTP deseni" diye kopyalarken çağrıldığı bağlamı da kopyalanıp kopyalanamayacağını sorgula.**
 - **Groq'un günlük (TPD) token kotası MODEL BAŞINA ayrı bir havuz — paylaşılan tek bir sayaç DEĞİL (27 Ağu 2026'da hem resmi rate-limit dokümanıyla hem canlı ampirik testle DOĞRULANDI, bkz. CHANGELOG "LLM modülü bölme spike'ı"):** worker'ın haber analiz hattı (17 kaynak, sürekli akış) `openai/gpt-oss-20b` havuzunu neredeyse TAMAMEN tüketiyordu (26 Ağu 2026'da 199.555/200.000) ve RAG/sorgu-genişletme aynı modeli paylaştığı için pay bulamıyordu — çözüm farklı bir SAĞLAYICIYA geçmek değil, aynı Groq hesabında FARKLI bir MODEL seçmekti (`GroqQuestionAnswerer` artık `openai/gpt-oss-120b`'de, bağımsız kota). Yeni bir LLM-tüketen özellik eklerken worker'ın modeliyle AYNI modeli paylaşıp paylaşmadığını kontrol et — paylaşıyorsa aynı tıkanıklığı miras alır.
+- **🔴 Groq'un rate limit'i gerçek bir "günlük kota" değil, sürekli dolan bir leaky bucket — canlı header probe'uyla kanıtlandı (1 Eyl 2026):** Worker container'ından art arda birkaç istek atılıp `x-ratelimit-remaining-requests`/`x-ratelimit-reset-requests` header'ları izlendi — her ek istekte `remaining` 1 azalırken `reset` TAM 86.4 saniye artıyordu (1000 RPD → 86400s/1000 = istek başına 86.4s dolum hızı; token tarafında da aynı desen, 8000 TPM → 7.5ms/token). Yani "RPD=1000" günde-bir-sıfırlanan bir sayaç değil, sürekli `1/86.4sn` hızında dolan bir kova — **günlük TOPLAM tüketim rahat olsa bile (madde 25'te doğrulandı: ~115K/200K token, ~300-400/1000 istek), kısa bir pencerede BURST halinde istek atarsan kova aniden boşalır, dakikalarca 429 yersin.** Bir rate-limit sorununu teşhis ederken "ne kadar tükettik" (toplam) sorusu kadar "ne HIZLA tükettik" (burst deseni) sorusunu da sor — CLAUDE.md'nin önceki oturumlardaki TPM/TPD analizleri bu ayrımı gözden kaçırmıştı.
+- **nginx container'ında `access.log`/`error.log` GERÇEK dosya değil, `/dev/stdout`/`/dev/stderr`'e symlink (resmi nginx image'ının standart davranışı) — `docker exec nginx wc -l /var/log/nginx/access.log` gibi bir komut SONSUZA kadar asılı kalır (1 Eyl 2026'da ~5 dakika kaybedilerek bulundu):** `/dev/stdout`'u gerçek bir dosya gibi `wc`/`head`/`tail` ile okumaya çalışmak bir stream'i EOF bekleyerek okumaya çalışmak demek, hiç gelmez. Doğru yol: `docker logs <container>` (opsiyonel `--since`). Herhangi bir container'ın log dosyasına `docker exec` ile dokunmadan önce önce `ls -la` ile symlink olup olmadığına bak.
+- **Playwright'ın Chromium indirmesi bu geliştirme ortamında güvenilmez/çok yavaş (1 Eyl 2026, birden fazla oturumu etkileyebilir):** `npx playwright install chromium` (~192MB) Google'ın Chrome-for-Testing CDN'inden bu host'ta ölçülen ~200KB/s hızla iniyor (~15+ dakika), sıklıkla 30sn'lik chunk timeout'larına takılıp baştan başlıyor. `npm run setup`'ın "exit code 0" dönmesi İNDİRMENİN TAMAMLANDIĞI anlamına GELMİYOR — arka planda başlatılan indirme süreci ayrı devam edebiliyor, kurulum tamamlanmadan önce browser başlatmayı denemek "Executable doesn't exist" hatası verir. Zaman kısıtlıysa: curl/PowerShell BITS ile (`Start-BitsTransfer -Asynchronous`) doğrudan indirip `ms-playwright/chromium-<rev>/chrome-win64/` altına manuel yerleştirmek dene, yine de olmuyorsa canlı tarayıcı doğrulamasından vazgeçip kod incelemesi + build/curl smoke-test'e güven, kullanıcıya bunu AÇIKÇA söyle.
+- **Bash `git commit -m "..."` mesajı içinde backtick (`` ` ``) KULLANMA — shell onu komut ikamesi sanıp çalıştırır (1 Eyl 2026'da yaşandı):** `nginx -t` gibi bir komut adını mesaj içinde vurgulamak için backtick koyunca, bash o kısmı gerçekten ÇALIŞTIRMAYA çalıştı ("nginx: command not found" hatası + mesajdan o parça sessizce silindi). Commit mesajlarında kod/komut vurgusu için backtick yerine tek tırnak ya da hiç işaretleme kullanma; kazara olduysa `git commit --amend` ile düzeltilebilir (henüz push edilmediyse sorunsuz, push edildiyse `--force-with-lease` gerekir).
+- **Dependabot, birbirine bağımlı (peer dependency) paketleri bazen YANLIŞ ayrı PR'lara böler (1 Eyl 2026, react+react-dom örneği):** `react`'ı 19'a çeken PR `react-dom`'u 18'de bırakıyordu, `react-dom`'u 19'a çeken PR de `react`'ı 18'de bırakıyordu — ikisi de TEK BAŞINA ERESOLVE hatasıyla kırıktı çünkü major versiyonları uyuşmuyordu. Otomatik bump PR'larından biri "peer dependency" hatasıyla kırıksa, o paketin YAKIN bir kardeşi (aynı ekosistem, örn. bir @types paketi ya da react-dom gibi eşleşmesi gereken bir paket) için AYRI bir Dependabot PR'ı olup olmadığını kontrol et — ikisini elle BİRLEŞTİRİP tek dalda bump'lamak gerekebilir.
+- **Roadmap maddesini "sıradaki oturumun İLK işi" diye işaretleyip session'ı bitirmek, o işin GERÇEKTEN yapılıp yapılmadığını session-end güncellemesinin yakalamasını GARANTİ ETMEZ (1 Eyl 2026'da yaşandı):** Madde 22 (entity chip→arama) 24 Ağu'da "onay bekliyor" diye not düşülmüştü ama AYNI GÜN başka bir dalda/PR'da (#51) zaten yapılmıştı — roadmap maddesi hiç kapatılmadı, 1 hafta sonraki oturum onu "hâlâ bekliyor" sanıp gündeme aldı, kod incelemesiyle zaten yapılmış olduğu ortaya çıktı. Bir sonraki oturuma "ilk iş" olarak bırakılan bir roadmap maddesine başlamadan ÖNCE `git log --oneline -S"<özellik anahtar kelimesi>"` ile gerçekten yapılmadığını doğrula — özellikle oturum ortasında konu değiştiyse (o gün başka bir işe geçildiyse) kolayca unutulabiliyor.
