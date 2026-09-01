@@ -255,9 +255,14 @@ export function NewsCard({ article }: { article: Article }) {
         </div>
       )}
 
-      {/* Footer */}
+      {/* Footer — flexWrap (1 Eyl 2026, kullanıcı bulgusu): dar ekranda
+          İlgili+Kaynaklar+Sor+Dinle+Kaydet+Habere git tek satıra sığmıyor,
+          taşıyordu (entity chip taşmasıyla AYNI sınıf bug — bkz. yukarıdaki
+          not — ama bu sefer .icon-chip'in kendisi değil, kapsayan satırın
+          hiç flexWrap'ı yoktu). Habere git linki marginLeft:auto ile hangi
+          satıra düşerse o satırın sonuna yaslanmaya devam ediyor. */}
       <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)",
-                    display: "flex", alignItems: "center", gap: 12 }}>
+                    display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <button onClick={toggleRelated} disabled={loadingRelated}
                 className={`icon-chip${expanded ? " icon-chip--active" : ""}`}>
           {loadingRelated ? (
