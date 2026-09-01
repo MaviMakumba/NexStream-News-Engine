@@ -14,6 +14,7 @@ Hata felsefesi: tekil haber/adapter hatası akışı durdurmaz — logla, atla, 
 import asyncio
 import logging
 import re
+import time
 from collections import Counter
 from datetime import datetime, timezone
 from src.domain.ports.news_repository_port import NewsRepositoryPort
@@ -182,7 +183,7 @@ class NewsService:
         loop = asyncio.get_running_loop()
         for i, article in enumerate(new_articles):
             if i > 0:
-                await asyncio.sleep(2)  # Groq TPM limitini aşmamak için throttle
+                await asyncio.sleep(settings.groq_request_interval_seconds)  # Groq TPM limitini aşmamak için throttle
             result = await loop.run_in_executor(None, self.analyzer.analyze_text, article.content)
             self._apply_analysis(article, result)
 
@@ -1058,10 +1059,18 @@ class NewsService:
         return self.repository.get_articles_for_export(limit, source, sentiment, topic, min_quality, date_from, date_to)
 
     def reanalyze_missed(self, limit: int = 5) -> int:
-        """Entity'si NULL kalmış haberleri tamamlar — worker her çevrim sonunda çağırır."""
+        """Entity'si NULL kalmış haberleri tamamlar — worker her çevrim sonunda çağırır.
+
+        1 Eyl 2026: bu döngü hiç throttle'sızdı (0sn boşlukla art arda Groq
+        çağrısı) — update_news_from_source'un makale-arası beklemesiyle AYNI
+        aralığı paylaşmıyordu, Groq'un TPM kovasını (leaky bucket) anlık
+        boşaltan 3 burst kaynağından biriydi (bkz. CLAUDE.md roadmap #25).
+        """
         articles = self.repository.get_unanalyzed_articles(limit)
         updated = 0
-        for article in articles:
+        for i, article in enumerate(articles):
+            if i > 0:
+                time.sleep(settings.groq_request_interval_seconds)
             try:
                 result = self.analyzer.analyze_text(article.content)
                 self._apply_analysis(article, result)

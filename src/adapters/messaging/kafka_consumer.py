@@ -69,8 +69,17 @@ async def _process(scraper):
         # geçilemiyordu, diğer 16 kaynak saatlerce aç kalıyordu (bkz. settings.py).
         cap = settings.worker_max_new_articles_per_run or None
         await service.update_news_from_source(scraper, max_new_articles=cap)
+        # 1 Eyl 2026: update_news_from_source ile reanalyze_missed arasında hiç
+        # bekleme yoktu — Groq'un TPM kovasını (leaky bucket) anlık boşaltan
+        # burst kaynaklarından biriydi (bkz. settings.py::groq_request_interval_seconds).
+        await asyncio.sleep(settings.groq_request_interval_seconds)
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, service.reanalyze_missed, 3)
+        # Kaynaklar arası da hiç bekleme yoktu — 17 kaynak art arda boşluksuz
+        # ateşleniyordu, aynı burst probleminin ikinci görünümü. Bu bekleme
+        # _process()'in içinde olduğu için hem başlangıç taramasına hem
+        # tekil Kafka mesajlarına otomatik uygulanır.
+        await asyncio.sleep(settings.groq_request_interval_seconds)
     finally:
         db.close()
 

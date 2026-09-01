@@ -79,6 +79,54 @@ def test_update_respects_max_new_articles_cap():
     assert mock_repo.save_article.call_count == 2
     assert mock_analyzer.analyze_text.call_count == 2
 
+def test_update_throttle_uses_configured_interval():
+    """Makaleler arası bekleme artık sabit 2sn değil, settings.groq_request_
+    interval_seconds'tan okunuyor — eski sabit RPM=30'u hedefliyordu ama
+    Groq'un asıl darboğazı TPM=8000 idi, 2sn bunun için fazla hızlıydı
+    (1 Eyl 2026, canlı teşhis, bkz. CLAUDE.md roadmap #25)."""
+    from src.infrastructure.config.settings import settings
+    service, mock_repo, _ = make_service()
+    mock_scraper = MagicMock()
+    mock_scraper.fetch_news = AsyncMock(return_value=[
+        make_article("https://bbc.com/1"),
+        make_article("https://bbc.com/2"),
+    ])
+    mock_repo.save_article.return_value = True
+
+    with patch("src.application.services.news_service.asyncio.sleep", new=AsyncMock()) as mock_sleep:
+        asyncio.run(service.update_news_from_source(mock_scraper))
+
+    mock_sleep.assert_called_once_with(settings.groq_request_interval_seconds)
+
+def test_reanalyze_missed_throttles_between_calls():
+    """reanalyze_missed art arda (0sn boşlukla) Groq çağrısı yapıyordu — TPM
+    kovasını (leaky bucket) anlık patlatan 3 burst kaynağından biriydi (bkz.
+    roadmap #25, 1 Eyl 2026 canlı teşhis). Artık update_news_from_source ile
+    AYNI güvenli aralığı paylaşmalı."""
+    from src.infrastructure.config.settings import settings
+    service, mock_repo, mock_analyzer = make_service()
+    articles = [make_article(f"https://bbc.com/{i}") for i in range(3)]
+    mock_repo.get_unanalyzed_articles.return_value = articles
+    mock_repo.update_article_analysis.return_value = True
+
+    with patch("src.application.services.news_service.time.sleep") as mock_sleep:
+        service.reanalyze_missed(3)
+
+    # 3 makale = ilk çağrıdan önce bekleme yok, aralarda 2 bekleme
+    assert mock_sleep.call_count == 2
+    mock_sleep.assert_called_with(settings.groq_request_interval_seconds)
+
+def test_reanalyze_missed_single_article_does_not_throttle():
+    """Tek makale varsa beklenecek ikinci bir çağrı yok, sleep hiç çağrılmaz."""
+    service, mock_repo, mock_analyzer = make_service()
+    mock_repo.get_unanalyzed_articles.return_value = [make_article()]
+    mock_repo.update_article_analysis.return_value = True
+
+    with patch("src.application.services.news_service.time.sleep") as mock_sleep:
+        service.reanalyze_missed(1)
+
+    mock_sleep.assert_not_called()
+
 def test_update_empty_source():
     """Scraper boş liste dönerse hata vermemeli"""
     service, mock_repo, mock_analyzer = make_service()
