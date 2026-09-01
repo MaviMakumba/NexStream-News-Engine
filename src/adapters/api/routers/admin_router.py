@@ -34,7 +34,14 @@ from src.domain.models.user import User, UserRole, UserTier, role_at_least
 from src.infrastructure.config.database import get_db
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/admin", tags=["Admin"], dependencies=[Depends(require_moderator)])
+# include_in_schema=False: /docs kimlik doğrulaması gerektirmeden herkese açık
+# (bkz. main.py — self-serve /api/v1 geliştirici portalı için bilinçli).
+# Admin uçları çağrı anında require_moderator/require_admin/require_owner ile
+# zaten korunuyor (bu satırdaki dependency DEĞİŞMEDİ) — bu sadece anonim bir
+# ziyaretçinin Swagger UI'da tüm admin path+schema yüzeyini (rol/tier
+# değiştirme, sponsor CRUD) görüp "Try it out" ile keşfetmesini engelliyor
+# (1 Eyl 2026, kullanıcı bulgusu).
+router = APIRouter(prefix="/admin", tags=["Admin"], dependencies=[Depends(require_moderator)], include_in_schema=False)
 
 
 # ── Kullanım istatistikleri ────────────────────────────────────────────────────
