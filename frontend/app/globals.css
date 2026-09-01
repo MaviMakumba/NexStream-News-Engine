@@ -222,7 +222,12 @@
 ═══════════════════════════════════════════════════════════════════ */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
+/* overflow-x burada da tekrarlandı (1 Eyl 2026) — body'deki tek başına
+   çoğu tarayıcıda yeterli (spec'e göre viewport'a "propagate" ediyor) ama
+   mobil Safari'nin bu konuda bilinen tutarsızlıkları var. İkisi birden,
+   ileride benzer bir taşma (bkz. NewsCard.tsx entity chip düzeltmesi) tekrar
+   sızarsa bile sayfanın yatay kaymasına karşı ek bir güvenlik katmanı. */
+html { scroll-behavior: smooth; overflow-x: hidden; }
 
 body {
   background: var(--bg);
