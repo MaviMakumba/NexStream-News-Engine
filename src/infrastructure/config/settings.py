@@ -70,6 +70,23 @@ class Settings(BaseSettings):
     # 0 = sınırsız (eski davranış).
     worker_max_new_articles_per_run: int = 5
 
+    # İki ardışık Groq isteği arasındaki minimum bekleme (saniye) — TEK doğruluk
+    # kaynağı, hem update_news_from_source'un makale döngüsünde hem
+    # reanalyze_missed'in kendi döngüsünde hem de kafka_consumer._process'in
+    # kaynaklar-arası/reanalyze-öncesi-sonrası boşluklarında kullanılır.
+    # 1 Eyl 2026'da canlıda bulundu: eski sabit 2sn RPM=30'u hedefliyordu ama
+    # Groq'un openai/gpt-oss-20b için asıl darboğazı TPM=8000 (token/dk) —
+    # ölçülen ortalama ~514 token/istek ile güvenli hız dakikada ~15.6 istek
+    # (60/15.6≈3.85s), 2sn bunun ~2 katı hızlıydı. ÜSTELİK throttle SADECE
+    # update_news_from_source'un KENDİ döngüsü içindeydi — reanalyze_missed'in
+    # 3 çağrısı arasında VE bir kaynağın işi bitip sıradakine geçilirken hiç
+    # bekleme yoktu (17 kaynak art arda, hiç boşluksuz). Groq'un rate limit'i
+    # gerçek bir "günlük kota" değil sürekli dolan bir kova (leaky bucket) —
+    # canlı ölçümle doğrulandı (x-ratelimit-reset-requests, kullanılan istek
+    # başına 86.4s artıyor: 86400s/1000 RPD). Günlük toplam tüketim (TPD/RPD)
+    # rahat ama burst'ler kovayı anlık boşaltıp dakikalarca 429'a çarpıyordu.
+    groq_request_interval_seconds: float = 4.0
+
     # ── API güvenliği ──────────────────────────────────────────────────────
     # Paylaşımlı makine-makine anahtarı (X-API-Key). İnsan kullanıcılar için
     # v1.13'ten itibaren rol tabanlı yetki (users.role) tercih edilir.
