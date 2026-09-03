@@ -177,7 +177,7 @@ jobs:
         run: |
           set -euo pipefail
           for i in $(seq 1 12); do
-            if curl -fsS https://nexstreamnewsengine.duckdns.org/api/health; then
+            if curl -fsS https://nexstreamnews.com/api/health; then
               echo "Healthy"
               exit 0
             fi

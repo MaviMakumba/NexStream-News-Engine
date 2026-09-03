@@ -14,7 +14,7 @@
 ![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-### 🚀 Live demo: **[nexstreamnewsengine.duckdns.org](https://nexstreamnewsengine.duckdns.org)**
+### 🚀 Live demo: **[nexstreamnews.com](https://nexstreamnews.com)**
 
 <sub>Running on a single AWS t3.small (2 vCPU / 1.9 GB) — the full 16-service production stack, observability included.</sub>
 
@@ -299,7 +299,7 @@ The original Streamlit dashboard was replaced by a **Next.js 14 + React** fronte
 | GET | `/health` · `/metrics` | Health (DB/Redpanda/ChromaDB) · Prometheus metrics |
 | GET | `/docs` | Swagger UI |
 
-**Full interactive reference:** [nexstreamnewsengine.duckdns.org/api/docs](https://nexstreamnewsengine.duckdns.org/api/docs) — every endpoint, request/response schema, and a "Try it out" button. A ready-to-import [Postman collection](docs/NexStream.postman_collection.json) covers the endpoints above with example requests.
+**Full interactive reference:** [nexstreamnews.com/api/docs](https://nexstreamnews.com/api/docs) — every endpoint, request/response schema, and a "Try it out" button. A ready-to-import [Postman collection](docs/NexStream.postman_collection.json) covers the endpoints above with example requests.
 
 ---
 
@@ -789,7 +789,7 @@ Streamlit panel, ayırt edici bir **sinematik tema sistemi** olan **Next.js 14 +
 | GET | `/health` · `/metrics` | Sağlık durumu (DB/Redpanda/ChromaDB) · Prometheus metrikleri |
 | GET | `/docs` | Swagger UI |
 
-**Tam interaktif referans:** [nexstreamnewsengine.duckdns.org/api/docs](https://nexstreamnewsengine.duckdns.org/api/docs) — her endpoint, istek/cevap şeması, "Try it out" butonuyla doğrudan test. Yukarıdaki endpoint'leri örnek isteklerle kapsayan, doğrudan içe aktarılabilir bir [Postman koleksiyonu](docs/NexStream.postman_collection.json) da var.
+**Tam interaktif referans:** [nexstreamnews.com/api/docs](https://nexstreamnews.com/api/docs) — her endpoint, istek/cevap şeması, "Try it out" butonuyla doğrudan test. Yukarıdaki endpoint'leri örnek isteklerle kapsayan, doğrudan içe aktarılabilir bir [Postman koleksiyonu](docs/NexStream.postman_collection.json) da var.
 
 ---
 

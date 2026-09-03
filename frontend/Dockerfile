@@ -13,7 +13,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 # "https://nexstream.news" (satın alınmamış, kimseye ait olmayan bir domain)
 # varsayılanına düşüyordu — robots.txt/sitemap.xml/OG meta hepsi YANLIŞ
 # domain'e işaret ediyordu, canlıda hiç fark edilmemişti.
-ARG NEXT_PUBLIC_SITE_URL=https://nexstreamnewsengine.duckdns.org
+ARG NEXT_PUBLIC_SITE_URL=https://nexstreamnews.com
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 # Kullanım analitiği (v2.4) — boş bırakılırsa AnalyticsProvider tamamen no-op
 # kalır (bkz. components/AnalyticsProvider.tsx), diğer opsiyonel entegrasyonlarla

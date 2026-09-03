@@ -7,6 +7,14 @@
 > taşıma, sıfırdan yeniden kurulum) için geçerliliğini koruyor ve canlı
 > deploy'da öğrenilenlerle güncellendi.
 >
+> **🔄 2 Eylül 2026 güncellemesi: canlı site artık `https://nexstreamnews.com`'da**
+> (gerçek domain satın alındı, DNS türkticaret.net'te yönetiliyor — eski
+> DuckDNS adresi 301 ile yeni domain'e yönleniyor, kapatılmadı). Aşağıdaki
+> DuckDNS adımları GÜNCEL DURUMU YANSITMIYOR ama sıfır maliyetli bir alternatif
+> olarak referans değerini koruyor — yeni bir kurulum yapıyorsan gerçek bir
+> domain kullanmayı tercih et (adım adım süreç: MEVCUT DURUM'daki "2 Eylül
+> 2026" oturum notuna bak, CLAUDE.md).
+>
 > **⚠️ Fiili deploy AWS'te, Oracle'da DEĞİL.**
 > Oracle'ın A1.Flex kapasitesi günlerce "Out of host capacity" verdi (bkz. §2) ve
 > beklemek yerine **AWS Free Plan ($100 kredi, 28 Ocak 2027'ye kadar) köprü olarak**

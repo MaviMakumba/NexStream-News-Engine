@@ -178,7 +178,7 @@ aramasıyla sunan bir haber motoru API'si.
 - Tier'a göre kota ve özellik erişimi değişir — detay için `/billing/config` ve README'deki "API Tiers" tablosuna bakın.
 
 **Kaynaklar:** [GitHub](https://github.com/MaviMakumba/NexStream-News-Engine) ·
-[Canlı site](https://nexstreamnewsengine.duckdns.org) ·
+[Canlı site](https://nexstreamnews.com) ·
 [Postman koleksiyonu](https://github.com/MaviMakumba/NexStream-News-Engine/blob/main/docs/NexStream.postman_collection.json)
 """,
     version="2.1.1",

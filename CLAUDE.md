@@ -16,136 +16,19 @@ satıra ulaşınca oraya ayrıştırıldı, session başında okunması gerekmez
 Hexagonal (Ports & Adapters) mimari. Domain katmanı hiçbir dış bağımlılık bilmez.
 Bağımlılık yönü: Adapter → Application → Domain. Tersi yasak.
 
-```
-src/
-├── domain/
-│   ├── models/article.py          # Article dataclass — merkezi model
-│   ├── ports/
-│   │   ├── analysis_port.py       # class AnalysisPort (ABC)
-│   │   ├── news_scraper_port.py   # class NewsScraperPort (ABC)
-│   │   ├── news_repository_port.py
-│   │   ├── messaging_port.py      # class MessagePublisherPort (ABC)
-│   │   ├── embedding_port.py      # class EmbeddingPort (ABC)
-│   │   ├── query_expansion_port.py # class QueryExpansionPort (ABC) — sorgu genişletme (v2.3)
-│   │   ├── question_answering_port.py # class QuestionAnsweringPort (ABC) + QuestionAnsweringError — RAG soru-cevap, AnalysisPort'tan AYRI (v2.6)
-│   │   ├── push_subscription_port.py # class PushSubscriptionRepositoryPort (ABC) — web push abonelik saklama (v2.5)
-│   │   └── web_push_port.py       # class WebPushPort (ABC) — VAPID push gönderimi, NotificationPort'la KARIŞTIRILMASIN (v2.5)
-│   ├── schemas/
-│   │   └── news_schema.py         # Pydantic: NewsResponse, SearchRequest, SearchResult, TrendingResponse, RelatedResponse
-│   └── scoring/                   # Saf domain skorlama (v1.8) — dış bağımlılık yok
-│       ├── quality.py             # compute_quality_score — uzunluk/entity/summary/başlık
-│       └── credibility.py         # SOURCE_CREDIBILITY seed + compute_credibility
-├── application/
-│   └── services/news_service.py   # Orchestration — port'ları bağlar, get_related, _enrich_metadata dahil
-├── adapters/
-│   ├── analysis/
-│   │   ├── groq_analyzer.py       # Groq openai/gpt-oss-20b — birincil analyzer (v1.5+, model v2.1.1'de değişti)
-│   │   ├── huggingface_analyzer.py # HF Inference API — opsiyonel yedek (v1.8)
-│   │   ├── fallback_analyzer.py   # Groq dene, başarısızsa HF, hepsi olmazsa nötr (v1.8)
-│   │   ├── common.py              # Paylaşılan prompt + JSON parse + nötr fallback (v1.8)
-│   │   ├── groq_query_expander.py # Groq ile ilişkili terim üretir ("İstanbul"→"Beykoz"), fail-open (v2.3)
-│   │   ├── groq_question_answerer.py # RAG soru-cevap, TEK Groq çağrısı, 429'da FAIL-FAST (senkron istek, bkz. CLAUDE.md dersi) (v2.6)
-│   │   ├── rag_common.py          # build_rag_prompt + parse_rag_json — common.py'nin Q&A karşılığı (v2.6)
-│   │   ├── caching_query_expander.py # QueryExpansionPort'u CachePort ile saran decorator (v2.3)
-│   │   └── factory.py             # build_analyzer() + build_query_expander() — kompozisyon noktası (v1.8)
-│   ├── scrapers/
-│   │   ├── rss_scrapers.py        # 11 TR+EN RSS kaynağı (BaseRssScraper tabanlı)
-│   │   └── registry.py            # SCRAPER_REGISTRY — tek kaynak doğruluk noktası
-│   ├── repositories/
-│   │   ├── news_orm.py            # SQLAlchemy ORM modeli
-│   │   └── news_repository.py     # PostgreSQL adapter
-│   ├── messaging/
-│   │   ├── kafka_consumer.py      # Worker: consume → scrape → analyze → save → index
-│   │   └── kafka_publisher.py
-│   ├── scheduling/
-│   │   ├── scheduler_service.py   # 10dk'da bir Kafka'ya mesaj atar
-│   │   ├── newsletter_job.py      # günlük digest (05:00 UTC)
-│   │   └── retention_job.py       # günlük ChromaDB/Postgres temizlik (04:00 UTC, v1.11 sonrası)
-│   ├── search/
-│   │   ├── sentence_transformer_embedder.py  # SentenceTransformerEmbedder (singleton) — SADECE embedder image'ında
-│   │   ├── http_embedder.py                  # HttpEmbedderAdapter — embedding'i embedder servisine devreder (v2.0)
-│   │   ├── embedder_factory.py               # build_embedder() — kompozisyon noktası (v2.0)
-│   │   ├── embedder_service.py               # Modeli tek kopya yükleyen mini FastAPI app (v2.0)
-│   │   └── chroma_search_repository.py       # ChromaDB adapter — index + search + dedup (v1.5+)
-│   └── api/
-│       ├── auth.py               # verify_api_key() — paylaşımlı X-API-Key (makine-makine)
-│       ├── auth_utils.py         # get_optional_user/get_current_user/require_admin/check_tier_limit (v1.9-v1.11)
-│       ├── limiter.py            # slowapi Limiter singleton (v1.3+)
-│       ├── metrics.py            # Prometheus custom metrics (v1.6+)
-│       └── routers/
-│           ├── news_router.py    # GET /news, /trending, /{id}/related, POST /scrape, /search, /reindex, /sources
-│           ├── health_router.py  # GET /health — DB + Kafka + ChromaDB durumu
-│           ├── auth_router.py    # /auth: register, login, logout, me (v1.9)
-│           ├── account_router.py # /account: usage paneli + kişisel API key (v1.11) + saved (v2.2)
-│           ├── admin_router.py   # /admin: usage + sponsor CRUD — require_admin (v1.11)
-│           ├── billing_router.py # /billing: Stripe + dev-mode bypass + /config (v1.11)
-│           ├── subscription_router.py # /subscriptions: newsletter abonelikleri (v1.7)
-│           ├── feed_router.py    # /feed.xml RSS 2.0 (v1.7)
-│           ├── websocket_router.py # /ws/feed canlı akış (v1.7)
-│           └── v1/news_router_v1.py # /api/v1: sürümlü, kotalı public API (v1.7+) — POST /news/ask RAG soru-cevap da SADECE burada (v2.6, legacy router'a bilinçli eklenmedi)
-├── infrastructure/
-│   ├── config/
-│   │   ├── database.py           # SQLAlchemy engine — settings üzerinden bağlantı
-│   │   └── settings.py           # Pydantic Settings — tek merkezi config (v1.3+)
-│   └── logging/
-│       └── logger.py             # setup_logging(), JSON/text formatter (v1.3+)
-├── dependencies.py                # FastAPI DI — GroqAnalyzer, NewsRepository, ChromaSearch inject
-└── main.py                        # FastAPI app
-migrations/
-├── v1_5_add_entities_topic.sql    # v1.5 DB migration (entities, topic, is_duplicate)
-├── v1_7_subscriptions.sql         # v1.7 DB migration (subscribers tablosu)
-├── v1_8_quality_credibility.sql   # v1.8 DB migration (quality_score, credibility_score, corroboration_count)
-├── v1_9_users_sessions_usage_sponsor.sql  # v1.9 (users, user_sessions, usage_logs, sponsors)
-├── v1_11_admin_api_keys.sql       # v1.11 (users.is_admin, users.api_key + unique index)
-├── v1_12_password_reset_tokens.sql # şifre sıfırlama (password_reset_tokens tablosu)
-├── v2_2_saved_articles.sql        # v2.2 (saved_articles — kaydet/sonra oku)
-└── v2_5_push_subscriptions.sql    # v2.5 (push_subscriptions — web push abonelikleri)
-frontend/                          # Next.js 14 + React (Streamlit'in yerini aldı, v1.10)
-├── app/                           # App Router sayfaları (landing, dashboard, search, account, admin, auth)
-│   ├── layout.tsx                 # data-theme=<id> + Google Fonts linkleri
-│   └── globals.css                # 9 tema token bloğu + component class'ları + geçiş flash'ı
-├── components/                    # Navbar, NewsCard, TrendingPills, SentimentBadge, TierBadge
-├── lib/
-│   ├── i18n.ts                    # UI sözlüğü + FEATURES/PRICING/TIER_DETAILS (tam TR/EN)
-│   ├── settings-context.tsx       # tema+dil context, data-theme uygular, ThemeBackground render
-│   └── theme/                     # SİNEMATİK TEMA SİSTEMİ (SOLID)
-│       ├── types.ts               # ThemeId, ThemeDefinition
-│       ├── registry.ts            # THEMES tek doğruluk kaynağı — yeni tema = 1 kayıt + 1 CSS + 1 efekt
-│       ├── useCanvasScene.ts      # paylaşılan RAF döngüsü (DPR, reduced-motion, tab gizli=duraklat)
-│       ├── ThemeBackground.tsx    # aktif temanın efektini key'li render eder
-│       └── effects/               # 8 canvas efekti: MatrixRain, FilmGrain, NeonRain, SandStorm,
-│                                  #   Starfield, WebStrands, BatSignal, EmberHaze (+ shared.ts)
-tests/
-├── domain/test_article.py
-├── application/test_news_service.py
-├── adapters/test_rss_scrapers.py
-├── adapters/test_news_repository.py
-├── adapters/test_groq_analyzer.py
-├── adapters/test_chroma_search_repository.py
-├── adapters/test_ner_prompt.py            # NER + topic Groq çıktısı (v1.5+)
-├── adapters/test_semantic_dedup.py        # is_near_duplicate testleri (v1.5+)
-├── adapters/test_trending_endpoint.py     # Trending engine testleri (v1.5+)
-└── adapters/test_prometheus_metrics.py    # /metrics endpoint + custom counters (v1.6+)
-infra/
-├── nginx/
-│   ├── nginx.conf                         # Production: SSL, gzip, security headers, certbot
-│   └── nginx.dev.conf                     # Dev: HTTP-only, same routing
-├── prometheus/
-│   └── prometheus.yml                     # Scrape config: nexstream-api job
-├── grafana/
-│   ├── provisioning/
-│   │   ├── datasources/datasources.yml   # Prometheus + Loki auto-provisioned
-│   │   └── dashboards/dashboards.yml     # File-based dashboard provider
-│   └── dashboards/nexstream.json         # Pre-built panels: latency, articles, Groq, search
-├── loki/
-│   ├── loki-config.yml                   # TSDB schema, filesystem storage
-│   └── promtail-config.yml              # Docker SD, container labels
-└── backup/
-    ├── Dockerfile                         # Alpine + pg_dump + crond
-    ├── backup.sh                          # pg_dump + ChromaDB tar + retention cleanup
-    └── crontab                            # Daily 03:00 UTC
-docker-compose.prod.yml                    # Full production stack (16 services)
-```
+Üst düzey: `src/{domain,application,adapters,infrastructure}` (hexagonal katmanlar,
++ `dependencies.py`/`main.py`), `migrations/`, `frontend/` (Next.js), `tests/`,
+`infra/` (nginx/prometheus/grafana/loki/backup). Tam ağaç `ls`/`find` ile veya
+dosyayı açarak görülür — burada tekrar edilmiyor (2 Eyl 2026'da `/doctor` taraması
+sonrası budandı, koddan türetilebilir içerikti).
+
+Ağaçtan koda bakarak çıkarılamayan birkaç gerçek uyarı:
+- `question_answering_port.py`'deki `QuestionAnsweringPort`, `AnalysisPort`'tan
+  BİLİNÇLİ olarak AYRI (v2.6) — birleştirilmemeli.
+- `web_push_port.py`'deki `WebPushPort`, var olan `NotificationPort` ile
+  KARIŞTIRILMAMALI (v2.5, farklı amaç: VAPID push vs. genel bildirim).
+- `POST /api/v1/news/ask` (RAG soru-cevap) bilinçli olarak SADECE v1 router'da —
+  legacy router'a eklenmedi (v2.6).
 
 ---
 
@@ -214,8 +97,9 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v2.9 🚀 **CANLIDA: https://nexstreamnewsengine.duckdns.org** (son deploy: 1 Eylül 2026, PR #91 dahil — deploy tam otomatik, main'e her merge'de GitHub Actions SSM'e bağlanıp redeploy ediyor). İlk canlıya çıkış: 29 Temmuz 2026.
+- **Versiyon:** v2.9 🚀 **CANLIDA: https://nexstreamnews.com** (2 Eylül 2026'da gerçek domain'e taşındı — eski `nexstreamnewsengine.duckdns.org` artık 301 ile yeni domain'e yönleniyor, kalıcı olarak kapatılmadı. Son deploy: 1 Eylül 2026, PR #91 dahil — deploy tam otomatik, main'e her merge'de GitHub Actions SSM'e bağlanıp redeploy ediyor). İlk canlıya çıkış: 29 Temmuz 2026.
 - **Test sayısı:** 892 test, hepsi yeşil (backend); frontend `next build` temiz (React 18 ile — bkz. Dependabot notu aşağıda).
+- **2 Eylül 2026 (bu oturum) — gerçek domain + profesyonel e-posta gönderimi:** Kullanıcı bulgusu ("bildirim mailleri Primary'ye düşüyor, kişisel Gmail'im spam'e düşmeye başladı") kök nedeniyle çözüldü — `EMAIL_PROVIDER=auto` SMTP'yi (kullanıcının kişisel Gmail'i) Resend'e tercih ediyordu. `nexstreamnews.com` türkticaret.net'ten satın alındı (~$2, sertifika/gereksiz eklenti upsell'leri reddedildi), Resend'de doğrulandı (DKIM+SPF+DMARC DNS kayıtları), prod `.env`'e `RESEND_API_KEY`+`EMAIL_FROM=NexStream <bildirim@nexstreamnews.com>`+`EMAIL_PROVIDER=resend` eklendi — canlı bir şifre sıfırlama maili tetiklenip sunucu logunda başarı satırıyla doğrulandı. Ardından canlı site de bu domain'e taşındı: A kaydı sunucunun Elastic IP'sine (`63.178.59.10`) çevrildi, mevcut Let's Encrypt sertifikası `certbot --expand` ile YENİ bir sertifika almadan aynı `live/` dizinine 2 domain daha eklendi (SAN: `nexstreamnews.com`, `www.nexstreamnews.com`, `nexstreamnewsengine.duckdns.org`), `infra/nginx/nginx.conf`'ta asıl 443 bloğu yeni domain'e (`default_server`), eski domain'e ayrı bir 301-redirect bloğu eklendi, `FRONTEND_URL`/`CORS_ORIGINS` güncellendi. **Ders — List-Unsubscribe header'ı ayrı bir PR'da (#95) eklendi:** RFC 2369 header'ı, hangi sağlayıcı kullanılırsa kullanılsın Gmail/Outlook'un bulk-sender/Promotions sekmesi tespitine yardımcı oluyor, domain kararından bağımsız ücretsiz bir sinyal. Roadmap madde 5 ve 6 bu oturumla ✅ oldu (detay aşağıda).
 - **31 Ağu 2026 (PR #77-81):** iki canlı sorun (haber sıralaması + RAG'ın eski habere göre cevap vermesi) SSM diagnostiğiyle bulunup düzeltildi; RAG'da 6 bug daha (26-27 Ağu); arama skoru + görünür güven rozeti planı uygulandı. Tam kronoloji `docs/CHANGELOG.md`'de.
 - **1 Eylül 2026 (bu oturum) — roadmap #25'in devamı + canlı güvenlik/UX taraması, hepsi merge+deploy edildi:**
   - **PR #85 (asıl kırılım, madde 25):** Groq rate-limit'i canlıda header probe'larıyla incelendi — Groq'un limiti gerçek bir günlük kota DEĞİL, sürekli dolan bir "leaky bucket" (kanıt: `x-ratelimit-reset-requests` kullanılan istek başına tam 86.4s artıyor = 86400s/1000RPD). Günlük toplam tüketim (TPD/RPD) rahattı ama worker 3 yerde patlama halinde istek atıyordu: (1) makale-arası 2sn RPM=30'u hedefliyordu, asıl darboğaz TPM=8000'e göre yetersizdi, (2) `reanalyze_missed` hiç throttle'sızdı, (3) kaynaklar arası hiç bekleme yoktu. Tek doğruluk kaynağı `settings.groq_request_interval_seconds` (4.0s) üçünde de kullanılacak şekilde düzeltildi. **Sonraki oturumun ilk işi: birkaç günlük gözlemle 429 sıklığının gerçekten düştüğünü doğrulamak.**
@@ -299,15 +183,17 @@ GERÇEKTEN bekleyen işler var:
    talep eden kullanıcıya özel, elle açılan bir şey olarak düşünülebilir.
 4. **Launch içeriği** — LinkedIn metni + OG görseli hazır (18 Ağu 2026).
    Kalan: Product Hunt materyali, varsa ek sosyal medya içeriği — düşük öncelik.
-5. **Resend domain doğrulaması** — `resend.com/domains`'te doğrulanmış domain
-   yoksa, hesap sahibi dışındaki kullanıcılara Resend üzerinden hiç mail gitmez
-   (SMTP birincil olduğu için düşük öncelik — sadece SMTP düşerse Resend
-   yedeğe geçer).
-6. **Cloudflare proxy** — DNS şu an `nexstreamnewsengine.duckdns.org`'u
-   doğrudan EC2 IP'sine çözüyor. DuckDNS subdomain'i Cloudflare'e
-   delege/proxy edemezsin (Cloudflare bir zone'un TAMAMINA nameserver olmak
-   ister, DuckDNS'in alt alan adı değil) — gerçek bir domain satın almak
-   gerekiyor (~$10-15/yıl, tek seferlik). Kullanıcıya açıklandı, karar bekliyor.
+5. ~~Resend domain doğrulaması~~ — ✅ 2 Eylül 2026, `nexstreamnews.com`
+   Resend'de doğrulandı (DKIM+SPF+DMARC), prod `EMAIL_PROVIDER=resend`.
+   Artık SMTP (kişisel Gmail) değil Resend birincil — tüm kullanıcılara mail
+   gidiyor. Detay: MEVCUT DURUM'daki "2 Eylül 2026" satırı.
+6. **Cloudflare proxy** — gerçek domain artık VAR (`nexstreamnews.com`, 2 Eylül
+   2026'da satın alındı, DNS türkticaret.net'te yönetiliyor, site bu domain'e
+   taşındı — bkz. MEVCUT DURUM). Roadmap madde 6'nın asıl blokajı (DuckDNS
+   subdomain'i Cloudflare'e delege edilemiyordu) ORTADAN KALKTI — kalan iş
+   sadece nameserver'ları türkticaret.net'ten Cloudflare'e devretmek, henüz
+   YAPILMADI, karar bekliyor (proxy'nin gerçek faydası — DDoS/bot koruması,
+   CDN — şu anki neredeyse-sıfır trafikte düşük öncelik).
 7. **Dependabot PR'ları** — 19/25 Ağu'da düşük riskli olanlar merge edildi
    (kronoloji: `docs/CHANGELOG.md`). **1 Eyl 2026 durumu (18 açık PR):**
    - ✅ **React + react-dom (#21+#22) birleştirildi** — Dependabot ikisini
