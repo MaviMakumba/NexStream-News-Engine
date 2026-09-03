@@ -37,3 +37,6 @@ htmlcov/
 
 # Staj defteri (kişisel/kurum gizli)
 docs/staj-defteri.md
+
+# Claude Code local/kişisel ayarlar (eklenti aç/kapa vb.) — makineye özel, commit edilmez
+.claude/settings.local.json

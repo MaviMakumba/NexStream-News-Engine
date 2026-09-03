@@ -1,11 +1,11 @@
 {
   "info": {
     "name": "NexStream News Engine API",
-    "description": "AI destekli haber motoru — hibrit arama (semantik + anahtar kelime), duygu/varlık/konu analizi, gündem, ilişkili haberler. Canlı: https://nexstreamnewsengine.duckdns.org — API dokümantasyonu: {{base_url}}/api/docs\n\nİki kimlik doğrulama yolu var:\n1. `X-User-Key` header'ı (hesap sayfasından üretilen kişisel API key, `nxs_` önekli) — `/api/v1/*` uçları için.\n2. Oturum çerezi (`nxs_session`) — tarayıcıdan giriş yaptıysanız otomatik gönderilir.\n\nKimliksiz (public) uçlar — `/news/search`, `/news/trending`, `/feed.xml`, `/health` — hiçbir header gerektirmez, sadece IP bazlı rate limit uygulanır.",
+    "description": "AI destekli haber motoru — hibrit arama (semantik + anahtar kelime), duygu/varlık/konu analizi, gündem, ilişkili haberler. Canlı: https://nexstreamnews.com — API dokümantasyonu: {{base_url}}/api/docs\n\nİki kimlik doğrulama yolu var:\n1. `X-User-Key` header'ı (hesap sayfasından üretilen kişisel API key, `nxs_` önekli) — `/api/v1/*` uçları için.\n2. Oturum çerezi (`nxs_session`) — tarayıcıdan giriş yaptıysanız otomatik gönderilir.\n\nKimliksiz (public) uçlar — `/news/search`, `/news/trending`, `/feed.xml`, `/health` — hiçbir header gerektirmez, sadece IP bazlı rate limit uygulanır.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "base_url", "value": "https://nexstreamnewsengine.duckdns.org/api", "type": "string" },
+    { "key": "base_url", "value": "https://nexstreamnews.com/api", "type": "string" },
     { "key": "user_api_key", "value": "nxs_your_personal_key_here", "type": "string" }
   ],
   "item": [
