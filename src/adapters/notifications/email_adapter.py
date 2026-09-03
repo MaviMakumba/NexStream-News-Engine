@@ -16,7 +16,7 @@ import re
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import List
+from typing import List, Optional
 from urllib.parse import quote
 import requests
 from src.domain.models.article import Article
@@ -250,15 +250,34 @@ class _HtmlEmailAdapter(EmailPort):
     ayrı ayrı tanımlıyordu (Resend'de _post'a yönlendiren tekrar eden kod).
     """
 
-    def _deliver(self, to: str, subject: str, html: str) -> bool:
+    def _deliver(self, to: str, subject: str, html: str, headers: Optional[dict] = None) -> bool:
         raise NotImplementedError
 
+    def _list_unsubscribe_headers(self, to: str, language: str) -> dict:
+        """RFC 2369 List-Unsubscribe header'ı — toplu/bildirim maillerine has.
+
+        Transactional maillerde (welcome/reset/verification) KULLANILMAZ, sadece
+        digest+alert'te — Gmail/Outlook bu header'ı bulk-sender sinyali olarak
+        okur, Promotions/Updates sekmesine yönlendirmeye ve spam skorunu
+        düşürmeye yardımcı olur (2 Eyl 2026, kullanıcı bulgusu: bildirimler
+        Primary'ye düşüyordu — kök neden SMTP'nin kişisel Gmail hesabından
+        gönderilmesiydi, bkz. CLAUDE.md/roadmap madde 5, ama bu header ücretsiz
+        ek bir sinyal, hangi sağlayıcı kullanılırsa kullanılsın faydalı).
+        """
+        return {"List-Unsubscribe": f"<{_unsubscribe_url(to, language)}>"}
+
     def send_digest(self, to: str, articles: List[Article], language: str, sponsor=None) -> bool:
-        return self._deliver(to, _t(language, "digest_subject"), _digest_html(to, articles, language, sponsor))
+        return self._deliver(
+            to, _t(language, "digest_subject"), _digest_html(to, articles, language, sponsor),
+            headers=self._list_unsubscribe_headers(to, language),
+        )
 
     def send_alert(self, to: str, article: Article, matched_keyword: str, language: str) -> bool:
         subject = f"{_t(language, 'alert_subject_prefix')}: {matched_keyword}"
-        return self._deliver(to, subject, _alert_html(article, matched_keyword, language))
+        return self._deliver(
+            to, subject, _alert_html(article, matched_keyword, language),
+            headers=self._list_unsubscribe_headers(to, language),
+        )
 
     def send_welcome(self, to: str, language: str) -> bool:
         return self._deliver(to, _t(language, "welcome_subject"), _welcome_html(language))
@@ -279,12 +298,15 @@ class ResendEmailAdapter(_HtmlEmailAdapter):
         self._api_key = settings.resend_api_key
         self._from = settings.email_from
 
-    def _deliver(self, to: str, subject: str, html: str) -> bool:
+    def _deliver(self, to: str, subject: str, html: str, headers: Optional[dict] = None) -> bool:
         try:
+            payload = {"from": self._from, "to": [to], "subject": subject, "html": html}
+            if headers:
+                payload["headers"] = headers
             r = requests.post(
                 self._API_URL,
                 headers={"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"},
-                json={"from": self._from, "to": [to], "subject": subject, "html": html},
+                json=payload,
                 timeout=10,
             )
             if r.status_code in (200, 201):
@@ -328,11 +350,13 @@ class SmtpEmailAdapter(_HtmlEmailAdapter):
         """
         return bool(self._user and self._password)
 
-    def _deliver(self, to: str, subject: str, html: str) -> bool:
+    def _deliver(self, to: str, subject: str, html: str, headers: Optional[dict] = None) -> bool:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = self._from
         msg["To"] = to
+        for k, v in (headers or {}).items():
+            msg[k] = v
         # multipart/alternative'de her zaman en az tercih edilenden en çok
         # tercih edilene doğru eklenir — istemciler DESTEKLEDİKLERİ SON parçayı
         # gösterir, o yüzden plain önce, html sonra.
