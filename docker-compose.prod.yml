@@ -29,6 +29,12 @@ services:
   certbot:
     image: certbot/certbot
     container_name: nexstream_certbot
+    # 3 Eyl 2026'da bulundu: bu container'da restart policy hiç YOKTU — bir
+    # host reboot'unda (ör. kaynak tükenmesi sonrası kurtarma) diğer tüm
+    # servisler `restart: always` sayesinde kendiliğinden ayağa kalkarken bu
+    # sessizce `Exited` kalıyordu, yenileme döngüsü durmuş oluyordu ama hiçbir
+    # alarm çalmıyordu (sertifika süresi dolana kadar fark edilmezdi).
+    restart: always
     volumes:
       - ./infra/nginx/ssl:/etc/letsencrypt
       - certbot_webroot:/var/www/certbot
