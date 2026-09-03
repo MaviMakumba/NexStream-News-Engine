@@ -301,6 +301,70 @@ def test_get_email_adapter_explicit_provider_forces_console():
     assert isinstance(adapter, ConsoleEmailAdapter)
 
 
+# ── List-Unsubscribe header (deliverability/Promotions-sekmesi sinyali) ────────
+
+def test_resend_adapter_digest_includes_list_unsubscribe_header():
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.resend_api_key = "re_test_key"
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        mock_settings.api_base_url = "https://nexstream.example"
+        adapter = ResendEmailAdapter()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        with patch("requests.post", return_value=mock_response) as mock_post:
+            adapter.send_digest("user@test.com", [_article()], "TR")
+
+    headers = mock_post.call_args[1]["json"]["headers"]
+    assert "List-Unsubscribe" in headers
+    assert "user%40test.com" in headers["List-Unsubscribe"]
+
+
+def test_smtp_adapter_alert_includes_list_unsubscribe_header():
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.smtp_host = "smtp.gmail.com"
+        mock_settings.smtp_port = 587
+        mock_settings.smtp_user = "me@gmail.com"
+        mock_settings.smtp_password = "app-password"
+        mock_settings.smtp_from = ""
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        mock_settings.smtp_starttls = True
+        mock_settings.api_base_url = "https://nexstream.example"
+        adapter = SmtpEmailAdapter()
+
+        mock_server = MagicMock()
+        mock_smtp_cm = MagicMock()
+        mock_smtp_cm.__enter__.return_value = mock_server
+        with patch("smtplib.SMTP", return_value=mock_smtp_cm):
+            adapter.send_alert("user@test.com", _article(), "beşiktaş", "TR")
+
+    sent_message = mock_server.sendmail.call_args[0][2]
+    assert "List-Unsubscribe:" in sent_message
+
+
+def test_smtp_adapter_welcome_has_no_list_unsubscribe_header():
+    """Transactional maillerde (welcome/reset/verification) List-Unsubscribe
+    OLMAMALI — abonelik değil, tekil bir hesap işlemi."""
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.smtp_host = "smtp.gmail.com"
+        mock_settings.smtp_port = 587
+        mock_settings.smtp_user = "me@gmail.com"
+        mock_settings.smtp_password = "app-password"
+        mock_settings.smtp_from = ""
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        mock_settings.smtp_starttls = True
+        adapter = SmtpEmailAdapter()
+
+        mock_server = MagicMock()
+        mock_smtp_cm = MagicMock()
+        mock_smtp_cm.__enter__.return_value = mock_server
+        with patch("smtplib.SMTP", return_value=mock_smtp_cm):
+            adapter.send_welcome("user@test.com", "TR")
+
+    sent_message = mock_server.sendmail.call_args[0][2]
+    assert "List-Unsubscribe:" not in sent_message
+
+
 def test_get_email_adapter_explicit_provider_forces_smtp():
     with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
         mock_settings.email_provider = "smtp"
