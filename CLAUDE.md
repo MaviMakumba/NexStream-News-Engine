@@ -154,11 +154,16 @@ GERÇEKTEN bekleyen işler var:
 4. **Launch içeriği** — LinkedIn metni + OG görseli hazır. Kalan: Product
    Hunt materyali, ek sosyal medya içeriği — düşük öncelik.
 5. ~~Resend domain doğrulaması~~ — ✅ 2 Eylül 2026.
-6. **Cloudflare proxy** — gerçek domain artık VAR, roadmap madde 6'nın asıl
-   blokajı (DuckDNS delege edilemiyordu) ORTADAN KALKTI. **8 Eylül 2026'da
-   geçiş başladı** — adım adım rehber: bkz. kullanıcının kayıtlı Artifact
-   linki (Cloudflare hesabı + DNS + nameserver + SSL/WAF/Bot Fight Mode +
-   Email Routing ile `destek@nexstreamnews.com` + Search Console/Bing).
+6. ~~Cloudflare proxy~~ — ✅ 8 Eylül 2026. Nameserver'lar Cloudflare'e taşındı
+   (Full Strict SSL, Bot Fight Mode açık), `destek@nexstreamnews.com`
+   Cloudflare Email Routing ile kişisel Gmail'e yönleniyor (`/contact`
+   formu artık buraya gönderiyor), Google Search Console + Bing doğrulandı
+   ve sitemap gönderildi. **Kritik takip düzeltmesi aynı gün yapıldı:**
+   Cloudflare proxy'si nginx'in TÜM isteği kendi edge IP'sinden görmesine
+   yol açıyordu (`limit_req_zone`'lar `$binary_remote_addr`'a dayanıyor —
+   rate limiting "ziyaretçi başına" değil "Cloudflare node başına" işlemeye
+   başlıyordu) — `set_real_ip_from`+`real_ip_header CF-Connecting-IP` ile
+   düzeltildi (bkz. BİLİNEN NOTLAR).
 7. **Dependabot PR'ları** — düzenli triyaj gerekiyor (`gh pr list` ile
    kontrol et). **8 Eylül 2026 durumu:** React 19 +
    Next 16 zaten merge (PR #93). Tailwind 3→4 ve TypeScript 5→7 hâlâ build
@@ -360,6 +365,7 @@ Her madde tek bir kalıcı kural — "ne zaman/nasıl bulundu" forensic detayı
   v1/...`'e gidip nginx'in genel `/api/` bloğuna düşüyor, tesadüfen doğru
   yere iniyor). Henüz düzeltilmedi — ya `api.ts`'teki v1 çağrılarını
   `${BASE}/v1/...`'e çevir ya da nginx `/api/v1/` bloğunu güncelle.
+- **Site 8 Eyl 2026'dan beri Cloudflare proxy'sinin arkasında** — nginx `set_real_ip_from`+`real_ip_header CF-Connecting-IP` ile Cloudflare'in edge IP'lerini güvenilir sayıp gerçek ziyaretçi IP'sini okuyor (bkz. `infra/nginx/nginx.conf`). Bu YOKSA `$remote_addr` TÜM ziyaretçiler için Cloudflare'in birkaç edge IP'sine düşer — `limit_req_zone`'lar (rate limiting) ve app'e giden `X-Real-IP` (slowapi'nin dayandığı) "ziyaretçi başına" değil "Cloudflare node başına" işlemeye başlar. Cloudflare'in IP aralığı nadiren değişir ama değişirse `nginx.conf`'taki liste `cloudflare.com/ips-v4`+`ips-v6`'dan güncellenmeli.
 - Groq free tier: 14.400 req/gün — production'da dikkat
 - Scraper limit: 25 haber/kaynak/çalışma
 - DB duplicate kontrolü var — aynı URL tekrar kaydedilmez

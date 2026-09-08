@@ -412,7 +412,7 @@ Temel SEO (generateMetadata, robots.ts, sitemap.ts), `/privacy`+`/terms`, nginx 
 
 ---
 
-## TAMAMLANAN MİLESTONE'LAR (v1.18 → v2.9, 19 Ağustos – 4 Eylül 2026)
+## TAMAMLANAN MİLESTONE'LAR (v1.18 → v2.9, 19 Ağustos – 8 Eylül 2026)
 
 `CLAUDE.md` 18 Ağustos'ta bu dosyaya ayrıştırıldıktan sonra biriken bir haftalık
 yoğun geliştirme — roadmap'in ✅ işaretli maddelerinin tam anlatısı burada,
@@ -1019,6 +1019,68 @@ deploy adımına (`.github/workflows/tests.yml`) `up --build -d`'den hemen
 sonra `docker compose -f docker-compose.prod.yml restart nginx` eklendi —
 her deploy'da nginx'in upstream DNS'ini tazeler (ucuz, sadece nginx ~1sn
 kesilir).
+
+**✅ 8 Eylül 2026 — bırakılan işlerin kapatılması + domain avantajları +
+CLAUDE.md yoğunlaştırma (16. oturum):** Kullanıcı "kaldığımız yerden devam
+edelim" dedi — önce açık kalan iki hazır PR (#98 nginx stale-upstream fix,
+#94 CSP nonce) direkt merge edildi (ikisi de CI yeşildi, review turu
+gerekmedi).
+- **PR #104 — İletişim/telif kanalı (roadmap madde 9'un son eksiği):**
+  public, rate-limitli (`5/minute`) `POST /contact` — mesajı Resend
+  üzerinden `CONTACT_RECIPIENT_EMAIL`'e iletiyor, gönderenin adresi
+  Reply-To header'ı olarak taşınıyor (kişisel e-posta hiçbir yerde public
+  sergilenmiyor). `/contact` sayfası (isim/e-posta/kategori: genel|telif/
+  mesaj) + `/privacy`+`/terms`'ten link. TDD ile yazıldı, 10 yeni test
+  (915/915 yeşil). Prod'a canlı bir test mesajıyla uçtan uca doğrulandı.
+- **PR #105 — CLAUDE.md yoğunlaştırma:** dosya 103KB/575 satıra ulaşmıştı
+  (BİLİNEN NOTLAR yaklaşık yarısı, her madde forensic "nasıl bulundu"
+  hikayesini tam anlatıyordu). CHANGELOG'a arşivlenenler: 2 Eylül (domain
+  migrasyonu+Resend) ve 3-4 Eylül (nginx stale upstream) session
+  anlatıları (hiç arşivlenmemişti), 1 Eylül'ün küçük teknik notları,
+  19-24 Ağustos'un en uzun/forensic maddeleri (git history rewrite, telif
+  hakkı araştırması, entity-overlap iki kademeli bug, env var kronolojisi).
+  Sonuç: CLAUDE.md ~103KB/575 satır → ~40KB/423 satır (~%61 küçülme),
+  hiçbir bilgi kaybolmadı.
+- **Domain avantajları — Cloudflare geçişi (kullanıcı adım adım rehber
+  eşliğinde bizzat yaptı, canlı ekran görüntüleriyle takip edildi):**
+  nameserver'lar türkticaret.net'ten Cloudflare'e taşındı (Full Strict SSL,
+  Bot Fight Mode). **İki gerçek DNS sorunu canlıda yakalandı:** (1)
+  Cloudflare'in otomatik DNS taraması `autoconfig`/`autodiscover`/`mail`
+  (webmail) CNAME'lerini de "Proxied" yapmıştı — bunlar türkticaret'in
+  KENDİ mail altyapısına işaret ettiği için "DNS only"a çevrildi (Proxied
+  kalsaydı Outlook/Thunderbird'ün otomatik-ayar protokolleri kırılabilirdi).
+  (2) Cloudflare Email Routing kurulumu mevcut `mx.turkticaret.net` MX
+  kaydıyla çakıştı ("Existing non-Cloudflare MX records conflict") — MX
+  silinip tekrar denendi, bu kez SPF TXT'i (`v=spf1 include:
+  _spf.mx.cloudflare.net ~all`) mevcut SPF ile çakışıp sessizce
+  eklenemedi (Email Routing "Misconfigured" kaldı) — iki SPF include'ını
+  TEK bir TXT kaydında BİRLEŞTİRMEK (`v=spf1 include:_spf.turkticaret.net
+  include:_spf.mx.cloudflare.net ~all`) çözdü (bir domain'de sadece TEK
+  SPF kaydı olabilir, ikinci bir tane eklemek e-postayı bozar).
+  `destek@nexstreamnews.com` artık gerçek bir adres, Cloudflare Email
+  Routing ile kişisel Gmail'e yönleniyor; `/contact` formu (CONTACT_
+  RECIPIENT_EMAIL) önce geçici olarak kişisel Gmail'e, kurulum bitince bu
+  adrese SSM üzerinden güncellendi, ikisi de canlı test mesajıyla
+  doğrulandı. Google Search Console (HTML tag doğrulaması, `layout.tsx`'e
+  runtime `GOOGLE_SITE_VERIFICATION` env var'ı ile — NEXT_PUBLIC_ ÖNEKSİZ,
+  build-time bake gerekmiyor, sadece container restart) + sitemap (6 sayfa
+  işlendi) + Bing Webmaster (CNAME doğrulama + sitemap) tamamlandı.
+- **PR #106 — Cloudflare geçişinin AYNI GÜN ortaya çıkardığı kritik
+  düzeltme:** nginx artık her isteği Cloudflare'in edge IP'sinden görüyordu
+  — `limit_req_zone`'lar (`$binary_remote_addr`'a dayanıyor) rate
+  limiting'i "ziyaretçi başına" değil "Cloudflare node başına"
+  uygulamaya başlamıştı. Cloudflare'in resmi IP aralıkları (`ips-v4`+
+  `ips-v6`) `set_real_ip_from` ile güvenilir proxy sayılıp gerçek ziyaretçi
+  IP'si `CF-Connecting-IP`'den okunacak şekilde düzeltildi — tek bir
+  değişiklik hem nginx'in kendi rate limiting'ini hem app'e giden
+  `X-Real-IP`'i (slowapi'nin dayandığı) düzeltti. Syntax, deploy'dan ÖNCE
+  gerçek nginx container'ının ağ bağlamında (`docker exec`+`nginx -t`)
+  SSM üzerinden doğrulandı.
+- **Ders — bir DNS/mail sağlayıcı geçişinde "otomatik tarama" araçlarına
+  güvenme, alan-dışı (mail-istemcisi CNAME'leri, çakışan MX/SPF) kayıtları
+  MUTLAKA elle gözden geçir; ve bir reverse-proxy katmanı (Cloudflare gibi)
+  eklerken nginx/app'in gerçek ziyaretçi IP'sini nasıl gördüğünü HER ZAMAN
+  kontrol et — rate limiting sessizce bozulur, hata vermez.**
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu, custom (Stripe dışı) billing portalı, App Store/Play Store (sadece PWA)
