@@ -24,3 +24,8 @@ class EmailPort(ABC):
 
     @abstractmethod
     def send_verification(self, to: str, verify_url: str, language: str) -> bool: ...
+
+    @abstractmethod
+    def send_contact_message(
+        self, to: str, name: str, from_email: str, category: str, message: str, language: str
+    ) -> bool: ...

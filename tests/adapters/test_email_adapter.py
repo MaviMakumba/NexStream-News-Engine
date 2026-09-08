@@ -122,6 +122,48 @@ def test_sponsor_html_escapes_malicious_fields():
     assert "<img" not in out  # onerror='...' tetiklenmesi için gerçek bir <img> tag'i gerekir
 
 
+# ── İletişim/telif formu (send_contact_message) ─────────────────────────────
+
+def test_console_adapter_send_contact_message_returns_true():
+    adapter = ConsoleEmailAdapter()
+    assert adapter.send_contact_message(
+        to="owner@test.com", name="Ada", from_email="ada@test.com",
+        category="general", message="Merhaba", language="TR",
+    ) is True
+
+
+def test_resend_adapter_sends_contact_message_with_reply_to_header():
+    with patch("src.adapters.notifications.email_adapter.settings") as mock_settings:
+        mock_settings.resend_api_key = "re_test_key"
+        mock_settings.email_from = "NexStream <no-reply@test.com>"
+        adapter = ResendEmailAdapter()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        with patch("requests.post", return_value=mock_response) as mock_post:
+            result = adapter.send_contact_message(
+                to="owner@test.com", name="Ada", from_email="ada@test.com",
+                category="takedown", message="Bu haber telif hakkımı ihlal ediyor.",
+                language="TR",
+            )
+
+    assert result is True
+    call_kwargs = mock_post.call_args[1]
+    assert call_kwargs["json"]["to"] == ["owner@test.com"]
+    assert call_kwargs["json"]["headers"]["Reply-To"] == "ada@test.com"
+
+
+def test_contact_message_html_escapes_malicious_fields():
+    from src.adapters.notifications.email_adapter import _contact_message_html
+    out = _contact_message_html(
+        name='<script>alert(1)</script>', from_email="a@test.com",
+        category="general", message='<img src=x onerror=alert(2)>', language="TR",
+    )
+    assert "<script>" not in out
+    assert "<img" not in out
+    assert "&lt;script&gt;" in out
+
+
 # ── SmtpEmailAdapter + EMAIL_PROVIDER seçim matrisi ─────────────────────────────
 
 def test_smtp_adapter_sends_via_starttls_and_login():

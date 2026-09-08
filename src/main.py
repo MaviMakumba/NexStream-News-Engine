@@ -37,6 +37,7 @@ from src.adapters.api.routers.account_router import router as account_router
 from src.adapters.api.routers.admin_router import router as admin_router
 from src.adapters.api.routers.billing_router import router as billing_router
 from src.adapters.api.routers.market_router import router as market_router
+from src.adapters.api.routers.contact_router import router as contact_router
 from src.adapters.messaging.kafka_publisher import KafkaPublisherAdapter
 from src.adapters.notifications.websocket_notifier import WebSocketNotifier
 from src.adapters.notifications.email_adapter import get_email_adapter, ConsoleEmailAdapter, SmtpEmailAdapter
@@ -228,6 +229,7 @@ app.include_router(account_router)
 app.include_router(admin_router)
 app.include_router(billing_router)
 app.include_router(market_router)
+app.include_router(contact_router)
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 

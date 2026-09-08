@@ -50,6 +50,12 @@ _STRINGS: dict = {
         "verify_body": "Hesabını kullanmaya devam edebilirsin, ama Pro/Kurumsal'a yükseltmeden önce e-posta adresini doğrulaman gerekiyor. Aşağıdaki butona tıkla.",
         "verify_cta": "E-postamı Doğrula",
         "verify_expiry": "Bu bağlantı 24 saat içinde geçerliliğini yitirir. Bu kaydı siz yapmadıysanız bu maili yok sayabilirsiniz.",
+        "contact_subject_general": "NexStream İletişim Formu",
+        "contact_subject_takedown": "NexStream Telif İtirazı",
+        "contact_category_general": "Genel",
+        "contact_category_takedown": "Telif İtirazı / Kaldırma Talebi",
+        "contact_from_label": "Gönderen",
+        "contact_category_label": "Kategori",
     },
     "EN": {
         "digest_subject": "NexStream Daily Digest",
@@ -71,6 +77,12 @@ _STRINGS: dict = {
         "verify_body": "You can keep using your account, but verifying your email is required before upgrading to Pro/Enterprise. Click the button below.",
         "verify_cta": "Verify My Email",
         "verify_expiry": "This link expires in 24 hours. If you didn't create this account, you can safely ignore this email.",
+        "contact_subject_general": "NexStream Contact Form",
+        "contact_subject_takedown": "NexStream Takedown Request",
+        "contact_category_general": "General",
+        "contact_category_takedown": "Copyright / Takedown Request",
+        "contact_from_label": "From",
+        "contact_category_label": "Category",
     },
 }
 
@@ -213,6 +225,32 @@ def _alert_html(article: Article, keyword: str, language: str) -> str:
 </body></html>"""
 
 
+def _contact_subject(category: str, language: str) -> str:
+    key = "contact_subject_takedown" if category == "takedown" else "contact_subject_general"
+    return _t(language, key)
+
+
+def _contact_message_html(name: str, from_email: str, category: str, message: str, language: str) -> str:
+    """/contact formundan gelen gövde — TAMAMEN dış kaynaklı (kayıtsız ziyaretçi
+    girdisi), digest'teki haber başlığı/özeti kadar güvenilmez; hepsi
+    html.escape()'ten geçmeli (bkz. CLAUDE.md v1.17 güvenlik notu)."""
+    category_key = "contact_category_takedown" if category == "takedown" else "contact_category_general"
+    from_label, category_label = _t(language, "contact_from_label"), _t(language, "contact_category_label")
+    safe_name = html.escape(name) if name else "—"
+    safe_email = html.escape(from_email)
+    safe_category = html.escape(_t(language, category_key))
+    # Kullanıcının mesajı satır sonlarını korumalı ama HTML enjekte edememeli —
+    # önce escape, sonra sadece \n'i <br>'a çeviriyoruz (escape SONRASI, ham
+    # metindeki bir "<br>" girdisi zaten &lt;br&gt; olarak kalır).
+    safe_message = html.escape(message).replace("\n", "<br>")
+    return f"""<html><body style='font-family:sans-serif;max-width:640px;margin:auto'>
+<p style='color:#666'>{category_label}: <b>{safe_category}</b></p>
+<p style='color:#666'>{from_label}: <b>{safe_name}</b> &lt;{safe_email}&gt;</p>
+<hr style='border:none;border-top:1px solid #eee;margin:16px 0'>
+<p style='color:#333;white-space:pre-wrap'>{safe_message}</p>
+</body></html>"""
+
+
 def _welcome_html(language: str) -> str:
     title, body = _t(language, "welcome_title"), _t(language, "welcome_body")
     return f"<html><body style='font-family:sans-serif'><h2>{title}</h2><p>{body}</p></body></html>"
@@ -239,6 +277,12 @@ class ConsoleEmailAdapter(EmailPort):
 
     def send_verification(self, to: str, verify_url: str, language: str) -> bool:
         logger.info("📧 [CONSOLE] Email verification → %s | %s", to, verify_url)
+        return True
+
+    def send_contact_message(
+        self, to: str, name: str, from_email: str, category: str, message: str, language: str
+    ) -> bool:
+        logger.info("📧 [CONSOLE] Contact (%s) → %s | from=%s <%s>", category, to, name, from_email)
         return True
 
 
@@ -287,6 +331,18 @@ class _HtmlEmailAdapter(EmailPort):
 
     def send_verification(self, to: str, verify_url: str, language: str) -> bool:
         return self._deliver(to, _t(language, "verify_subject"), _verification_html(verify_url, language))
+
+    def send_contact_message(
+        self, to: str, name: str, from_email: str, category: str, message: str, language: str
+    ) -> bool:
+        # Reply-To: from_email — sahibi Resend/Gmail'de doğrudan "yanıtla"ya
+        # basınca gönderene ulaşır, EMAIL_FROM'a değil (o kimlik doğrulanan
+        # domain adresi, ziyaretçinin adresi değil).
+        return self._deliver(
+            to, _contact_subject(category, language),
+            _contact_message_html(name, from_email, category, message, language),
+            headers={"Reply-To": from_email},
+        )
 
 
 class ResendEmailAdapter(_HtmlEmailAdapter):

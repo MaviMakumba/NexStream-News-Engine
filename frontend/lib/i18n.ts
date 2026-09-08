@@ -247,6 +247,15 @@ export const UI: Record<Lang, Record<string, string>> = {
     banUser: "Banla", unbanUser: "Banı Kaldır",
     banUserConfirm: "Bu kullanıcıyı banlamak istediğinize emin misiniz? Tüm oturumları anında kapanır.",
     activeUpdateError: "Durum değiştirilemedi.",
+
+    // ── Contact / Telif itirazı ──
+    contactPageTitle: "İletişim", contactPageIntro: "Bir sorunuz mu var, yoksa telif hakkı ihlali mi bildirmek istiyorsunuz? Aşağıdaki formu doldurun, size döneriz.",
+    contactNameLabel: "İsim (opsiyonel)", contactEmailLabel: "E-posta",
+    contactCategoryLabel: "Konu", contactCategoryGeneral: "Genel", contactCategoryTakedown: "Telif İtirazı / Kaldırma Talebi",
+    contactMessageLabel: "Mesajınız", contactSubmit: "Gönder", contactSending: "Gönderiliyor…",
+    contactSuccess: "Mesajınız gönderildi, en kısa sürede döneceğiz.",
+    contactErrorGeneric: "Mesaj gönderilemedi, lütfen daha sonra tekrar deneyin.",
+    contactLink: "İletişim", privacyContactCta: "Sorularınız veya telif itirazlarınız için bize ulaşın:",
   },
   EN: {
     // ── Nav ──
@@ -474,6 +483,15 @@ export const UI: Record<Lang, Record<string, string>> = {
     banUser: "Ban", unbanUser: "Unban",
     banUserConfirm: "Are you sure you want to ban this user? All their sessions end immediately.",
     activeUpdateError: "Could not update status.",
+
+    // ── Contact / Takedown ──
+    contactPageTitle: "Contact", contactPageIntro: "Have a question, or want to report a copyright issue? Fill out the form below and we'll get back to you.",
+    contactNameLabel: "Name (optional)", contactEmailLabel: "Email",
+    contactCategoryLabel: "Topic", contactCategoryGeneral: "General", contactCategoryTakedown: "Copyright / Takedown Request",
+    contactMessageLabel: "Your message", contactSubmit: "Send", contactSending: "Sending…",
+    contactSuccess: "Your message has been sent, we'll get back to you soon.",
+    contactErrorGeneric: "Could not send the message, please try again later.",
+    contactLink: "Contact", privacyContactCta: "For questions or copyright takedown requests, reach out to us:",
   },
 };
 
