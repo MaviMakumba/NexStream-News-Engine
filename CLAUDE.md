@@ -5,9 +5,14 @@ kararlar, durum, kurallar, komutlar, kalıcı gotcha'lar). Her session başında
 sonra gerekli dosyaları kendin aç.
 
 **Kronolojik geliştirme tarihçesi (hangi sürümde ne yapıldı, hangi bug nasıl
-bulunup düzeltildi) `docs/CHANGELOG.md`'de** — 18 Ağustos 2026'da bu dosya ~700
-satıra ulaşınca oraya ayrıştırıldı, session başında okunması gerekmez, sadece
-"bu neden böyle yapılmış" sorusuna cevap ararken aç.
+bulunup düzeltildi, forensic "nasıl bulundu" detayları) `docs/CHANGELOG.md`'de**
+— 18 Ağustos 2026'da bu dosya ~700 satıra ulaşınca, 8 Eylül 2026'da tekrar
+~575 satıra (ve çok daha yoğun bir yazımla) ulaşınca oraya ayrıştırıldı.
+**Kural:** CLAUDE.md sadece "şu an doğru olan / her oturumda gerekli olan"ı
+tutar — bir madde geçmiş zamanlı bir olay anlatıyorsa (ne zaman, nasıl bulundu,
+hangi PR) CHANGELOG'a, sadece "bundan sonra böyle yap" kuralı burada kalır.
+Session başında okunması gerekmez, sadece "bu neden böyle yapılmış" sorusuna
+cevap ararken aç.
 
 ---
 
@@ -19,8 +24,7 @@ Bağımlılık yönü: Adapter → Application → Domain. Tersi yasak.
 Üst düzey: `src/{domain,application,adapters,infrastructure}` (hexagonal katmanlar,
 + `dependencies.py`/`main.py`), `migrations/`, `frontend/` (Next.js), `tests/`,
 `infra/` (nginx/prometheus/grafana/loki/backup). Tam ağaç `ls`/`find` ile veya
-dosyayı açarak görülür — burada tekrar edilmiyor (2 Eyl 2026'da `/doctor` taraması
-sonrası budandı, koddan türetilebilir içerikti).
+dosyayı açarak görülür — burada tekrar edilmiyor.
 
 Ağaçtan koda bakarak çıkarılamayan birkaç gerçek uyarı:
 - `question_answering_port.py`'deki `QuestionAnsweringPort`, `AnalysisPort`'tan
@@ -73,11 +77,16 @@ Ağaçtan koda bakarak çıkarılamayan birkaç gerçek uyarı:
 Container içi Chroma bağlantısı: `http://chromadb:8000`
 Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
+**Yeni bir servis eklerken `restart: always` UNUTMA** — eklenmezse container
+crash'ten kendini toparlar ama host REBOOT'unda hiç geri gelmez (normal
+container-crash testleri bunu yakalamaz, sadece gerçek reboot ortaya çıkarır;
+2 Eyl 2026'da certbot'ta böyle bulundu — detay CHANGELOG).
+
 ---
 
 ## KRİTİK KARARLAR VE GEREKÇELERİ
 
-**Neden Groq?** Gemini'den taşındı. 14.400 req/gün ücretsiz, requests kütüphanesi yeterli (SDK yok). Rate limit: `Retry-After` header kullanılıyor. v1.5'ten itibaren tek prompt'ta sentiment + entities + topic çıkarılıyor. **Model: `openai/gpt-oss-20b`** (18 Ağu 2026'da `llama-3.1-8b-instant`'tan değişti — Groq o modeli tamamen kaldırdı, bkz. "v2.1.1" bloğu aşağıda). `reasoning_effort="low"` + `max_tokens=600` (reasoning modeli, `message.reasoning` alanı `content`'ten ayrı döner — JSON parse'ı bozmuyor). **Groq'un model listesi zamanla değişiyor/modeller kaldırılıyor** — `GET https://api.groq.com/openai/v1/models` ile periyodik kontrol faydalı; 404 + `model_not_found` görürsen model kaldırılmış demektir (rate limit/kota DEĞİL).
+**Neden Groq?** Gemini'den taşındı. 14.400 req/gün ücretsiz, requests kütüphanesi yeterli (SDK yok). Rate limit: `Retry-After` header kullanılıyor. v1.5'ten itibaren tek prompt'ta sentiment + entities + topic çıkarılıyor. **Model: `openai/gpt-oss-20b`** (18 Ağu 2026'da `llama-3.1-8b-instant`'tan değişti — Groq o modeli tamamen kaldırdı). `reasoning_effort="low"` + `max_tokens=600` (reasoning modeli, `message.reasoning` alanı `content`'ten ayrı döner — JSON parse'ı bozmuyor). **Groq'un model listesi zamanla değişiyor/modeller kaldırılıyor** — `GET https://api.groq.com/openai/v1/models` ile periyodik kontrol faydalı; 404 + `model_not_found` görürsen model kaldırılmış demektir (rate limit/kota DEĞİL).
 
 **Neden sentence-transformers?** Groq'un embedding API'si yok. `paraphrase-multilingual-MiniLM-L12-v2` modeli TR+EN destekler, tamamen local çalışır, API key gerektirmez. Kurulu versiyon: 3.3.1, torch: 2.10.0 (CPU wheel).
 
@@ -97,39 +106,15 @@ Env var: `CHROMA_HOST=chromadb`, `CHROMA_PORT=8000`
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v2.9 🚀 **CANLIDA: https://nexstreamnews.com** (2 Eylül 2026'da gerçek domain'e taşındı — eski `nexstreamnewsengine.duckdns.org` artık 301 ile yeni domain'e yönleniyor, kalıcı olarak kapatılmadı. Son deploy: 1 Eylül 2026, PR #91 dahil — deploy tam otomatik, main'e her merge'de GitHub Actions SSM'e bağlanıp redeploy ediyor). İlk canlıya çıkış: 29 Temmuz 2026.
-- **Test sayısı:** 892 test, hepsi yeşil (backend); frontend `next build` temiz (React 18 ile — bkz. Dependabot notu aşağıda).
-- **2 Eylül 2026 (bu oturum) — gerçek domain + profesyonel e-posta gönderimi:** Kullanıcı bulgusu ("bildirim mailleri Primary'ye düşüyor, kişisel Gmail'im spam'e düşmeye başladı") kök nedeniyle çözüldü — `EMAIL_PROVIDER=auto` SMTP'yi (kullanıcının kişisel Gmail'i) Resend'e tercih ediyordu. `nexstreamnews.com` türkticaret.net'ten satın alındı (~$2, sertifika/gereksiz eklenti upsell'leri reddedildi), Resend'de doğrulandı (DKIM+SPF+DMARC DNS kayıtları), prod `.env`'e `RESEND_API_KEY`+`EMAIL_FROM=NexStream <bildirim@nexstreamnews.com>`+`EMAIL_PROVIDER=resend` eklendi — canlı bir şifre sıfırlama maili tetiklenip sunucu logunda başarı satırıyla doğrulandı. Ardından canlı site de bu domain'e taşındı: A kaydı sunucunun Elastic IP'sine (`63.178.59.10`) çevrildi, mevcut Let's Encrypt sertifikası `certbot --expand` ile YENİ bir sertifika almadan aynı `live/` dizinine 2 domain daha eklendi (SAN: `nexstreamnews.com`, `www.nexstreamnews.com`, `nexstreamnewsengine.duckdns.org`), `infra/nginx/nginx.conf`'ta asıl 443 bloğu yeni domain'e (`default_server`), eski domain'e ayrı bir 301-redirect bloğu eklendi, `FRONTEND_URL`/`CORS_ORIGINS` güncellendi. **Ders — List-Unsubscribe header'ı ayrı bir PR'da (#95) eklendi:** RFC 2369 header'ı, hangi sağlayıcı kullanılırsa kullanılsın Gmail/Outlook'un bulk-sender/Promotions sekmesi tespitine yardımcı oluyor, domain kararından bağımsız ücretsiz bir sinyal. Roadmap madde 5 ve 6 bu oturumla ✅ oldu (detay aşağıda). **PR #96 merge sonrası otomatik deploy başarısız oldu ve site ~15 dakika 504 verdi — kök neden + kurtarma `BİLİNEN NOTLAR`'da ("kesilen docker build zombi süreç bırakabilir").** Kurtarma: `aws ec2 reboot-instances` (site zaten kesikken ek risk yaratmadı, ~1 dakikada tüm 16 servis sağlıklı döndü). Reboot sırasında ayrıca `certbot` container'ının HİÇ `restart` policy'si olmadığı ortaya çıktı (diğer tüm servisler `restart: always` ile kendiliğinden dönerken bu sessizce `Exited` kaldı) — düzeltildi.
-- **31 Ağu 2026 (PR #77-81):** iki canlı sorun (haber sıralaması + RAG'ın eski habere göre cevap vermesi) SSM diagnostiğiyle bulunup düzeltildi; RAG'da 6 bug daha (26-27 Ağu); arama skoru + görünür güven rozeti planı uygulandı. Tam kronoloji `docs/CHANGELOG.md`'de.
-- **1 Eylül 2026 (bu oturum) — roadmap #25'in devamı + canlı güvenlik/UX taraması, hepsi merge+deploy edildi:**
-  - **PR #85 (asıl kırılım, madde 25):** Groq rate-limit'i canlıda header probe'larıyla incelendi — Groq'un limiti gerçek bir günlük kota DEĞİL, sürekli dolan bir "leaky bucket" (kanıt: `x-ratelimit-reset-requests` kullanılan istek başına tam 86.4s artıyor = 86400s/1000RPD). Günlük toplam tüketim (TPD/RPD) rahattı ama worker 3 yerde patlama halinde istek atıyordu: (1) makale-arası 2sn RPM=30'u hedefliyordu, asıl darboğaz TPM=8000'e göre yetersizdi, (2) `reanalyze_missed` hiç throttle'sızdı, (3) kaynaklar arası hiç bekleme yoktu. Tek doğruluk kaynağı `settings.groq_request_interval_seconds` (4.0s) üçünde de kullanılacak şekilde düzeltildi. **Sonraki oturumun ilk işi: birkaç günlük gözlemle 429 sıklığının gerçekten düştüğünü doğrulamak.**
-  - **PR #86:** `/admin/*` uçları public OpenAPI şemasından (`/docs`) gizlendi (`include_in_schema=False`) — auth davranışı aynı, sadece anonim ziyaretçiye admin API yüzeyini Swagger'da sergilemeyi kesti.
-  - **Site trafiği analiz edildi (nginx `docker logs`, gerçek dosya değil — bkz. BİLİNEN NOTLAR):** gerçek organik trafik neredeyse sıfır — "50K istek/1455 IP" rakamının %60'ı tek bir kötücül exploit-scanner botuydu (213.136.90.179, **PR #88** ile nginx'te `deny` edildi), geri kalanı büyük ölçüde AI/arama botları + kullanıcının kendi test trafiği. AdSense başvurusu bu veriyle de ERTELENMELİ kararı doğrulandı (bkz. YOL HARİTASI madde 2).
-  - **PR #90 + PR #91 — mobil responsive bug, 2 parça (kullanıcı bulgusu, iPhone 12 dikey mod):** `/dashboard`'da ekran sağa kaydırılabiliyor, uzun entity chip'leri karttan taşıyordu. Kök neden: `.badge` class'ı `white-space:nowrap`+`flex-shrink:0` kullanıyor (kısa sabit metinler için doğru) ama entity isimleri keyfi uzunlukta — `NewsCard.tsx`'teki entity chip'lerine (+ İlgili Haberler panelindeki `common_entities`, aynı risk) `maxWidth`+ellipsis eklendi, `html`'e de savunma amaçlı `overflow-x:hidden` (PR #90). **Kullanıcı deploy sonrası hemen test edip AYNI SINIF ikinci bir bug daha buldu:** kart FOOTER'ındaki aksiyon satırı (İlgili/Kaynaklar/Sor/Dinle/Kaydet/Habere git) — bu sefer `.icon-chip`'in kendisi değil, onu saran satırın hiç `flexWrap` olmaması sebebiyle taşıyordu, `flexWrap:"wrap"` eklendi (PR #91). **Canlı tarayıcı doğrulaması ikisinde de yapılamadı** (bkz. BİLİNEN NOTLAR, playwright/Chromium indirme sorunu) — **kullanıcı deploy sonrası telefondan kontrol etmeli, aynı `.badge`/`.icon-chip` deseniyle KART İÇİNDE başka bir yerde de benzer bir taşma olabileceğini akılda tut.**
-  - **Roadmap madde 22 (entity chip→arama) aslında 24 Ağu'da (PR #51) zaten yapılmıştı** — roadmap "onay bekliyor" diye işaretlenmiş kalmıştı, düzeltildi (PR #87). Docs-drift dersi BİLİNEN NOTLAR'da.
-  - **Dependabot:** React+react-dom (#21+#22, yanlış ayrılmış PR'lar) birleştirilip 19.2.8'e çekildi (**PR #89, hâlâ AÇIK** — build+curl smoke test geçti ama canlı tarayıcı/hydration doğrulaması yapılamadı, bu ortamda Chromium indirmesi ısrarla ağ sorunuyla kesintili kalıyor). Next.js 14→16 (#82), Tailwind 3→4 (#23), TypeScript 5→7 (#18) hâlâ ayrı/bekliyor.
-  - **5 ölü dal + 1 eski deploy dalı (`optimize/t3-small-ram`) temizlendi.**
-- **Frontend:** Next.js 14 + React. 10 sinematik tema (varsayılan artık `day` — sıcak/aydınlık, `night` onun koyu kardeşi, `matrix` seçilebilir kaldı), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
+- **Versiyon:** v2.9 🚀 **CANLIDA: https://nexstreamnews.com** (2 Eylül 2026'da gerçek domain'e taşındı — eski `nexstreamnewsengine.duckdns.org` 301 ile yönleniyor, kapatılmadı). İlk canlıya çıkış: 29 Temmuz 2026. E-posta artık Resend üzerinden gidiyor (`bildirim@nexstreamnews.com`, DKIM+SPF+DMARC doğrulandı) — kişisel Gmail/SMTP artık birincil kanal DEĞİL. 2-4 Eylül'de iki ayrı deploy-kesintisi yaşandı (SSM timeout'unun host'ta zombi build süreci bırakması + nginx'in stale upstream IP'si), ikisi de kalıcı düzeltildi (detay: CHANGELOG "2 Eylül"/"3-4 Eylül").
+- **Test sayısı:** 915+ test, hepsi yeşil (backend); frontend `next build` temiz (React 19 + Next 16 ile, PR #93).
+- **Frontend:** Next.js 16 + React 19. 10 sinematik tema (varsayılan `day`), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
-- **CI/CD:** GitHub Actions — push/PR on main, postgres:15 service, `python -m pytest` + Dependabot (pip+npm+github-actions, haftalık) — 18 açık Dependabot PR'ı var (çoğu pip/npm patch-bump, review bekliyor; 4 major-bump'ın durumu YOL HARİTASI madde 7'de).
-- **Branch — 24 Ağu 2026'da deploy mimarisi değişti:** PR #48 ve #47 21 Ağu 2026'da main'e merge edilmişti ama **prod hâlâ ayrı `optimize/t3-small-ram` dalından deploy ediliyordu** — karşılaştırma yapılınca o dalın PR #47'nin (arama sorgu genişletme) dosyalarını hiç içermediği ortaya çıktı (canlı site sessizce eski kalmıştı, `groq_query_expander.py` prod'da yoktu). Kullanıcı kararıyla **`optimize/t3-small-ram` emekliye ayrıldı, prod artık doğrudan `main`'den deploy ediliyor** — roadmap madde 19'un (deploy'u main'e bağlama) drift kısmı bu şekilde çözüldü (tam otomatik CI/CD tetikleyicisi hâlâ yok, deploy hâlâ elle SSM ile tetikleniyor). Sunucuda `git checkout main && git reset --hard origin/main` yapıldı, redeploy sonrası canlı bir arama isteğiyle yeni kodun çalıştığı doğrulandı (`groq_query_expander` log satırı göründü, o dosya bir önceki deploy'da yoktu). **Yeni akış: main'den kısa ömürlü feature branch aç → PR → merge → SSM'de `git checkout main && git reset --hard origin/main` → `docker compose -f docker-compose.prod.yml up --build -d`.** `optimize/t3-small-ram` dalı (yerel+uzak) siliniMEDİ, sadece kullanılmıyor — silme kararı ayrı, henüz verilmedi.
-
-**25 Ağu 2026'da roadmap madde 19'un kalan kısmı (tam otomatik CI/CD) tamamlandı:**
-`.github/workflows/tests.yml`'e yeni bir `deploy` job'ı eklendi (PR #52) —
-`test`+`frontend` job'ları geçerse main'e her push'ta SSM üzerinden yukarıdaki
-akışı (`git reset --hard` + `docker compose up --build -d`) OTOMATİK tetikliyor,
-ardından `/api/health`'i polling ile doğruluyor. **25 Ağu 2026'da kullanıcı
-gerekli iki GitHub Secret'ı (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
-`gh secret set` Bash sınıflandırıcısı tarafından Claude'a engellendiği için
-kendisi) ekledi ve otomasyon UÇTAN UCA DOĞRULANDI** — başarısız olmuş eski bir
-`deploy` job'ı `gh run rerun --failed` ile yeniden tetiklendi, bu kez SSM'e
-GERÇEKTEN bağlanıp deploy'u kendi başına yaptı, `Success` döndü. **Artık main'e
-her merge tam otomatik prod'a çıkıyor, elle SSM adımı SADECE manuel
-müdahale/debug gerektiğinde kullanılmaya devam eder.
-- **Hedef:** 24 Ağu 2026'da kullanıcı buzdağı fork sorusuna cevap verdi — proje **ŞİMDİLİK bilinçli olarak portfolyo** olarak kalıyor (gerçek ürüne dönüştürme kararı ertelendi, AWS kredisi tükenmeden önce tekrar gözden geçirilecek). Tek VPS mimarisi de bilinçli olarak korunuyor (çoklu-bölge/HA yatırımı YOK).
-- **Kısıt:** VPS'te 7/24 bağımsız çalışıyor. **Bütçe: GERÇEKTEN $0/ay** (kalıcı kısıt) — AWS Free Plan'ın $100 kredisiyle karşılanıyor, ~$18,4'ü harcanmış (18 Ağu 2026), günlük yakım ~$0,93 (~$28/ay) → kredi mevcut hızla **Kasım 2026 ortasında** tükenir (28 Ocak 2027 son kullanma tarihinden ~2,5 ay önce) — bu tarihten önce bir karar gerekir. **24 Ağu 2026'da AWS-sonrası alternatifler resmi kaynaklardan araştırıldı (VPS fiyat karşılaştırması):** Oracle Cloud "Always Free" artık güvenilmez hale geldi (Haziran 2026'da Ampere A1 limiti habersizce 4 OCPU/24GB'den **2 OCPU/12GB'ye düşürüldü**, limit-üstü instance'lar Ağustos 2026'dan itibaren sonlandırılıyor) — hâlâ tek $0 seçenek ama artık "kur unut" güvenilirliğinde değil, en fazla yedek. Fly.io/Render/Railway'in ücretsiz katmanları (PaaS, uyku modu/kredi kartı zorunluluğu) 16 servisli Docker Compose stack'ine uygun değil. **En iyi gerçek alternatif: Hetzner CX33** (4 vCPU/8GB RAM, ~€8.49/ay ≈ $9-10, Almanya/Finlandiya — TR'ye görece yakın), ikinci sırada Contabo aynı spec'e $6.60/ay (CPU steal-time riski var, LLM/embedder gibi CPU-yoğun işler için dalgalanabilir). RAM darsa ilk kapatılacak servisler: Prometheus/Grafana/Loki/Promtail (tek operatörlü projede opsiyonel) → Redis (zaten NullCache fallback'i var) → backup container'ı (host-cron'a taşınabilir). Şu an aksiyon YOK, sadece Kasım kararı için hazırlık.
-- **Lokal araçlar:** Node.js v24 + npm host'a kuruldu (winget). Docker Desktop, PostgreSQL 17, Git zaten kurulu.
+- **CI/CD:** main'e her push → `.github/workflows/tests.yml` testleri geçirir, sonra SSM ile prod'u otomatik redeploy edip `/api/health`'i polling ile doğrular. Elle SSM SADECE manuel müdahale/debug için. Dependabot (pip+npm+github-actions, haftalık) — düzenli olarak açık PR birikir, her oturumda `gh pr list` ile göz ucuyla kontrol et.
+- **Deploy akışı (24 Ağu 2026'dan beri sabit):** main'den kısa ömürlü feature branch aç → PR → merge → (otomatik) SSM'de `git checkout main && git reset --hard origin/main` → `docker compose -f docker-compose.prod.yml up --build -d` → `docker compose -f docker-compose.prod.yml restart nginx` (upstream DNS tazelemek için, 3-4 Eyl dersi). Prod artık doğrudan `main`'den deploy oluyor, ayrı bir deploy dalı YOK.
+- **Hedef:** Proje ŞİMDİLİK bilinçli olarak portfolyo olarak kalıyor (24 Ağu 2026 kararı — gerçek ürüne dönüştürme AWS kredisi tükenmeden önce tekrar gözden geçirilecek). Tek VPS mimarisi bilinçli korunuyor (çoklu-bölge/HA yatırımı YOK).
+- **Kısıt — bütçe GERÇEKTEN $0/ay:** AWS Free Plan'ın $100 kredisiyle karşılanıyor, günlük yakım ~$0,93 (~$28/ay) → **kredi ~Kasım 2026 ortasında tükenir**, bu tarihten önce bir karar gerekir. En iyi araştırılmış alternatif: Hetzner CX33 (~$9-10/ay); Oracle Free artık güvenilmez (limitler habersiz düşürüldü), en fazla yedek. RAM darsa ilk kapatılacaklar: Prometheus/Grafana/Loki/Promtail → Redis → backup container'ı. Detay/tam karşılaştırma: CHANGELOG.
 
 ---
 
@@ -140,212 +125,99 @@ GERÇEKTEN bekleyen işler var:
 
 1. **Anasayfa tasarım yenilemesi** — kullanıcı "şu an tamamen basit bir AI
    tasarımı gibi duruyor" dedi (18 Ağu 2026), özellikle hero. Bilinçli olarak
-   BAŞLANMADI bu oturumda — gerçek bir tasarım kararı işi, `frontend-design`
-   skill'i ile ayrı/temiz bir oturumda ele alınmalı, aceleye getirilmemeli.
+   BAŞLANMADI — gerçek bir tasarım kararı işi, `frontend-design` skill'i ile
+   ayrı/temiz bir oturumda ele alınmalı, aceleye getirilmemeli.
 2. **Gerçek Stripe entegrasyonu — 24 Ağu 2026'da kullanıcı kararıyla ERTELENDİ**
    (şirket kurma/vergi levhası gibi ek hukuki-mali yük istemiyor). Kod tarafı
    hazır kalıyor ama öncelik değil. **Bunun yerine gelir yolu olarak Google
    Ads (AdSense, SADECE Free tier'da gösterilecek) değerlendiriliyor** —
    resmi kaynaklardan araştırıldı, sonuç:
-   - **Şirketsiz/şahıs olarak mümkün** — AdSense'in kendisi şirket kaydı
-     istemiyor (Individual hesap türü yeterli, sonradan Business'a
-     değiştirilemiyor, sadece kapat-yeniden-aç).
+   - **Şirketsiz/şahıs olarak mümkün** (Individual hesap türü yeterli).
    - **Vergi tarafında en elverişli yol GVK mükerrer 20/B istisnası**
-     (325 seri no'lu Tebliğ, 26 Eylül 2024'te "internet üzerinden sunulan
-     hizmetler"i de kapsayacak şekilde genişletildi) — vergi dairesinden
-     (veya `digital.gib.gov.tr` Dijital Vergi Dairesi'nden) bir "istisna
-     belgesi" alıp faaliyete özel bir banka hesabı açmak yeterli, banka
-     %15 stopaj keser, gelir 2026 için 4. dilim tavanı olan **5.300.000
-     TL'yi** aşmadıkça bu stopaj NİHAİ vergidir — beyanname/fatura/şirket
-     YOK. (Şart: istisna belgesi + ayrı banka hesabı fiilen açılmalı,
-     yoksa gelir varsayılan olarak "ticari kazanç" sayılır ve şahıs/esnaf
-     mükellefiyeti + yıllık beyan gerekir.) **Fiilen başvurmadan önce bir
-     mali müşavirle NexStream'in özelinde bu istisnaya girip girmediği
-     teyit edilmeli** — araştırma resmi tebliğ metnine değil (TLS hatası
-     nedeniyle) YMM/vergi danışmanlığı kaynaklarının alıntılarına dayandı.
-   - **Asıl darboğaz vergi değil, AdSense ONAYI:** Google'ın resmi ret
-     nedenleri arasında "yeterli özgün içerik yok" ve "scraped content"
-     birebir var — NexStream'in RSS-agregatör yapısı + neredeyse sıfır
-     trafik bu riski yüksek yapıyor. **Sonuç: AdSense başvurusu gerçek
-     kullanıcı trafiği gelene kadar ERTELENMELİ**, şimdi başvurmak muhtemel
-     ret + bekleme kaybı demek. `/privacy` sayfasını çerez-kategorileri +
-     "Ads Settings" linkiyle şimdiden reklam-hazır hale getirmek (KVKK
-     Çerez Rehberi'ne göre reklam çerezleri açık rıza gerektiriyor)
-     maliyetsiz bir ön hazırlık. Telif açısından risk zaten düşük (aşağıya
-     bak) — reklam gelirinin bunu artırdığına dair bir bulgu yok.
-   - Iyzico/PayTR gibi bir alternatif ödeme sağlayıcısı hâlâ gündemde
-     DEĞİL — kullanıcı gelir yolunu reklama kaydırdı, Stripe/PayTR ikisi de
-     "gerçek ürün" fork'u netleşirse tekrar gündeme gelebilir.
+     (325 seri no'lu Tebliğ) — vergi dairesinden/`digital.gib.gov.tr`'den
+     "istisna belgesi" alıp faaliyete özel banka hesabı açmak yeterli, banka
+     %15 stopaj keser, 2026 için 4. dilim tavanı (5.300.000 TL) aşılmadıkça
+     bu NİHAİ vergidir — beyanname/fatura/şirket YOK. **Fiilen başvurmadan
+     önce bir mali müşavirle teyit edilmeli** (araştırma resmi tebliğ
+     metnine değil YMM kaynaklarının alıntılarına dayandı).
+   - **Asıl darboğaz vergi değil, AdSense ONAYI:** ret nedenleri arasında
+     "scraped content"/"yeterli özgün içerik yok" var, RSS-agregatör yapısı
+     + neredeyse sıfır trafik riski yüksek yapıyor. **Sonuç: başvuru gerçek
+     trafik gelene kadar ERTELENMELİ.** `/privacy`'yi çerez-kategorileri +
+     "Ads Settings" linkiyle şimdiden hazırlamak maliyetsiz bir ön hazırlık.
+     Telif riski zaten düşük (bkz. CHANGELOG "24 Ağu telif değerlendirmesi").
+   - Iyzico/PayTR gibi bir alternatif hâlâ gündemde DEĞİL.
 3. **Özel kaynak ekleme (custom source ingestion)** — kullanıcı kararıyla
-   ŞİMDİLİK ertelendi, pricing metni "bize ulaşın" şeklinde yumuşatıldı
-   (18 Ağu 2026). Tam private/per-user versiyonu gerçek bir mimari iş
-   (kullanıcı bazlı veri izolasyonu şu an sistemde YOK) — ileride sadece
-   talep eden kullanıcıya özel, elle açılan bir şey olarak düşünülebilir.
-4. **Launch içeriği** — LinkedIn metni + OG görseli hazır (18 Ağu 2026).
-   Kalan: Product Hunt materyali, varsa ek sosyal medya içeriği — düşük öncelik.
-5. ~~Resend domain doğrulaması~~ — ✅ 2 Eylül 2026, `nexstreamnews.com`
-   Resend'de doğrulandı (DKIM+SPF+DMARC), prod `EMAIL_PROVIDER=resend`.
-   Artık SMTP (kişisel Gmail) değil Resend birincil — tüm kullanıcılara mail
-   gidiyor. Detay: MEVCUT DURUM'daki "2 Eylül 2026" satırı.
-6. **Cloudflare proxy** — gerçek domain artık VAR (`nexstreamnews.com`, 2 Eylül
-   2026'da satın alındı, DNS türkticaret.net'te yönetiliyor, site bu domain'e
-   taşındı — bkz. MEVCUT DURUM). Roadmap madde 6'nın asıl blokajı (DuckDNS
-   subdomain'i Cloudflare'e delege edilemiyordu) ORTADAN KALKTI — kalan iş
-   sadece nameserver'ları türkticaret.net'ten Cloudflare'e devretmek, henüz
-   YAPILMADI, karar bekliyor (proxy'nin gerçek faydası — DDoS/bot koruması,
-   CDN — şu anki neredeyse-sıfır trafikte düşük öncelik).
-7. **Dependabot PR'ları** — 19/25 Ağu'da düşük riskli olanlar merge edildi
-   (kronoloji: `docs/CHANGELOG.md`). **1 Eyl 2026 durumu (18 açık PR):**
-   - ✅ **React + react-dom (#21+#22) birleştirildi** — Dependabot ikisini
-     YANLIŞ ayırmıştı (her biri tek başına diğerinin major bump'ını
-     bekleyip ERESOLVE veriyordu). `fix/react-19-upgrade` dalında ikisi
-     BİRLİKTE 19.2.8'e çekildi, **PR #89 hâlâ AÇIK** — `npm run build` +
-     curl smoke-test (5 sayfa, sunucu tarafı hata yok) geçti ama gerçek
-     tarayıcı/hydration konsolu kontrol edilemedi (bu ortamda Playwright'ın
-     Chromium indirmesi ısrarla ağ sorunuyla kesintili kaldı, bkz. BİLİNEN
-     NOTLAR). **Sonraki oturum: hydration kontrolünü tamamlayıp PR #89'u
-     merge et, ya da kullanıcı telefon/tarayıcıdan doğrularsa direkt merge.**
-   - **Next.js 14→16 (#82):** CI (build) YEŞİL, React 18 ile de derleniyor
-     (React 19'a sıkı bağımlı değilmiş — peer range daha geniş). Runtime
-     smoke-test (dev server + sayfa gezme) hâlâ yapılmadı.
-   - **Tailwind 3→4 (#23):** build KIRIK — `@tailwindcss/postcss` paketi +
-     postcss config güncellemesi gerekiyor (resmi v4 migration adımı).
-   - **TypeScript 5→7 (#18):** build KIRIK — muhtemelen daha katı tip
-     kontrolü gerçek bir hatayı yakalıyor.
-   - Geri kalan ~14 PR (npm/pip patch-minor bump'lar) hiç triyaj edilmedi.
-   Review/merge kararı kullanıcıda; Next 16 + Tailwind 4 + TS 7 birbirini
-   etkileyebilir, birlikte planlanmalı.
-8. ~~Hesap silme endpoint'i~~ — ✅ 19 Ağu 2026'da tamamlandı. `DELETE /account`
-   (parola + checkbox onayı, owner rolü hariç, Stripe aboneliği varsa
-   otomatik iptal, ilişkili tüm satırlar — sessions/token'lar/usage_log/
-   bülten aboneliği — kalıcı silinir). Frontend'de /account sayfasında
-   "Tehlikeli Bölge".
-9. ~~Analytics/hata takibi~~ — ✅ 25 Ağu 2026, canlıda doğrulandı (Sentry
-   `app`+`worker`'da, PostHog EU host'ta). Detay: `docs/CHANGELOG.md`.
-   **Ayrı ve hâlâ açık:** `/privacy`+`/terms`'te "bizimle iletişime geçin"
-   deniyor ama gerçek bir iletişim kanalı (e-posta/`/contact`) YOK — telif
-   itiraz/takedown süreci için de faydalı olur, küçük bağımsız bir iş.
-10. ~~Rakip taraması sonrası quick-win paketi~~ — ✅ 19 Ağu 2026, canlıda
-    doğrulandı. Kaydet/sonra oku, corroboration rozeti, tarayıcı-yerel TTS.
-    Detay: `docs/CHANGELOG.md`.
-18. **Gerçek makale metni scraping (okuma süresi için)** — 20 Ağu 2026'da
-    okuma süresi rozeti kaldırıldı: hesap DB'de sakladığımız `content` alanına
-    (RSS `<description>`/`<summary>`, ~30-80 kelimelik teaser) dayanıyordu,
-    gerçek makale sitedeki tam metin hiç çekilmiyor — bu yüzden HER haber
-    ~1dk çıkıyordu, yanıltıcıydı (kullanıcı bulgusu). Gerçek bir tahmin için
-    17 kaynağın her birinin makale sayfasından tam metni çekmek (Readability/
-    BeautifulSoup tarzı bir parser, `NTV Playwright scraper` kadar ağır değil
-    ama yine de HTML yapısı kaynak başına farklı olduğu için kırılgan) ayrı
-    bir roadmap maddesi — ingest anında mı yoksa on-demand mı çekileceği de
-    ayrı bir karar (ingest anında tüm kaynaklar için ekstra HTTP + parse
-    maliyeti, on-demand kart açıldığında gecikme).
-11. ~~Story cluster görünümü~~ — ✅ 19 Ağu 2026, "Bu haberi kim nasıl anlatıyor"
-    (`GET /news/{id}/sources`, ChromaDB 0.72 eşik). Detay: `docs/CHANGELOG.md`.
-12. ~~Web Push bildirimleri~~ — ✅ 25 Ağu 2026. `WebPushPort`+`PyWebPushAdapter`,
-    mevcut "Anlık Uyarılar" e-posta akışının 2. kanalı, Pro+ gating. Otomatik
-    güvenlik incelemesi bir IDOR bulup düzeltti (bkz. BİLİNEN NOTLAR). Detay:
-    `docs/CHANGELOG.md`.
-13. RAG tabanlı "bu konuda soru sor" mini sohbet — ✅ 26 Ağu 2026 canlıya
-    çıktı (`QuestionAnsweringPort`/`GroqQuestionAnswerer`, deterministik kanıt
-    kapısı, soru başına en fazla 1 Groq çağrısı, `/api/v1/news/ask` sadece).
-    27 Ağu 2026'da canlı QA'da 6 GERÇEK bug bulunup düzeltildi (false-friend
-    keyword, Groq model-ayrımı, dil eşlemesi, eşik kalibrasyonu, "haberdar et"
-    kaynağı, dotted-İ + soru-parçacığı skor seyreltmesi — PR #70-#75). Detay:
-    `docs/CHANGELOG.md`. **27 Ağu 2026'da bu oturumda ayrıca RAG kanıt paketine
-    `content` eklendi** (eskiden sadece başlık gidiyordu, LLM en basit detayı
-    bile göremiyordu) — bkz. `rag_common.py`/`news_service.py::answer_question`.
-
-    **Canlı diagnostik script'iyle (SSM üzerinden container içinde gerçek
-    DI-wired `NewsService.hybrid_search` çağrısı) bulunan, BİLİNÇLİ OLARAK
-    BUGÜN ÇÖZÜLMEYEN 7. bir bulgu — sonraki oturumun gündemi:** "Beşiktaş
-    maçı saati" gibi bir soruda retrieval GERÇEKTEN doğru haberi buluyor
-    (%59.4 skor, eşiği geçiyor) ama kanıt paketi bunun yanına "Filenin
-    Sultanları, Almanya karşısında! Maçın heyecanı canlı yayın ile" gibi
-    TAMAMEN ALAKASIZ (farklı spor dalı/takım) ama "maç" kelimesini paylaşan
-    ve ChromaDB'ye genel "maç" temasıyla semantik olarak benzeyen şablon
-    içeriklerle doluyor — LLM bu gürültü içinde "asıl soruyu (saat) hiçbiri
-    cevaplamıyor" deyip kanıtsız şablonuna düşüyor. Bu, 24 Ağu 2026'da
-    corroboration/related/story-cluster'da çözülen "jenerik entity" bug
-    sınıfının RAG retrieval'daki YENİ bir görünümü — ama oradaki
-    `_distinguishing_entity_keys` çözümü doğrudan uygulanamaz (o ingest-
-    zamanı entity-overlap'e dayanıyor, bu SORGU-zamanı semantik+keyword
-    karışımı bir problem). Gerçek bir çözüm muhtemelen sorguda geçen özel
-    isim/varlığın (ör. "Beşiktaş") kanıt paketindeki HER makalede literal
-    olarak doğrulanmasını gerektirecek — bounded bir hızlı yama değil, ayrı
-    bir tasarım turu ister. `RETRIEVAL_THRESHOLD` kalibrasyonu artık kısmen
-    ilerledi (madde 4) ama spec'in tam 5 senaryolu QA turu (kanıtsız/tek-
-    kaynak/çok-kaynak/dolaylı-alaka/multi-turn) VE tarayıcıda oturum ayrımı/
-    free-tier kilit ekranı kontrolü HÂLÂ tam yapılmadı.
-17. **Özet (summary) clickbait başlığı papağan gibi tekrarlamamalı** (19 Ağu
-    2026, kullanıcı örnek verdi: "Fenerbahçe'ye müjde! Barcelona istiyor" gibi
-    bir başlıkta özet de aynı belirsizliği koruyordu — hangi oyuncu (örn.
-    Livakovic) olduğu içerikte varken özete yansımıyordu). Groq prompt'u
-    (`adapters/analysis/common.py`) özetin başlıktaki clickbait/belirsizliği
-    ÇÖZMESİNİ, içerikten somut isim/varlık çıkarmasını isteyecek şekilde
-    güçlendirilmeli. Bounded bir prompt-engineering işi, kendi test turu ister
-    (gerçek örnek haberlerle önce/sonra karşılaştırması).
-16. ~~Admin panelinde /admin/users tablosu sıralanabilir olmalı~~ — ✅ 26 Ağu
-    2026. Sahibinden.com tarzı, 3 durumlu döngü, client-side sort. Detay:
-    `docs/CHANGELOG.md`.
-15. ~~Test paketi sağlık denetimi~~ — ✅ 25 Ağu 2026, **sonuç: paket sağlıklı,
-    temizlik gerekmedi** (AST taraması: ölü test yok, skip/xfail yok, "mock'un
-    kendini test etme" şüphelileri incelendi, hepsi kasıtlı). Detay:
-    `docs/CHANGELOG.md`.
-14. ~~Kullanıcı banlama (moderatör/admin)~~ — ✅ 19 Ağu 2026. `PATCH
-    /admin/users/{id}/active`, `update_user_role` ile aynı kademeli yetki
-    deseni. Detay: `docs/CHANGELOG.md`.
-19. ~~Arama ilişkisel sorgu genişletme (query expansion)~~ — ✅ 20 Ağu 2026.
-    `QueryExpansionPort`/`GroqQueryExpander`, fail-open, `SEARCH_QUERY_
-    EXPANSION_ENABLED`. Detay: `docs/CHANGELOG.md`.
-20. ~~Deploy pipeline'ı main merge'ine bağla~~ — ✅ 24-25 Ağu 2026, uçtan uca
-    doğrulandı (bkz. MEVCUT DURUM "Branch" notu — güncel akış orada). Detay:
-    `docs/CHANGELOG.md`.
-21. ~~"Kaynaklar" (story cluster) UI'ının kullanışlılığı~~ — ✅ 24 Ağu 2026,
-    gerçek bir skorlama bug'ı da bulup düzeltti (bkz. BİLİNEN NOTLAR "jenerik
-    entity" maddesi). Detay: `docs/CHANGELOG.md`.
-22. ~~Entity chip → arama~~ — ✅ 24 Ağu 2026'da AYNI GÜN merge edildi (PR #51,
-    `feat: entity chip'leri arama sayfasına yönlendiren buton yap`) — bu madde
-    o zaman "onay bekliyor" diye işaretlenmiş kalmıştı, roadmap güncellenmemiş
-    (1 Eyl 2026'da fark edilip düzeltildi). `NewsCard.tsx`'teki entity chip'leri
-    `TrendingPills`'in kullandığı AYNI `router.push('/dashboard/search?q=...')`
-    desenini kullanan `<button>`. **Ders: bir işi "sıradaki oturumun İLK işi
-    olmalı" diye not düşüp session'ı bitirmek, o işin GERÇEKTEN yapıldığını
-    session-end güncellemesinin yakaladığından emin olmayı gerektirir — burada
-    aynı gün içinde başka bir dalda/PR'da yapılmış ama roadmap maddesi
-    kapatılmamış, bir sonraki oturum onu hâlâ "bekliyor" sanıp tekrar
-    gündeme getirdi.**
-23. ~~Stratejik "buzdağı" değerlendirmesi~~ — ✅ 24 Ağu 2026'da karar verildi:
-    proje ŞİMDİLİK bilinçli olarak portfolyo olarak kalıyor (bkz. MEVCUT
-    DURUM "Hedef" satırı — güncel karar orada). Artifact ("Buzdağının
-    Neresindeyiz?") ve araştırmanın tam detayı: `docs/CHANGELOG.md`. Somut
-    son tarih hâlâ geçerli: AWS kredisi ~Kasım 2026 ortasında bitiyor, o
-    tarihten önce yeniden gözden geçirilecek.
-24. ~~LLM modüllerini bölme fizibilitesi~~ — ✅ SPIKE sorusu 27 Ağu 2026'da
-    cevaplandı: Groq TPD kotası MODEL BAŞINA ayrı bir havuz (bkz. BİLİNEN
-    NOTLAR), `GroqQuestionAnswerer` bu bilgiyle `gpt-oss-120b`'ye taşındı.
-    Detay: `docs/CHANGELOG.md`. ~~Kalan iş: `GroqQueryExpander`'ı 120b'ye
-    taşımak~~ — ✅ bu da 27 Ağu 2026'da yapılmış (kodda zaten `gpt-oss-120b`,
-    bu not 31 Ağu 2026'da eskimiş haliyle yakalanıp düzeltildi). **20b TPD
-    havuzunun artık TEK tüketicisi worker'ın haber analiz hattı.**
-25. **Groq günlük token/hacim maliyetini düşürme — 1. dilim (PR #79, 31 Ağu)
-    ✅ + 2. dilim: burst-pacing kök neden düzeltmesi (PR #90 DEĞİL, PR #85,
-    1 Eyl 2026) ✅, devamı hâlâ sıradaki oturumun gündeminde.**
-    1. dilim (prompt sıkıştırma + gerçek token metriği) kronolojisi:
-    `docs/CHANGELOG.md`. **1 Eyl 2026'da temiz veriyle (18 saatlik worker
-    uptime, redeploy kirliliği yok) ölçüldü: haber başına ~514 token
-    (eski ~969 tahmininin yaklaşık yarısı, 1. dilim beklenenden iyi
-    çalışmış) — ama rate limit şiddeti DEĞİŞMEMİŞTİ (18 saatte 195×429,
-    bekleme ~%90 uptime).** Canlı Groq header probe'larıyla kök neden
-    bulundu: darboğaz token/istek HACMİ değil, isteklerin BURST halinde
-    atılması (bkz. MEVCUT DURUM'daki PR #85 özeti + BİLİNEN NOTLAR "leaky
-    bucket" notu) — 3 boşluk kapatıldı, `groq_request_interval_seconds`
-    tek doğruluk kaynağı oldu. **Sonraki oturumun ilk işi: birkaç günlük
-    gözlemle (worker log'unda `rate limit` sıklığı) PR #85'in gerçekten
-    işe yarayıp yaramadığını doğrulamak.** İşe yaramazsa/kısmen yararsa
-    devreye girecek tamamlayıcı kol hâlâ aynı: `news_service.py`'de
-    `is_near_duplicate` kontrolü Groq analizinden SONRA çalışıyor —
-    near-duplicate haberler bile tam analiz alıyor, ama `is_duplicate`
-    feed'i filtrelemediği için önce "gizlensin mi" ürün kararı gerekiyor.
+   ŞİMDİLİK ertelendi, pricing metni "bize ulaşın" şeklinde yumuşatıldı.
+   Tam private/per-user versiyonu gerçek bir mimari iş (kullanıcı bazlı veri
+   izolasyonu şu an sistemde YOK).
+4. **Launch içeriği** — LinkedIn metni + OG görseli hazır. Kalan: Product
+   Hunt materyali, ek sosyal medya içeriği — düşük öncelik.
+5. ~~Resend domain doğrulaması~~ — ✅ 2 Eylül 2026.
+6. **Cloudflare proxy** — gerçek domain artık VAR, roadmap madde 6'nın asıl
+   blokajı (DuckDNS delege edilemiyordu) ORTADAN KALKTI. **8 Eylül 2026'da
+   geçiş başladı** — adım adım rehber: bkz. kullanıcının kayıtlı Artifact
+   linki (Cloudflare hesabı + DNS + nameserver + SSL/WAF/Bot Fight Mode +
+   Email Routing ile `destek@nexstreamnews.com` + Search Console/Bing).
+7. **Dependabot PR'ları** — düzenli triyaj gerekiyor (`gh pr list` ile
+   kontrol et). **8 Eylül 2026 durumu:** React 19 +
+   Next 16 zaten merge (PR #93). Tailwind 3→4 ve TypeScript 5→7 hâlâ build
+   kırık halde bekliyor (v4/v7 migration adımları gerekiyor), ~14 npm/pip
+   patch-minor PR hiç triyaj edilmedi. Review/merge kararı kullanıcıda.
+8. ~~Hesap silme endpoint'i~~ — ✅ 19 Ağu 2026.
+9. ~~Analytics/hata takibi~~ — ✅ 25 Ağu 2026 (Sentry + PostHog).
+   ~~İletişim/telif kanalı~~ — ✅ 8 Eylül 2026, `POST /contact` +
+   `/contact` sayfası (Resend ile `CONTACT_RECIPIENT_EMAIL`'e iletiliyor,
+   kişisel e-posta public'te sergilenmiyor).
+10. ~~Rakip taraması sonrası quick-win paketi~~ — ✅ 19 Ağu 2026.
+11. ~~Story cluster görünümü~~ — ✅ 19 Ağu 2026.
+12. ~~Web Push bildirimleri~~ — ✅ 25 Ağu 2026.
+13. ~~RAG tabanlı "bu konuda soru sor" mini sohbet~~ — ✅ 26 Ağu 2026 canlıya
+    çıktı. **Bilinçli olarak henüz çözülmeyen bir bulgu:** retrieval bazen
+    doğru haberi buluyor ama kanıt paketi "maç" gibi genel bir kelimeyi
+    paylaşan ama tamamen alakasız haberlerle doluyor — sorguda geçen özel
+    ismin (ör. takım adı) kanıt paketindeki HER makalede literal doğrulanmasını
+    gerektiren ayrı bir tasarım turu ister (bounded bir yama değil). Detay:
+    CHANGELOG "LLM modülü bölme spike'ı" ve RAG bug turu notları. Ayrıca
+    spec'in tam 5 senaryolu QA turu VE tarayıcıda oturum ayrımı/free-tier
+    kilit ekranı kontrolü hâlâ tam yapılmadı.
+14. **Özet (summary) clickbait başlığı papağan gibi tekrarlamamalı** (19 Ağu
+    2026, kullanıcı örnek verdi). Groq prompt'u (`adapters/analysis/
+    common.py`) özetin başlıktaki belirsizliği ÇÖZMESİNİ, içerikten somut
+    isim/varlık çıkarmasını isteyecek şekilde güçlendirilmeli. Bounded bir
+    prompt-engineering işi, kendi test turu ister.
+15. ~~Admin panelinde /admin/users tablosu sıralanabilir~~ — ✅ 26 Ağu 2026.
+16. ~~Test paketi sağlık denetimi~~ — ✅ 25 Ağu 2026 (sonuç: sağlıklı).
+17. ~~Kullanıcı banlama (moderatör/admin)~~ — ✅ 19 Ağu 2026.
+18. **Gerçek makale metni scraping (okuma süresi için)** — okuma süresi
+    rozeti 20 Ağu 2026'da kaldırıldı (DB'deki `content` sadece RSS teaser'ı,
+    ~30-80 kelime, gerçek makale hiç çekilmiyor). 17 kaynağın makale
+    sayfasından tam metin çekmek (Readability/BeautifulSoup tarzı,
+    HTML yapısı kaynak başına farklı → kırılgan) ayrı bir roadmap maddesi;
+    ingest-anında mı on-demand mı çekileceği de ayrı bir karar.
+19. ~~Arama ilişkisel sorgu genişletme~~ — ✅ 20 Ağu 2026.
+20. ~~Deploy pipeline'ı main merge'ine bağla~~ — ✅ 24-25 Ağu 2026.
+21. ~~"Kaynaklar" (story cluster) UI'ının kullanışlılığı~~ — ✅ 24 Ağu 2026.
+22. ~~Entity chip → arama~~ — ✅ 24 Ağu 2026 (PR #51).
+23. ~~Stratejik "buzdağı" değerlendirmesi~~ — ✅ 24 Ağu 2026 (bkz. MEVCUT
+    DURUM "Hedef" satırı).
+24. ~~LLM modüllerini bölme fizibilitesi~~ — ✅ 27 Ağu 2026 (Groq TPD kotası
+    MODEL BAŞINA ayrı havuz; `GroqQuestionAnswerer` + `GroqQueryExpander`
+    ikisi de `gpt-oss-120b`'ye taşındı, worker'ın haber analiz hattı 20b
+    havuzunun TEK tüketicisi).
+25. **Groq günlük token/hacim maliyetini düşürme — 1. dilim (prompt
+    sıkıştırma) ✅ + 2. dilim (burst-pacing kök neden düzeltmesi, PR #85,
+    1 Eyl) ✅.** Kök neden canlı header probe'larıyla bulundu: Groq'un
+    limiti günlük kota değil sürekli dolan bir "leaky bucket" — toplam
+    tüketim rahat olsa bile BURST halinde istek atmak kovayı anlık boşaltıp
+    dakikalarca 429'a yol açıyor. `groq_request_interval_seconds` (4.0s)
+    üç noktada (makale-arası, `reanalyze_missed`, kaynaklar-arası) tek
+    doğruluk kaynağı yapıldı. **Sonraki oturumun işi: birkaç günlük
+    gözlemle (worker log'unda `rate limit` sıklığı) gerçekten işe yarayıp
+    yaramadığını doğrulamak** — yaramazsa tamamlayıcı kol hâlâ aynı:
+    `is_near_duplicate` kontrolü Groq analizinden SONRA çalışıyor, near-
+    duplicate haberler bile tam analiz alıyor (ürün kararı gerektiriyor,
+    bounded değil).
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,
@@ -428,148 +300,124 @@ docker logs nexstream_chromadb --tail 20
 
 **Operasyonel notlar:** `docker compose up -d` ilk çalıştırmada bazen "kafka is unhealthy" diyip çıkabilir — kafka aslında sağlıklıdır, komutu tekrar çalıştırmak yeterli (tek seferlik healthcheck zamanlama yarışı). App container restart sonrası SentenceTransformer modeli sıfırdan yüklendiği için `/health` 200 dönene kadar ~1-2 dakika sürer; canlı test yapıyorsan tek istekle değil polling ile bekle.
 
-**⚠️ `npm run build`'i frontend container ÇALIŞIRKEN host'ta ÇALIŞTIRMA (21 Temmuz 2026'da tekrar yaşandı):** `docker-compose.yml` frontend'i `.:/app` volume ile mount ediyor ve container içinde `npm run dev` koşuyor. Host'ta `npm run build` çalıştırmak paylaşılan `.next` klasörünü PROD çıktısıyla eziyor → dev server'ın beklediği chunk dosyaları kaybolur, sayfa HTML 200 döner ama TÜM CSS/JS 404 verir; kullanıcı "site bembeyaz, sadece HTML var, hiç renk yok" olarak görür. **Kurtarma:** `docker compose stop frontend` → `rm -rf frontend/.next` → `docker compose start frontend` (dev server `.next`'i sıfırdan üretir) → tarayıcıda Ctrl+Shift+R. Tip kontrolü gerekiyorsa ya önce container'ı durdur ya da `npx tsc --noEmit` kullan (`.next`'e dokunmaz).
+**⚠️ `npm run build`'i frontend container ÇALIŞIRKEN host'ta ÇALIŞTIRMA:** `docker-compose.yml` frontend'i `.:/app` volume ile mount ediyor ve container içinde `npm run dev` koşuyor. Host'ta `npm run build` çalıştırmak paylaşılan `.next` klasörünü PROD çıktısıyla eziyor → dev server'ın beklediği chunk dosyaları kaybolur, sayfa HTML 200 döner ama TÜM CSS/JS 404 verir. **Kurtarma:** `docker compose stop frontend` → `rm -rf frontend/.next` → `docker compose start frontend` → tarayıcıda Ctrl+Shift+R. Tip kontrolü gerekiyorsa ya önce container'ı durdur ya da `npx tsc --noEmit` kullan (`.next`'e dokunmaz). Container çalışmıyorsa host'ta build sorunsuz, ama sonrasında `rm -rf frontend/.next` ile prod build kalıntısını temizle (bir sonraki `docker compose up frontend` dev server'ıyla çakışmasın).
 
-**Docker build — pip hash hatası ve 85 dakikalık build (21 Temmuz 2026'da çözüldü):** `Dockerfile`/`Dockerfile.light`'ta eskiden `pip install --no-cache-dir` vardı; torch/transformers dahil GB'larca paket HER build'de sıfırdan iniyordu (~85 dk) ve inen byte arttıkça rastgele bozulma `ERROR: THESE PACKAGES DO NOT MATCH THE HASHES FROM THE REQUIREMENTS FILE` olarak patlıyordu (her denemede FARKLI pakette — bu paket sorunu değil, indirme bozulmasıdır; `requirements.txt`'te zaten hash yok). Çözüm: BuildKit cache mount + retry — `RUN --mount=type=cache,target=/root/.cache/pip pip install --retries 10 --timeout 120 -r requirements.txt`. Wheel'ler image katmanına girmez (boyut artmaz) ama build'ler arasında saklanır, retry'lar yeniden indirmez. **`--no-cache` ile tam temiz build denemek bu durumda ÇÖZÜM DEĞİL, sorunu büyütür** (her şeyi tekrar indirtir).
+**Docker build — pip hash hatası ve uzun build süresi:** `Dockerfile`/`Dockerfile.light`'ta `RUN --mount=type=cache,target=/root/.cache/pip pip install --retries 10 --timeout 120 -r requirements.txt` kullanılıyor (BuildKit cache mount + retry). `--no-cache-dir` ya da tam temiz build denemek `THESE PACKAGES DO NOT MATCH THE HASHES` hatasını (indirme bozulması, hash sorunu DEĞİL) BÜYÜTÜR — her seferinde farklı pakette patlar. Wheel'ler image katmanına girmez ama build'ler arasında saklanır.
 
-**Telefondan/başka cihazdan (aynı hotspot/LAN) erişim (8 Temmuz 2026'da denendi, geri alındı — yöntem burada kayıtlı):**
-1. Bilgisayarın o anki LAN IP'sini bul: PowerShell'de `Get-NetIPAddress -AddressFamily IPv4` (hotspot'a bağlıysa genelde `Wi-Fi` arayüzü, `172.20.10.x` gibi bir IP — Dhcp kaynaklı).
-2. `.env`'e GEÇİCİ olarak ekle: `NEXT_PUBLIC_API_URL=http://<IP>:8000` ve `CORS_ORIGINS=http://localhost:3000,http://localhost:8000,http://<IP>:3000` (`docker-compose.yml`'de bu iki değişken zaten `${VAR:-default}` deseniyle override edilebilir halde).
-3. `docker compose up -d app frontend` (sadece `restart` yetmez, env yeniden okunmaz).
-4. Windows'un ağ profili "Public" ise (hotspot genelde öyle sınıflandırılır) gelen bağlantılar varsayılan engelli — yönetici PowerShell'de `New-NetFirewallRule -DisplayName "..." -Direction Inbound -Protocol TCP -LocalPort 3000,8000 -Action Allow -Profile Public` gerekir (ben admin yetkisi olmadığı için bunu SADECE kullanıcı çalıştırabilir).
-5. **İş bitince mutlaka geri al:** `.env`'deki iki satırı sil (IP değişince/farklı ağda unutulursa localhost dev'i sessizce bozar) + `docker compose up -d app frontend` ile sıfırla + `Remove-NetFirewallRule -DisplayName "..."` (Public profildeki KALICI bir güvenlik açığı, sadece o oturum için açılmalı).
+**Telefondan/başka cihazdan (aynı hotspot/LAN) erişim:** `.env`'e geçici `NEXT_PUBLIC_API_URL=http://<LAN-IP>:8000` + `CORS_ORIGINS`'e `<LAN-IP>:3000` eklenip `docker compose up -d app frontend` ile uygulanır (Windows "Public" ağ profili gelen bağlantıları engeller — admin PowerShell'de `New-NetFirewallRule` gerekir). **İş bitince mutlaka geri al** — Public profildeki kalıcı bir güvenlik açığı.
 
 ---
 
 ## BİLİNEN NOTLAR
 
-- **🔴 SSM `--timeout-seconds` ile kesilen bir `docker compose up --build` komutu, alttaki build sürecini GERÇEKTEN durdurmuyor — zombi süreçler makineyi kilitleyip 504'e yol açabiliyor (2 Eyl 2026, domain migrasyonu deploy'unda yaşandı):** GitHub Actions'ın deploy adımı `aws ssm send-command --timeout-seconds 900` ile 15 dakika sınırı koyuyordu; frontend'in `npm run build`'i (bir build ARG'ı değiştiği için cache kullanamadı) + embedder'ın model indirme adımı bu sürede bitmeyince SSM/BuildKit üst seviyede "Failed"/`context deadline exceeded` raporladı — AMA host'ta `next-build` ve `python -c ..._get_model()` process'leri CI "başarısız" dedikten SONRA DA (en az 6 dakika) çalışmaya devam etti, sonunda swap %100 dolup load average 2 vCPU'da 19-28'e çıktı, `nexstream_engine` unhealthy oldu, site ~15 dakika 504 verdi. **En kötüsü: bu noktada yeni SSM komutları (teşhis/kill amaçlı olanlar dahil) da Pending'de takılı kaldı** — sistem o kadar tıkanmıştı ki kurtarma komutlarını bile işleyemiyordu. Çözüm bounded bir "kill PID" denemesi değil, `aws ec2 reboot-instances` oldu (site zaten kesikken ek risk yoktu) — ~1 dakikada tüm 16 servis temiz şekilde geri döndü (reboot ayrıca nginx'in bind-mount'lu config'ini de tazeledi, ayrı bir `--force-recreate` gerekmedi). **Ders: SSM/CI seviyesinde bir komutun "Failed"/timeout raporlaması, host'taki alttaki process'in de öldüğü anlamına GELMEZ** — özellikle `docker buildx`/BuildKit gibi arka planda devam eden async işlerde. Kaynak kısıtlı bir makinede (`t3.small`, 1.9GB) build ARG'ı değiştiren bir deploy'dan sonra iş sağlıklı görünüyor mu diye MUTLAKA `uptime`/`free -h` ile kontrol et, sadece CI'ın yeşil/kırmızı durumuna güvenme.** İkinci, bağımsız bulgu: reboot sırasında `nexstream_certbot` container'ının hiç `restart` policy'si olmadığı ortaya çıktı — diğer TÜM servisler `restart: always` ile kendiliğinden dönerken bu sessizce `Exited` kaldı, sertifika yenileme döngüsü fark edilmeden durmuş olurdu. Düzeltildi. **Genel ders (BİLİNEN NOTLAR'daki "internal ağ" ve "healthy görünüp iş yapmama" dersleriyle aynı aile): `docker-compose.prod.yml`'e yeni bir servis eklerken `restart: always`'i unutmak, sadece "container çöktüğünde kendini toparlamıyor" değil, "host reboot'unda hiç geri gelmiyor" anlamına da gelir — normal container-crash testleri bunu YAKALAMAZ, sadece gerçek bir reboot/restart senaryosu ortaya çıkarır.**
-- **PR merge sonrası `git checkout main` yapmak, bir sonraki işe dalmadan önce yeni bir branch açmayı UNUTTURABİLİYOR (31 Ağu 2026, PR #80→#81 arasında yaşandı):** PR #80 merge edilip deploy doğrulandıktan sonra `git checkout main -q && git pull -q` çalıştırıldı (deploy'u izlemek için gerekliydi) — ama hemen ardından kullanıcının YENİ bir isteği (güven rozeti hover metnini iyileştirme) geldiğinde branch açmayı atlayıp 2 commit doğrudan `main`'e atıldı, fark edilmesi biraz sürdü. Kurtarma temizdi (henüz push edilmemişti): `git branch <yeni-dal> HEAD` + `git checkout <yeni-dal>` + `git branch -f main origin/main`. **Ders: "PR merge edildi, deploy'u izliyorum" ile "main'deyim, güvenle yeni komut çalıştırabilirim" iki ayrı zihin durumu — deploy doğrulaması bittikten SONRA, kullanıcıdan yeni bir istek geldiğinde, kod değişikliğine başlamadan ÖNCE `git branch --show-current`'ı reflekse çevir.** Bu, 26 Ağu 2026'da (farklı bir oturumda, `git reset --hard origin/main` sonrası) yaşanan AYNI kök nedenin farklı bir tetikleyicisi — o zaman ders "reset sonrası" diye dar tanımlanmıştı, gerçekte kural daha genel: **`main` checkout'undan sonraki HER yeni iş için geçerli**, sadece reset sonrası değil.
-- **Worker kaynakları SIRAYLA işliyor — tek bir yoğun/yavaş kaynak diğerlerini saatlerce aç bırakabilir (31 Ağu 2026'da canlıda bulundu, PR #78 ile düzeltildi):** `kafka_consumer.py::_process` içindeki `for scraper in SCRAPER_REGISTRY.values(): await _process(scraper)` (startup taraması) VE düzenli Kafka mesaj döngüsü, bir kaynağın TÜM yeni haberlerini analiz edip kaydetmeden bir sonraki kaynağa geçmiyordu. Groq rate limit ağırlaştığında (bkz. TPD notu aşağıda) bu, TRT Haber gibi yoğun/registry'de önde olan bir kaynağın worker'ı saatlerce kilitleyip CNN Türk gibi sonraki kaynakları hiç işlenmeden bırakmasına yol açtı (canlıda 40 dakika boyunca SADECE TRT Haber işlendi, doğrulandı). Düzeltme `NewsService.update_news_from_source(scraper, max_new_articles=...)` — `worker_max_new_articles_per_run` ayarı (varsayılan 5) kaynak başına çalıştırma başına işlenecek yeni haber sayısını sınırlıyor, kalanlar dedup'ta hâlâ "yeni" göründüğü için bir sonraki 10dk'lık taramada devam ediyor. **Ders: bir worker/consumer birden fazla kaynağı/görevi SIRAYLA ve HER BİRİNİ TAMAMEN bitirerek işliyorsa, kaynaklardan biri yavaşladığında (rate limit, ağ, üçüncü parti API) diğerleri süresiz aç kalabilir — yeni bir "N iş kalemini sırayla işle" deseni eklerken kalem başına bir üst sınır/timeout düşünmek varsayılan olmalı, `reanalyze_missed(limit=5)` bu deseni zaten uyguluyordu.**
-- **Groq'un günlük (TPD) kotası, dakikalık (TPM) proaktif throttle'la TAM çözülmüyor (31 Ağu 2026'da canlıda ölçüldü):** `groq_analyzer.py`'ye eklenen proaktif TPM throttle (`x-ratelimit-remaining-tokens`/`reset-tokens` header'larını okuyup 429'dan ÖNCE bekleme) 429 bekleme sürelerini başlangıçta kısalttı (430-520s → 73-237s) ama 40 dakikalık canlı gözlemde bekleme süreleri TEKRAR eski seviyeye (420-439s) tırmandı VE proaktif throttle hiç tetiklenmedi (0/10 rate-limit olayında) — yani TPM header'ı hiçbir zaman "az kaldı" demedi ama hesap yine de rate-limit'e takıldı. Bu, asıl kısıtın TPM değil **TPD (günlük) kota** olduğunu gösteriyor: günlük ~206 haberlik analiz hacmi zaten `openai/gpt-oss-20b`'nin 200K TPD tavanına çok yakın/üstünde (bkz. "26 Ağu 2026'da 199.555/200.000" notu — aynı tıkanıklığın farklı bir görünümü). **Ders: Groq'un TPM ve TPD limitleri BAĞIMSIZ — biri için proaktif throttle eklemek diğerini çözmez, hangi limitin GERÇEKTEN bağlayıcı olduğunu (header'ların hangisi sık sık düşük görünüyor / hangi rate-limit olaylarında proaktif throttle hiç tetiklenmiyor) ölçmeden varsayma.** Kalıcı çözüm YOL HARİTASI madde 25'te (token maliyeti/hacmi düşürme).
-- **TPD maliyetini azaltmadan önce statik tahmin canlı ölçümle çapraz doğrulanabilir — SSM diagnostiğine gerek kalmadan (31 Ağu 2026, PR #79):** `build_analysis_prompt`'un boş-metin uzunluğu (karakter/4 kaba token tahmini) + `max_tokens` üzerinden yapılan hesap, kayıtlı gerçek ölçümle (26 Ağu, 199.555/200.000, ~206 haber/gün → ~969 token/haber) neredeyse birebir örtüştü — bu, canlıya hiç dokunmadan (SSM/log analizi olmadan) "hangi lever gerçek kazanç verir" sorusuna güvenilir bir ön cevap verdi. **İkinci bulgu: `text[:1000]` kırpması gibi "mantıklı görünen" bir lever'ın gerçek etkisi olup olmadığını, o alanın GERÇEKTE ne kadar dolduğunu (burada: RSS `<description>` teaser'ları ~30-80 kelime, kırpma sınırının çok altında) kontrol etmeden varsayma** — kod ne kabul ediyor değil, veri gerçekte ne kadar büyük, önemli olan bu. **Üçüncü bulgu:** `news_service.py`'de `is_near_duplicate` kontrolü Groq analiz çağrısından SONRA çalışıyor (`update_news_from_source`, satır ~180 vs ~190) — near-duplicate haberler bile tam analiz alıyor, gerçek bir israf ama `is_duplicate` hiçbir yerde feed'i filtrelemediği için düzeltmek görünür bir ürün davranışı değişikliği (boş/nötr kart) gerektiriyor, bounded bir performans düzeltmesi değil. Groq'un OpenAI-uyumlu `usage.prompt_tokens`/`completion_tokens` alanı artık `nexstream_groq_tokens_total` metriğine işleniyor (`groq_analyzer.py::_record_token_usage`) — bir sonraki tur tahmine değil bu metriğe bakabilir.
+Her madde tek bir kalıcı kural — "ne zaman/nasıl bulundu" forensic detayı
+`docs/CHANGELOG.md`'de (tarihe göre aranabilir).
 
-- **🔴 Test süiti gerçek SMTP/Resend bağlantısı açabiliyordu — Sentry'nin 25 Ağu'daki sızıntısıyla BİREBİR aynı bug sınıfı (27 Ağu 2026'da bulundu):** `test_auth_router.py`'deki birden fazla register testi `get_email_adapter`'ı hiç mock'lamıyordu, `.env`'deki GERÇEK SMTP_USER/SMTP_PASSWORD ile her tam test koşusunda gerçek bir doğrulama maili gönderiliyordu (test@/new@/ok@example.com — Null MX, kullanıcının kendi Gmail'ine bounce olarak geri döndü; `Boss@Company.com` gerçek bir üçüncü tarafa gitmiş olabilirdi). Düzeltme Sentry'den FARKLI bir yaklaşım kullandı: TEK bir yeri (`get_email_adapter`) mock'lamak yerine ağ SINIRININ kendisi kapatıldı — `tests/conftest.py::_no_real_email_calls` (autouse) `smtplib.SMTP` + `requests.post`'u test süiti genelinde patch'liyor, hangi kod yolu çağırırsa çağırsın gerçek bağlantı asla açılamıyor; var olan testlerin kendi `patch(...)` blokları bunun üstüne güvenle katmanlanıyor. **Ders: bir 3. parti entegrasyonu (email/Sentry/PostHog gibi) tek bir DI noktasında mock'lamak kırılgan — yeni bir router/endpoint aynı hatayı tekrar yapabilir. Mümkünse ağ sınırının kendisini (`smtplib.SMTP`, `requests.post`, `sentry_sdk.init` gibi) autouse bir fixture'la kapatmak daha sağlam bir güvenlik ağı.**
-
-- **Telif hakkı risk değerlendirmesi (24 Ağu 2026, resmi kaynaklardan araştırıldı — FSEK, EUR-Lex, 17 U.S.C.):**
-  Mevcut model (17 kaynaktan RSS `<description>` teaser'ı, tam makale metni HİÇ çekilmiyor/saklanmıyor, LLM kendi özetini üretiyor, her kart kaynağa açık link taşıyor) **DÜŞÜK risk** sayıldı. Gerekçe: FSEK madde 36/37, günlük haberlerin "kısaltılarak basın özetleri şeklinde" kaynak gösterilerek serbestçe iktibas edilmesine açıkça izin veriyor — bu tam olarak projenin yaptığı şey. **Tek somut risk noktası kaynak gösteriminin doğruluğu/yeterliliği** — FSEK m.71/3 ve 71/5 kaynak göstermeden veya yetersiz/yanlış kaynak göstererek iktibası AYRI birer suç sayıyor (6 ay-2 yıl hapis/adli para, ama m.75 gereği soruşturma sadece hak sahibinin ŞİKAYETİYLE başlıyor, resen değil) — her kartta kaynak adı+tarih+link'in doğru/görünür olduğundan emin olunmalı. AB'nin "basın yayıncıları hakkı" (2019/790 m.15) muhtemelen bizi bağlamıyor (kısa-alıntı istisnası + BBC/Guardian zaten AB üyesi değil, UK merkezli). ABD fair use tarafında da (Fox News v. TVEyes emsali) kısa-özet+zorunlu-dış-link modeli lehimize (kaynağa trafiği ENGELLEMİYOR, TVEyes'ın aksine ikame etmiyor). 2026'nın büyük telif gündemi (Anthropic'in $1.5 milyarlık model-eğitimi uzlaşması, AB'nin Google'a "AI Overviews trafik çalıyor" soruşturması) yapısal olarak bambaşka bir sorunu hedefliyor, projeye uygulanmıyor. Şirketsiz/şahıs olarak devam etmek telif sorumluluğunu artırmıyor/azaltmıyor (ayrı bir konu: vergi — bkz. YOL HARİTASI madde 2). **Somut aksiyon:** her kartta kaynak gösteriminin FSEK standardına uyduğunu teyit et, tam makale metni saklama kararına (roadmap madde 18, bilinçli ertelendi) SADIK kal — o satıra geçilirse risk profili kökten değişir. Basit bir takedown/itiraz e-postası (footer/`/contact`) eklemek düşük maliyetli bir güvence.
-- **Türkçe "yanlış dost" (false friend) kök çakışması — \b-anchor tek başına
-  yetmiyor (27 Ağu 2026'da canlıda "gram altın" e-posta uyarısıyla bulundu):**
-  "altın" (gold) kökü Adana/gözaltı sınıfından FARKLI bir sorun yaşıyordu —
-  "altında"/"altındaki" ("alt" [under] kelimesinin "altı"+buffer "n"+"da/daki"
-  çekimi) harf düzeyinde TAM AYNI önekte başlıyor VE önünde GERÇEK bir kelime
-  sınırı var ("İşgal altındaki topraklar" gibi), bu yüzden `\baltın` regex'i
-  meşru şekilde eşleşiyordu — gerçek morfolojik analiz olmadan ayırt edilemez
-  (Türkçe'de "alt" ailesi — altında/altına/altından — çok yaygın, "altın"ın
-  kendi çekimleriyle harf düzeyinde çakışıyor). Çözüm hardcoded stoplist
-  değil, `subscriber_matching.py::_FALSE_FRIEND_WORDS` — kök→bilinen çakışan
-  TAM KELİMELER sözlüğü, sadece o tam kelimeleri istisna tutuyor (`altını`/
-  `altınla` gibi gerçek çekimleri ETKİLEMİYOR). Yeni bir keyword-eşleştirme
-  şikayeti gelirse önce bu sınıfı (harf-düzeyinde-çakışan-ama-alakasız-kök)
-  kontrol et — arama tarafındaki `news_service._stem_tr`/`_canonical_terms`
-  AYNI riski taşıyor (hatta "altın"ı "ın" son ekini kırpıp "alt"a indiriyor,
-  e-posta tarafından DAHA GENİŞ bir versiyonu) ama bu oturumda kapsam dışı
-  bırakıldı, sadece e-posta/push keyword alert tarafı (`subscriber_matching.
-  matched_keyword`) düzeltildi.
-- **`frontend/lib/api.ts`'teki TÜM `/api/v1/*` çağrıları (`${BASE}/api/v1/...`)
-  nginx'in dedicated `/api/v1/` bloğunu HİÇ kullanmıyor, şans eseri çalışıyor
-  (27 Ağu 2026'da RAG log incelemesinde bulundu, henüz düzeltilmedi):** prod'da
-  `NEXT_PUBLIC_API_URL=/api` (BASE zaten "/api" içeriyor), bu yüzden
-  `${BASE}/api/v1/news/ask` gibi bir çağrı tarayıcıdan gerçekte
-  `/api/api/v1/news/ask`'e gidiyor — nginx'in `/api/v1/` location'ı bu path'i
-  HİÇ eşleştirmiyor (segment 2 "api" değil "v1" olmalıydı). Bunun yerine genel
-  `/api/` bloğu eşleşiyor, TEK bir "/api" segmentini kırpıyor, tesadüfen doğru
-  backend path'ine (`/api/v1/news/ask`) iniyor — yani bugün ÇALIŞIYOR ama
-  dedicated v1 bloğunu (varsa farklı timeout/header ayarları) tamamen atlayarak,
-  kırılgan bir tesadüfle. Kalıcı düzeltme iki yoldan biri: `api.ts`'teki v1
-  çağrılarını `${BASE}/v1/...`'e çevirmek (BASE zaten "/api" içerdiği için) YA
-  DA nginx `/api/v1/` bloğunu path'i olduğu gibi bırakacak şekilde güncellemek.
-  Bounded, ayrı bir sonraki iş — bugünkü RAG/keyword düzeltmeleriyle karışmasın
-  diye bilinçli olarak dokunulmadı.
+- **SSM/CI'ın "Failed"/timeout raporlaması, host'taki alttaki process'in de
+  öldüğü anlamına GELMEZ** (özellikle `docker buildx`/BuildKit gibi arka
+  planda devam eden async işlerde) — kesilen bir `docker compose up --build`
+  host'ta zombi süreç bırakıp kaynak tüketip 504'e yol açabilir. Kaynak
+  kısıtlı bir makinede build ARG'ı değiştiren bir deploy'dan sonra
+  `uptime`/`free -h` ile MUTLAKA doğrula, sadece CI'ın yeşil/kırmızısına
+  güvenme. Kurtarma bounded bir "kill PID" değil `aws ec2 reboot-instances`.
+- **`git checkout main` sonrası (PR merge/deploy izleme bitince) yeni bir
+  istek gelirse, kod değişikliğine başlamadan ÖNCE `git branch
+  --show-current`'ı reflekse çevir** — "main'deyim" hissi ile "main'e commit
+  atmak güvenli" hissi karışabiliyor, birden fazla kez yaşandı.
+- **Bir worker/consumer N işi SIRAYLA ve HER BİRİNİ TAMAMEN bitirerek
+  işliyorsa, biri yavaşlarsa (rate limit/ağ) diğerleri süresiz aç
+  kalabilir** — yeni böyle bir desen eklerken kalem başına üst sınır düşün
+  (bkz. `worker_max_new_articles_per_run`, `NewsService.
+  update_news_from_source(..., max_new_articles=...)`).
+- **Groq'un TPM ve TPD limitleri BAĞIMSIZ havuzlar** — biri için proaktif
+  throttle eklemek diğerini çözmez; hangi limitin gerçekten bağlayıcı
+  olduğunu ölçmeden varsayma. Ayrıca Groq'un rate limit'i "günlük kota" gibi
+  görünse de aslında sürekli dolan bir **leaky bucket** (kanıt: `x-
+  ratelimit-reset-requests` istek başına tam 86.4s artıyor) — toplam
+  tüketim rahat olsa bile BURST halinde istek atmak kovayı boşaltıp
+  dakikalarca 429'a yol açar. Tek doğruluk kaynağı: `groq_request_
+  interval_seconds`.
+- **TPD/token maliyeti tahminini SSM/log analizine hiç dokunmadan (statik
+  prompt-uzunluğu hesabıyla) canlı ölçümle çapraz doğrulamak mümkün** —
+  hangi lever'ın gerçek kazanç vereceğine dair güvenilir bir ön cevap verir.
+  Bir kırpma/limit lever'ının etkisi olup olmadığını, o alanın GERÇEKTE ne
+  kadar dolu olduğuna bakmadan varsayma (`text[:1000]` örneği: RSS teaser'ı
+  zaten 30-80 kelime, kırpma sınırının çok altında).
+- **Yeni bir router/endpoint'te 3. parti bir entegrasyonu (email/Sentry/
+  PostHog gibi) tek bir DI noktasında (`get_email_adapter` gibi) mock'lamak
+  kırılgan** — bir sonraki endpoint aynı hatayı tekrarlayabilir. Ağ
+  SINIRININ kendisini (`smtplib.SMTP`, `requests.post`, `sentry_sdk.init`)
+  autouse bir fixture'la kapatmak (bkz. `tests/conftest.py`) daha sağlam.
+- **Türkçe "yanlış dost" kök çakışması** (örn. "altın" kökü "alt+ında/ki"
+  çekimleriyle harf düzeyinde çakışıyor, `\b`-anchor tek başına yetmiyor) —
+  kök→bilinen-çakışan-TAM-KELİME sözlüğü gerekiyor (bkz.
+  `subscriber_matching.py::_FALSE_FRIEND_WORDS`). Yeni bir keyword-eşleştirme
+  şikayeti gelirse bu sınıfı kontrol et — arama tarafı (`news_service.
+  _stem_tr`) AYNI riski taşıyor ama henüz düzeltilmedi.
+- **`frontend/lib/api.ts`'teki TÜM `/api/v1/*` çağrıları (`${BASE}/api/v1/
+  ...`) nginx'in dedicated `/api/v1/` bloğunu HİÇ kullanmıyor, şans eseri
+  çalışıyor** (prod'da `NEXT_PUBLIC_API_URL=/api`, gerçekte istek `/api/api/
+  v1/...`'e gidip nginx'in genel `/api/` bloğuna düşüyor, tesadüfen doğru
+  yere iniyor). Henüz düzeltilmedi — ya `api.ts`'teki v1 çağrılarını
+  `${BASE}/v1/...`'e çevir ya da nginx `/api/v1/` bloğunu güncelle.
 - Groq free tier: 14.400 req/gün — production'da dikkat
 - Scraper limit: 25 haber/kaynak/çalışma
 - DB duplicate kontrolü var — aynı URL tekrar kaydedilmez
 - ChromaDB 1.5.5 kurulu (0.5.23 uvicorn conflict veriyordu)
 - `docker-compose down -v` sonrası ChromaDB da sıfırlanır
 - Dashboard sidebar kaldırıldı, tüm kontroller üst bar'da
-- README UTF-8 BOM'suz olarak yeniden yazıldı (önceki versiyon UTF-16 idi, GitHub'da bozuk görünüyordu)
 - `prometheus-fastapi-instrumentator` app'e eklendi, `/metrics` endpoint Prometheus format döndürür
 - `docker-compose.prod.yml` production için, `docker-compose.yml` dev için kullanılır
 - `infra/nginx/nginx.dev.conf` SSL olmadan local test için (nginx.conf SSL gerektirir)
-- Worker sıralı işleme: `asyncio.create_task` → `await` + 2sn throttle, Groq rate limit patlamasını önler
-- **v1.8 kaynaklar:** Guardian Tech / The Verge WebFetch ile doğrulanamadı (Claude Code domain kısıtı) ama bilinen kararlı beslemeler; TechCrunch/Hacker News/AA doğrulandı. Ölü besleme worker'ı çökertmez (scraper exception'ı yutar, [] döner)
-- **v1.8 cloud fallback:** `HUGGINGFACE_API_KEY` boşsa fallback devre dışı (sadece Groq çalışır), davranış v1.7 ile aynı. Analyzer artık `factory.build_analyzer()` ile kurulur, `GroqAnalyzer()` doğrudan çağrılmaz. Concrete analyzer'lar `analyze_or_raise` ile `AnalysisError` fırlatır; `FallbackAnalyzer.analyze_text` asla fırlatmaz (nötr fallback)
-- **v1.8 related:** ilişki grafı ayrı tablo değil, on-the-fly entity overlap (son 500 entity'li haber taranır). `entities` SQL NULL filtresi postgres'te çalışır; SQLite/ORM'de None → JSON 'null' saklanır (servis boş entity'yi zaten güvenle eler)
-- **v1.8 skorlama:** `quality_score` + `credibility_score` + `corroboration_count` ingest'te `service._enrich_metadata` ile set edilir; saf hesap `domain/scoring/`'de. Eski haberler için migration sonrası `POST /news/reanalyze` quality'yi doldurur (credibility/corroboration ingest-only)
-- **v1.8 migration:** prod'da `migrations/v1_8_quality_credibility.sql` çalıştırılmalı (dev'de `create_all` otomatik ekler)
-- **v1.9 migration:** prod'da `migrations/v1_9_users_sessions_usage_sponsor.sql` çalıştırılmalı (users, user_sessions, usage_logs, sponsors tabloları)
-- **v1.9 yeni env var'lar:** `SESSION_TTL_DAYS` (30), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID`, `STRIPE_ENTERPRISE_PRICE_ID`, `REDIS_URL` (boşsa NullCache)
-- **v1.9 auth (v1.12 öncesinde cookie'ye taşındı — madde 6):** kimlik artık birincil olarak HttpOnly `nxs_session` cookie'si; `X-Session-Token` header sadece SSR/test fallback'i. bcrypt direkt kullanılıyor (passlib yerine — bcrypt 5.x ile uyumsuz)
-- **Dev'de session cookie gotcha:** `session_cookie_secure` varsayılanı `True` (prod için doğru) — `docker-compose.yml`'e `SESSION_COOKIE_SECURE=false` eklenmezse cookie sadece HTTPS'te gönderilir, local HTTP dev'de login 200 döner ama cookie tarayıcıya hiç gitmez (sessiz kırılma). Zaten dev compose'a eklendi; yeni bir compose varyantı oluşturursan unutma.
-- **Tailwind responsive class + inline style çakışması:** Proje çoğunlukla inline `style` objesi kullanıyor ama Tailwind da kurulu (`globals.css`'te `@tailwind base/components/utilities`, breakpoint'ler varsayılan). `hidden md:flex` gibi responsive display class'ları kullanılan bir elementin inline style'ına ASLA `display` ekleme — inline style her zaman class'ı ezer, `md:hidden` hiç çalışmamış gibi görünür (Navbar mobil menüsünde tam bu yüzden panel masaüstünde açık kalıyordu). Açık/kapalı state tutan mobil panellerde ayrıca `matchMedia("(min-width: 768px)")` ile ekran büyüyünce state'i otomatik kapatan bir effect ekle — yoksa görünmez `position:fixed;inset:0` backdrop'u state açık kaldığı sürece tıklamaları yutmaya devam eder.
+- Worker sıralı işleme: `asyncio.create_task` → `await` + throttle, Groq rate limit patlamasını önler
+- Ölü besleme worker'ı çökertmez (scraper exception'ı yutar, [] döner)
+- **v1.8 cloud fallback:** `HUGGINGFACE_API_KEY` boşsa fallback devre dışı. Analyzer `factory.build_analyzer()` ile kurulur, `GroqAnalyzer()` doğrudan çağrılmaz. `FallbackAnalyzer.analyze_text` asla fırlatmaz (nötr fallback)
+- **v1.8 related:** ilişki grafı ayrı tablo değil, on-the-fly entity overlap (son 500 entity'li haber taranır)
+- **v1.8 skorlama:** `quality_score`+`credibility_score`+`corroboration_count` ingest'te `service._enrich_metadata` ile set edilir; saf hesap `domain/scoring/`'de
+- **v1.8/v1.9 migration'lar:** `migrations/v1_8_quality_credibility.sql`, `migrations/v1_9_users_sessions_usage_sponsor.sql` — dev'de `create_all` otomatik ekler, prod'da elle çalıştırılmalı
+- **v1.9 auth (v1.12'de cookie'ye taşındı):** kimlik birincil olarak HttpOnly `nxs_session` cookie'si; `X-Session-Token` header sadece SSR/test fallback'i. bcrypt direkt kullanılıyor (passlib yerine — 5.x uyumsuzluğu)
+- **Dev'de session cookie gotcha:** `session_cookie_secure` varsayılanı `True` — `SESSION_COOKIE_SECURE=false` eklenmezse cookie local HTTP dev'de tarayıcıya hiç gitmez. Dev compose'a zaten eklendi, yeni bir varyant açarsan unutma.
 - **v1.9 tier:** `check_tier_limit` dependency v1 router'da, Free=100/gün, Pro=2000/gün, Enterprise=sınırsız
-- **v1.9 usage log:** `/api/v1/` endpointleri için asyncio background task ile loglanır
-- **v1.9 admin:** `/admin/usage` + `/admin/sponsors` CRUD — `X-API-Key` gerektirir
-- **v1.9 billing:** Stripe yapılandırılmazsa `/billing/*` → 503. Webhook `stripe-signature` header doğrulaması yapılır
-- **v1.10 frontend tema:** Tema sistemi `frontend/lib/theme/registry.ts`'te tek doğruluk noktası. Renk token'ları `globals.css`'te `[data-theme="<id>"]` blokları (`--accent`, `--accent-soft`, `--accent-line`, `--glow`, `--font-display` vb.). Inline stillerde sabit renk KULLANMA — token kullan, yoksa tema değişince uyumsuz kalır. Efektler saf Canvas, `useCanvasScene` hook'unu paylaşır.
-- **v1.10 i18n:** TÜM kullanıcıya görünen string `lib/i18n.ts`'te (UI + FEATURES/PRICING/TIER_DETAILS). Sayfaya hardcoded TR metin YAZMA — yoksa EN'e geçince çevrilmez (eski bug buydu). `THEME_LIST`'teki `labelKey`/`tagKey`, `UI[lang]` içinden okunur.
-- **v1.10 trending:** API alanı `name` (eskiden frontend yanlışlıkla `entity` bekliyordu → boş isim, sadece sayı görünüyordu). `TrendingEntity` = `{name, count, type?, example_titles?}`. Pill'e tıklayınca `/dashboard/search?q=...`'a gider; search sayfası mount'ta `window.location.search`'ten `q`'yu okur (useSearchParams Suspense gerektirmesin diye).
-- **v1.10 kafka dayanıklılığı:** compose'da kafka/zookeeper/chromadb'ye `restart: unless-stopped` eklendi (eskiden yoktu → çökünce kalkmıyordu, "NodeExists"/stale state buradan). kafka'ya `stop_grace_period: 30s`. `KafkaPublisherAdapter.start()` artık retry'lı (başarısız her denemede producer'ı yeniden yaratır) → app kafka geç açılırsa çökmez. **Temiz aç/kapa:** `docker compose down` sonra `docker compose up -d`. Parçalı/ani kapanış stale broker bırakabilir ama restart politikası kendini düzeltir.
-- **v1.10 billing/admin işleyişi:** "Admin API Anahtarı" tek paylaşımlı sır (`API_KEY` env, default `dev-key-change-me`) — kullanıcı-başına DEĞİL. Admin sayfaları (/admin/usage, /admin/sponsors) bu key ile çalışır. Pro/Kurumsal butonu Stripe yapılandırılmadığı için 503 verir (gerçek Stripe hesabı + `STRIPE_*` env gerekir) — lokal dev'de beklenen davranış. Landing CTA'ları artık auth-aware (giriş yapmışsa /dashboard veya /account).
-- **v1.10 node lokal:** Node v24 + npm host'ta (`C:\Program Files\nodejs`). Frontend lokalde `cd frontend; npm run build` ile derlenir. Docker `Dockerfile.dev` `npm run dev` (SWC) tam tip kontrolü YAPMAZ → tip hataları sadece `next build`'te görünür. Frontend değişiminden sonra `npm run build` ile doğrula.
-- **v1.11 env var'lar:** `BILLING_DEV_MODE` (false — true iken checkout Stripe'sız tier yükseltir, PROD'DA AÇMA), `ADMIN_EMAILS` (boş — virgülle ayrılmış liste, eşleşen kullanıcı DB yazılmadan admin sayılır)
-- **v1.11 admin yetkisi (v1.13'te rol hiyerarşisine genişledi, bkz. MEVCUT DURUM):** `require_admin` (auth_utils) iki yol kabul eder: X-API-Key (makine) veya `role="admin"` kullanıcı oturumu. `require_moderator` aynı mantıkla moderator+admin'i kabul eder (görüntüleme). Yetkisiz kullanıcıya 403, anonime 401. `/auth/me` artık `role` + `is_moderator` + (geriye uyumlu) `is_admin` döner; frontend Navbar/hesap admin linklerini `is_moderator`'a göre gösterir. Admin sayfaları moderator+ oturumla otomatik yüklenir, rol değiştirme sadece admin'e açık.
-- **v1.11 kullanıcı API key:** `nxs_` önekli, `/account/api-key` ile yönetilir, `X-User-Key` header'ı ile `/api/v1`'de kullanılır. Session ile key aynı anda gelirse session kazanır. Key düz saklanır (session token'lar gibi) — bilinçli sadelik tercihi.
-- **v1.11 billing testleri:** `billing_router.settings` MagicMock ile patch'lenen testlerde `ms.billing_dev_mode = False` set edilmeli — yoksa truthy MagicMock dev-mode yolunu tetikler.
-- **v1.11 refactoring:** `adapters/api/controller.py` silindi (main.py ile çakışan ölü legacy). `news_orm.py` sadece geriye-uyum köprüsü (orm_models'tan re-export). Tüm src/ modüllerinde docstring var; yeni modül eklerken docstring zorunlu kabul et. Frontend auth-context açılışta `/auth/me` ile kullanıcıyı tazeler (401'de oturumu düşürür).
-- **Prod deploy öncesi kontrol listesi:** `docker-compose.prod.yml`'de `FRONTEND_URL` env var'ı gerçek domain ile set edilmeli (boş kalırsa `settings.py`'deki `http://localhost:3000` default'u kullanılır, şifre sıfırlama maili yanlış linke gider). `RESEND_API_KEY`/`EMAIL_FROM` de dolu olmalı, yoksa mail sessizce `ConsoleEmailAdapter`'a düşer (log-only). **v1.17 güvenlik denetimi sonrası ZORUNLU olanlar:** `ENVIRONMENT=production` (prod compose zaten set eder), `API_KEY` (gerçek rastgele — `openssl rand -hex 32`), `CORS_ORIGINS` (gerçek domain, `*` DEĞİL), `GRAFANA_PASSWORD` (compose `:?` ile zorunlu kılar, yoksa deploy durur), `SESSION_COOKIE_SECURE=true`. İlk dördü zayıf/eksikse uygulama açılışta `_reject_unsafe_production_config` ile ölür — sessizce güvensiz çalışmaz, bu KASITLI.
-- **v1.17 güvenlik notları (kalıcı kurallar):** (1) `.env`'i git'ten kaldırmak sızıntıyı ÇÖZMEZ — blob geçmişte kalır (`git show <commit>:.env` çalışır), tek çözüm sızan secret'ı rotate etmektir. (2) Yeni bir rate-limitli endpoint yazarken `@limiter.limit` decorator'ı fonksiyona `request: Request` parametresi ZORUNLU kılar; handler'ı testte doğrudan çağıran mevcut testler varsa (`test_health_router.py` deseni) sahte bir `Request` scope'u geçmeleri gerekir. (3) slowapi limiter state'i TÜM test session'ı boyunca paylaşılır (conftest `src.main`'i reload eder ama limiter singleton'ını etmez) — bir endpoint'e N test yazacaksan dakikalık limitin N'den büyük olduğundan emin ol. (4) E-posta/HTML üreten her yeni kodda dış kaynaklı veri (haber başlığı/özeti, sponsor alanları) `html.escape()`'ten geçmeli.
-- **v1.17 yeni env var:** `ENVIRONMENT` (varsayılan `"development"`; `"production"` yapılınca güvenlik guard'ı devreye girer — sadece prod compose set eder).
-- **nginx routing (güncel, 18 Ağu 2026'da doğrulandı):** `/api/v1/` kendi location bloğunda prefix KORUNARAK proxy'lenir (`proxy_pass http://api/api/v1/`); diğer tüm rotalar (`/news/...`, `/health`, `/ws/feed`) `location /api/` ile `/api/` prefix'i SIYRILARAK proxy'lenir (`proxy_pass http://api/`) — yani dışarıdan `/api/news/search` → backend'de `/news/search`. `/api/` bloğunda WebSocket `Upgrade`/`Connection` header'ları VAR (8 Temmuz 2026'da eklendi). Bu iki eski gotcha (double-prefix, eksik WS header) uzun süre önce kapatılmıştı — burada sadece güncel/doğru routing şeması kayıtlı, geçmişteki hatalı halini merak edersen CHANGELOG'a bak.
-- **nginx `add_header` mirası:** bir server/location kendi `add_header`'ını tanımlarsa üst context'ten (`http{}` dahil) HİÇBİR `add_header` miras alınmaz — tek tek ekleneni değil, TÜMÜNÜ iptal eder. Bir header'ın her yere gitmesini istiyorsan hepsini AYNI context'te topla (18 Ağu 2026'da CSP/X-Frame-Options vb.'nin sessizce hiç gitmediği bulundu, bkz. CHANGELOG "v2.1.1"). Ayrıca: `nginx.conf` host'ta bind-mount edilmiş bir dosyaysa, `git pull` sonrası `nginx -s reload` YETMEZ (git dosyayı unlink+rename ile değiştirdiği için container eski inode'a bakmaya devam eder) — `docker compose up -d --force-recreate nginx` gerekir.
-- **WebSocket endpoint'ini `curl`/`wget` ile test etme** — ikisi de gerçek WS handshake yapmaz, gördüğün 404 hem "route yok" hem "araç anlamıyor" anlamına gelebilir, ayırt edemezsin. Gerçek istemci kullan: Python `websockets` kütüphanesi (`websockets.connect(...)`, red durumunda `InvalidStatus` + gerçek HTTP status/header verir) ya da Node'un yerleşik `WebSocket`'i.
-- **Groq modelleri zamanla TAMAMEN kaldırılabiliyor** (404 `model_not_found`, rate limit DEĞİL) — fail-open bir analiz pipeline'ında bu sessizce nötr/varsayılan sonuca düşer, hiç alarm çalmaz (18 Ağu 2026'da `llama-3.1-8b-instant` böyle kayboldu, ~1 gün fark edilmedi). Şüphelenince `GET https://api.groq.com/openai/v1/models` ile güncel listeyi kontrol et. Güncel reasoning modelleri (`gpt-oss-*`) `reasoning`'i `message.reasoning` alanında `content`'ten AYRI döner (JSON parse'ı bozmaz); `qwen` ailesi `<think>` etiketini `content`'e GÖMER (bozar).
-- **AWS SSM operasyon deseni:** `aws ssm send-command --document-name AWS-RunShellScript` içindeki komutlarda `git` kullanmadan önce `export HOME=/home/ubuntu` (SSM oturumunda `$HOME` set değil) + `git -c safe.directory=<repo-path>` (root/farklı kullanıcı sahipliği "dubious ownership" hatası verir) gerekir. Windows'taki native `aws.exe`'ye Git Bash'ten `file:///tmp/...` gibi bir paramfile yolu VERME — hiçbir `--parameters`/`--policy-document`/vb. argümanında path'i doğru çözemiyor; JSON'u her zaman inline (gerekirse `$(cat ...)` ile) geç.
-- **Otomatik saldırgan engelleme kapsamı (19 Ağu 2026'da kullanıcı sorunca netleşti):** var olan tek savunma nginx `limit_req_zone` (IP başına genel hız sınırı, `infra/nginx/*.conf`) + slowapi endpoint bazlı limitler (login 15/dk, forgot-password 10/dk vb.) — ikisi de sadece o anki isteği YAVAŞLATIR/429 döner, KALICI bir IP ban/WAF/fail2ban YOK. Gerçek bir IP ban istenirse ayrı bir iş (IP blocklist tablosu + nginx `deny` ya da fail2ban entegrasyonu) gerekir, mevcut rate limiting bunu vermez. **Kullanıcı bazlı banlama ayrı ve VAR** (`PATCH /admin/users/{id}/active`, v2.2 — bkz. YOL HARİTASI madde 14) ama bu IP değil hesap seviyesinde, anonim/kayıtsız bir saldırganı durdurmaz.
-- **`get_current_user` (zorunlu) X-API-Key'i ASLA çözmez (19 Ağu 2026 canlı testte bulundu):** admin router'ında yeni bir yazma endpoint'i eklerken `current_user: User = Depends(get_current_user)` kullanırsan, router-level `require_moderator`/`require_admin` X-API-Key'i kabul etse bile handler içindeki `get_current_user` → `get_optional_user` zinciri sadece session cookie/token/X-User-Key tanır, X-API-Key'i HİÇ görmez — sonuç: makine-makine erişimi (X-API-Key) router'dan geçer ama handler'da 401 alır. Doğru desen `update_user_tier`'da zaten vardı: `actor: Optional[User] = Depends(get_optional_user)`, `actor is None` ise (X-API-Key) rank-comparison/self-check atlanır. `update_user_active`'de bu hatayı yapıp canlı testte yakaladık, düzeltildi — yeni bir admin-yazma endpoint'i eklerken bu deseni kopyala, `get_current_user`'ı değil.
-- **slowapi + çoklu worker gotcha'sı (19 Ağu 2026 güvenlik denetiminde bulundu):** prod `uvicorn --workers 2` ile çalışıyor; `limiter.py`'de `storage_uri` set edilmezse slowapi varsayılan olarak in-memory sayaç kullanır ve HER worker kendi ayrı sayacını tutar — kodda `"15/minute"` yazsa da istekler worker'lara round-robin dağıldığı için limit fiilen ~2 katına kadar gevşer (canlıda art arda 18 login denemesiyle doğrulandı, hiç 429 gelmedi). Çözüldü: `limiter = Limiter(..., storage_uri=REDIS_URL, in_memory_fallback_enabled=True)` — zaten cache için kurulu Redis'i paylaşıyor. **REDIS_URL prod'dan kaldırılırsa rate limit sessizce ~2x gevşer, hata vermez** — bunu unutma.
-- **`nexstream-deploy` IAM kullanıcısı artık AdministratorAccess DEĞİL (19 Ağu 2026 güvenlik denetimi):** `NexStreamDeployMinimal` policy'sine scope'landı — sadece EC2 describe/start/stop/reboot + SSM SendCommand/GetCommandInvocation/DescribeInstanceInformation, hepsi `i-0608c897a3d8ca3f3` ile sınırlı (DEPLOY.md'de belgelenen gerçek kullanım). Bunun dışında bir AWS eylemi (S3, IAM, RDS, Budgets dahil — `aws budgets describe-budgets` bile artık 403 verir) gerekirse bu kimlikle YAPILAMAZ, kullanıcıya sor (geçici AdministratorAccess ya da Console). Kendi IAM policy'sini bile artık düzenleyemiyor (`iam:CreatePolicyVersion` yok) — kasıtlı.
-- **v1.12 öncesi durum taraması (bu session'da yapıldı):** Responsive/erişilebilirlik/SEO/tema-performans-profili maddelerinin hiçbiri henüz başlamadı; sadece dashboard sayfasında kısmi bir skeleton-loading deseni var (diğer sayfalarla tutarsız). Yeni bir session bu maddelere başlarken sıfırdan tasarlamalı.
-- **v1.11 sonrası yeni env var'lar:** `FRONTEND_URL` (boş — prod'da gerçek domain ile set edilmeli, şifre sıfırlama linki için), `PASSWORD_RESET_TTL_MINUTES` (60), `SEARCH_RECENCY_DECAY_FLOOR` (0.5), `SEARCH_RECENCY_WINDOW_DAYS` (30), `CHROMA_RETENTION_DAYS` (90 — 0 kapatır), `DB_RETENTION_DAYS` (0 — kapalı, açarsan Postgres'ten KALICI siler), `RETENTION_HOUR_UTC` (4), `EMAIL_VERIFICATION_TTL_MINUTES` (1440 — v1.15, e-posta doğrulama linki geçerlilik süresi), `EXPORT_MAX_ROWS` (20000 — v1.16, ham veri export üst satır sınırı), `WS_MAX_CONNECTIONS_PER_USER` (5 — v1.18, `/ws/feed` per-user tavan), `WS_MAX_TOTAL_CONNECTIONS` (500 — v1.18, `/ws/feed` global tavan), **v2.0 embedder ayarları:** `EMBEDDER_MODE` (`http` — `local` sadece Docker'sız geliştirme), `EMBEDDER_URL` (`http://embedder:8000`), `EMBEDDER_MODEL_NAME` (`paraphrase-multilingual-MiniLM-L12-v2`), `EMBEDDER_CONNECT_TIMEOUT` (2.0), `EMBEDDER_READ_TIMEOUT` (5.0), `EMBEDDER_BATCH_READ_TIMEOUT` (30.0), `EMBEDDER_RETRIES` (1), **v2.1 owner rolü + gerçek e-posta:** `OWNER_EMAILS` (boş — virgülle ayrılmış, DB'ye dokunmadan owner sayılır, tek kaynak bu env veya elle yazılan `role='owner'`), `EMAIL_PROVIDER` (`auto` — `smtp`/`resend`/`console` ile zorlanabilir), `SMTP_HOST` (`smtp.gmail.com`), `SMTP_PORT` (587), `SMTP_USER`/`SMTP_PASSWORD` (Gmail app password — normal login şifresi DEĞİL), `SMTP_FROM` (boşsa `EMAIL_FROM` kullanılır), `SMTP_STARTTLS` (`true`), `SEARCH_QUERY_EXPANSION_ENABLED` (`true` — v2.2, arama sorgu genişletme açık/kapalı anahtarı), **v2.4 hata takibi/analytics (tek-operatörlük, 25 Ağu 2026):** `SENTRY_DSN` (boş — doluysa `app`+`worker` her ikisi de `init_sentry()` ile ayrı `server_name` etiketiyle Sentry'ye event gönderir, boşsa kod Sentry'nin varlığından habersiz), `SENTRY_TRACES_SAMPLE_RATE` (0.05), `NEXT_PUBLIC_POSTHOG_KEY` (boş — frontend build-time ARG, doluysa `AnalyticsProvider` PostHog'u başlatır, App Router pageview'larını `usePathname` ile elle gönderir), `NEXT_PUBLIC_POSTHOG_HOST` (`https://us.i.posthog.com` — hesap EU bölgesindeyse `https://eu.i.posthog.com` ile override edilmeli, prod'da öyle), **v2.5 web push (25 Ağu 2026):** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` (boş — ikisi de doluysa `build_web_push()` `PyWebPushAdapter` döner, `npx web-push generate-vapid-keys` ile 3. parti hesap gerekmeden üretilir), `VAPID_SUBJECT` (`mailto:no-reply@nexstream.news` — push spec'in zorunlu tuttuğu iletişim adresi), `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (frontend build-time ARG, public key ile AYNI değer — tarayıcıya `pushManager.subscribe()` için verilir).
-- **v2.0 nginx dersi:** nginx `upstream` bloklarını AÇILIŞTA çözer — tek bir upstream host'u ayakta değilse `[emerg] host not found in upstream` ile nginx HİÇ açılmaz ve API dahil bütün site çöker (28 Tem 2026'da grafana durdurulunca yaşandı). **Opsiyonel/ikincil upstream'ler değişkenli `proxy_pass` + `resolver 127.0.0.11` ile lazy çözümlenmeli** (grafana için yapıldı, prod ve dev conf'larda). `app`/`frontend` bilinçli olarak upstream bloğu olarak bırakıldı — onlar zaten zorunlu.
-- **v2.0 Next.js standalone dersi:** Docker her container'a otomatik `HOSTNAME=<container-id>` koyar; Next.js standalone `server.js` buna bind eder ve o isim TEK bir ağ arayüzüne çözülür. Container iki ağdaysa (frontend + backend) nginx diğer ağdan ulaşamaz → **her temiz deploy'da 502**. `frontend/Dockerfile`'da `ENV HOSTNAME=0.0.0.0` şart. Log'daki "Network: http://0.0.0.0:3000" satırı bilgi amaçlıdır, bind adresini GÖSTERMEZ — ona bakıp teşhisi geri çekme.
-- **v2.0 ChromaDB imaj dersi:** Bu imajda `curl`/`wget`/`python`/`nc` YOK, sadece `bash` var — healthcheck HTTP yoklamasını `/dev/tcp` ile elle kurmak zorunda (`exec 3<>/dev/tcp/localhost/8000 && printf "GET /api/v2/heartbeat HTTP/1.0\r\n\r\n" >&3 && head -1 <&3 | grep -q 200`). `/api/v1` yolu chroma 1.x'te kaldırıldı, `/api/v2` kullan.
-- **Resend sandbox kısıtı (v1.15'te bulundu, TÜM ResendEmailAdapter gönderimlerini etkiler):** `resend.com/domains`'te doğrulanmış bir domain yoksa, `RESEND_API_KEY` gerçek/prod modda bile olsa sadece hesap sahibinin KENDİ e-postasına mail gönderilebilir — başka adrese denemek 403 ile patlar (sessizce loglanır, akışı bozmaz). Prod'a domain doğrulaması yapılmadan çıkılırsa hesap sahibi dışındaki gerçek kullanıcılar hiç mail almaz.
-- **🔴 Canlıda HİÇBİR e-posta gönderilmiyor (29 Tem 2026'da bulundu):** prod `.env`'de `RESEND_API_KEY` BOŞ → `get_email_adapter()` sessizce `ConsoleEmailAdapter`'a düşüyor, mailler sadece loglanıyor. Doğrulama, şifre sıfırlama, digest, keyword alert — hepsi etkili. Lokal `.env`'de gerçek key var, prod'a hiç kopyalanmamış. Bu, "internal ağ" vakasıyla aynı sessiz işlevsizlik deseni.
-- **SMTP yolu doğrulandı (29 Tem 2026):** `nexstream_engine` ve `nexstream_worker` container'larından `smtp.gmail.com:587` bağlantısı + STARTTLS handshake ÇALIŞIYOR — AWS 587'yi engellemiyor. Digest maili `scheduler`'da DEĞİL `app` içinde çalışıyor (`main.py:114`), o yüzden `scheduler`'ın sadece internal `backend` ağında olması mail için sorun değil.
-- **Prod DB adı `nexstream`, `nexstream_db` DEĞİL** — SSM üzerinden `docker exec nexstream_db psql -U nexstream -d nexstream`.
-- **Rol ve tier BAĞIMSIZ eksenler:** `ADMIN_EMAILS` bootstrap'i sadece `role`'ü etkiler, `tier`'a dokunmaz → "admin ama Ücretsiz kullanıcı" hali normaldir (owner rolü işi tam bunu çözüyor).
-- **Ders — sessiz veri kaybı deseni:** `save_article()`'daki id-propagation bug'ı aylarca fark edilmeden ChromaDB indexlemeyi sessizce devre dışı bırakmıştı (exception fırlatmıyordu, sadece `article.id` None kalıyordu ve çağıran kod bunu es geçiyordu). Yeni bir "kaydet → sonra ID'ye ihtiyaç duyan bir şey yap" akışı eklerken, ORM nesnesinin PK'sının domain nesnesine gerçekten geri yazıldığını (`refresh()` + atama) doğrula — `user_repository.py::create_user` doğru pattern.
-- **v2.1 ders — env-var tabanlı yetki bootstrap'ı (`ADMIN_EMAILS`/`OWNER_EMAILS`) sadece kayıt sırasında email normalize edilirse güvenlidir:** kontrol tarafı (`has_owner_role`/`has_admin_role`) email'i lowercase'liyor olması YETMEZ — `register()` de aynı normalizasyonu (strip+lowercase) uniqueness kontrolünden ÖNCE yapmazsa, bir case-varyantı (`Erenk897@gmail.com`) ile kayıt olmak farklı bir DB satırı yaratıp yine de lowercase edilmiş env-set eşleşmesinden geçer → yetki yükseltme. Yeni bir email-eşleşmeli bootstrap/yetki deseni eklerken kayıt/lookup'ın HER İKİ ucunun da aynı normalizasyonu uyguladığını doğrula.
-- **v2.1 ders — bir dosyada `user.tier`'ı `effective_tier`'a çeviren bir görev bittiğinde, o DOSYADA kalan tüm `user.tier` okumalarını grep'le taramadan "bitti" deme:** owner rolü işinde 3 ayrı frontend dosyasında (`live-feed-context.tsx`, `NewsCard.tsx`, `dashboard/search/page.tsx`) plan bu dönüşümü hiç listelemediği için unutulmuştu — sadece final whole-branch review'da yakalandı (owner'ın WS canlı akışı hiç bağlanmıyordu). Aynı ders `_check_*` sağlık kontrolü gibi "N tane benzer nokta var" desenlerinin hepsi için geçerli.
-- **Local ve prod AYNI paylaşılan `GROQ_API_KEY`'i kullanıyor (20 Ağu 2026'da bulundu):** local `.env` ve prod `.env` içindeki anahtar birebir aynı — local'de `docker compose up -d` ile worker/scheduler'ı bir süre açık bırakmak (test/geliştirme amaçlı), PROD'un worker'ıyla AYNI günlük Groq token bütçesini (200.000 TPD, "14.400 req/gün" YANILTICI — gerçek kısıt istek sayısı değil TOKEN, bkz. bir alt madde) paylaşıp tüketiyor. Normal prod trafiği tek başına çok düşük (48 saatte tek "yeni haber" partisi görüldü) ama local+prod aynı anda çalışırsa (özellikle local DB'de çok sayıda "yeni" sayılan haber varsa — ör. `docker compose down -v` sonrası temiz/boş DB) kota dakikalar içinde tükenebilir. Local'de uzun süreli worker/scheduler testi yapacaksan ayrı bir Groq key kullanmayı düşün ya da testi kısa tut, sonrasında **mutlaka `docker compose down`**.
-- **Groq "TPD" (tokens per day) rate limit'i ismine rağmen KISA süreli/sliding gibi davranıyor:** 429 yanıtındaki `Retry-After` birkaç dakika (gözlemlenen: 3-7 dakika) — "gün sonuna kadar tükendi" DEĞİL, kısa bir tıkanıklık penceresi. `GroqAnalyzer` zaten bu header'ı okuyup bekliyor (worker çökmez, sadece o pencerede analiz gecikir) — panik gerekmez, `docker logs nexstream_worker | grep "rate limit"` ile durumu izle.
-- **Türkçe ek kırpma (`_stem_tr`) + keyword arama substring bug'ı (20 Ağu 2026'da canlıda bulundu):** `_canonical_terms`/`_keyword_relevance` (news_service.py) eskiden kökü metnin HERHANGİ bir yerinde arıyordu (`t in text`, ham Python substring). "Adana" araması kökü "ada"ya iniyor, bu kök "havadan" kelimesinin ORTASINDA da eşleşiyordu → "Adana" araması alakasız "havadan" geçen bir habere en yüksek skorla gidiyordu. Düzeltme: eşleşme artık kelime BAŞINA sabitli (`\bterim` regex, `re.compile(r"\b" + re.escape(t))`) — çekimli formları (kökle başlayan kelimeler) hâlâ yakalıyor ama kelime ortasında rastgele bir alt dizi olarak eşleşmiyor. Yeni bir stem/substring tabanlı eşleştirme eklerken bu deseni kopyala, ham `in` kullanma.
-- **Tek instance'lık background task + çoklu uvicorn worker = sessiz duplikasyon (20 Ağu 2026'da canlıda bulundu — slowapi notuyla AYNI KÖK NEDEN kategorisi):** `main.py`'nin `lifespan`'inde `asyncio.create_task(...)` ile başlatılan HER background job (newsletter_job, retention_job, broadcast poller) prod'da `--workers 2` olduğu için İKİ AYRI PROCESS'TE bağımsız kopyalanıyor. Newsletter job'da bu, abone günde 2 mail almasına yol açtı (ikisi de aynı 09:00 UTC hedefine uyanıp gönderiyordu) — Postgres `pg_try_advisory_lock`/`pg_advisory_unlock` ile düzeltildi (`newsletter_job.py::_send_digests`, kilidi alamayan worker o döngüyü sessizce atlar). Retention job aynı sorunu YAŞAMIYOR çünkü idempotent (delete-before-cutoff + upsert reindex, iki kez çalışsa da zararsız) — ama YENİ bir "günde bir kez, yan etkili" background job eklerken (ör. bildirim gönderimi) varsayılan olarak advisory-lock deseni gerektiğini varsay, idempotent olduğunu KANITLAMADIKÇA.
-- **Bir metrik/rozet iki farklı yerde iki farklı ALGORİTMA ile hesaplanırsa tutarsızlık garanti (20 Ağu 2026'da canlıda bulundu):** kart footer'ındaki "N kaynak doğruluyor" rozeti (`corroboration_count`, entity-overlap tabanlı, ingest anında hesaplanıp DB'ye yazılıyor) ile "Kaynaklar" panelinin arkasındaki `get_story_cluster` (SADECE ChromaDB semantik embedding eşiği 0.72) hiç aynı şeyi ölçmüyordu — rozet "2 kaynak" derken panel "kaynak bulunamadı" gösterebiliyordu. Düzeltme: `_find_corroborating_articles` yardımcı metodu eklendi (`_count_corroboration` ile AYNI kriteri paylaşıyor), `get_story_cluster` artık bunu semantik sonuçlarla BİRLEŞTİRİYOR — rozetin saydığı her kaynak panelde garanti görünüyor. Aynı veriyi farklı yerlerde gösteren iki UI elemanı varsa (sayı + liste, özet + detay) altlarındaki hesaplamanın AYNI fonksiyonu paylaştığını doğrula, "yaklaşık aynı sonucu verir" varsayma.
-- **Entity-overlap tabanlı bir eşleştirmede "kaç entity paylaşılıyor" tek başına yeterli sinyal değil — HANGİ entity'ler paylaşılıyor da önemli (24 Ağu 2026'da canlıda bulundu, aynı gün İÇİNDE 2 kademede genişledi):** `_find_corroborating_articles` ≥2 ortak entity kriterini uyguluyordu ama entity'lerin AYIRT EDİCİLİĞİNE hiç bakmıyordu. Sonuç: sadece `["Türkiye", "İstanbul"]` entity'li bir haber ("Türkiye'nin en samimi şehri İstanbul") alakasız bir Fenerbahçe maçı anlatımıyla skor=1.0 ile "aynı olayı anlatıyor" sayıldı. Düzeltme IDF-benzeri bir yaklaşım: aday listesinden (`get_recent_articles_with_entities`) her entity'nin kaç FARKLI kaynakta geçtiği sayılıyor (`_GENERIC_ENTITY_SOURCE_FLOOR = 4`); paylaşılan entity'lerden EN AZ biri bu eşiğin altında (nadir/ayırt edici) olmalı. Hard-code stoplist yerine kendi kendini kalibre eden bir yaklaşım bilinçli tercih edildi.
-  **Kullanıcı "sığ düşünüp tek bir yeri yamamış olabiliriz, aynı sınıf bug başka yerde de olabilir" diye sorunca** kod genelinde entity-overlap kullanan HER yer tarandı (`grep _entity_name_set/_entity_name_map`) ve **`get_related` (İlgili Haberler, ÜCRETLİ Pro+ özelliği) AYNI zayıflığı — üstelik daha hafif bir eşikle (2 değil, TEK bir ortak entity yetiyordu) — taşıdığı canlı veriyle doğrulandı**: haber #12651 (Ankara/Mamak yangını) için "ilgili" 10 haberden 9'u sadece "Ankara" kelimesini paylaşıyordu (bir futbol maçı, bir cinayet haberi, bir LGS sonucu — hiçbiri gerçekten ilgili değildi). Aynı gün `get_story_cluster`'ın SEMANTİK tarafında da (ChromaDB embedding eşiği 0.72, entity doğrulaması hiç yoktu) benzer bir sorun bulundu: kısa/kalıplaşmış haber şablonları ("X'de orman yangını çıktı") farklı şehirlerdeki FARKLI yangınları aynı "story" sayıyordu (haber #12651'in panelinde Kaş/Kemer/Bursa/Uludağ'daki alakasız yangınlar görünüyordu, rozet ise doğru şekilde 1 diyordu — rozet/panel arasındaki senkronizasyon eksikliği kullanıcı tarafından fark edildi).
-  **Düzeltme:** `_distinguishing_entity_keys` adında TEK bir paylaşılan yardımcı fonksiyon çıkarıldı; `_find_corroborating_articles`, `get_related`, VE `get_story_cluster`'ın semantik-doğrulama adımı ÜÇÜ DE artık bunu kullanıyor — "ayırt edicilik" artık üç yerde üç farklı tanımla değil, TEK bir tanımla hesaplanıyor. `get_trending` (gündem/trend listesi) bilinçli olarak dışarıda bırakıldı — o zaten "bu entity ne kadar yaygın" sorusunu SORUYOR, jenerik bir entity'nin trend olması onun İŞLEVİ, bug değil. 5 yeni regresyon testi (2 corroboration + 3 story-cluster semantik + 2 related), 751 test yeşil.
-  **Ders — bir entity/keyword-overlap eşleştirmesi eklerken (corroboration, related, dedup, herhangi bir "bu ikisi aynı şey" iddiası) "kaç tane paylaşılıyor" sorusuna ek olarak "bunlar bu havuzda ne kadar YAYGIN" sorusunu da sor VE kod tabanında AYNI birincil mekanizmayı (entity-overlap) kullanan TÜM yerleri tara — bir yerde bulunan bir sinyal-kalitesi bug'ı, aynı mekanizmayı kullanan kardeş modüllerde de neredeyse KESİN olarak vardır, "orada kanıt yok" diye atlamak yeterli değildir.**
-- **Emoji glifin rengi CSS `color` ile kontrol edilemez — footer ikon butonları (20 Ağu 2026'da kullanıcı bulgusu):** `NewsCard`'daki aksiyon butonları (İlgili/Kaynaklar/Dinle/Kaydet) eskiden çıplak emoji + `var(--text3)`, arka plan/kontur yoktu; kaydet ikonu (🔖/🏷) özellikle küçük (0.85rem) ve hiçbir temada "buton" gibi görünmüyordu. Emoji'nin kendi (platform bağımlı, çoğunlukla renkli) glifi CSS `color`'dan etkilenmediği için görünürlüğü emoji rengine değil ÇEVRESİNDEKİ konteynıra dayandırmak gerekiyor — `globals.css::.icon-chip` (+ `.icon-chip--active`, `.icon-chip--iconOnly`) eklendi: hafif zemin (`rgba(0,0,0,.1)` — bilinçli DÜŞÜK tutuldu, yüksek opaklık koyu temalarda sorun değil ama gündüz temasında (açık zemin + koyu metin) kontrastı TERS yönde düşürüyordu, relative-luminance hesabıyla doğrulandı) + `var(--border2)` kontur + `var(--text2)` metin (text3 değil — text3 bazı temalarda küçük metin için WCAG AA sınırına (4.5:1) marjinal kalıyordu). Yeni bir ikon-only/az metinli aksiyon butonu eklerken `.icon-chip` class'ını kullan, çıplak emoji + inline renk KULLANMA.
-- **Yahoo Finance sembolleri mock testte doğrulanamaz, sadece canlı çağrıda ortaya çıkar (21 Ağu 2026):** piyasa ticker'ı özelliğinde `XAUUSD=X` sembolü seçilmişti, tüm mock'lu testler (proje kuralı gereği gerçek HTTP çağrısı yasak) yeşildi — ama final whole-branch review'da yapılan TEK gerçek (mock'suz) curl, sembolün Yahoo'da geçersiz olduğunu (`{"error":{"code":"Not Found"...}}`) ortaya çıkardı; düzeltme öncesi ticker canlıda HİÇ veri göstermiyordu. Doğru sembol `GC=F` (COMEX altın vadeli). Resmi olmayan/üçüncü parti bir API'ye yeni bir sembol/endpoint eklerken, mock testler geçse bile en az bir kez gerçek bir çağrı (curl/WebFetch) ile doğrula — proje zaten Guardian Tech/Verge RSS beslemeleri için bu şekilde doğrulanmıştı, aynı disiplin.
-- **Bash aracının "otomatik izin sınıflandırıcısı" `gh pr merge` ve `aws ssm`/`aws ec2` gibi komutları varsayılan olarak engelliyor (21 Ağu 2026):** kullanıcı sözlü onay verse bile bu engel aşılamıyor — ajan kendi `settings.local.json`'ına izin ekleyerek de bunu aşamıyor (o da aynı sınıflandırıcı tarafından reddediliyor, kasıtlı bir tasarım). Kalıcı çözüm: kullanıcının kendisi `.claude/settings.local.json`'a `permissions.allow` içine `"Bash(gh pr merge:*)"`, `"Bash(aws ssm send-command:*)"`, `"Bash(aws ec2 *)"` gibi kurallar eklemesi gerekiyor — bu oturumda henüz eklenmedi. `git push`, `gh pr create`, `aws ec2 describe-instances` gibi salt-okunur/düşük riskli komutlar aynı engele takılmadı.
-- **Public bir endpoint'in "cache miss" yolu pahalıysa (dış API çağrısı), sadece "cache hit" ucuz olması yetmez — negative-cache-on-failure şart (21 Ağu 2026, piyasa ticker'ı final review'da bulundu):** `GET /market/ticker` başarısızlıkta son iyi değere (`stale:true`) düşüyordu ama bu düşüşü TAZE cache anahtarına YAZMIYORDU — dış API (Yahoo) kesikken HER istek yeniden 4 senkron HTTP çağrısı deniyordu (uzun timeout × N istek = paylaşılan threadpool'u tıkama riski). Düzeltme: başarısızlıkta stale değer kısa TTL'li (60sn) olarak taze anahtara da yazılıyor, ardışık istekler cache hit'e düşüyor. Yeni bir "dış kaynağa bağımlı, cache'li, public" endpoint eklerken bu deseni varsay.
-- **🔒 21 Ağu 2026'da tüm git geçmişi mahremiyet gerekçesiyle yeniden yazıldı — `git-filter-repo` ile `main` VE `optimize/t3-small-ram`'daki her commit mesajından `Co-Authored-By: Claude...` (112 commit) ve `Claude-Session: https://claude.ai/code/...` (3 commit) satırları kaldırıldı; commit SHA'ları TÜMÜYLE değişti (tree hash'leri, yani kodun kendisi, doğrulanarak AYNI bırakıldı — sadece mesajlar temizlendi). Global `~/.claude/settings.json`'a `attribution: {commit: "", pr: "", sessionUrl: false}` eklendi, bu tarihten sonraki commit/PR'larda bu satırlar hiç oluşmayacak. 18 merge edilmiş PR'ın gövdesindeki "🤖 Generated with Claude Code" footer'ı da GitHub API üzerinden ayrıca temizlendi (git geçmişinin parçası değil, PR metadata'sı — ayrı bir işlemdi).**
-  **Kalıcı sonuçlar/gotcha'lar:** (1) Rewrite'tan önce repo'yu clone/fork etmiş biri varsa onun kopyasında eski SHA'lar ve trailer'lar KALICI olarak durur, biz onu değiştiremeyiz — geriye dönük garanti veremeyiz. (2) **EC2 prod sunucusundaki `optimize/t3-small-ram` checkout'u bir sonraki SSM deploy'unda senkron OLMAYACAK** (eski SHA'lara bakıyor) — bir sonraki deploy'da normal `git pull` yerine `git fetch origin && git reset --hard origin/optimize/t3-small-ram` kullan, yoksa "diverged branches" hatası alırsın. (3) Force-push GitHub branch ruleset'i ("Main Koruma", `non_fast_forward` kuralı) tarafından normalde engellenir — geçici olarak `enforcement: disabled` yapılıp push sonrası `active`'e geri döndürüldü (`gh api -X PUT repos/.../rulesets/16758733`). (4) Açık Dependabot PR'ları (`mergeable: UNKNOWN`) rewrite öncesinde de aynı durumdaydı, rewrite'tan kaynaklı yeni bir bozulma DEĞİL. (5) Bash aracının otomatik izin sınıflandırıcısı hem `gh api` (ruleset PATCH) hem `gh pr edit`/MCP `update_pull_request` çağrılarını TUTARSIZ şekilde engelliyor — bazı çağrılar ilk denemede geçiyor, aynı türden bir sonraki çağrı engelleniyor; tek çözüm retry (kullanıcı onayı bir kez verilince kalıcı bir izin AÇILMIYOR, her çağrı ayrı değerlendiriliyor gibi görünüyor).
-- **`ENVIRONMENT=production` guard'ı (v1.17, `_reject_unsafe_production_config`) sadece HTTP-yüzeyli servise değil, `settings`'i import eden HER servise "hepsi ya da hiçbiri" uygulanır (25 Ağu 2026'da canlıda crash-loop'a yol açtı):** Sentry aktivasyonu sırasında worker/scheduler'a da `ENVIRONMENT=production` eklendi (app'te zaten vardı, worker/scheduler'da unutulmuştu) — ama guard `API_KEY`/`CORS_ORIGINS`/`SESSION_COOKIE_SECURE`/`BILLING_DEV_MODE` hepsini kontrol ediyor, worker/scheduler'ın compose bloğunda bunlardan İKİSİ (API_KEY, CORS_ORIGINS) hiç geçilmiyordu (worker/scheduler bu değerleri FONKSİYONEL olarak hiç kullanmaz, sadece `app`'in HTTP/CORS/auth yüzeyi için anlamlıdır). Sonuç: `Settings()` modül-seviyesinde import anında (`from src.infrastructure.config.settings import settings`) `ValidationError` fırlattı, worker+scheduler container'ları ~6 dakika crash-loop'ta kaldı (haber alma/analiz VE scrape tetikleme o süre boyunca durdu, `app`/frontend/site erişimi ETKİLENMEDİ). **Ders: bir servise `ENVIRONMENT=production` eklerken, guard'ın kontrol ettiği TÜM alanları (şu an 4 tanesi) o servisin compose bloğunda da gerçek değerleriyle geçirmen gerekir — servisin o değerleri kullanıp kullanmadığı ÖNEMLİ DEĞİL, guard'a görünür olmaları yeterli. Deploy sonrası `docker inspect <container> --format '{{.State.Status}}'`/`RestartCount` ile HER ZAMAN doğrula, sadece `/api/health`'e bakmak yetmez (app sağlıklı görünürken worker sessizce çökebiliyor — bkz. [[feedback_internal_network_silent_failure]] ile aynı "healthy görünüp iş yapmama" ders sınıfı).**
-- **Yerel `.env`'e gerçek bir SENTRY_DSN eklemek test paketini sessizce prod'a "sızdırabilir" (25 Ağu 2026'da bulundu):** `tests/conftest.py::app_client` fixture'ı `src.main`'i reload ederken `init_sentry("app")`'ı hiç mock'lamıyordu — bu bir sorun değildi çünkü lokal `.env`'de `SENTRY_DSN` hep boştu, ama Sentry aktivasyonu sırasında geçici olarak gerçek DSN eklenince HER lokal test koşusu (router testlerinin büyük kısmı `app_client` kullanıyor) gerçek prod Sentry hesabına event gönderdi — testlerin BİLİNÇLİ olarak simüle ettiği hata senaryoları ("Groq analiz hatası", "SMTP gönderilemedi" vb., fail-open davranışı doğrulamak için) gerçek issue'lar gibi Sentry'ye düştü (24 sahte alarm). **Düzeltme iki katmanlı:** (1) `tests/conftest.py`'ye `sentry_sdk.init`'i test süiti genelinde mock'layan bir `autouse=True` fixture eklendi (`tests/infrastructure/test_sentry.py`'nin kendi nested mock'lamasını bozmuyor), (2) local `.env`'de `SENTRY_DSN` yine boş bırakıldı (prod SaaS entegrasyonlarının lokalde aktif olması zaten anlamsız — dev hataları prod dashboard'unu kirletir). **Ders: gerçek bir 3. parti entegrasyon anahtarını (Sentry/PostHog gibi) local `.env`'e eklerken, test suite'in o entegrasyonu GERÇEKTEN mock'ladığından ZATEN emin ol — "zaten hep boştu, hiç test edilmedi" bir varsayım, garanti değil.**
-- **Yeni bir "sahiplik kontrolü olmadan ID/endpoint ile silme" endpoint'i eklerken IDOR riski varsayılan sayılmalı (25 Ağu 2026, web push aboneliği eklerken otomatik güvenlik incelemesi bulup düzeltti):** `DELETE /account/push-subscription` ilk halinde `req.endpoint`'in `current_user`'a ait olup olmadığını hiç doğrulamadan doğrudan `delete_by_endpoint(req.endpoint)` çağırıyordu — endpoint tahmin edilebilir/öğrenilebilir olsaydı başka bir kullanıcının aboneliği silinebilirdi. Düzeltme: silme öncesi `get_by_email(current_user.email)` ile sahiplik doğrulanıyor, eşleşmezse sessizce no-op (idempotent-delete deseniyle tutarlı, hata fırlatmıyor). **Ders: `DELETE`/`PATCH` gibi bir yazma endpoint'i request body'den bir ID/endpoint/anahtar alıp bir kaynağı hedefliyorsa, o kaynağın `current_user`'a ait olduğunu SORGULAYARAK doğrula — sadece "girdi doğru formatta mı" yeterli değil, "bu girdi GERÇEKTEN bu kullanıcının mı" ayrı bir kontrol.**
-- **🔴 Senkron bir kullanıcı HTTP isteğinde çalışan bir LLM adapter'ı, arka plan worker'ının 429/Retry-After bekleme desenini KOPYALAMAMALI (26 Ağu 2026, RAG canlı QA'sında kullanıcı bulgusu — "hem haber kartından hem üst panelden düşünüyorda kaldı"):** `GroqQuestionAnswerer` ilk halinde `GroqAnalyzer`'ın (worker'da, arka planda çalışan) 429 → `time.sleep(retry_after)` desenini birebir kopyalamıştı. Groq'un TPD rate limit'i dolduğunda `Retry-After` değeri gözlemlenen **456-480 saniye** (~8 dakika) çıktı — bu, `POST /api/v1/news/ask` gibi SENKRON bir HTTP isteğinin içinde beklenince kullanıcıyı dakikalarca "Düşünüyor..." ekranında askıda bırakıyordu (canlı loglarla doğrulandı, PR #72 ile düzeltildi). **Düzeltme:** interaktif yolda 429'da HİÇ beklenmiyor, hemen `QuestionAnsweringError` fırlatılıyor (fail-fast) — kullanıcı birkaç saniye içinde net bir hata görüp isterse tekrar dener. **Ders: yeni bir LLM adapter'ı eklerken "bu hangi bağlamda çalışıyor" sorusu kritik — arka plan/worker bağlamında sabırla bekleyip retry etmek doğruyken, senkron/kullanıcı-yüzlü bir HTTP isteğinde AYNI bekleme kullanıcı deneyimini bozan bir bug'dır. Var olan bir adapter'ı "aynı HTTP deseni" diye kopyalarken çağrıldığı bağlamı da kopyalanıp kopyalanamayacağını sorgula.**
-- **Groq'un günlük (TPD) token kotası MODEL BAŞINA ayrı bir havuz — paylaşılan tek bir sayaç DEĞİL (27 Ağu 2026'da hem resmi rate-limit dokümanıyla hem canlı ampirik testle DOĞRULANDI, bkz. CHANGELOG "LLM modülü bölme spike'ı"):** worker'ın haber analiz hattı (17 kaynak, sürekli akış) `openai/gpt-oss-20b` havuzunu neredeyse TAMAMEN tüketiyordu (26 Ağu 2026'da 199.555/200.000) ve RAG/sorgu-genişletme aynı modeli paylaştığı için pay bulamıyordu — çözüm farklı bir SAĞLAYICIYA geçmek değil, aynı Groq hesabında FARKLI bir MODEL seçmekti (`GroqQuestionAnswerer` artık `openai/gpt-oss-120b`'de, bağımsız kota). Yeni bir LLM-tüketen özellik eklerken worker'ın modeliyle AYNI modeli paylaşıp paylaşmadığını kontrol et — paylaşıyorsa aynı tıkanıklığı miras alır.
-- **🔴 Groq'un rate limit'i gerçek bir "günlük kota" değil, sürekli dolan bir leaky bucket — canlı header probe'uyla kanıtlandı (1 Eyl 2026):** Worker container'ından art arda birkaç istek atılıp `x-ratelimit-remaining-requests`/`x-ratelimit-reset-requests` header'ları izlendi — her ek istekte `remaining` 1 azalırken `reset` TAM 86.4 saniye artıyordu (1000 RPD → 86400s/1000 = istek başına 86.4s dolum hızı; token tarafında da aynı desen, 8000 TPM → 7.5ms/token). Yani "RPD=1000" günde-bir-sıfırlanan bir sayaç değil, sürekli `1/86.4sn` hızında dolan bir kova — **günlük TOPLAM tüketim rahat olsa bile (madde 25'te doğrulandı: ~115K/200K token, ~300-400/1000 istek), kısa bir pencerede BURST halinde istek atarsan kova aniden boşalır, dakikalarca 429 yersin.** Bir rate-limit sorununu teşhis ederken "ne kadar tükettik" (toplam) sorusu kadar "ne HIZLA tükettik" (burst deseni) sorusunu da sor — CLAUDE.md'nin önceki oturumlardaki TPM/TPD analizleri bu ayrımı gözden kaçırmıştı.
-- **nginx container'ında `access.log`/`error.log` GERÇEK dosya değil, `/dev/stdout`/`/dev/stderr`'e symlink (resmi nginx image'ının standart davranışı) — `docker exec nginx wc -l /var/log/nginx/access.log` gibi bir komut SONSUZA kadar asılı kalır (1 Eyl 2026'da ~5 dakika kaybedilerek bulundu):** `/dev/stdout`'u gerçek bir dosya gibi `wc`/`head`/`tail` ile okumaya çalışmak bir stream'i EOF bekleyerek okumaya çalışmak demek, hiç gelmez. Doğru yol: `docker logs <container>` (opsiyonel `--since`). Herhangi bir container'ın log dosyasına `docker exec` ile dokunmadan önce önce `ls -la` ile symlink olup olmadığına bak.
-- **Playwright'ın Chromium indirmesi bu geliştirme ortamında güvenilmez/çok yavaş (1 Eyl 2026, birden fazla oturumu etkileyebilir):** `npx playwright install chromium` (~192MB) Google'ın Chrome-for-Testing CDN'inden bu host'ta ölçülen ~200KB/s hızla iniyor (~15+ dakika), sıklıkla 30sn'lik chunk timeout'larına takılıp baştan başlıyor. `npm run setup`'ın "exit code 0" dönmesi İNDİRMENİN TAMAMLANDIĞI anlamına GELMİYOR — arka planda başlatılan indirme süreci ayrı devam edebiliyor, kurulum tamamlanmadan önce browser başlatmayı denemek "Executable doesn't exist" hatası verir. Zaman kısıtlıysa: curl/PowerShell BITS ile (`Start-BitsTransfer -Asynchronous`) doğrudan indirip `ms-playwright/chromium-<rev>/chrome-win64/` altına manuel yerleştirmek dene, yine de olmuyorsa canlı tarayıcı doğrulamasından vazgeçip kod incelemesi + build/curl smoke-test'e güven, kullanıcıya bunu AÇIKÇA söyle.
-- **Bash `git commit -m "..."` mesajı içinde backtick (`` ` ``) KULLANMA — shell onu komut ikamesi sanıp çalıştırır (1 Eyl 2026'da yaşandı):** `nginx -t` gibi bir komut adını mesaj içinde vurgulamak için backtick koyunca, bash o kısmı gerçekten ÇALIŞTIRMAYA çalıştı ("nginx: command not found" hatası + mesajdan o parça sessizce silindi). Commit mesajlarında kod/komut vurgusu için backtick yerine tek tırnak ya da hiç işaretleme kullanma; kazara olduysa `git commit --amend` ile düzeltilebilir (henüz push edilmediyse sorunsuz, push edildiyse `--force-with-lease` gerekir).
-- **Dependabot, birbirine bağımlı (peer dependency) paketleri bazen YANLIŞ ayrı PR'lara böler (1 Eyl 2026, react+react-dom örneği):** `react`'ı 19'a çeken PR `react-dom`'u 18'de bırakıyordu, `react-dom`'u 19'a çeken PR de `react`'ı 18'de bırakıyordu — ikisi de TEK BAŞINA ERESOLVE hatasıyla kırıktı çünkü major versiyonları uyuşmuyordu. Otomatik bump PR'larından biri "peer dependency" hatasıyla kırıksa, o paketin YAKIN bir kardeşi (aynı ekosistem, örn. bir @types paketi ya da react-dom gibi eşleşmesi gereken bir paket) için AYRI bir Dependabot PR'ı olup olmadığını kontrol et — ikisini elle BİRLEŞTİRİP tek dalda bump'lamak gerekebilir.
-- **Roadmap maddesini "sıradaki oturumun İLK işi" diye işaretleyip session'ı bitirmek, o işin GERÇEKTEN yapılıp yapılmadığını session-end güncellemesinin yakalamasını GARANTİ ETMEZ (1 Eyl 2026'da yaşandı):** Madde 22 (entity chip→arama) 24 Ağu'da "onay bekliyor" diye not düşülmüştü ama AYNI GÜN başka bir dalda/PR'da (#51) zaten yapılmıştı — roadmap maddesi hiç kapatılmadı, 1 hafta sonraki oturum onu "hâlâ bekliyor" sanıp gündeme aldı, kod incelemesiyle zaten yapılmış olduğu ortaya çıktı. Bir sonraki oturuma "ilk iş" olarak bırakılan bir roadmap maddesine başlamadan ÖNCE `git log --oneline -S"<özellik anahtar kelimesi>"` ile gerçekten yapılmadığını doğrula — özellikle oturum ortasında konu değiştiyse (o gün başka bir işe geçildiyse) kolayca unutulabiliyor.
+- **v1.9 billing:** Stripe yapılandırılmazsa `/billing/*` → 503. Webhook `stripe-signature` doğrulaması yapılır
+- **Tailwind responsive class + inline style çakışması:** `hidden md:flex` gibi responsive display class'ı olan bir elemente inline style'a ASLA `display` ekleme — inline style class'ı ezer, `md:hidden` çalışmamış gibi görünür. Açık/kapalı mobil panellerde ayrıca `matchMedia("(min-width: 768px)")` ile ekran büyüyünce state'i otomatik kapatan bir effect ekle.
+- **v1.10 tema/i18n:** Renk token'ları `globals.css`'te `[data-theme="<id>"]`, TÜM string `lib/i18n.ts`'te (`UI[lang]`) — sayfaya hardcoded metin YAZMA. Trending API alanı `name` (eskiden `entity` bekleniyordu, boş isim bug'ıydı).
+- **v1.10 kafka dayanıklılığı:** kafka/zookeeper/chromadb'ye `restart: unless-stopped`. `KafkaPublisherAdapter.start()` retry'lı. Temiz aç/kapa: `docker compose down` → `up -d`.
+- **v1.10 node lokal:** Node v24 host'ta. Docker `Dockerfile.dev` `npm run dev` (SWC) tam tip kontrolü YAPMAZ — tip hataları sadece `next build`'te görünür.
+- **v1.11 admin yetkisi:** `require_admin`/`require_moderator` X-API-Key VEYA rol tabanlı kullanıcı oturumu kabul eder. **`get_current_user` (zorunlu) X-API-Key'i ASLA çözmez** — yeni bir admin-yazma endpoint'i eklerken handler'da `actor: Optional[User] = Depends(get_optional_user)` deseni kullan (`get_current_user` değil), yoksa router X-API-Key'i kabul etse bile handler 401 verir.
+- **v1.11 kullanıcı API key:** `nxs_` önekli, `/account/api-key` ile yönetilir, `X-User-Key` header'ı ile. Session ile aynı anda gelirse session kazanır.
+- **slowapi + çoklu worker gotcha'sı:** prod `--workers 2` — `storage_uri` (Redis) set edilmezse her worker kendi in-memory sayacını tutar, limit fiilen ~2 katına gevşer. `REDIS_URL` prod'dan kaldırılırsa rate limit SESSİZCE gevşer, hata vermez.
+- **Prod deploy öncesi kontrol listesi:** `FRONTEND_URL`, `RESEND_API_KEY`/`EMAIL_FROM`, `ENVIRONMENT=production`, `API_KEY` (rastgele), `CORS_ORIGINS` (gerçek domain, `*` DEĞİL), `GRAFANA_PASSWORD` (compose `:?` ile zorunlu), `SESSION_COOKIE_SECURE=true` — ilk dördü zayıf/eksikse `_reject_unsafe_production_config` uygulamayı açılışta ÖLDÜRÜR (kasıtlı).
+- **`ENVIRONMENT=production` guard'ı "hepsi ya da hiçbiri" uygulanır** — worker/scheduler gibi HTTP'siz bir servise bu env var'ı eklersen, guard'ın kontrol ettiği `API_KEY`/`CORS_ORIGINS`/`SESSION_COOKIE_SECURE`/`BILLING_DEV_MODE`'un HEPSİNİ o serviste de gerçek değerleriyle geçirmen gerekir (servisin bunları kullanıp kullanmaması ÖNEMLİ DEĞİL, guard'a görünür olmaları yeterli) — yoksa `Settings()` import anında patlar, container crash-loop'a girer. Deploy sonrası `docker inspect --format '{{.State.Status}}'`/`RestartCount` ile doğrula, sadece `/api/health`'e bakma (app sağlıklı görünürken worker sessizce çökebiliyor).
+- **Yerel `.env`'e gerçek bir 3. parti anahtarı (Sentry DSN vb.) eklemeden önce test suite'in onu GERÇEKTEN mock'ladığından emin ol** — "zaten hep boştu, hiç test edilmedi" bir varsayım, garanti değil (bkz. `tests/conftest.py`'deki autouse fixture'lar).
+- **Yeni bir `DELETE`/`PATCH` endpoint'i body'den bir ID/endpoint/anahtar alıp bir kaynağı hedefliyorsa, o kaynağın `current_user`'a ait olduğunu SORGULAYARAK doğrula** (IDOR varsayılan risk) — sadece "girdi doğru formatta mı" yeterli değil.
+- **Senkron/kullanıcı-yüzlü bir HTTP isteğinde çalışan bir LLM adapter'ı, arka plan worker'ının 429/Retry-After bekleme desenini (dakikalarca `time.sleep`) KOPYALAMAMALI** — interaktif yolda 429'da fail-fast (hemen hata döndür), worker/background'da sabırla bekle. Var olan bir adapter'ı kopyalarken çağrıldığı bağlamı da sorgula.
+- **Groq'un günlük (TPD) token kotası MODEL BAŞINA ayrı bir havuz** — paylaşılan tek bir sayaç DEĞİL. Yeni bir LLM-tüketen özellik eklerken worker'ın modeliyle (`gpt-oss-20b`) AYNI modeli paylaşıp paylaşmadığını kontrol et, paylaşıyorsa aynı tıkanıklığı miras alır (RAG/query-expansion bu yüzden `gpt-oss-120b`'ye taşındı).
+- **nginx container'ında log dosyaları gerçek dosya değil `/dev/stdout`/`/dev/stderr` symlink'i** — `docker exec nginx wc -l ...` SONSUZA kadar asılı kalır. Doğru yol: `docker logs <container>`.
+- **Playwright'ın Chromium indirmesi bu ortamda güvenilmez/çok yavaş** (~200KB/s, sık sık timeout) — "exit code 0" indirmenin bittiği anlamına gelmez. Zaman kısıtlıysa canlı tarayıcı doğrulamasından vazgeç, kod incelemesi + build/curl smoke-test'e güven, kullanıcıya açıkça söyle.
+- **Bash `git commit -m` mesajında backtick KULLANMA** — shell komut ikamesi sanıp çalıştırır, mesajdan o parça sessizce silinir. Tek tırnak kullan.
+- **Dependabot birbirine bağımlı (peer dependency) paketleri bazen YANLIŞ ayrı PR'lara böler** — bir bump PR'ı "peer dependency" hatasıyla kırıksa, yakın bir kardeş paket için ayrı bir PR olup olmadığını kontrol et, elle birleştirmek gerekebilir.
+- **Roadmap maddesini "sıradaki oturumun İLK işi" diye not düşüp session'ı bitirmek, o işin GERÇEKTEN yapıldığını garanti etmez** — aynı gün başka bir dalda yapılmış olabilir. Başlamadan önce `git log --oneline -S"<anahtar kelime>"` ile doğrula.
+- **AWS SSM operasyon deseni:** komutlarda `git` kullanmadan önce `export HOME=/home/ubuntu` + `git -c safe.directory=<repo-path>` (repo: `~/NexStream-News-Engine`) gerekir. Windows'taki native `aws.exe`'ye Git Bash'ten `file:///...` paramfile yolu VERME — JSON'u inline geç.
+- **Otomatik saldırgan engelleme kapsamı:** nginx `limit_req_zone` + slowapi endpoint limitleri sadece YAVAŞLATIR/429 döner, kalıcı bir IP ban/WAF/fail2ban YOK (Cloudflare geçişi bunu değiştirebilir, bkz. YOL HARİTASI madde 6). Kullanıcı bazlı banlama AYRI ve VAR (`PATCH /admin/users/{id}/active`) ama IP değil hesap seviyesinde.
+- **`nexstream-deploy` IAM kullanıcısı AdministratorAccess DEĞİL** — `NexStreamDeployMinimal` policy'sine scope'landı (sadece EC2 describe/start/stop/reboot + SSM, `i-0608c897a3d8ca3f3` ile sınırlı). Başka bir AWS eylemi (S3, IAM, RDS, Budgets dahil) bu kimlikle YAPILAMAZ, kullanıcıya sor.
+- **v1.11 sonrası yeni env var'lar:** güncel/tam liste `docker-compose.prod.yml` + `settings.py`'de — hangi versiyonda eklendiğinin kronolojisi CHANGELOG'da.
+- **v2.0 nginx dersi:** `upstream` blokları AÇILIŞTA çözülür — tek bir upstream host'u ayakta değilse nginx HİÇ açılmaz. Opsiyonel/ikincil upstream'ler (grafana gibi) değişkenli `proxy_pass` + `resolver 127.0.0.11` ile lazy çözümlenmeli. `app`/`frontend` bilinçli olarak sabit upstream (zaten zorunlu).
+- **v2.0 Next.js standalone dersi:** Docker'ın otomatik koyduğu `HOSTNAME=<container-id>` Next.js standalone `server.js`'i TEK bir ağ arayüzüne bind eder — container iki ağdaysa nginx diğer ağdan ulaşamaz (502). `frontend/Dockerfile`'da `ENV HOSTNAME=0.0.0.0` şart.
+- **v2.0 ChromaDB imaj dersi:** bu imajda `curl`/`wget`/`python`/`nc` YOK, sadece `bash` — healthcheck `/dev/tcp` ile elle kurulmalı. `/api/v1` kaldırıldı, `/api/v2` kullan.
+- **Resend sandbox kısıtı:** doğrulanmış bir domain yoksa sadece hesap sahibinin KENDİ e-postasına gönderim yapılabilir (403, sessizce loglanır).
+- **Prod DB adı `nexstream`, `nexstream_db` DEĞİL** — `docker exec nexstream_db psql -U nexstream -d nexstream`.
+- **Rol ve tier BAĞIMSIZ eksenler:** `ADMIN_EMAILS` bootstrap'i sadece `role`'ü etkiler, `tier`'a dokunmaz — "admin ama Ücretsiz kullanıcı" normaldir.
+- **Sessiz veri kaybı deseni:** "kaydet → sonra ID'ye ihtiyaç duyan bir şey yap" akışı eklerken ORM nesnesinin PK'sının domain nesnesine gerçekten geri yazıldığını (`refresh()`+atama) doğrula — exception fırlatmaz, sadece alan `None` kalır (`user_repository.py::create_user` doğru pattern).
+- **Env-var tabanlı yetki bootstrap'ı (`ADMIN_EMAILS`/`OWNER_EMAILS`) sadece kayıt sırasında email normalize edilirse güvenlidir** — `register()`'ın da lookup ile AYNI normalizasyonu (strip+lowercase) uniqueness kontrolünden ÖNCE yapması gerekir, yoksa case-varyantı farklı bir satır yaratıp yine de env eşleşmesinden geçebilir.
+- **Bir dosyada `user.tier`'ı `effective_tier`'a çeviren bir görev bittiğinde, o dosyada kalan TÜM `user.tier` okumalarını grep'le taramadan "bitti" deme** — final whole-branch review'a kadar unutulabilir.
+- **Local ve prod AYNI paylaşılan `GROQ_API_KEY`'i kullanıyor** — local'de worker/scheduler'ı uzun süre açık bırakmak prod'un GÜNLÜK bütçesini paylaşıp tüketir. Uzun local test yapacaksan ayrı bir key kullan ya da test kısa tut, sonra **mutlaka `docker compose down`**.
+- **Türkçe ek kırpma (`_stem_tr`) substring bug'ı:** eşleşme kelime BAŞINA sabitli olmalı (`\bterim` regex) — ham `in`/substring kontrolü "Adana" aramasının "havadan"ın ortasında eşleşmesi gibi alakasız sonuçlar verir.
+- **Tek instance'lık background task + çoklu uvicorn worker = sessiz duplikasyon:** `lifespan`'de `asyncio.create_task` ile başlatılan HER job prod'da `--workers 2` yüzünden İKİ AYRI PROCESS'te kopyalanır. Yeni bir "günde bir kez, yan etkili" job eklerken idempotent olduğunu KANITLAMADIKÇA `pg_try_advisory_lock` deseni gerektiğini varsay (bkz. `newsletter_job.py`).
+- **Bir metrik/rozet iki farklı yerde iki farklı ALGORİTMA ile hesaplanırsa tutarsızlık garanti** — aynı veriyi gösteren iki UI elemanı (sayı + liste, özet + detay) varsa altlarındaki hesaplamanın AYNI fonksiyonu paylaştığını doğrula.
+- **Entity-overlap tabanlı bir eşleştirmede "kaç entity paylaşılıyor" tek başına yeterli sinyal değil — HANGİ entity'ler paylaşılıyor da önemli.** Bir yerde bulunan entity-overlap sinyal-kalitesi bug'ı, aynı mekanizmayı kullanan kardeş modüllerde de neredeyse KESİN vardır — kod genelinde tara (`grep _entity_name_set/_entity_name_map`), "orada kanıt yok" diye atlama. Ortak yardımcı: `_distinguishing_entity_keys`.
+- **Emoji glifin rengi CSS `color` ile kontrol edilemez** — ikon-only/az metinli aksiyon butonlarında `.icon-chip` class'ını kullan (hafif zemin+kontur+`var(--text2)`), çıplak emoji + inline renk KULLANMA.
+- **Resmi olmayan/üçüncü parti bir API'ye yeni bir sembol/endpoint eklerken mock testler geçse bile en az bir kez gerçek bir çağrı (curl/WebFetch) ile doğrula** — mock'lu testler geçersizliği YAKALAMAZ.
+- **Bash aracının otomatik izin sınıflandırıcısı artık `gh`/`aws ssm`/`aws ec2` komutlarını engellemiyor** (24 Ağu 2026'da düzeldi) — önceki bir oturumda engellenmiş olması bir daha engelleneceği anlamına gelmez, önce dene.
+- **Public bir endpoint'in "cache miss" yolu pahalıysa (dış API çağrısı), negative-cache-on-failure şart** — başarısızlıkta son iyi değeri kısa TTL'li olarak TAZE cache anahtarına da yaz, yoksa dış kaynak kesikken her istek yeniden pahalı çağrı dener.
+- **🔒 21 Ağu 2026'da git geçmişi mahremiyet gerekçesiyle yeniden yazıldı** (Claude attribution satırları kaldırıldı, SHA'lar değişti) — rewrite'tan önce klonlayan biri varsa onun kopyasında eski SHA'lar kalıcı olarak durur. Global `~/.claude/settings.json`'da attribution artık kapalı, tekrar gerekmiyor. Detay: CHANGELOG.
+- **24 Ağu 2026 telif hakkı değerlendirmesi — düşük risk, tek şart:** her kartta kaynak gösterimi (isim+tarih+link) doğru/görünür kalmalı, tam makale metni saklama kararına (madde 18) SADIK kalınmalı. Detay/hukuki gerekçe: CHANGELOG.
