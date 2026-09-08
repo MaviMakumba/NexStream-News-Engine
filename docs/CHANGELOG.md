@@ -412,7 +412,7 @@ Temel SEO (generateMetadata, robots.ts, sitemap.ts), `/privacy`+`/terms`, nginx 
 
 ---
 
-## TAMAMLANAN MİLESTONE'LAR (v1.18 → v2.9, 19 Ağustos – 1 Eylül 2026)
+## TAMAMLANAN MİLESTONE'LAR (v1.18 → v2.9, 19 Ağustos – 4 Eylül 2026)
 
 `CLAUDE.md` 18 Ağustos'ta bu dosyaya ayrıştırıldıktan sonra biriken bir haftalık
 yoğun geliştirme — roadmap'in ✅ işaretli maddelerinin tam anlatısı burada,
@@ -837,23 +837,188 @@ dedi — roadmap #25'in devamına SSM canlı diagnostiğiyle başlandı.
   üçüncü-taraf insan trafiği pratik olarak sıfıra yakın. **PR #88** ile o
   IP nginx'te `deny` edildi (canlı `nginx -t` ile syntax doğrulandı).
   AdSense başvurusunun ertelenmesi kararı bu veriyle somutlaştı.
-- **PR #90 — mobil responsive bug (kullanıcı bulgusu, iPhone 12 dikey
-  mod):** `/dashboard`'da ekran sağa kaydırılabiliyor, uzun entity
-  chip'leri karttan taşıyordu. Kök neden: `.badge` class'ı
+- **PR #90 + PR #91 — mobil responsive bug, 2 parça (kullanıcı bulgusu,
+  iPhone 12 dikey mod):** `/dashboard`'da ekran sağa kaydırılabiliyor, uzun
+  entity chip'leri karttan taşıyordu. Kök neden: `.badge` class'ı
   `white-space:nowrap`+`flex-shrink:0` kullanıyor (kısa sabit metinler
   için doğru) ama entity isimleri keyfi uzunlukta — chip hiç kırılmadığı/
   küçülmediği için doğal genişliğinde kalıp kartın (ve sayfanın) dışına
   taşıyordu. `NewsCard.tsx`'teki entity chip'lerine (+ İlgili Haberler
   panelindeki `common_entities`, aynı risk) `maxWidth`+ellipsis eklendi,
-  `html`'e savunma amaçlı `overflow-x:hidden`. Canlı tarayıcı doğrulaması
-  bu ortamda Playwright/Chromium indirme sorunu yüzünden yapılamadı
-  (bkz. CLAUDE.md BİLİNEN NOTLAR) — build+curl smoke-test'e güvenilerek
-  deploy edildi, kullanıcı telefondan doğrulayacak.
+  `html`'e savunma amaçlı `overflow-x:hidden` (PR #90). **Kullanıcı deploy
+  sonrası hemen test edip AYNI SINIFTAN ikinci bir bug daha buldu:** kart
+  footer'ındaki aksiyon satırı (İlgili/Kaynaklar/Sor/Dinle/Kaydet/Habere
+  git) bu sefer `.icon-chip`'in kendisi değil, onu saran satırın hiç
+  `flexWrap` olmaması yüzünden taşıyordu — `flexWrap:"wrap"` eklendi
+  (PR #91). Canlı tarayıcı doğrulaması bu ortamda Playwright/Chromium
+  indirme sorunu yüzünden ikisinde de yapılamadı (bkz. aşağıdaki "1 Eylül
+  2026" notu) — build+curl smoke-test'e güvenilerek deploy edildi,
+  kullanıcı telefondan doğruladı.
 - **Dependabot:** React+react-dom (#21+#22, Dependabot'un YANLIŞ ayırdığı
   iki PR) birleştirilip 19.2.8'e çekildi — **PR #89 hâlâ AÇIK**, aynı
   Playwright/Chromium sorunu yüzünden hydration kontrolü tamamlanamadı.
   Next.js 16 (#82, CI zaten yeşil, React 18 ile de derleniyor), Tailwind 4
   (#23, build kırık), TypeScript 7 (#18, build kırık) hâlâ bekliyor.
+
+**✅ 19-24 Ağustos 2026 — CLAUDE.md yoğunlaştırması sırasında arşivlenen
+eski/uzun notların tam detayı:**
+- **🔒 21 Ağu 2026 — git geçmişi mahremiyet gerekçesiyle yeniden yazıldı:**
+  `git-filter-repo` ile `main` VE `optimize/t3-small-ram`'daki her commit
+  mesajından `Co-Authored-By: Claude...` (112 commit) ve `Claude-Session:
+  https://claude.ai/code/...` (3 commit) satırları kaldırıldı; commit
+  SHA'ları TÜMÜYLE değişti (tree hash'leri, yani kodun kendisi, doğrulanarak
+  AYNI bırakıldı — sadece mesajlar temizlendi). Global `~/.claude/
+  settings.json`'a `attribution: {commit: "", pr: "", sessionUrl: false}`
+  eklendi, bu tarihten sonraki commit/PR'larda bu satırlar hiç oluşmuyor.
+  18 merge edilmiş PR'ın gövdesindeki "🤖 Generated with Claude Code"
+  footer'ı da GitHub API üzerinden ayrıca temizlendi. **Kalıcı sonuç:**
+  rewrite'tan önce repo'yu clone/fork etmiş biri varsa onun kopyasında eski
+  SHA'lar kalıcı olarak durur, buna dönük garanti verilemez — force-push
+  GitHub branch ruleset'i geçici olarak `enforcement: disabled` yapılıp
+  push sonrası geri döndürüldü.
+- **24 Ağu 2026 — telif hakkı risk değerlendirmesi (FSEK, EUR-Lex,
+  17 U.S.C. resmi kaynaklarından):** Mevcut model (17 kaynaktan RSS
+  `<description>` teaser'ı, tam makale metni HİÇ çekilmiyor/saklanmıyor,
+  LLM kendi özetini üretiyor, her kart kaynağa açık link taşıyor) DÜŞÜK risk
+  sayıldı — FSEK m.36/37 günlük haberlerin kaynak gösterilerek serbestçe
+  iktibas edilmesine izin veriyor. Tek somut risk noktası kaynak
+  gösteriminin doğruluğu (FSEK m.71/3, 71/5 — ama m.75 gereği soruşturma
+  sadece şikayetle başlıyor). AB "basın yayıncıları hakkı" muhtemelen
+  bağlamıyor (BBC/Guardian UK merkezli, AB üyesi değil), ABD fair use
+  tarafında kısa-özet+zorunlu-dış-link modeli lehe (Fox News v. TVEyes
+  emsali). Somut aksiyon: kaynak gösterimi FSEK standardına uysun, tam
+  makale metni saklama kararına (roadmap madde 18) SADIK kalınsın.
+- **24 Ağu 2026 — entity-overlap tabanlı eşleştirmede "kaç entity
+  paylaşılıyor" tek başına yeterli sinyal değil, İKİ KADEMELİ bir bug
+  olarak bulundu:** Önce `_find_corroborating_articles` (≥2 ortak entity)
+  entity'lerin AYIRT EDİCİLİĞİNE bakmadığı için `["Türkiye","İstanbul"]`
+  gibi jenerik entity'li tamamen alakasız bir haberi "aynı olay" saydı —
+  IDF-benzeri bir düzeltme (`_GENERIC_ENTITY_SOURCE_FLOOR=4`, paylaşılan
+  entity'lerden en az biri nadir olmalı) uygulandı. Kullanıcı "sığ düşünüp
+  tek yeri yamamış olabiliriz" diye sorunca kod genelinde tarandı ve
+  `get_related` (Pro+ özelliği, TEK ortak entity yetiyordu) ile
+  `get_story_cluster`'ın semantik tarafı (ChromaDB embedding 0.72 eşiği,
+  entity doğrulaması hiç yoktu) AYNI zayıflığı taşıdığı canlı veriyle
+  doğrulandı (haber #12651 örneği: "Ankara" paylaşan 9/10 alakasız haber).
+  Düzeltme: `_distinguishing_entity_keys` adında TEK bir paylaşılan yardımcı
+  fonksiyon çıkarıldı, üç yer de (corroboration + related + story-cluster)
+  artık bunu kullanıyor. 5 yeni test, 751 test yeşil. **Ders: bir yerde
+  bulunan entity-overlap sinyal-kalitesi bug'ı, aynı mekanizmayı kullanan
+  kardeş modüllerde de neredeyse KESİN vardır — "orada kanıt yok" diye
+  atlamak yeterli değil.**
+- **v1.11 → v2.5 arası eklenen tüm env var'lar (kronolojik, güncel/tam
+  liste için `docker-compose.prod.yml` + `settings.py`'ye bak — burası
+  sadece "hangi versiyonda eklendi" tarihçesi):** `FRONTEND_URL`,
+  `PASSWORD_RESET_TTL_MINUTES` (60), `SEARCH_RECENCY_DECAY_FLOOR` (0.5),
+  `SEARCH_RECENCY_WINDOW_DAYS` (30), `CHROMA_RETENTION_DAYS` (90),
+  `DB_RETENTION_DAYS` (0), `RETENTION_HOUR_UTC` (4),
+  `EMAIL_VERIFICATION_TTL_MINUTES` (1440, v1.15), `EXPORT_MAX_ROWS`
+  (20000, v1.16), `WS_MAX_CONNECTIONS_PER_USER` (5, v1.18),
+  `WS_MAX_TOTAL_CONNECTIONS` (500, v1.18); **v2.0 embedder:**
+  `EMBEDDER_MODE`, `EMBEDDER_URL`, `EMBEDDER_MODEL_NAME`,
+  `EMBEDDER_CONNECT_TIMEOUT`, `EMBEDDER_READ_TIMEOUT`,
+  `EMBEDDER_BATCH_READ_TIMEOUT`, `EMBEDDER_RETRIES`; **v2.1 owner rolü +
+  gerçek e-posta:** `OWNER_EMAILS`, `EMAIL_PROVIDER`, `SMTP_HOST`,
+  `SMTP_PORT`, `SMTP_USER`/`SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_STARTTLS`,
+  `SEARCH_QUERY_EXPANSION_ENABLED`; **v2.4 hata takibi/analytics:**
+  `SENTRY_DSN`, `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_POSTHOG_KEY`,
+  `NEXT_PUBLIC_POSTHOG_HOST`; **v2.5 web push:** `VAPID_PUBLIC_KEY`/
+  `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`.
+
+**✅ 1 Eylül 2026 — küçük teknik notlar (BİLİNEN NOTLAR'dan tam detay):**
+- **Bash `git commit -m` mesajında backtick kullanma:** shell onu komut
+  ikamesi sanıp çalıştırır — `nginx -t` gibi bir komut adını vurgulamak için
+  backtick koyunca bash gerçekten çalıştırmaya çalıştı ("command not found"
+  hatası + mesajdan o parça sessizce silindi). Vurgu için tek tırnak kullan.
+- **nginx container'ında `access.log`/`error.log` gerçek dosya değil,
+  `/dev/stdout`/`/dev/stderr`'e symlink** (resmi image'ın standart
+  davranışı) — `docker exec nginx wc -l /var/log/nginx/access.log` gibi bir
+  komut SONSUZA kadar asılı kalır (bir stream'i EOF bekleyerek okumaya
+  çalışmak demek, ~5 dakika kaybedilerek bulundu). Doğru yol: `docker logs
+  <container>` (opsiyonel `--since`). Herhangi bir container'ın log
+  dosyasına `docker exec` ile dokunmadan önce `ls -la` ile symlink olup
+  olmadığına bak.
+- **Playwright'ın Chromium indirmesi bu ortamda güvenilmez/çok yavaş:**
+  `npx playwright install chromium` (~192MB) ölçülen ~200KB/s hızla iniyor
+  (~15+ dk), sıklıkla 30sn'lik chunk timeout'larına takılıp baştan başlıyor.
+  `npm run setup`'ın "exit code 0" dönmesi indirmenin TAMAMLANDIĞI anlamına
+  GELMİYOR. Zaman kısıtlıysa curl/PowerShell BITS ile manuel indirmeyi dene,
+  olmuyorsa canlı tarayıcı doğrulamasından vazgeçip kod incelemesi +
+  build/curl smoke-test'e güven, kullanıcıya bunu açıkça söyle.
+- **Dependabot birbirine bağımlı (peer dependency) paketleri bazen YANLIŞ
+  ayrı PR'lara böler** (react+react-dom örneği: `react`'ı 19'a çeken PR
+  `react-dom`'u 18'de bırakıyordu, tersi de aynı şekilde kırıktı). Bir bump
+  PR'ı "peer dependency" hatasıyla kırıksa, o paketin yakın bir kardeşi için
+  ayrı bir Dependabot PR'ı olup olmadığını kontrol et — elle birleştirip tek
+  dalda bump'lamak gerekebilir.
+- **Roadmap maddesini "sıradaki oturumun İLK işi" diye işaretleyip session'ı
+  bitirmek, o işin GERÇEKTEN yapıldığını garanti etmez:** madde 22 (entity
+  chip→arama) 24 Ağu'da "onay bekliyor" diye not düşülmüştü ama AYNI GÜN
+  başka bir dalda (#51) zaten yapılmıştı — roadmap maddesi kapatılmamış,
+  1 hafta sonraki oturum "hâlâ bekliyor" sanıp tekrar gündeme aldı. Bir
+  sonraki oturuma "ilk iş" olarak bırakılan bir maddeye başlamadan önce
+  `git log --oneline -S"<anahtar kelime>"` ile gerçekten yapılmadığını
+  doğrula.
+
+**✅ 2 Eylül 2026 — gerçek domain + Resend + deploy kesintisi kurtarma:**
+`nexstreamnews.com` türkticaret.net'ten satın alındı (~$2), Resend'de
+doğrulandı (DKIM+SPF+DMARC DNS kayıtları), prod `.env`'e
+`RESEND_API_KEY`+`EMAIL_FROM=NexStream <bildirim@nexstreamnews.com>`+
+`EMAIL_PROVIDER=resend` eklendi — canlı bir şifre sıfırlama maili
+tetiklenip sunucu logunda başarı satırıyla doğrulandı (kök neden:
+`EMAIL_PROVIDER=auto` SMTP'yi/kullanıcının kişisel Gmail'ini Resend'e
+tercih ediyordu, bildirim mailleri Primary'ye düşüyor + kişisel Gmail spam'e
+düşmeye başlamıştı). Ardından canlı site de bu domain'e taşındı: A kaydı
+Elastic IP'ye (`63.178.59.10`) çevrildi, mevcut Let's Encrypt sertifikası
+`certbot --expand` ile YENİ sertifika almadan aynı `live/` dizinine 2 domain
+daha eklendi (SAN: `nexstreamnews.com`, `www.nexstreamnews.com`,
+`nexstreamnewsengine.duckdns.org`), `infra/nginx/nginx.conf`'ta asıl 443
+bloğu yeni domain'e (`default_server`), eskisine ayrı bir 301-redirect
+bloğu eklendi.
+
+**🔴 Aynı gün — PR #96 merge sonrası otomatik deploy başarısız oldu, site
+~15 dakika 504 verdi (SSM `--timeout-seconds` zombi süreç bırakıyor):**
+GitHub Actions'ın deploy adımı `aws ssm send-command --timeout-seconds 900`
+ile 15 dakika sınırı koyuyordu; frontend'in `npm run build`'i (bir build
+ARG'ı değiştiği için cache kullanamadı) + embedder'ın model indirme adımı bu
+sürede bitmeyince SSM/BuildKit üst seviyede "Failed"/`context deadline
+exceeded` raporladı — AMA host'ta `next-build` ve `python -c
+..._get_model()` process'leri CI "başarısız" dedikten SONRA DA (en az 6
+dakika) çalışmaya devam etti, sonunda swap %100 dolup load average 2 vCPU'da
+19-28'e çıktı, `nexstream_engine` unhealthy oldu, site ~15 dakika 504 verdi.
+**En kötüsü: bu noktada yeni SSM komutları (teşhis/kill amaçlı olanlar
+dahil) da Pending'de takılı kaldı** — sistem o kadar tıkanmıştı ki kurtarma
+komutlarını bile işleyemiyordu. Çözüm bounded bir "kill PID" denemesi
+değil, `aws ec2 reboot-instances` oldu (site zaten kesikken ek risk
+yoktu) — ~1 dakikada tüm 16 servis temiz şekilde geri döndü (reboot ayrıca
+nginx'in bind-mount'lu config'ini de tazeledi, ayrı bir `--force-recreate`
+gerekmedi). **Ders: SSM/CI seviyesinde bir komutun "Failed"/timeout
+raporlaması, host'taki alttaki process'in de öldüğü anlamına GELMEZ** —
+özellikle `docker buildx`/BuildKit gibi arka planda devam eden async
+işlerde. Kaynak kısıtlı bir makinede (`t3.small`, 1.9GB) build ARG'ı
+değiştiren bir deploy'dan sonra iş sağlıklı görünüyor mu diye MUTLAKA
+`uptime`/`free -h` ile kontrol et, sadece CI'ın yeşil/kırmızı durumuna
+güvenme. **İkinci, bağımsız bulgu:** reboot sırasında `nexstream_certbot`
+container'ının hiç `restart` policy'si olmadığı ortaya çıktı — diğer TÜM
+servisler `restart: always` ile kendiliğinden dönerken bu sessizce
+`Exited` kaldı, sertifika yenileme döngüsü fark edilmeden durmuş olurdu.
+Düzeltildi (PR #97). **Genel ders: `docker-compose.prod.yml`'e yeni bir
+servis eklerken `restart: always`'i unutmak, sadece "container çöktüğünde
+kendini toparlamıyor" değil, "host reboot'unda hiç geri gelmiyor" anlamına
+da gelir — normal container-crash testleri bunu YAKALAMAZ, sadece gerçek
+bir reboot/restart senaryosu ortaya çıkarır.**
+
+**✅ 3-4 Eylül 2026 — aynı kesinti sınıfının ikinci bir görünümü, kalıcı
+düzeltme (PR #98):** Bir sonraki `docker compose up --build -d` app/frontend'i
+yeniden yaratıp yeni container IP'si verdi ama nginx (imajı/config'i
+değişmediği için) yeniden yaratılmadı — nginx upstream blokları sadece
+AÇILIŞTA DNS çözüyor, bu yüzden eski (artık başka container'lara ait) IP'lere
+bağlanmaya devam edip `connection refused` → 502 verdi, site tekrar kesildi.
+Manuel `docker compose restart nginx` ile anında kurtarıldı. Kalıcı çözüm:
+deploy adımına (`.github/workflows/tests.yml`) `up --build -d`'den hemen
+sonra `docker compose -f docker-compose.prod.yml restart nginx` eklendi —
+her deploy'da nginx'in upstream DNS'ini tazeler (ucuz, sadece nginx ~1sn
+kesilir).
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu, custom (Stripe dışı) billing portalı, App Store/Play Store (sadece PWA)
