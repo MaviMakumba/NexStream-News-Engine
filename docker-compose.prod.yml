@@ -113,6 +113,8 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_FROM=${SMTP_FROM:-}
       - SMTP_STARTTLS=${SMTP_STARTTLS:-true}
+      # /contact formunun ulaştığı hedef adres — boşsa POST /contact 503 döner.
+      - CONTACT_RECIPIENT_EMAIL=${CONTACT_RECIPIENT_EMAIL:-}
       - FRONTEND_URL=${FRONTEND_URL:-}
       - SESSION_COOKIE_SECURE=true
       - EMBEDDER_URL=http://embedder:8000

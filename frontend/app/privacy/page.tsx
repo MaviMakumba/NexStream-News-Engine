@@ -1,12 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
 import { useSettings } from "@/lib/settings-context";
 import { PRIVACY_POLICY } from "@/lib/legal-content";
+import { UI } from "@/lib/i18n";
 
 export default function PrivacyPage() {
   const { lang } = useSettings();
   const page = PRIVACY_POLICY[lang];
+  const t = UI[lang];
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -36,6 +39,13 @@ export default function PrivacyPage() {
             </p>
           </div>
         ))}
+
+        <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <p style={{ fontSize: "0.88rem", color: "var(--text2)" }}>{t.privacyContactCta}</p>
+          <Link href="/contact" className="btn-primary" style={{ textDecoration: "none" }}>
+            {t.contactLink}
+          </Link>
+        </div>
       </div>
     </div>
   );

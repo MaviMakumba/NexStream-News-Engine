@@ -121,6 +121,10 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = ""                 # boşsa email_from kullanılır
     smtp_starttls: bool = True
+    # /contact formunun (genel + telif itirazı) ulaştığı hedef adres. Boşsa
+    # POST /contact 503 döner (billing_router'ın "yapılandırılmazsa 503"
+    # deseniyle aynı — sessizce console'a düşüp mesajın kaybolmasındansa).
+    contact_recipient_email: str = ""
 
     # ── Auth / Sessions ────────────────────────────────────────────────────
     session_ttl_days: int = 30

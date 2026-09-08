@@ -117,6 +117,20 @@ export async function fetchMe(): Promise<User> {
   return req<User>(`${BASE}/auth/me`);
 }
 
+/** /contact formu — public, kimlik gerektirmez. Backend mesajı CONTACT_RECIPIENT_EMAIL'e Resend/SMTP ile iletir. */
+export async function submitContact(payload: {
+  name?: string;
+  email: string;
+  category: "general" | "takedown";
+  message: string;
+  language: string;
+}) {
+  return req<{ success: boolean }>(`${BASE}/contact/`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 // ── News ──────────────────────────────────────────────────────────────────────
 
 export async function fetchNews(params: {
