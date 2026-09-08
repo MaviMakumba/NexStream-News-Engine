@@ -143,10 +143,18 @@ jobs:
         run: |
           set -euo pipefail
 
+          # `up --build -d` app/frontend gibi degisen servisleri yeniden
+          # yaratir ve YENI bir container IP'si alirlar; nginx'in kodu/imaji
+          # degismediyse compose onu yeniden yaratmaz, ama nginx upstream
+          # bloklarini SADECE ACILISTA DNS ile cozuyor (bkz. CLAUDE.md nginx
+          # notu) -- bu yuzden eski IP'lere baglanmaya devam edip 502 verir
+          # (3 Eyl 2026 canli kesinti, kok neden budur). `restart nginx`
+          # ucuz (sadece nginx ~1sn kesilir, app/frontend zaten ayakta) ve
+          # DNS'i her deploy'da tazeler.
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["export HOME=/home/ubuntu","cd ~/NexStream-News-Engine","git config --global --add safe.directory $(pwd)","git checkout main","git fetch origin","git reset --hard origin/main","docker compose -f docker-compose.prod.yml up --build -d"]}' \
+            --parameters '{"commands":["export HOME=/home/ubuntu","cd ~/NexStream-News-Engine","git config --global --add safe.directory $(pwd)","git checkout main","git fetch origin","git reset --hard origin/main","docker compose -f docker-compose.prod.yml up --build -d","docker compose -f docker-compose.prod.yml restart nginx"]}' \
             --timeout-seconds 900 \
             --query "Command.CommandId" --output text)
           echo "SSM command: $COMMAND_ID"
