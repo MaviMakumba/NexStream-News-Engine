@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { SavedArticlesProvider } from "@/lib/saved-context";
@@ -71,11 +72,15 @@ const FONTS_HREF =
 // lazy initializer ile okur, ikisi arasında fark olmaz.
 const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('nxt_theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // middleware.ts'in request header'ına yazdığı nonce — CSP'nin script-src'sinde
+  // aynı değer var, bu script'e basılmazsa nonce'lu policy tarafından bloklanır.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html lang="tr" data-theme={DEFAULT_THEME} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="stylesheet" href={FONTS_HREF} />
