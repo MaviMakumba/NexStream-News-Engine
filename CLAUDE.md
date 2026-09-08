@@ -223,6 +223,22 @@ GERÇEKTEN bekleyen işler var:
     `is_near_duplicate` kontrolü Groq analizinden SONRA çalışıyor, near-
     duplicate haberler bile tam analiz alıyor (ürün kararı gerektiriyor,
     bounded değil).
+26. **`/contact` formundan gönderilen mailler spam'e düşüyor (8 Eylül 2026,
+    kullanıcı bulgusu, henüz çözülmedi)** — SPF şüphelendirdi ama ÇIKMAZ
+    sonucu: Resend zaten `send.nexstreamnews.com` alt-domain'i üzerinden
+    kendi doğrulamasını yapıyor (2 Eylül'den beri kurulu `rsend`/`send`
+    CNAME'leri), root SPF'e Resend'i eklemeye GEREK YOK. **Sonraki
+    oturumun ilk işi:** kullanıcı spam'e düşen bir maili Gmail'de "Orijinali
+    göster" ile açıp `Authentication-Results` satırını (SPF/DKIM/DMARC
+    pass/fail) paylaşacak — kesin teşhis oradan. En muhtemel açıklama
+    domain'in gönderim geçmişinin çok yeni olması (6 gün) + o anki test
+    mesajlarının bot gibi okunan içeriği, ikisi de zamanla/gerçek kullanıcı
+    trafiğiyle kendiliğinden düzelebilir. **Bağımsız iyileştirme (kullanıcı
+    onayladı, henüz YAPILMADI):** mesajlar sadece mail ile değil admin
+    panelden de görülebilsin — `POST /contact` DB'ye de yazsın (yeni
+    `contact_messages` tablosu), `/admin/contact-messages` sayfası (mevcut
+    `/admin/sponsors`+`/admin/usage` deseniyle aynı) listelesin. Böylece
+    mail spam'e düşse/gecikse bile mesaj kaybolmaz. TDD ile yazılacak.
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,
