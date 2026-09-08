@@ -44,6 +44,15 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-touch-icon.png",
   },
+  // Search Console'un "HTML tag" doğrulama yöntemi. Bilinçli olarak NEXT_PUBLIC_
+  // ÖNEKSİZ: bu layout.tsx bir Server Component (headers() zaten import ediyor),
+  // `metadata` objesi server tarafında modül yüklenirken bir kere okunuyor — yani
+  // build-time bake gerekmiyor, sadece container'a env var verilip restart
+  // edilmesi yeterli (NEXT_PUBLIC_* değişkenlerin aksine, image rebuild YOK).
+  // Boşsa Next.js hiç meta tag üretmez.
+  ...(process.env.GOOGLE_SITE_VERIFICATION
+    ? { verification: { google: process.env.GOOGLE_SITE_VERIFICATION } }
+    : {}),
 };
 
 export const viewport: Viewport = {
