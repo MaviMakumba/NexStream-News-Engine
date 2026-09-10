@@ -87,6 +87,16 @@ class Settings(BaseSettings):
     # rahat ama burst'ler kovayı anlık boşaltıp dakikalarca 429'a çarpıyordu.
     groq_request_interval_seconds: float = 4.0
 
+    # Ana analiz pipeline'ının dağıtıldığı Groq modelleri (virgülle ayrılmış).
+    # Her modelin TPM kovası BAĞIMSIZ (10 Eyl 2026 canlı ölçümle doğrulandı,
+    # ikisi de 8000 TPM) - tek modelin tüm 17 kaynağı karşılayamaması
+    # (bkz. groq_pool.py docstring) buradan çözülür. Kaynak->model statik
+    # ataması YOK, PooledGroqAnalyzer her çağrıda dinamik seçer. qwen/
+    # qwen3.6-27b BİLİNÇLİ OLARAK YOK - content içine <think> gömüyor,
+    # mevcut JSON parser'ı kırar (eski llama-3.1-8b-instant felaketiyle aynı
+    # sınıf hata). Tek eleman verilirse eski tek-model davranışı korunur.
+    groq_model_pool: str = "openai/gpt-oss-20b,qwen/qwen3.8-27b"
+
     # ── API güvenliği ──────────────────────────────────────────────────────
     # Paylaşımlı makine-makine anahtarı (X-API-Key). İnsan kullanıcılar için
     # v1.13'ten itibaren rol tabanlı yetki (users.role) tercih edilir.
