@@ -155,6 +155,26 @@ class NewsService:
         article.entities = result.get("entities")
         article.topic = result.get("topic", "Other")
 
+    def _copy_analysis_from(self, article: Article, neighbor_id: int) -> bool:
+        """Near-duplicate çıkan bir makalenin analiz alanlarını, ChromaDB'nin
+        zaten bulduğu en yakın komşudan kopyalar — Groq'a hiç gitmeden.
+        Komşu DB'den çekilemezse (silinmiş/hata) False döner, çağıran Groq'a
+        fail-open düşer (nötr/boş kart üretilmesin diye)."""
+        try:
+            neighbor = self.repository.get_article_by_id(neighbor_id)
+        except Exception as e:
+            logger.warning("Near-duplicate komşusu okunamadı (id=%s): %s", neighbor_id, e)
+            return False
+        if neighbor is None:
+            return False
+        article.is_duplicate = True
+        article.summary = neighbor.summary
+        article.sentiment_score = neighbor.sentiment_score
+        article.sentiment_label = neighbor.sentiment_label
+        article.entities = neighbor.entities
+        article.topic = neighbor.topic
+        return True
+
     async def update_news_from_source(self, scraper: NewsScraperPort, max_new_articles: Optional[int] = None):
         """Tek kaynağı uçtan uca işler: çek → analiz et → skorla → kaydet → indexle.
 
@@ -184,19 +204,26 @@ class NewsService:
         for i, article in enumerate(new_articles):
             if i > 0:
                 await asyncio.sleep(settings.groq_request_interval_seconds)  # Groq TPM limitini aşmamak için throttle
-            result = await loop.run_in_executor(None, self.analyzer.analyze_text, article.content)
-            self._apply_analysis(article, result)
+
+            neighbor_id = None
+            if self.search_repository:
+                try:
+                    neighbor_id = self.search_repository.find_near_duplicate_source(article)
+                except Exception as e:
+                    logger.warning("Dedup kontrolü başarısız, devam ediliyor: %s", e)
+
+            copied = False
+            if neighbor_id is not None:
+                copied = self._copy_analysis_from(article, neighbor_id)
+
+            if not copied:
+                result = await loop.run_in_executor(None, self.analyzer.analyze_text, article.content)
+                self._apply_analysis(article, result)
 
             try:
                 self._enrich_metadata(article)
             except Exception as e:
                 logger.warning("Metadata zenginleştirme başarısız, devam ediliyor: %s", e)
-
-            if self.search_repository:
-                try:
-                    article.is_duplicate = self.search_repository.is_near_duplicate(article)
-                except Exception as e:
-                    logger.warning("Dedup kontrolü başarısız, devam ediliyor: %s", e)
 
             saved = self.repository.save_article(article)
             if saved:

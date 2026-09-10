@@ -150,6 +150,82 @@ def test_update_skips_existing_articles():
     mock_analyzer.analyze_text.assert_not_called()
     mock_repo.save_article.assert_not_called()
 
+def test_near_duplicate_skips_groq_and_copies_neighbor_analysis():
+    """Near-duplicate çıkan haber Groq'a HİÇ gitmemeli, analiz alanları
+    komşudan kopyalanmalı (spec: 10 Eylül 2026, near-dup önceliği)."""
+    mock_repo = MagicMock()
+    mock_repo.bulk_exists.return_value = set()
+    mock_repo.save_article.return_value = True
+    neighbor = Article(
+        id=42, title="Komşu haber", source="AA", url="https://aa.com.tr/x",
+        content="...", summary="Komşunun özeti", sentiment_score=0.5,
+        sentiment_label="Positive", entities={"persons": ["X"]}, topic="Politics",
+    )
+    mock_repo.get_article_by_id.return_value = neighbor
+    mock_analyzer = MagicMock()
+    mock_search = MagicMock()
+    mock_search.find_near_duplicate_source.return_value = 42
+
+    service = NewsService(repository=mock_repo, analyzer=mock_analyzer, search_repository=mock_search)
+    mock_scraper = MagicMock()
+    mock_scraper.fetch_news = AsyncMock(return_value=[make_article()])
+
+    asyncio.run(service.update_news_from_source(mock_scraper))
+
+    mock_analyzer.analyze_text.assert_not_called()
+    saved = mock_repo.save_article.call_args[0][0]
+    assert saved.is_duplicate is True
+    assert saved.summary == "Komşunun özeti"
+    assert saved.sentiment_label == "Positive"
+    assert saved.topic == "Politics"
+    assert saved.entities == {"persons": ["X"]}
+
+def test_non_duplicate_still_calls_groq():
+    """Near-duplicate DEĞİLSE eski akış (Groq çağrısı) aynen çalışmalı."""
+    mock_repo = MagicMock()
+    mock_repo.bulk_exists.return_value = set()
+    mock_repo.save_article.return_value = True
+    mock_analyzer = MagicMock()
+    mock_analyzer.analyze_text.return_value = {
+        "sentiment_score": 0.8, "sentiment_label": "Positive",
+        "summary": "Good news today", "entities": {}, "topic": "Other",
+    }
+    mock_search = MagicMock()
+    mock_search.find_near_duplicate_source.return_value = None
+
+    service = NewsService(repository=mock_repo, analyzer=mock_analyzer, search_repository=mock_search)
+    mock_scraper = MagicMock()
+    mock_scraper.fetch_news = AsyncMock(return_value=[make_article()])
+
+    asyncio.run(service.update_news_from_source(mock_scraper))
+
+    mock_analyzer.analyze_text.assert_called_once()
+    saved = mock_repo.save_article.call_args[0][0]
+    assert saved.is_duplicate is False
+
+def test_near_duplicate_falls_back_to_groq_when_neighbor_missing():
+    """Komşu id bulunuyor ama DB'den çekilemiyorsa (silinmiş/hata) Groq'a
+    fail-open düşülmeli — sessizce boş kart üretilmemeli."""
+    mock_repo = MagicMock()
+    mock_repo.bulk_exists.return_value = set()
+    mock_repo.save_article.return_value = True
+    mock_repo.get_article_by_id.return_value = None
+    mock_analyzer = MagicMock()
+    mock_analyzer.analyze_text.return_value = {
+        "sentiment_score": 0.0, "sentiment_label": "Neutral",
+        "summary": "Fallback", "entities": {}, "topic": "Other",
+    }
+    mock_search = MagicMock()
+    mock_search.find_near_duplicate_source.return_value = 999
+
+    service = NewsService(repository=mock_repo, analyzer=mock_analyzer, search_repository=mock_search)
+    mock_scraper = MagicMock()
+    mock_scraper.fetch_news = AsyncMock(return_value=[make_article()])
+
+    asyncio.run(service.update_news_from_source(mock_scraper))
+
+    mock_analyzer.analyze_text.assert_called_once()
+
 def test_list_news_passes_filters():
     """list_news filteleri repository'ye iletiyor mu?"""
     service, mock_repo, _ = make_service()
