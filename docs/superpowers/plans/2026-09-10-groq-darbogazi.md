@@ -811,7 +811,7 @@ token) — ikisi de aktif kullanılıyor.
 - Consumes: `settings.scrape_sources: str` (mevcut, değişmez).
 - Produces: `send_scrape_command()` artık her çağrıda farklı bir sırayla kaynak yayınlar (dışarıya görünen imza değişmez, iç davranış değişir).
 
-- [ ] **Step 1: Rotasyon için başarısız test yaz**
+- [x] **Step 1: Rotasyon için başarısız test yaz**
 
 `tests/adapters/test_scheduler_service.py` bulunamazsa yeni oluştur:
 
@@ -852,14 +852,14 @@ def test_send_scrape_command_never_drops_or_duplicates_sources():
     assert sorted(sent) == ["A", "B", "C"]
 ```
 
-- [ ] **Step 2: Testin doğru sebeple başarısız olduğunu doğrula**
+- [x] **Step 2: Testin doğru sebeple başarısız olduğunu doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_scheduler_service.py -v`
 Expected: `test_send_scrape_command_rotates_start_each_tick` FAIL (iki çağrı
 şu an AYNI sırayı üretiyor, `_tick_index` diye bir şey yok — muhtemelen
 `AttributeError` veya `first_order == second_order` assertion hatası).
 
-- [ ] **Step 3: Rotasyonu uygula**
+- [x] **Step 3: Rotasyonu uygula**
 
 `src/adapters/scheduling/scheduler_service.py`'de `producer` satırının
 altına modül seviyesi sayaç ekle:
@@ -888,17 +888,17 @@ async def send_scrape_command():
             logger.error("Scrape emri gönderilemedi (%s): %s", source, e)
 ```
 
-- [ ] **Step 4: Testlerin geçtiğini doğrula**
+- [x] **Step 4: Testlerin geçtiğini doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_scheduler_service.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Tam test paketini çalıştır**
+- [x] **Step 5: Tam test paketini çalıştır**
 
 Run: `venv\Scripts\python.exe -m pytest tests/ -q`
-Expected: hepsi yeşil
+Expected: hepsi yeşil (✅ 922/922)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/adapters/scheduling/scheduler_service.py tests/adapters/test_scheduler_service.py
