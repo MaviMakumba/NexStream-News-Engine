@@ -37,9 +37,18 @@ class BaseRssScraper(NewsScraperPort):
     source_name: str = ""
     limit: int = 25
 
+    # Bare "Mozilla/5.0" klasik bot imzasıdır — gerçek tarayıcılar hiçbir zaman
+    # tek başına göndermez. AA'nın WAF'ı bunu tanıyıp bağlantıyı TLS seviyesinde
+    # reddediyor (9 Eylül 2026'da AA/AA Ekonomi'nin 9 gündür sessiz kaldığı
+    # bulunduğunda doğrulandı). Gerçekçi tam bir Chrome UA'sı kullan.
+    _USER_AGENT = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+    )
+
     async def _fetch_content(self, url: str) -> bytes:
         async with httpx.AsyncClient(follow_redirects=True) as client:
-            r = await client.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+            r = await client.get(url, timeout=10, headers={"User-Agent": self._USER_AGENT})
             r.raise_for_status()
             return r.content
 

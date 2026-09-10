@@ -1,6 +1,7 @@
 import asyncio
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
+import src.adapters.scrapers.rss_scrapers as rss_scrapers_module
 from src.adapters.scrapers.rss_scrapers import (
     BBCTechnologyScraper,
     BBCSportScraper,
@@ -99,6 +100,49 @@ def test_base_scraper_respects_limit():
     with patch.object(scraper, "_fetch_content", new=_mock_fetch()):
         articles = asyncio.run(scraper.fetch_news())
     assert len(articles) == 1
+
+# ── User-Agent header ─────────────────────────────────────────────────────────
+# AA (Anadolu Ajansı) WAF'ı bare "Mozilla/5.0" header'ını bot imzası olarak
+# tanıyıp bağlantıyı TLS seviyesinde reddediyor (9 Eylül 2026'da AA/AA Ekonomi
+# 9 gündür sessiz bulunduğunda canlı curl testiyle doğrulandı: bare UA ile 3/3
+# bağlantı reddi, gerçekçi tam tarayıcı UA'sıyla 3/3 başarı). Gerçekçi bir UA
+# tüm kaynaklarda kullanılmalı.
+
+class _FakeResponse:
+    def __init__(self, content=b"<rss></rss>"):
+        self.content = content
+
+    def raise_for_status(self):
+        pass
+
+
+class _FakeAsyncClient:
+    captured_headers = None
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        return False
+
+    async def get(self, url, timeout=None, headers=None):
+        _FakeAsyncClient.captured_headers = headers
+        return _FakeResponse()
+
+
+def test_fetch_content_sends_realistic_browser_user_agent(monkeypatch):
+    monkeypatch.setattr(rss_scrapers_module.httpx, "AsyncClient", _FakeAsyncClient)
+    scraper = BBCTechnologyScraper()
+
+    asyncio.run(scraper._fetch_content(scraper.url))
+
+    ua = _FakeAsyncClient.captured_headers["User-Agent"]
+    assert ua != "Mozilla/5.0", "Bare 'Mozilla/5.0' AA'nın WAF'ı tarafından bot olarak engelleniyor"
+    assert "Chrome" in ua or "Firefox" in ua or "Safari" in ua
+
 
 # ── pub_date parsing ──────────────────────────────────────────────────────────
 
