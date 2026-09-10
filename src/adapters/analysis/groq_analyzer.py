@@ -57,9 +57,9 @@ class GroqAnalyzer(AnalysisPort):
     # taşıdığı anlamına gelir — güvenlik payı olarak biraz yüksek tutuldu.
     _TOKEN_SAFETY_MARGIN = 1000
 
-    def __init__(self):
+    def __init__(self, model: str = "openai/gpt-oss-20b"):
         self.api_key = settings.groq_api_key
-        self.model = "openai/gpt-oss-20b"
+        self.model = model
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
 
     @staticmethod
