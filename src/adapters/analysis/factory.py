@@ -1,7 +1,7 @@
 """Analyzer + sorgu genişletme kompozisyon noktası — Groq birincil, HuggingFace opsiyonel yedek."""
 import logging
 from typing import Optional
-from src.adapters.analysis.groq_analyzer import GroqAnalyzer
+from src.adapters.analysis.groq_pool import PooledGroqAnalyzer
 from src.adapters.analysis.huggingface_analyzer import HuggingFaceAnalyzer
 from src.adapters.analysis.fallback_analyzer import FallbackAnalyzer
 from src.adapters.analysis.groq_query_expander import GroqQueryExpander
@@ -21,7 +21,8 @@ _no_cache_warning_logged = False
 
 
 def build_analyzer() -> AnalysisPort:
-    analyzers = [GroqAnalyzer()]
+    models = [m.strip() for m in settings.groq_model_pool.split(",") if m.strip()]
+    analyzers = [PooledGroqAnalyzer(models)]
     if settings.huggingface_api_key:
         analyzers.append(HuggingFaceAnalyzer())
     return FallbackAnalyzer(analyzers)
