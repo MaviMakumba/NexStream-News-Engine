@@ -240,6 +240,77 @@ GERÇEKTEN bekleyen işler var:
     `/admin/sponsors`+`/admin/usage` deseniyle aynı) listelesin. Böylece
     mail spam'e düşse/gecikse bile mesaj kaybolmaz. TDD ile yazılacak.
 
+27. **Kaynak sağlığı taraması — 10 Eylül 2026, kullanıcı isteğiyle başlatıldı.**
+    Prod API'den (`GET /api/v1/news?source=...`) 17 kaynağın hepsinin en son
+    haber tarihi tek tek kontrol edildi:
+    - ~~**Anadolu Ajansı + AA Ekonomi 9 gündür (1 Eylül'den beri) hayalete
+      düşmüştü**~~ — ✅ **10 Eylül 2026'da düzeltildi (PR #110).** Kök neden:
+      `BaseRssScraper` tüm kaynaklara sabit `User-Agent: Mozilla/5.0`
+      gönderiyordu — gerçek tarayıcıların asla tek başına göndermediği
+      klasik bot imzası. AA'nın WAF'ı bunu TLS seviyesinde reddediyordu
+      (canlı curl testiyle doğrulandı: bare UA 3/3 red, gerçekçi tam Chrome
+      UA'sı 3/3 başarı — hem local'den hem prod EC2 IP'sinden). Fix tüm 17
+      kaynağın paylaştığı tek noktadan (`BaseRssScraper._USER_AGENT`) yapıldı,
+      TDD ile (`test_fetch_content_sends_realistic_browser_user_agent`),
+      deploy sonrası prod'dan canlı doğrulandı.
+    - **🟡 Guardian Tech, TechCrunch, Hacker News, The Verge — muhtemel kök
+      neden bulundu (henüz TAM doğrulanmadı, bkz. yukarıdaki madde 25).**
+      8 Eylül
+      ~14:30-15:15 UTC civarında (registry'de art arda son 4 kaynak)
+      neredeyse aynı anda durdular. Worker container'ı o tarihten beri
+      sağlıklı (RestartCount=0 — çökmüş/takılı kalmış DEĞİL) ve 4 feed de
+      hem local'den hem prod EC2 IP'sinden gerçekçi UA ile 200 dönüp GÜNCEL
+      içerik veriyor — kaynak tarafında kırılma yok. **10 Eylül'deki deploy
+      sonrası worker log'u canlı izlenirken yakalandı:** startup-scrape
+      SADECE registry'nin 1. kaynağını (TRT Haber, 3 yeni haber) bitirmek
+      için **7.5 dakika** sürdü — Groq rate limit'e art arda takılıp tek bir
+      beklemede 184 saniye harcadı (`groq_analyzer: "Groq rate limit, 184s
+      bekleniyor..."`). Roadmap #25'teki burst-pacing düzeltmesi (1 Eylül)
+      GÖRÜNÜŞE GÖRE yetersiz kalmış — sıralı işleyen worker bu hızda
+      registry'nin 14-17. sıralarındaki (Guardian Tech→Verge) kaynaklara
+      makul bir sürede hiç ulaşamayabilir, 10dk'lık scheduler aralığı da bu
+      arada yeni run'lar tetikleyip kuyruğu büyütüyor olabilir. **Sonraki
+      oturumun işi:** birkaç saatlik worker log gözlemiyle (`docker logs
+      nexstream_worker | grep "Güncelleme başladı"`) worker'ın bu 4
+      kaynağa GERÇEKTEN ulaşıp ulaşmadığını doğrulamak; ulaşıyorsa kök
+      neden başka yerde, ulaşamıyorsa bu roadmap #25'in daha ciddi bir
+      versiyonu ve `worker_max_new_articles_per_run`/kaynak başına zaman
+      bütçesi gibi bir çözüm gerektiriyor (ürün kararı, bounded değil).
+    - **Yeni konu için araştırılan kaynak adayları (henüz registry'ye
+      EKLENMEDİ, kullanıcı onayı bekliyor):** hepsi canlı curl ile doğrulandı
+      (200 + güncel `pubDate`).
+      - *Ekonomi/finans/kripto:* Dünya Gazetesi (`dunya.com/rss`, TR),
+        Cointelegraph (`cointelegraph.com/rss`), CoinDesk
+        (`coindesk.com/arc/outboundfeeds/rss/`, 308 redirect var ama
+        `follow_redirects=True` zaten hallediyor). **Bloomberg HT
+        (`bloomberght.com/rss`) ELENDİ** — feed 200 dönüyor ama kendi
+        `lastBuildDate`'i 16 gündür güncellenmemiş, kaynağın kendisi zaten
+        hayalete düşmüş.
+      - *Bilim/sağlık:* ScienceDaily (`sciencedaily.com/rss/all.xml`, EN),
+        NASA News Release — **URL değişti**, eski
+        `nasa.gov/rss/dyn/breaking_news.rss` 301 ile
+        `nasa.gov/news-release/feed/`'e yönleniyor, yeni URL doğrudan
+        kullanılmalı.
+      - *Dünya/uluslararası:* Al Jazeera English
+        (`aljazeera.com/xml/rss/all.xml`), DW English
+        (`rss.dw.com/xml/rss-en-all`). NPR World
+        (`feeds.npr.org/1004/rss.xml`) canlı ama içerik bazen "evergreen"
+        (güncel olmayan) makaleler karıştırıyor, dikkatli seçilmeli. Reuters
+        World resmi RSS'i kapatılmış (404) — ELENDİ.
+      - Hepsi mevcut `BaseRssScraper`'a (RSS+Atom otomatik, redirect otomatik)
+        sıfır ek kod ile uyuyor — iş sadece alt sınıf + registry satırı.
+    - **Reddit — beklenenden daha fazla fizibıl çıktı.** `reddit.com/r/<sub>/
+      .rss` endpoint'i hem local'den hem **prod EC2 IP'sinden** (SSM ile
+      doğrulandı) gerçekçi UA ile 200 dönüyor (bare UA ile 403 — aynı UA
+      sınıfı sorunu). Datacenter-IP engeli TEYİT EDİLMEDİ (aksine, prod IP'si
+      sorunsuz erişebiliyor) — daha önce "muhtemelen engellenir" varsayımı
+      YANLIŞ çıktı, gerçek IP testi yapmadan varsayma. Mimari zaten uyumlu
+      (Atom formatı destekleniyor). Kullanıcı onayı olursa bir sonraki adım:
+      deneme amaçlı 1-2 subreddit ekleyip deploy sonrası gerçek ingest'i
+      worker log'undan doğrulamak.
+    - **Twitter/X:** kasıtlı kapsam dışı kararı DEĞİŞMEDİ (bkz. aşağıdaki
+      liste) — bu tur kararı yeniden değerlendirmedi.
+
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,
 custom (Stripe dışı) billing portalı, App Store/Play Store (sadece PWA)
