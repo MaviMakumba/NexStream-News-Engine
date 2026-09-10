@@ -20,7 +20,7 @@ sadık kalınır, yeni bir katman eklenmez.
 
 ---
 
-## 🔴 CHECKPOINT (10 Eylül 2026, oturum kota kısıtı nedeniyle burada durduruldu)
+## 🔴 CHECKPOINT (10 Eylül 2026, güncellendi — Task 4 tamamlandı)
 
 **Tamamlanan:**
 - **Task 1 (near-dup önceliği) — TAMAMEN BİTTİ.** PR #111 merge edildi, main'e
@@ -29,24 +29,38 @@ sadık kalınır, yeni bir katman eklenmez.
 - **Task 3 (havuz bölme kodu: `GroqAnalyzer` model param + `groq_pool.py` +
   `settings.groq_model_pool` + `factory.py`) — TAMAMEN BİTTİ**, tüm testler
   (920/920) yeşil, commit'lendi, PR #112 açıldı, push edildi.
+- **Task 4 (Task 3 deploy) — TAMAMEN BİTTİ.** PR #112 merge edildi
+  (`7eef4e0`), main'e deploy oldu. CI'ın deploy job'ı yine "Health check
+  zaman aşımına uğradı" dedi (bilinen gotcha, host çökmesi DEĞİL) — SSM ile
+  bağımsız doğrulandı: git HEAD prod'da `7eef4e0`, tüm container'lar
+  Up/healthy, `docker exec nexstream_worker grep groq_model_pool
+  settings.py` yeni satırı gösterdi. **Her iki modelin de gerçekten
+  kullanıldığı doğrulandı** — ama plandaki `docker logs | grep <model-adı>`
+  YÖNTEMİ İŞE YARAMADI (model adı hiçbir log satırına yazılmıyor, sadece
+  Groq'a giden payload'da ve Prometheus metrik label'ında var). Doğru
+  yöntem: worker'ın internal Prometheus endpoint'ini (`:9100/metrics`,
+  container dışından erişilmez) container İÇİNDEN `python -c
+  "import urllib.request; print(urllib.request.urlopen('http://localhost:9100/metrics').read().decode())"`
+  ile sorgulayıp `nexstream_groq_tokens_total{model=...}` satırlarını
+  okumak. Sonuç: `openai/gpt-oss-20b` 2447 prompt+1177 completion,
+  `qwen/qwen3.8-27b` 654 prompt+759 completion token — İKİSİ DE aktif.
+  **Bu, plandaki Task 4 Step 5 talimatını GEÇERSİZ kılıyor** — ileride
+  benzer bir doğrulama gerekirse bu Prometheus yöntemini kullan, log grep
+  değil.
 
 **Yarım kalan:**
-- **PR #112 — CI check'leri (test/frontend/security-audit) YEŞİL ama HENÜZ
-  MERGE EDİLMEDİ.** Sonraki oturumun İLK işi: `gh pr checks 112` ile tekrar
-  doğrula, sorun yoksa `gh pr merge 112 --squash --delete-branch`, sonra
-  Task 4'ün geri kalan adımlarını (SSM ile deploy doğrulama — git HEAD
-  kontrolü + worker log'unda her iki modelin de (`openai/gpt-oss-20b` VE
-  `qwen/qwen3.8-27b`) kullanıldığını gözlemleme) tamamla.
 - **Task 5-6 (scheduler rotasyonu) — HİÇ BAŞLANMADI.**
 - **Task 7 (öncesi/sonrası ölçüm + README) — HİÇ BAŞLANMADI.** Task 7'nin
   "öncesi" verisi zaten bu plan dosyasında sabit yazılı (7.5dk, 5 haber/3gün,
   8000 TPM) — tekrar ölçmeye gerek yok, sadece Task 4/6 deploy'larından
-  sonra "sonrası" verisini toplayıp README'ye işlemek kalıyor.
+  sonra "sonrası" verisini toplayıp README'ye işlemek kalıyor. Task 7 Step 2
+  ölçümlerine artık `nexstream_groq_tokens_total` metriği de eklenebilir
+  (yukarıdaki yöntemle) — "havuz dağılımı" için log grep yerine bu tercih
+  edilmeli.
 
-**Yerel çalışma dizini durumu:** branch `feat/groq-model-pool` üzerinde
-(main'den ileride, PR #112 zaten bu dalı origin'e push etmiş durumda —
-kod kaybı riski YOK). Sonraki oturum `git checkout main && git pull` ile
-başlayıp PR #112'yi merge ettikten sonra devam edebilir.
+**Yerel çalışma dizini durumu:** branch `main` üzerinde, güncel
+(`git pull --ff-only` yapıldı, PR #112 merge sonrası feature branch
+silindi). Sonraki oturum doğrudan Task 5'e devam edebilir.
 
 ## Global Constraints
 
@@ -739,20 +753,20 @@ git commit -m 'feat(analysis): build_analyzer artik PooledGroqAnalyzer kullaniyo
 
 **Files:** yok (sadece git/CI/SSM işlemleri)
 
-- [ ] **Step 1: Feature branch aç (veya mevcut dalı kullan), push et**
+- [x] **Step 1: Feature branch aç (veya mevcut dalı kullan), push et**
 
 ```bash
 git checkout -b feat/groq-model-pool
 git push -u origin feat/groq-model-pool
 ```
 
-- [ ] **Step 2: PR aç**
+- [x] **Step 2: PR aç**
 
 ```bash
 gh pr create --title "feat(analysis): Groq ana pipeline iki modele dinamik dagitiliyor" --body "Spec: docs/superpowers/specs/2026-09-10-groq-darbogazi-design.md (Bolum 1). PooledGroqAnalyzer, her cagrida hangi modelin (gpt-oss-20b / qwen3.8-27b) TPM butcesi daha rahatsa oraya gidiyor - kaynak->model statik atamasi yok. 10 Eyl 2026 canli olcumle dogrulandi: iki model bagimsiz 8000 TPM kovasina sahip." --base main
 ```
 
-- [ ] **Step 3: CI'ı izle, merge et**
+- [x] **Step 3: CI'ı izle, merge et**
 
 ```bash
 gh pr checks <PR_NUMBER> --watch --interval 15
@@ -761,26 +775,29 @@ git checkout main
 git pull --ff-only
 ```
 
-- [ ] **Step 4: Deploy'u SSM ile doğrula (Task 2 Step 5'teki gotcha aynen geçerli)**
+- [x] **Step 4: Deploy'u SSM ile doğrula (Task 2 Step 5'teki gotcha aynen geçerli)**
 
 ```bash
 aws ssm send-command --instance-ids "i-0608c897a3d8ca3f3" --document-name "AWS-RunShellScript" --parameters '{"commands":["docker exec nexstream_worker grep -A2 groq_model_pool /app/src/infrastructure/config/settings.py"]}' --output json
 ```
 
 `get-command-invocation` ile çıktının yeni `groq_model_pool` satırını
-içerdiğini doğrula.
+içerdiğini doğrula. ✅ Doğrulandı (10 Eylül, `7eef4e0`).
 
-- [ ] **Step 5: Worker log'unda gerçekten iki modelin de kullanıldığını doğrula**
+- [x] **Step 5: Worker log'unda gerçekten iki modelin de kullanıldığını doğrula**
 
-Bir sonraki scheduler tick'inden (10dk) sonra:
+~~Bir sonraki scheduler tick'inden (10dk) sonra `docker logs | grep
+<model-adı>`~~ **BU YÖNTEM İŞE YARAMADI** — model adı hiçbir log satırına
+yazılmıyor. Bunun yerine worker container'ı İÇİNDEN Prometheus metriğini
+oku:
 
 ```bash
-aws ssm send-command --instance-ids "i-0608c897a3d8ca3f3" --document-name "AWS-RunShellScript" --parameters '{"commands":["docker logs nexstream_worker --since 20m 2>&1 | grep -oE \"qwen/qwen3.8-27b|openai/gpt-oss-20b\" | sort | uniq -c"]}' --output json
+docker exec nexstream_worker python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:9100/metrics').read().decode())" | grep nexstream_groq_tokens_total
 ```
 
-Her iki modelin de en az bir kez göründüğünü doğrula (tek model hâlâ
-görünüyorsa `factory.py`'nin deploy'da güncellenip güncellenmediğini
-Step 4'teki gibi tekrar kontrol et).
+✅ Doğrulandı (10 Eylül): `openai/gpt-oss-20b` (2447 prompt + 1177
+completion token) VE `qwen/qwen3.8-27b` (654 prompt + 759 completion
+token) — ikisi de aktif kullanılıyor.
 
 ---
 
