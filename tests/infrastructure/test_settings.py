@@ -132,3 +132,8 @@ def test_smtp_defaults():
     assert s.smtp_password == ""
     assert s.smtp_from == ""
     assert s.smtp_starttls is True
+
+
+def test_groq_model_pool_default():
+    s = _fresh_settings()
+    assert s.groq_model_pool == "openai/gpt-oss-20b,qwen/qwen3.8-27b"

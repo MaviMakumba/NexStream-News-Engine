@@ -57,9 +57,9 @@ class GroqAnalyzer(AnalysisPort):
     # taşıdığı anlamına gelir — güvenlik payı olarak biraz yüksek tutuldu.
     _TOKEN_SAFETY_MARGIN = 1000
 
-    def __init__(self):
+    def __init__(self, model: str = "openai/gpt-oss-20b"):
         self.api_key = settings.groq_api_key
-        self.model = "openai/gpt-oss-20b"
+        self.model = model
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
 
     @staticmethod
@@ -89,6 +89,10 @@ class GroqAnalyzer(AnalysisPort):
             remaining = int(remaining_raw)
         except ValueError:
             return
+        # Lazy import — dosya başına taşınırsa groq_pool.py'nin bu dosyayı
+        # import etmesiyle dairesel import oluşur (bkz. groq_pool.py).
+        from src.adapters.analysis.groq_pool import record_remaining
+        record_remaining(self.model, remaining)
         if remaining >= self._TOKEN_SAFETY_MARGIN:
             return
         reset_raw = headers.get("x-ratelimit-reset-tokens")

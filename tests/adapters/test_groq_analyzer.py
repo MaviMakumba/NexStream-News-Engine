@@ -289,3 +289,23 @@ def test_non_dict_like_headers_does_not_crash():
 
     assert result["sentiment_label"] == "Positive"
     mock_sleep.assert_not_called()
+
+
+# ── Model parametresi (havuz bölme, 10 Eyl 2026) ───────────────────────────────
+
+def test_analyzer_uses_configured_model_in_request():
+    """model parametresi verilirse Groq'a giden payload'da o model kullanılmalı."""
+    analyzer = GroqAnalyzer(model="qwen/qwen3.8-27b")
+    response_json = '{"sentiment_score": 0.0, "sentiment_label": "Neutral", "summary": "ok"}'
+
+    with patch("requests.post", return_value=make_mock_response(response_json)) as mock_post:
+        analyzer.analyze_text("test content")
+
+    sent_payload = mock_post.call_args.kwargs["json"]
+    assert sent_payload["model"] == "qwen/qwen3.8-27b"
+
+
+def test_analyzer_default_model_unchanged():
+    """Parametre verilmezse eski davranış (gpt-oss-20b) korunmalı."""
+    analyzer = GroqAnalyzer()
+    assert analyzer.model == "openai/gpt-oss-20b"
