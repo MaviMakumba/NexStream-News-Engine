@@ -184,7 +184,14 @@ jobs:
       - name: Health check
         run: |
           set -euo pipefail
-          for i in $(seq 1 12); do
+          # 10 Eylül 2026: deneme sayısı 12'den 30'a çıkarıldı (3dk -> 7.5dk).
+          # Aynı gün içinde SSM deploy komutu her seferinde başarılı olduğu
+          # halde bu adım tekrar tekrar (6+ kez) yanlış-pozitif "başarısız"
+          # raporladı — gerçek sorun deploy değil, app'in /api/health'i
+          # sağlıklı hale gelme süresinin (özellikle t3.small'ın kaynak
+          # kısıtlarında, embedder OOM-kill/restart gibi senaryolarda) eski
+          # 3dk'lık pencereyi aşabilmesiydi.
+          for i in $(seq 1 30); do
             if curl -fsS https://nexstreamnews.com/api/health; then
               echo "Healthy"
               exit 0
