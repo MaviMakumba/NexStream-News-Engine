@@ -24,7 +24,7 @@ chromadb-client==1.5.5
 # bu yüzden torch da kurulmuyor. httpx AŞAĞIDA KALMALI — HttpEmbedderAdapter onu
 # kullanıyor.
 slowapi==0.1.10
-prometheus-client==0.22.1
+prometheus-client==0.26.0
 prometheus-fastapi-instrumentator==8.0.2
 feedgen==1.0.0
 email-validator>=2.3.0
