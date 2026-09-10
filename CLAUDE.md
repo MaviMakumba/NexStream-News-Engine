@@ -276,6 +276,16 @@ GERÇEKTEN bekleyen işler var:
       neden başka yerde, ulaşamıyorsa bu roadmap #25'in daha ciddi bir
       versiyonu ve `worker_max_new_articles_per_run`/kaynak başına zaman
       bütçesi gibi bir çözüm gerektiriyor (ürün kararı, bounded değil).
+    - ~~**Guardian Tech/TechCrunch/HN/Verge + AA/AA Ekonomi asıl kök nedeni
+      bulundu ve düzeltildi (PR #114, 10 Eylül 2026).**~~ Yukarıdaki Groq-
+      throttling teorisi YANLIŞ/ikincildi — asıl neden `docker-compose.
+      prod.yml`'deki `SCRAPE_SOURCES`'ın bu 6 kaynağı hiç içermemesiydi,
+      scheduler onları hiç tetiklemiyordu. Fix + regresyon testi
+      (`tests/infrastructure/test_deployment_config.py`, prod/dev compose
+      `settings.py` varsayılanıyla senkron kalmasını garanti eder) deploy
+      edildi, scheduler log'unda 17/17 kaynağın gönderildiği SSM ile
+      doğrulandı. Bu tür bir servis eklenip sadece dev compose'a/
+      settings.py'a yazılıp prod compose'un unutulması riskini genelleştir.
     - **Yeni konu için araştırılan kaynak adayları (henüz registry'ye
       EKLENMEDİ, kullanıcı onayı bekliyor):** hepsi canlı curl ile doğrulandı
       (200 + güncel `pubDate`).
@@ -489,8 +499,11 @@ Her madde tek bir kalıcı kural — "ne zaman/nasıl bulundu" forensic detayı
 - **Playwright'ın Chromium indirmesi bu ortamda güvenilmez/çok yavaş** (~200KB/s, sık sık timeout) — "exit code 0" indirmenin bittiği anlamına gelmez. Zaman kısıtlıysa canlı tarayıcı doğrulamasından vazgeç, kod incelemesi + build/curl smoke-test'e güven, kullanıcıya açıkça söyle.
 - **Bash `git commit -m` mesajında backtick KULLANMA** — shell komut ikamesi sanıp çalıştırır, mesajdan o parça sessizce silinir. Tek tırnak kullan.
 - **Dependabot birbirine bağımlı (peer dependency) paketleri bazen YANLIŞ ayrı PR'lara böler** — bir bump PR'ı "peer dependency" hatasıyla kırıksa, yakın bir kardeş paket için ayrı bir PR olup olmadığını kontrol et, elle birleştirmek gerekebilir.
+- **Bir Dependabot "majör bump" PR'ının gerçek riskini değerlendirmeden önce `requirements.txt`'te o paketin PİNLİ mi (`==`) yoksa ARALIKLI mı (`>=`) olduğuna bak** — aralıklıysa (`bcrypt>=4.0.0`, `redis>=5.0.0` gibi) her fresh install zaten en son sürümü çekiyordur, PR sadece dokümante edilen alt sınırı gerçeğe eşitler, FONKSİYONEL DEĞİŞİKLİK YOKTUR (10 Eylül 2026'da redis 5→8/bcrypt 4→5 böyle çıktı). Gerçek riski taşıyan sadece pinli paketlerdir (`sentence-transformers==3.3.1` gibi) — onlar için mock'lu CI'a güvenme, gerçek kod yoluyla (örn. gerçek model/gerçek hash) doğrula.
+- **Çok sayıda bağımsız Dependabot PR'ını tek deploy'da birleştirirken** her dalı `git merge origin/<dal>` ile ayrı ayrı uygula (aynı satırı değiştiren ardışık bump'larda küçük conflict'ler çıkar, elle çöz) — frontend `package-lock.json` için ise dalları merge ETME, hedef versiyonları `npm install <pkg>@<version>` ile TEK SEFERDE kur (çok-yönlü lockfile merge conflict'inden kaçınır).
 - **Roadmap maddesini "sıradaki oturumun İLK işi" diye not düşüp session'ı bitirmek, o işin GERÇEKTEN yapıldığını garanti etmez** — aynı gün başka bir dalda yapılmış olabilir. Başlamadan önce `git log --oneline -S"<anahtar kelime>"` ile doğrula.
-- **AWS SSM operasyon deseni:** komutlarda `git` kullanmadan önce `export HOME=/home/ubuntu` + `git -c safe.directory=<repo-path>` (repo: `~/NexStream-News-Engine`) gerekir. Windows'taki native `aws.exe`'ye Git Bash'ten `file:///...` paramfile yolu VERME — JSON'u inline geç.
+- **AWS SSM operasyon deseni:** komutlarda `git` kullanmadan önce `export HOME=/home/ubuntu` + `git -c safe.directory=<repo-path>` (repo: `~/NexStream-News-Engine`) gerekir. Windows'taki native `aws.exe`'ye Git Bash'ten `file:///...` paramfile yolu VERME — JSON'u inline geç. Çıktıda Türkçe karakter varsa (`get-command-invocation` sonucu) `aws.exe` Windows'ta `'charmap' codec can't encode` ile patlar — `chcp.com 65001` + `export PYTHONIOENCODING=utf-8:replace` ile çöz.
+- **`docker compose up --build -d` sırasında (özellikle birden fazla image aynı anda rebuild olunca) t3.small'in 1.9GB RAM'i yetersiz kalabiliyor** — `nexstream_embedder` (ML modelini RAM'de tutan servis) ilk kurban oluyor (`OOMKilled=true`, 10 Eylül 2026'da canlıda gözlemlendi). `restart: always` sayesinde birkaç dakikada kendi kendine toparlanıyor ama deploy sonrası SADECE `Up`/`healthy` durumuna değil `docker inspect <container> --format '{{.State.OOMKilled}}'`e de bak.
 - **Otomatik saldırgan engelleme kapsamı:** nginx `limit_req_zone` + slowapi endpoint limitleri sadece YAVAŞLATIR/429 döner, kalıcı bir IP ban/WAF/fail2ban YOK (Cloudflare geçişi bunu değiştirebilir, bkz. YOL HARİTASI madde 6). Kullanıcı bazlı banlama AYRI ve VAR (`PATCH /admin/users/{id}/active`) ama IP değil hesap seviyesinde.
 - **`nexstream-deploy` IAM kullanıcısı AdministratorAccess DEĞİL** — `NexStreamDeployMinimal` policy'sine scope'landı (sadece EC2 describe/start/stop/reboot + SSM, `i-0608c897a3d8ca3f3` ile sınırlı). Başka bir AWS eylemi (S3, IAM, RDS, Budgets dahil) bu kimlikle YAPILAMAZ, kullanıcıya sor.
 - **v1.11 sonrası yeni env var'lar:** güncel/tam liste `docker-compose.prod.yml` + `settings.py`'de — hangi versiyonda eklendiğinin kronolojisi CHANGELOG'da.
