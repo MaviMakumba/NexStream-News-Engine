@@ -327,7 +327,7 @@ services:
       - API_KEY=${API_KEY}
       - CORS_ORIGINS=${CORS_ORIGINS}
       - KAFKA_BOOTSTRAP_SERVERS=redpanda:29092
-      - SCRAPE_SOURCES=TRT Haber,BBC Türkçe,Hürriyet,Hürriyet Spor,Sabah,CNN Türk,Sözcü,Habertürk,HT Spor,BBC Technology,BBC Sport
+      - SCRAPE_SOURCES=TRT Haber,BBC Türkçe,Hürriyet,Hürriyet Spor,Sabah,CNN Türk,Sözcü,Habertürk,HT Spor,Anadolu Ajansı,AA Ekonomi,BBC Technology,BBC Sport,Guardian Tech,TechCrunch,Hacker News,The Verge
     deploy:
       resources:
         limits:
