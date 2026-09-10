@@ -20,7 +20,7 @@ sadık kalınır, yeni bir katman eklenmez.
 
 ---
 
-## 🔴 CHECKPOINT (10 Eylül 2026, güncellendi — Task 4 tamamlandı)
+## 🔴 CHECKPOINT (10 Eylül 2026, güncellendi — Task 6 tamamlandı)
 
 **Tamamlanan:**
 - **Task 1 (near-dup önceliği) — TAMAMEN BİTTİ.** PR #111 merge edildi, main'e
@@ -48,19 +48,37 @@ sadık kalınır, yeni bir katman eklenmez.
   benzer bir doğrulama gerekirse bu Prometheus yöntemini kullan, log grep
   değil.
 
+- **Task 5 (scheduler rotasyonu kodu) — TAMAMEN BİTTİ**, TDD ile (`_tick_index`
+  modül sayacı, `send_scrape_command` her tick'te farklı offset'ten başlıyor),
+  922/922 test yeşil, commit'lendi.
+- **Task 6 (Task 5 deploy) — TAMAMEN BİTTİ.** PR #113 merge edildi
+  (`22dbe14`), main'e deploy oldu. CI'ın deploy job'ı YİNE "Health check
+  zaman aşımına uğradı" dedi (3. kez aynı gotcha, bkz. CLAUDE.md BİLİNEN
+  NOTLAR) — SSM ile bağımsız doğrulandı: git HEAD `22dbe14`, tüm
+  container'lar Up/healthy. **Rotasyon canlıda log'dan doğrulandı:** ardışık
+  üç scheduler tick'i (11:04/11:14/11:24 UTC) sırasıyla TRT Haber → BBC
+  Türkçe → Hürriyet'ten başladı — tam beklenen round-robin. **Yan bulgu
+  (kapsam dışı, kullanıcıya bildirildi, aksiyon alınmadı):** prod'daki
+  `scrape_sources` listesi sadece 11 kaynak içeriyor, CLAUDE.md'nin
+  belgelediği 17'nin 6'sı (Anadolu Ajansı, AA Ekonomi, Guardian Tech,
+  TechCrunch, Hacker News, The Verge) rotasyonda HİÇ görünmüyor — muhtemelen
+  bu env var güncellenmemiş, ayrı bir inceleme/karar gerektirir.
+
 **Yarım kalan:**
-- **Task 5-6 (scheduler rotasyonu) — HİÇ BAŞLANMADI.**
 - **Task 7 (öncesi/sonrası ölçüm + README) — HİÇ BAŞLANMADI.** Task 7'nin
   "öncesi" verisi zaten bu plan dosyasında sabit yazılı (7.5dk, 5 haber/3gün,
   8000 TPM) — tekrar ölçmeye gerek yok, sadece Task 4/6 deploy'larından
   sonra "sonrası" verisini toplayıp README'ye işlemek kalıyor. Task 7 Step 2
   ölçümlerine artık `nexstream_groq_tokens_total` metriği de eklenebilir
   (yukarıdaki yöntemle) — "havuz dağılımı" için log grep yerine bu tercih
-  edilmeli.
+  edilmeli. Plan Step 2, Task 6 deploy'undan EN AZ 24 SAAT SONRA çalıştırılmasını
+  öneriyor — bu oturumda hemen ölçüm YAPILMAMALI, gerçek trafik verisi için
+  beklemek gerekiyor.
 
 **Yerel çalışma dizini durumu:** branch `main` üzerinde, güncel
-(`git pull --ff-only` yapıldı, PR #112 merge sonrası feature branch
-silindi). Sonraki oturum doğrudan Task 5'e devam edebilir.
+(`git pull --ff-only` yapıldı, PR #113 merge sonrası feature branch
+silindi). Sonraki oturum Task 7 Step 2'yi (24 saatlik bekleme dolduysa)
+çalıştırabilir.
 
 ## Global Constraints
 
@@ -911,31 +929,17 @@ git commit -m 'feat(scheduler): kaynak siralamasi her tick de rotasyonla degisir
 
 **Files:** yok (sadece git/CI/SSM işlemleri)
 
-- [ ] **Step 1: Feature branch aç, push et, PR aç**
+- [x] **Step 1: Feature branch aç, push et, PR aç** — PR #113.
 
-```bash
-git checkout -b feat/scheduler-rotation
-git push -u origin feat/scheduler-rotation
-gh pr create --title "feat(scheduler): kaynak siralamasi rotasyonla adil hale getirildi" --body "Spec: docs/superpowers/specs/2026-09-10-groq-darbogazi-design.md (Bolum 2). scheduler_service artik her tick'te farkli bir baslangic noktasindan yayinliyor - worker geride kalsa bile hicbir kaynak surekli son sirada kalamaz." --base main
-```
+- [x] **Step 2: CI'ı izle, merge et** — merge edildi (`22dbe14`).
 
-- [ ] **Step 2: CI'ı izle, merge et**
+- [x] **Step 3: Deploy'u SSM ile doğrula, scheduler log'unda rotasyonu gözle**
 
-```bash
-gh pr checks <PR_NUMBER> --watch --interval 15
-gh pr merge <PR_NUMBER> --squash --delete-branch
-git checkout main
-git pull --ff-only
-```
-
-- [ ] **Step 3: Deploy'u SSM ile doğrula, scheduler log'unda rotasyonu gözle**
-
-```bash
-aws ssm send-command --instance-ids "i-0608c897a3d8ca3f3" --document-name "AWS-RunShellScript" --parameters '{"commands":["docker logs nexstream_scheduler --since 25m 2>&1 | grep \"Scrape emri gönderildi\" | head -40"]}' --output json
-```
-
-`get-command-invocation` ile en az iki tick'in (art arda iki 17-satırlık
-blok) FARKLI bir kaynaktan başladığını gözle doğrula.
+✅ Doğrulandı (10 Eylül, 11:04/11:14/11:24 UTC): ardışık üç tick sırasıyla
+TRT Haber → BBC Türkçe → Hürriyet'ten başladı — beklenen round-robin
+rotasyon davranışı doğru çalışıyor. (Not: her tick'te 17 değil 11 kaynak
+görünüyor — prod `scrape_sources` env var'ı güncel değil, ayrı/kapsam dışı
+bir bulgu, aksiyon alınmadı.)
 
 ---
 
