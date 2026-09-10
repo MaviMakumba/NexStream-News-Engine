@@ -18,6 +18,36 @@ sadık kalınır, yeni bir katman eklenmez.
 
 **Spec:** `docs/superpowers/specs/2026-09-10-groq-darbogazi-design.md`
 
+---
+
+## 🔴 CHECKPOINT (10 Eylül 2026, oturum kota kısıtı nedeniyle burada durduruldu)
+
+**Tamamlanan:**
+- **Task 1 (near-dup önceliği) — TAMAMEN BİTTİ.** PR #111 merge edildi, main'e
+  deploy oldu, SSM ile canlıda doğrulandı (worker yeni kodla ayakta, hata yok).
+- **Task 2 (Task 1 deploy) — TAMAMEN BİTTİ.**
+- **Task 3 (havuz bölme kodu: `GroqAnalyzer` model param + `groq_pool.py` +
+  `settings.groq_model_pool` + `factory.py`) — TAMAMEN BİTTİ**, tüm testler
+  (920/920) yeşil, commit'lendi, PR #112 açıldı, push edildi.
+
+**Yarım kalan:**
+- **PR #112 — CI check'leri (test/frontend/security-audit) YEŞİL ama HENÜZ
+  MERGE EDİLMEDİ.** Sonraki oturumun İLK işi: `gh pr checks 112` ile tekrar
+  doğrula, sorun yoksa `gh pr merge 112 --squash --delete-branch`, sonra
+  Task 4'ün geri kalan adımlarını (SSM ile deploy doğrulama — git HEAD
+  kontrolü + worker log'unda her iki modelin de (`openai/gpt-oss-20b` VE
+  `qwen/qwen3.8-27b`) kullanıldığını gözlemleme) tamamla.
+- **Task 5-6 (scheduler rotasyonu) — HİÇ BAŞLANMADI.**
+- **Task 7 (öncesi/sonrası ölçüm + README) — HİÇ BAŞLANMADI.** Task 7'nin
+  "öncesi" verisi zaten bu plan dosyasında sabit yazılı (7.5dk, 5 haber/3gün,
+  8000 TPM) — tekrar ölçmeye gerek yok, sadece Task 4/6 deploy'larından
+  sonra "sonrası" verisini toplayıp README'ye işlemek kalıyor.
+
+**Yerel çalışma dizini durumu:** branch `feat/groq-model-pool` üzerinde
+(main'den ileride, PR #112 zaten bu dalı origin'e push etmiş durumda —
+kod kaybı riski YOK). Sonraki oturum `git checkout main && git pull` ile
+başlayıp PR #112'yi merge ettikten sonra devam edebilir.
+
 ## Global Constraints
 
 - Test'lerde gerçek API çağrısı yok, her şey mock (CLAUDE.md KODLAMA KURALLARI).
@@ -48,7 +78,7 @@ sadık kalınır, yeni bir katman eklenmez.
 - Consumes: mevcut `ChromaSearchRepository.is_near_duplicate(article, threshold=0.92) -> bool` (DOKUNULMAZ, korunur).
 - Produces: `ChromaSearchRepository.find_near_duplicate_source(article, threshold=0.92) -> Optional[int]` (eşleşen komşunun `id`'si, yoksa `None`). `NewsService._copy_analysis_from(article: Article, neighbor_id: int) -> bool` (kopyalama başarılıysa `True`, komşu bulunamazsa `False` — çağıran `False` durumunda Groq'a fail-open düşer).
 
-- [ ] **Step 1: `find_near_duplicate_source` için başarısız testi yaz**
+- [x] **Step 1: `find_near_duplicate_source` için başarısız testi yaz**
 
 `tests/adapters/test_semantic_dedup.py` dosyasının SONUNA ekle:
 
@@ -84,12 +114,12 @@ def test_find_near_duplicate_source_returns_none_when_collection_empty():
     assert repo.find_near_duplicate_source(article, threshold=0.92) is None
 ```
 
-- [ ] **Step 2: Testin doğru sebeple başarısız olduğunu doğrula**
+- [x] **Step 2: Testin doğru sebeple başarısız olduğunu doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_semantic_dedup.py -k find_near_duplicate_source -v`
 Expected: FAIL — `AttributeError: 'ChromaSearchRepository' object has no attribute 'find_near_duplicate_source'`
 
-- [ ] **Step 3: `find_near_duplicate_source`'ı uygula**
+- [x] **Step 3: `find_near_duplicate_source`'ı uygula**
 
 `src/adapters/search/chroma_search_repository.py`'de `is_near_duplicate`
 metodunun HEMEN ALTINA ekle (mevcut `is_near_duplicate` DOKUNULMADAN kalır):
@@ -126,19 +156,19 @@ Dosyanın en üstündeki import satırına `Optional` ekle (yoksa):
 from typing import Optional
 ```
 
-- [ ] **Step 4: Testin geçtiğini doğrula**
+- [x] **Step 4: Testin geçtiğini doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_semantic_dedup.py -v`
 Expected: PASS (yeni 3 test + mevcut `is_near_duplicate` testleri hepsi yeşil)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/adapters/search/chroma_search_repository.py tests/adapters/test_semantic_dedup.py
 git commit -m 'feat(search): find_near_duplicate_source ekle - komsu id dondurur'
 ```
 
-- [ ] **Step 6: `NewsService`'e `_copy_analysis_from` için başarısız testi yaz**
+- [x] **Step 6: `NewsService`'e `_copy_analysis_from` için başarısız testi yaz**
 
 `tests/application/test_news_service.py`'nin sonuna (mevcut `make_article`/
 `make_service` yardımcılarını kullanarak) ekle:
@@ -223,14 +253,14 @@ def test_near_duplicate_falls_back_to_groq_when_neighbor_missing():
     mock_analyzer.analyze_text.assert_called_once()
 ```
 
-- [ ] **Step 7: Testlerin doğru sebeple başarısız olduğunu doğrula**
+- [x] **Step 7: Testlerin doğru sebeple başarısız olduğunu doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/application/test_news_service.py -k "near_duplicate or non_duplicate_still" -v`
 Expected: FAIL — `mock_analyzer.analyze_text.assert_not_called()` başarısız
 (çünkü `update_news_from_source` hâlâ her makaleyi analiz ediyor,
 `find_near_duplicate_source` hiç çağrılmıyor).
 
-- [ ] **Step 8: `update_news_from_source`'u yeniden sırala + `_copy_analysis_from` ekle**
+- [x] **Step 8: `update_news_from_source`'u yeniden sırala + `_copy_analysis_from` ekle**
 
 `src/application/services/news_service.py`'de `update_news_from_source`
 içindeki döngüyü (satır ~184-199) şununla DEĞİŞTİR:
@@ -290,17 +320,17 @@ bloğu yukarıdaki yeni blokla değiştirilmiş oluyor (eski blok SİLİNİR).
         return True
 ```
 
-- [ ] **Step 9: Testlerin geçtiğini doğrula**
+- [x] **Step 9: Testlerin geçtiğini doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/application/test_news_service.py -v`
 Expected: PASS (yeni 3 test + mevcut TÜM testler, hiçbiri kırılmamış olmalı)
 
-- [ ] **Step 10: Tam test paketini çalıştır**
+- [x] **Step 10: Tam test paketini çalıştır**
 
 Run: `venv\Scripts\python.exe -m pytest tests/ -q`
 Expected: hepsi yeşil (mevcut sayı + 6 yeni test)
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add src/application/services/news_service.py tests/application/test_news_service.py
@@ -313,7 +343,7 @@ git commit -m 'feat(news): near-duplicate haberler Groq yerine komsudan analiz k
 
 **Files:** yok (sadece git/CI/SSM işlemleri)
 
-- [ ] **Step 1: Feature branch aç, push et**
+- [x] **Step 1: Feature branch aç, push et**
 
 ```bash
 git checkout -b feat/near-dup-before-groq
@@ -324,13 +354,13 @@ git push -u origin feat/near-dup-before-groq
 üzerinde yapıldıysa önce `git checkout -b feat/near-dup-before-groq` ile
 dalı oluştur, sonra push et.)
 
-- [ ] **Step 2: PR aç**
+- [x] **Step 2: PR aç**
 
 ```bash
 gh pr create --title "feat(news): near-duplicate haberler Groq yerine komsudan analiz kopyalar" --body "Spec: docs/superpowers/specs/2026-09-10-groq-darbogazi-design.md (Bolum 3). Near-duplicate kontrolu Groq analizinden ONCEye alindi - near-dup cikan haberler Groq'a gitmiyor, analiz alanlari ChromaDB'nin buldugu en yakin komsudan kopyalaniyor. Test: 6 yeni test, tam suite yesil." --base main
 ```
 
-- [ ] **Step 3: CI'ın geçmesini bekle**
+- [x] **Step 3: CI'ın geçmesini bekle**
 
 ```bash
 gh pr checks <PR_NUMBER> --watch --interval 15
@@ -338,7 +368,7 @@ gh pr checks <PR_NUMBER> --watch --interval 15
 
 Expected: `test`, `frontend`, `security-audit` hepsi `pass`.
 
-- [ ] **Step 4: Merge et**
+- [x] **Step 4: Merge et**
 
 ```bash
 gh pr merge <PR_NUMBER> --squash --delete-branch
@@ -346,7 +376,7 @@ git checkout main
 git pull --ff-only
 ```
 
-- [ ] **Step 5: Deploy'un tamamlanmasını izle, CI "health check timeout" derse SSM ile doğrula**
+- [x] **Step 5: Deploy'un tamamlanmasını izle, CI "health check timeout" derse SSM ile doğrula**
 
 ```bash
 gh run list --branch main --limit 1 --json databaseId,status
@@ -364,7 +394,7 @@ aws ssm send-command --instance-ids "i-0608c897a3d8ca3f3" --document-name "AWS-R
 ile sonucu oku — git HEAD'in merge commit'i gösterdiğini ve tüm
 container'ların `Up`/`healthy` olduğunu doğrula.
 
-- [ ] **Step 6: Prod'da gerçekten çalıştığını worker log'undan doğrula**
+- [x] **Step 6: Prod'da gerçekten çalıştığını worker log'undan doğrula**
 
 ```bash
 aws ssm send-command --instance-ids "i-0608c897a3d8ca3f3" --document-name "AWS-RunShellScript" --parameters '{"commands":["docker logs nexstream_worker --since 15m 2>&1 | grep -i duplicate | tail -20"]}' --output json
@@ -392,7 +422,7 @@ tekrar bakılacak.
 - Consumes: `AnalysisPort.analyze_text(text: str) -> dict` (mevcut sözleşme, değişmez).
 - Produces: `GroqAnalyzer(model: str = "openai/gpt-oss-20b")` (artık gerçek parametre). `groq_pool.record_remaining(model: str, remaining: int) -> None`, `groq_pool.pick_least_loaded(models: list[str]) -> str`. `PooledGroqAnalyzer(models: list[str])` — `AnalysisPort` uygular. `settings.groq_model_pool: str`.
 
-- [ ] **Step 1: `GroqAnalyzer`'ın model parametresini kabul ettiğini doğrulayan test yaz**
+- [x] **Step 1: `GroqAnalyzer`'ın model parametresini kabul ettiğini doğrulayan test yaz**
 
 `tests/adapters/test_groq_analyzer.py`'nin sonuna ekle:
 
@@ -415,7 +445,7 @@ def test_analyzer_default_model_unchanged():
     assert analyzer.model == "openai/gpt-oss-20b"
 ```
 
-- [ ] **Step 2: Testin durumunu doğrula**
+- [x] **Step 2: Testin durumunu doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_groq_analyzer.py -k "configured_model or default_model_unchanged" -v`
 Expected: `test_analyzer_default_model_unchanged` zaten PASS olabilir (mevcut
@@ -423,7 +453,7 @@ kod zaten `self.model = "openai/gpt-oss-20b"` hardcoded ama `__init__`
 parametre almıyor) — `test_analyzer_uses_configured_model_in_request` FAIL
 olmalı: `TypeError: __init__() takes 1 positional argument but ... model ...`
 
-- [ ] **Step 3: `GroqAnalyzer.__init__`'i parametrik yap**
+- [x] **Step 3: `GroqAnalyzer.__init__`'i parametrik yap**
 
 `src/adapters/analysis/groq_analyzer.py`'de:
 
@@ -434,19 +464,19 @@ olmalı: `TypeError: __init__() takes 1 positional argument but ... model ...`
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
 ```
 
-- [ ] **Step 4: Testlerin geçtiğini doğrula**
+- [x] **Step 4: Testlerin geçtiğini doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_groq_analyzer.py -v`
 Expected: PASS (tüm dosya, mevcut testler dahil — `GroqAnalyzer()` varsayılanı hâlâ `gpt-oss-20b`)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/adapters/analysis/groq_analyzer.py tests/adapters/test_groq_analyzer.py
 git commit -m 'feat(analysis): GroqAnalyzer model parametrik hale getirildi'
 ```
 
-- [ ] **Step 6: `groq_pool` modülü için başarısız test yaz**
+- [x] **Step 6: `groq_pool` modülü için başarısız test yaz**
 
 `tests/adapters/test_groq_pool.py` (yeni dosya):
 
@@ -503,12 +533,12 @@ def test_record_remaining_is_thread_safe_under_concurrent_writes():
         assert groq_pool._remaining_tokens[f"model-{i}"] == i
 ```
 
-- [ ] **Step 7: Testin doğru sebeple başarısız olduğunu doğrula**
+- [x] **Step 7: Testin doğru sebeple başarısız olduğunu doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_groq_pool.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'src.adapters.analysis.groq_pool'`
 
-- [ ] **Step 8: `groq_pool.py`'ı uygula**
+- [x] **Step 8: `groq_pool.py`'ı uygula**
 
 `src/adapters/analysis/groq_pool.py` (yeni dosya):
 
@@ -583,19 +613,19 @@ metodunun İÇİNE, `remaining` hesaplandıktan hemen sonra (mevcut `if remainin
 `groq_analyzer.py`'ı import etmesiyle dairesel import yaratır, bu yüzden
 lazy import bilinçli tercih.)
 
-- [ ] **Step 9: Testlerin geçtiğini doğrula**
+- [x] **Step 9: Testlerin geçtiğini doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_groq_pool.py tests/adapters/test_groq_analyzer.py -v`
 Expected: PASS (tüm testler)
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/adapters/analysis/groq_pool.py src/adapters/analysis/groq_analyzer.py tests/adapters/test_groq_pool.py
 git commit -m 'feat(analysis): PooledGroqAnalyzer - en bos butceli modele dinamik dagitim'
 ```
 
-- [ ] **Step 11: `settings.groq_model_pool` için başarısız test yaz**
+- [x] **Step 11: `settings.groq_model_pool` için başarısız test yaz**
 
 `tests/infrastructure/test_settings.py` (mevcut dosya) sonuna ekle:
 
@@ -606,12 +636,12 @@ def test_groq_model_pool_default():
     assert s.groq_model_pool == "openai/gpt-oss-20b,qwen/qwen3.8-27b"
 ```
 
-- [ ] **Step 12: Testin durumunu doğrula**
+- [x] **Step 12: Testin durumunu doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/infrastructure/test_settings.py -k groq_model_pool -v`
 Expected: FAIL — `AttributeError` (alan henüz yok)
 
-- [ ] **Step 13: `settings.py`'ye alanı ekle**
+- [x] **Step 13: `settings.py`'ye alanı ekle**
 
 `src/infrastructure/config/settings.py`'de `groq_request_interval_seconds`
 satırının HEMEN ALTINA ekle:
@@ -628,19 +658,19 @@ satırının HEMEN ALTINA ekle:
     groq_model_pool: str = "openai/gpt-oss-20b,qwen/qwen3.8-27b"
 ```
 
-- [ ] **Step 14: Testin geçtiğini doğrula**
+- [x] **Step 14: Testin geçtiğini doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/infrastructure/test_settings.py -k groq_model_pool -v`
 Expected: PASS
 
-- [ ] **Step 15: Commit**
+- [x] **Step 15: Commit**
 
 ```bash
 git add src/infrastructure/config/settings.py tests/infrastructure/test_settings.py
 git commit -m 'feat(config): groq_model_pool env var eklendi'
 ```
 
-- [ ] **Step 16: `factory.build_analyzer()` için başarısız test yaz**
+- [x] **Step 16: `factory.build_analyzer()` için başarısız test yaz**
 
 `tests/adapters/test_analysis_factory.py` (yeni dosya — `test_query_
 expander_factory.py` ile aynı isimlendirme deseni):
@@ -662,12 +692,12 @@ def test_build_analyzer_uses_pooled_groq():
 (`FallbackAnalyzer.analyzers` doğrulandı — gerçek attribute adı `self.
 analyzers`, düz liste, bu isimle kullanılıyor.)
 
-- [ ] **Step 17: Testin doğru sebeple başarısız olduğunu doğrula**
+- [x] **Step 17: Testin doğru sebeple başarısız olduğunu doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_analysis_factory.py -v`
 Expected: FAIL (henüz `PooledGroqAnalyzer` kullanılmıyor, `analyzers[0]` hâlâ düz `GroqAnalyzer`)
 
-- [ ] **Step 18: `factory.py`'ı güncelle**
+- [x] **Step 18: `factory.py`'ı güncelle**
 
 `src/adapters/analysis/factory.py`'de importlara ekle:
 
@@ -686,17 +716,17 @@ def build_analyzer() -> AnalysisPort:
     return FallbackAnalyzer(analyzers)
 ```
 
-- [ ] **Step 19: Testlerin geçtiğini doğrula**
+- [x] **Step 19: Testlerin geçtiğini doğrula**
 
 Run: `venv\Scripts\python.exe -m pytest tests/adapters/test_analysis_factory.py -v`
 Expected: PASS
 
-- [ ] **Step 20: Tam test paketini çalıştır**
+- [x] **Step 20: Tam test paketini çalıştır**
 
 Run: `venv\Scripts\python.exe -m pytest tests/ -q`
 Expected: hepsi yeşil
 
-- [ ] **Step 21: Commit**
+- [x] **Step 21: Commit**
 
 ```bash
 git add src/adapters/analysis/factory.py tests/adapters/test_analysis_factory.py
