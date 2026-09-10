@@ -16,10 +16,16 @@ logger = logging.getLogger(__name__)
 TOPIC_NAME = "news_updates"
 
 producer: AIOKafkaProducer = None
+_tick_index = 0
 
 
 async def send_scrape_command():
+    global _tick_index
     sources = [s.strip() for s in settings.scrape_sources.split(",") if s.strip()]
+    if sources:
+        offset = _tick_index % len(sources)
+        sources = sources[offset:] + sources[:offset]
+        _tick_index += 1
     for source in sources:
         try:
             command = {"source": source, "action": "scrape"}
