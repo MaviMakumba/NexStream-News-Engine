@@ -111,6 +111,37 @@ def test_is_near_duplicate_threshold_boundary():
     assert repo.is_near_duplicate(article, threshold=0.92) is True
 
 
+def test_find_near_duplicate_source_returns_neighbor_id():
+    repo, _ = make_repo()
+    repo._mock_collection.count.return_value = 10
+    repo._mock_collection.query.return_value = {
+        "ids": [["42"]],
+        "distances": [[0.01]],
+        "metadatas": [[{"title": "Benzer haber"}]],
+    }
+    article = make_article(id=None)
+    assert repo.find_near_duplicate_source(article, threshold=0.92) == 42
+
+
+def test_find_near_duplicate_source_returns_none_for_low_similarity():
+    repo, _ = make_repo()
+    repo._mock_collection.count.return_value = 10
+    repo._mock_collection.query.return_value = {
+        "ids": [["42"]],
+        "distances": [[2.0]],
+        "metadatas": [[{"title": "Farklı haber"}]],
+    }
+    article = make_article(id=None)
+    assert repo.find_near_duplicate_source(article, threshold=0.92) is None
+
+
+def test_find_near_duplicate_source_returns_none_when_collection_empty():
+    repo, _ = make_repo()
+    repo._mock_collection.count.return_value = 0
+    article = make_article(id=None)
+    assert repo.find_near_duplicate_source(article, threshold=0.92) is None
+
+
 def test_index_article_stores_topic_in_metadata():
     repo, _ = make_repo()
     article = make_article(topic="Technology")

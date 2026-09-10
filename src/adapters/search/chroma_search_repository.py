@@ -5,6 +5,7 @@ yeni haber mevcut bir vektöre bu kadar yakınsa is_duplicate işaretlenir.
 """
 
 import logging
+from typing import Optional
 import chromadb
 from src.domain.models.article import Article
 from src.adapters.search.embedder_factory import build_embedder
@@ -75,6 +76,31 @@ class ChromaSearchRepository:
         except Exception as e:
             logger.warning("Dedup sorgusu başarısız: %s", e)
             return False
+
+    def find_near_duplicate_source(self, article: Article, threshold: float = 0.92) -> Optional[int]:
+        """is_near_duplicate ile AYNI sorgu/eşik, ama eşleşirse komşunun id'sini
+        döner (None = near-duplicate değil). Groq analizinden ÖNCE çağrılabilsin
+        diye ayrı bir metod — update_news_from_source bu id ile komşunun zaten
+        var olan analizini kopyalar, Groq'a hiç gitmez (bkz. spec, 10 Eyl 2026)."""
+        try:
+            if self.collection.count() == 0:
+                return None
+            text = self._article_embedding_text(article)
+            embedding = self.embedder.embed_text(text)
+            results = self.collection.query(
+                query_embeddings=[embedding],
+                n_results=1,
+            )
+            if not results["ids"][0]:
+                return None
+            distance = results["distances"][0][0]
+            similarity = 1 / (1 + distance)
+            if similarity < threshold:
+                return None
+            return int(results["ids"][0][0])
+        except Exception as e:
+            logger.warning("Near-duplicate kaynak sorgusu başarısız: %s", e)
+            return None
 
     def find_similar(self, article_id: int, n_results: int = 6, threshold: float = 0.72) -> list[dict]:
         """Aynı story cluster'daki diğer kaynakları bulur (v2.2, "bu haberi kim
