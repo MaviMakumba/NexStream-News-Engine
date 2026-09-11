@@ -1111,6 +1111,67 @@ gerekmedi).
   kaynağıydı). Gerçek deploy ile doğrulandı: log'da `Healthy (localhost,
   deneme 1)`, SSM ile embedder/worker/engine/scheduler `OOMKilled=false`/
   `Restarts=0`, canlı site 200.
+- **PR #122-124, 11 Eylül 2026 (aynı gün, devamı) — contact-messages admin
+  paneli + 3 kez prod kesintisi + iki kalıcı fix.** PR #122: roadmap madde
+  26'nın "bağımsız iyileştirme" kısmı TDD ile yazıldı — `/contact` formu
+  artık `contact_messages` tablosuna da yazıyor (e-posta başarısız/
+  yapılandırılmamış olsa bile mesaj kaybolmuyor), `/admin/contact-messages`
+  sayfası listeliyor+okundu işaretliyor. Yan bulgu: slowapi `limiter`'ı
+  modül seviyesinde bir singleton — test session'ı boyunca state biriktiği
+  için 3 yeni test "5/minute" limitini aşıp SONRAKİ testleri 429 ile
+  çökertti; `tests/conftest.py`'a otomatik `limiter.reset()` fixture'ı
+  eklendi.
+
+  PR #122 merge'i sonrası (ve health-check/docs PR'larının hemen ardından,
+  kısa aralıklarla üçüncü art arda deploy) **site TAMAMEN erişilemez hale
+  geldi** — ilk kullanıcı bulgusu "SSL handshake failed Error code 525" +
+  "bazen beyaz ekran". Teşhis: `curl` timeout (000, sadece health-check
+  değil ana sayfa da), EC2 instance/system/EBS health check'leri "ok"
+  (host çökmemiş) ama SSM komutları "Undeliverable"/"Delayed" dönüyordu —
+  guest OS içindeki HER ŞEY (SSM Agent dahil) yanıt veremiyordu. CloudWatch
+  (`ce:GetCostAndUsage`, `cloudwatch:GetMetricStatistics`,
+  `ec2:DescribeInstanceCreditSpecifications`) erişimi IAM policy'nin
+  (`NexStreamDeployMinimal`) kapsamı dışında olduğu için kesin CPU credit
+  ölçümü yapılamadı — en olası açıklama t3.small'ın burstable CPU
+  credit'inin art arda build-yoğun deploy'larla tükenmesiydi.
+  `aws ec2 reboot-instances` ile kurtarıldı — **TOPLAM ÜÇ KEZ**: ilk reboot
+  sonrası deploy'un `docker compose up --build -d` adımı YARIDA kesilmiş
+  olduğu (container'lar reboot ANINDA hâlâ ESKİ image'da kaldığı,
+  `docker exec ... grep contact-messages ...` ile doğrulandı) fark
+  edilmeden `gh run rerun` ile hemen yeniden tetiklendi — bu da instance'ı
+  İKİNCİ kez tıkadı (reboot CPU credit'i DOLDURMAZ, sadece donmuş process
+  state'ini temizler). PR #123 (concurrency lock: `concurrency: {group:
+  production-deploy, cancel-in-progress: false}`) art arda deploy'ların
+  ÇAKIŞMASINI engellese de, üçüncü reboot sonrası TEK BAŞINA (çakışma
+  yokken) bir deploy YİNE tıkandı — bu concurrency'nin kök nedeni tam
+  çözmediğini kanıtladı, gerçek sorun deploy'ların çakışması değil, TEK
+  BİR deploy'un (`up --build -d`'nin embedder gibi RAM-ağır bir servisi
+  recreate ederken ESKİ+YENİ kopyayı kısa süre aynı anda bellekte tutması)
+  zaten sıkışık 1.9GB'ı anlık olarak taşırmasıydı. Kullanıcıya CPU Credit
+  "Unlimited" moduna geçme teklifi sunuldu (kök nedeni doğrudan çözerdi,
+  küçük bir ek maliyet riskiyle) — **kullanıcı maliyet riski istemediği
+  için bilinçli REDDETTİ**, "ücretsiz optimizasyon" istedi. PR #124: build+
+  health-check penceresinde RAM-ağır izleme servisleri (Prometheus/
+  Grafana/Loki/Promtail) geçici durduruluyor (health-check başarısız olsa
+  bile `;` ile — `&&` değil — geri başlatılıyor, gözlemlenebilirlik uzun
+  süre kapalı kalmasın diye). Bu deploy SORUNSUZ tamamlandı — canlı olarak
+  uçtan uca doğrulandı (`POST /api/contact/` → DB'ye yazıldı → `GET /api/
+  admin/contact-messages`'tan görüldü, test verisi temizlendi). **Gerçek
+  kalıcı çözüm (build'i EC2 dışına, GitHub Actions'a taşımak) hâlâ AÇIK**
+  — roadmap madde 28.
+- **Ders — genel:** (1) main'e kısa aralıklarla art arda merge/deploy
+  tetiklemek kaynak-kısıtlı bir VPS'te YIKICI olabilir, bir deploy'un
+  SONUCUNU görmeden ikincisini tetikleme. (2) SSM/EC2 health check'lerinin
+  "ok" demesi guest OS içindeki process'lerin çalıştığı anlamına GELMEZ —
+  `aws ec2 describe-instance-status` sadece hypervisor/network seviyesini
+  doğrular. (3) `aws ec2 reboot-instances` CPU credit'i DOLDURMAZ, sadece
+  o anki donmuş durumu temizler — art arda ikinci bir tıkanma "reboot işe
+  yaramadı" değil "kök neden hâlâ orada" demektir. (4) Bir deploy'un
+  GitHub Actions'ta "Success" görünmesi container'ların GERÇEKTEN yeni
+  image'da olduğunu KANITLAMAZ eğer araya bir reboot/kesinti girmişse —
+  gerçek doğrulama `docker exec <container> grep <yeni-kod-izi> <dosya>`
+  ile yapılır, git commit hash'ine bakmak YETMEZ (git checkout hızlı,
+  Docker build/recreate yavaş ve ayrı ayrı kesintiye uğrayabilir).
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu, custom (Stripe dışı) billing portalı, App Store/Play Store (sadece PWA)
