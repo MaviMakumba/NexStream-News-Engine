@@ -160,10 +160,27 @@ jobs:
           # User-Agent'tan bağımsız) her seferinde tetikleyip düz 403
           # döndürüyordu — deploy GERÇEKTEN başarılı olsa bile. `--timeout-seconds`
           # bu yüzden 900'den 1200'e çıkarıldı (build + 7.5dk health payı).
+          #
+          # 11 Eylül 2026 (aynı gün, ikinci ders): art arda 3 deploy denemesi
+          # t3.small'ı üç kez tamamen tıkadı (SSM Agent bile "Undeliverable"
+          # oldu, iki reboot gerekti) — reboot CPU credit'i DOLDURMAZ, ve
+          # concurrency lock'a (aşağıdaki job-level `concurrency` bloğu)
+          # rağmen TEK BAŞINA bir deploy bile üçüncü kez tıkandı. En olası
+          # açıklama CPU credit'ten çok ANLIK RAM darboğazı: `up --build -d`
+          # değişen servisleri (özellikle embedder — SentenceTransformer
+          # modelini RAM'de tutan servis) recreate ederken ESKİ ve YENİ
+          # kopya kısa süre AYNI ANDA bellekte olabiliyor, zaten sıkışık olan
+          # 1.9GB'ı taşırıyor. Kalıcı çözüm (build'i EC2 dışına, CI'a taşımak)
+          # ayrı bir tasarım işi — bu ucuz ara-önlem RAM-ağır izleme
+          # container'larını (Prometheus/Grafana/Loki/Promtail — CLAUDE.md'nin
+          # "RAM darsa ilk kapatılacaklar" listesi) build+health-check
+          # penceresinde GEÇİCİ durdurup sonra geri başlatıyor. Health-check
+          # başarısız olsa bile (`;` ile, `&&` değil) izleme geri gelir —
+          # gözlemlenebilirlik uzun süre kapalı kalmasın diye.
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["export HOME=/home/ubuntu","cd ~/NexStream-News-Engine","git config --global --add safe.directory $(pwd)","git checkout main","git fetch origin","git reset --hard origin/main","docker compose -f docker-compose.prod.yml up --build -d","docker compose -f docker-compose.prod.yml restart nginx","bash infra/scripts/wait_for_health.sh"]}' \
+            --parameters '{"commands":["export HOME=/home/ubuntu","cd ~/NexStream-News-Engine","git config --global --add safe.directory $(pwd)","git checkout main","git fetch origin","git reset --hard origin/main","docker compose -f docker-compose.prod.yml stop prometheus grafana loki promtail","docker compose -f docker-compose.prod.yml up --build -d","docker compose -f docker-compose.prod.yml restart nginx","bash infra/scripts/wait_for_health.sh; HEALTH_EXIT=$?; docker compose -f docker-compose.prod.yml up -d prometheus grafana loki promtail; exit $HEALTH_EXIT"]}' \
             --timeout-seconds 1200 \
             --query "Command.CommandId" --output text)
           echo "SSM command: $COMMAND_ID"
