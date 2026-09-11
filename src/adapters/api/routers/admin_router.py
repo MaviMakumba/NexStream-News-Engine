@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from src.adapters.api.auth_utils import require_admin, require_moderator, require_owner, get_current_user, get_optional_user, effective_role, has_owner_role
 from src.adapters.repositories.user_repository import UserRepository
-from src.adapters.repositories.orm_models import SponsorORM
+from src.adapters.repositories.orm_models import SponsorORM, ContactMessageORM
 from src.domain.models.sponsor import Sponsor
 from src.domain.models.user import User, UserRole, UserTier, role_at_least
 from src.infrastructure.config.database import get_db
@@ -385,3 +385,39 @@ def get_active_sponsor(db: Session) -> Optional[Sponsor]:
         active_until=orm.active_until,
         is_active=orm.is_active,
     )
+
+
+# ── Contact mesajları (roadmap madde 26, 11 Eylül 2026) ─────────────────────────
+# /contact formundan gelenler artık DB'ye de yazılıyor (bkz. contact_router) —
+# e-posta spam'e düşse/gecikse/başarısız olsa bile mesaj burada görülebilir
+# kalıyor. Sponsor listesiyle aynı seviyede: görüntüleme require_moderator
+# (router geneli) yeterli, yazma (okundu işaretleme) için ekstra require_admin
+# istenmiyor — hassas bir mutasyon değil, moderatör de işaretleyebilir.
+
+def _contact_message_to_dict(orm: ContactMessageORM) -> dict:
+    return {
+        "id": orm.id,
+        "name": orm.name,
+        "email": orm.email,
+        "category": orm.category,
+        "message": orm.message,
+        "language": orm.language,
+        "is_read": orm.is_read,
+        "created_at": orm.created_at,
+    }
+
+
+@router.get("/contact-messages")
+def list_contact_messages(db: Session = Depends(get_db)):
+    rows = db.query(ContactMessageORM).order_by(text("created_at DESC")).all()
+    return [_contact_message_to_dict(r) for r in rows]
+
+
+@router.patch("/contact-messages/{message_id}/read")
+def mark_contact_message_read(message_id: int, db: Session = Depends(get_db)):
+    orm = db.get(ContactMessageORM, message_id)
+    if not orm:
+        raise HTTPException(status_code=404, detail="Contact message not found")
+    orm.is_read = True
+    db.commit()
+    return _contact_message_to_dict(orm)

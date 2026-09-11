@@ -703,6 +703,74 @@ def test_delete_nonexistent_sponsor_permanently_returns_404(app_client):
     assert resp.status_code == 404
 
 
+# ── Contact mesajları (roadmap madde 26, 11 Eylül 2026) ─────────────────────────
+# /contact formundan gelenler artık DB'ye de yazılıyor (bkz. contact_router) —
+# admin panelden görüntülensin diye (e-posta spam'e düşse/gecikse bile kaybolmasın).
+# Görüntüleme sponsor listesiyle aynı seviyede: require_moderator (router geneli).
+
+def _contact_message_orm(id=1, is_read=False):
+    m = MagicMock()
+    m.id = id
+    m.name = "Ada Lovelace"
+    m.email = "ada@example.com"
+    m.category = "general"
+    m.message = "Merhaba, bir sorum var."
+    m.language = "TR"
+    m.is_read = is_read
+    m.created_at = datetime.now(timezone.utc)
+    return m
+
+
+def test_list_contact_messages_requires_api_key(app_client):
+    resp = app_client.get("/admin/contact-messages")
+    assert resp.status_code == 401
+
+
+def test_list_contact_messages_returns_list_newest_first(app_client):
+    db = _make_mock_db()
+    orm = _contact_message_orm()
+    db.query.return_value.order_by.return_value.all.return_value = [orm]
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        resp = app_client.get("/admin/contact-messages", headers=_HEADERS)
+    finally:
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert data[0]["email"] == "ada@example.com"
+    assert data[0]["is_read"] is False
+
+
+def test_mark_contact_message_read(app_client):
+    db = _make_mock_db()
+    orm = _contact_message_orm(id=5, is_read=False)
+    db.get.return_value = orm
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        resp = app_client.patch("/admin/contact-messages/5/read", headers=_HEADERS)
+    finally:
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 200
+    assert resp.json()["is_read"] is True
+    assert orm.is_read is True
+    db.commit.assert_called_once()
+
+
+def test_mark_nonexistent_contact_message_read_returns_404(app_client):
+    db = _make_mock_db()
+    db.get.return_value = None
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        resp = app_client.patch("/admin/contact-messages/999/read", headers=_HEADERS)
+    finally:
+        app_client.app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 404
+
+
 # ── Manuel tier verme (owner-only, 18 Ağu 2026) ─────────────────────────────────
 # Kurucu, ödeme almadan bir kullanıcıya (kendisi dahil) Pro/Kurumsal verebilsin
 # diye eklendi. require_owner kullanır (admin YETMEZ) — repo.update_tier()

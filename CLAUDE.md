@@ -233,12 +233,13 @@ GERÇEKTEN bekleyen işler var:
     pass/fail) paylaşacak — kesin teşhis oradan. En muhtemel açıklama
     domain'in gönderim geçmişinin çok yeni olması (6 gün) + o anki test
     mesajlarının bot gibi okunan içeriği, ikisi de zamanla/gerçek kullanıcı
-    trafiğiyle kendiliğinden düzelebilir. **Bağımsız iyileştirme (kullanıcı
-    onayladı, henüz YAPILMADI):** mesajlar sadece mail ile değil admin
-    panelden de görülebilsin — `POST /contact` DB'ye de yazsın (yeni
-    `contact_messages` tablosu), `/admin/contact-messages` sayfası (mevcut
-    `/admin/sponsors`+`/admin/usage` deseniyle aynı) listelesin. Böylece
-    mail spam'e düşse/gecikse bile mesaj kaybolmaz. TDD ile yazılacak.
+    trafiğiyle kendiliğinden düzelebilir. **Spam teşhisi hâlâ AÇIK** —
+    yukarıdaki "Sonraki oturumun ilk işi" hâlâ geçerli.
+    ~~Bağımsız iyileştirme~~ — ✅ 11 Eylül 2026: mesajlar artık mail ile
+    birlikte admin panelden de görülebiliyor (`POST /contact` `contact_
+    messages` tablosuna da yazıyor, `/admin/contact-messages` sayfası
+    `/admin/sponsors` deseniyle listeliyor+okundu işaretliyor) — TDD ile
+    yazıldı, e-posta başarısız/yapılandırılmamış olsa bile mesaj kaybolmuyor.
 
 27. **Kaynak sağlığı taraması — 10 Eylül 2026, kullanıcı isteğiyle başlatıldı.**
     Prod API'den (`GET /api/v1/news?source=...`) 17 kaynağın hepsinin en son
