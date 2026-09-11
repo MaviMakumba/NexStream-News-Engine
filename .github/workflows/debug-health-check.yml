@@ -1,0 +1,23 @@
+name: Debug health check 403 (gecici tani araci - PR sonrasi silinecek)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: Probe /api/health from GitHub Actions runner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Curl verbose (default UA)
+        run: |
+          echo "=== Default curl UA ==="
+          curl -v https://nexstreamnews.com/api/health || true
+
+      - name: Curl verbose (realistic browser UA)
+        run: |
+          echo "=== Realistic browser UA ==="
+          curl -v -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36" \
+            https://nexstreamnews.com/api/health || true
+
+      - name: Show runner outbound IP
+        run: curl -s https://api.ipify.org || true
