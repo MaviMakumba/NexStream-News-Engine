@@ -107,7 +107,7 @@ container-crash testleri bunu yakalamaz, sadece gerçek reboot ortaya çıkarır
 ## MEVCUT DURUM
 
 - **Versiyon:** v2.9 🚀 **CANLIDA: https://nexstreamnews.com** (2 Eylül 2026'da gerçek domain'e taşındı — eski `nexstreamnewsengine.duckdns.org` 301 ile yönleniyor, kapatılmadı). İlk canlıya çıkış: 29 Temmuz 2026. E-posta artık Resend üzerinden gidiyor (`bildirim@nexstreamnews.com`, DKIM+SPF+DMARC doğrulandı) — kişisel Gmail/SMTP artık birincil kanal DEĞİL. 2-4 Eylül'de iki ayrı deploy-kesintisi yaşandı (SSM timeout'unun host'ta zombi build süreci bırakması + nginx'in stale upstream IP'si), ikisi de kalıcı düzeltildi (detay: CHANGELOG "2 Eylül"/"3-4 Eylül").
-- **Test sayısı:** 915+ test, hepsi yeşil (backend); frontend `next build` temiz (React 19 + Next 16 ile, PR #93).
+- **Test sayısı:** 931+ test, hepsi yeşil (backend); frontend `next build` temiz (React 19 + Next 16 ile, PR #93).
 - **Frontend:** Next.js 16 + React 19. 10 sinematik tema (varsayılan `day`), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
@@ -321,6 +321,25 @@ GERÇEKTEN bekleyen işler var:
       worker log'undan doğrulamak.
     - **Twitter/X:** kasıtlı kapsam dışı kararı DEĞİŞMEDİ (bkz. aşağıdaki
       liste) — bu tur kararı yeniden değerlendirmedi.
+28. **Deploy build'ini EC2 dışına (GitHub Actions runner'ına) taşımak —
+    11 Eylül 2026'da t3.small'ı üç kez tamamen tıkayan (SSM Agent bile
+    yanıt veremedi, 3 reboot gerekti) prod kesintisinin GERÇEK kalıcı
+    çözümü.** Kök neden `docker compose up --build -d`'nin EC2 üzerinde
+    hem build hem 16 container'ın recreate'ini aynı anda yapması — anlık
+    RAM/CPU darboğazı yaratıyor (embedder gibi RAM-ağır bir servisin ESKİ
+    ve YENİ kopyası kısa süre aynı anda bellekte kalabiliyor). Image'ı
+    GitHub Actions runner'ında build edip ücretsiz bir registry'ye (GHCR)
+    push etmek, EC2'nin sadece `docker pull`+`up -d` yapmasını sağlar —
+    build hiç EC2'de olmaz. **Ara-önlem (PR #124, aynı gün) uygulandı ve
+    YETERLİ göründü:** build+health-check penceresinde RAM-ağır izleme
+    servisleri (Prometheus/Grafana/Loki/Promtail) geçici durduruluyor,
+    sonraki deploy sorunsuz tamamlandı. **Kullanıcı CPU Credit "Unlimited"
+    moduna geçmeyi bilinçli REDDETTİ** (küçük de olsa bir maliyet riski
+    istemedi) — bu yüzden registry'ye taşıma tek gerçek "$0 garantili"
+    kalıcı çözüm. Bounded değil, ayrı bir tasarım/plan turu gerektirir
+    (registry auth, image tagging/versioning, workflow yeniden yazımı).
+    Tekrar bir tıkanma yaşanırsa ÖNCELİK bu maddeye verilmeli. Detay:
+    CHANGELOG "11 Eylül prod kesintisi".
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,
@@ -506,6 +525,7 @@ Her madde tek bir kalıcı kural — "ne zaman/nasıl bulundu" forensic detayı
 - **Roadmap maddesini "sıradaki oturumun İLK işi" diye not düşüp session'ı bitirmek, o işin GERÇEKTEN yapıldığını garanti etmez** — aynı gün başka bir dalda yapılmış olabilir. Başlamadan önce `git log --oneline -S"<anahtar kelime>"` ile doğrula.
 - **AWS SSM operasyon deseni:** komutlarda `git` kullanmadan önce `export HOME=/home/ubuntu` + `git -c safe.directory=<repo-path>` (repo: `~/NexStream-News-Engine`) gerekir. Windows'taki native `aws.exe`'ye Git Bash'ten `file:///...` paramfile yolu VERME — JSON'u inline geç. Çıktıda Türkçe karakter varsa (`get-command-invocation` sonucu) `aws.exe` Windows'ta `'charmap' codec can't encode` ile patlar — `chcp.com 65001` + `export PYTHONIOENCODING=utf-8:replace` ile çöz.
 - **`docker compose up --build -d` sırasında (özellikle birden fazla image aynı anda rebuild olunca) t3.small'in 1.9GB RAM'i yetersiz kalabiliyor** — `nexstream_embedder` (ML modelini RAM'de tutan servis) ilk kurban oluyor (`OOMKilled=true`, 10 Eylül 2026'da canlıda gözlemlendi). `restart: always` sayesinde birkaç dakikada kendi kendine toparlanıyor ama deploy sonrası SADECE `Up`/`healthy` durumuna değil `docker inspect <container> --format '{{.State.OOMKilled}}'`e de bak.
+- **11 Eylül 2026 — bu OOM riski BÜYÜYÜP ÜÇ KEZ instance'ı TAMAMEN tıkadı** (SSM Agent bile "Undeliverable"/"Delayed" döndü, sadece embedder değil TÜM sistem — site 3 kez tamamen erişilemez oldu, 3 `aws ec2 reboot-instances` gerekti). Tetikleyici: art arda birden fazla main merge'i (kısa aralıklarla, hatta CONCURRENCY LOCK varken bile TEK BAŞINA bir deploy). **Reboot CPU credit'i DOLDURMAZ** — sadece o anki donmuş process state'ini temizler, kök nedeni çözmez. Ara-önlem (build+health-check penceresinde Prometheus/Grafana/Loki/Promtail'i geçici durdurmak, PR #124) yeterli göründü ama garanti değil — gerçek kalıcı çözüm build'i EC2 dışına taşımak (bkz. YOL HARİTASI madde 28). Deploy sonrası site'ın gerçekten dış dünyadan erişilebildiğini (`curl` timeout DEĞİL) doğrulamadan "deploy başarılı" deme — GitHub Actions'ın "Success" demesi bile SSM komutunun tamamlandığı anlamına gelir, reboot ARADA gerçekleşmişse container'lar ESKİ image'da kalmış olabilir (`docker exec <container> grep <yeni-kod-izi> <dosya>` ile doğrula).
 - **Otomatik saldırgan engelleme kapsamı:** nginx `limit_req_zone` + slowapi endpoint limitleri sadece YAVAŞLATIR/429 döner, kalıcı bir IP ban/WAF/fail2ban YOK (Cloudflare geçişi bunu değiştirebilir, bkz. YOL HARİTASI madde 6). Kullanıcı bazlı banlama AYRI ve VAR (`PATCH /admin/users/{id}/active`) ama IP değil hesap seviyesinde.
 - **`nexstream-deploy` IAM kullanıcısı AdministratorAccess DEĞİL** — `NexStreamDeployMinimal` policy'sine scope'landı (sadece EC2 describe/start/stop/reboot + SSM, `i-0608c897a3d8ca3f3` ile sınırlı). Başka bir AWS eylemi (S3, IAM, RDS, Budgets dahil) bu kimlikle YAPILAMAZ, kullanıcıya sor.
 - **v1.11 sonrası yeni env var'lar:** güncel/tam liste `docker-compose.prod.yml` + `settings.py`'de — hangi versiyonda eklendiğinin kronolojisi CHANGELOG'da.
