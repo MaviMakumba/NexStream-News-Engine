@@ -129,6 +129,20 @@ jobs:
     needs: [test, frontend]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
+    # 11 Eylül 2026: art arda birden fazla main merge'i (kısa aralıklarla,
+    # bu oturumda 3 kez üst üste) her biri kendi build-yoğun deploy'unu
+    # tetikliyordu — t3.small'ın (burstable) sınırlı CPU credit havuzu
+    # tükenip instance'ın SSM Agent'ı bile yanıt veremez hale geldi (SSM
+    # komutları "Undeliverable" döndü), site tamamen erişilemez oldu, iki
+    # kez `aws ec2 reboot-instances` gerekti. Bu concurrency grubu YENİ bir
+    # deploy'un ÖNCEKİ bitmeden BAŞLAMASINI engeller — kuyruğa alır
+    # (cancel-in-progress:false, yarım kalan bir `docker compose up`'ı asla
+    # iptal etme, o daha tehlikeli). Kök nedenin kendisi (CPU credit
+    # tükenmesi) hâlâ AÇIK — kalıcı çözüm CPU Credit modunu "Unlimited"a
+    # almak (kullanıcı kararı bekliyor, bkz. CLAUDE.md).
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
