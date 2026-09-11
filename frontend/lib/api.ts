@@ -5,8 +5,9 @@
 // ayrıca paylaşımlı X-API-Key'i kabul eder (makine-makine / admin olmayan giriş).
 
 import type {
-  AccountUsage, AdminUserList, Article, AskMessage, BillingConfig, CheckoutResponse, MarketSnapshot, NewsPage,
-  RagAnswerResponse, RelatedResponse, SearchResult, Sponsor, StoryClusterResponse, TrendingResponse, UsageRow, User,
+  AccountUsage, AdminUserList, Article, AskMessage, BillingConfig, CheckoutResponse, ContactMessage, MarketSnapshot,
+  NewsPage, RagAnswerResponse, RelatedResponse, SearchResult, Sponsor, StoryClusterResponse, TrendingResponse,
+  UsageRow, User,
 } from "./types";
 
 export const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -377,6 +378,18 @@ export async function activateSponsor(creds: AdminCreds, id: number): Promise<Sp
 /** Sponsoru kalıcı olarak siler — geri alınamaz. */
 export async function deleteSponsorPermanently(creds: AdminCreds, id: number): Promise<void> {
   await req(`${BASE}/admin/sponsors/${id}/permanent`, { method: "DELETE", headers: adminHeaders(creds) });
+}
+
+// v2.10 — /contact formundan gelen mesajlar (roadmap #26).
+export async function fetchContactMessages(creds: AdminCreds): Promise<ContactMessage[]> {
+  return req<ContactMessage[]>(`${BASE}/admin/contact-messages`, { headers: adminHeaders(creds) });
+}
+
+export async function markContactMessageRead(creds: AdminCreds, id: number): Promise<ContactMessage> {
+  return req<ContactMessage>(`${BASE}/admin/contact-messages/${id}/read`, {
+    method: "PATCH",
+    headers: adminHeaders(creds),
+  });
 }
 
 // ── Billing ───────────────────────────────────────────────────────────────────

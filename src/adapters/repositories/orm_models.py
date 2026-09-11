@@ -175,3 +175,20 @@ class SponsorORM(Base):
     active_until = Column(DateTime(timezone=True), nullable=False)
     is_active = Column(Boolean, nullable=False, server_default=text("true"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ContactMessageORM(Base):
+    """Roadmap madde 26 (CLAUDE.md): /contact formundan gelen mesajlar sadece
+    e-postayla DEĞİL, buraya da yazılır — e-posta spam'e düşse/gecikse/
+    başarısız olsa bile mesaj admin panelden (`/admin/contact-messages`)
+    görülebilir kalır."""
+    __tablename__ = "contact_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=False)
+    category = Column(String(32), nullable=False)
+    message = Column(Text, nullable=False)
+    language = Column(String(8), nullable=False)
+    is_read = Column(Boolean, nullable=False, server_default=text("false"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

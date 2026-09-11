@@ -48,6 +48,20 @@ def _no_real_email_calls():
         yield
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """slowapi'nin `limiter`'ı (`src/adapters/api/limiter.py`) modül
+    seviyesinde TEK bir singleton — `app_client` fixture'ı `src.main`'i
+    reload etse de bu nesne TÜM test session'ı boyunca aynı kalır, in-memory
+    sayaçları testler arasında birikir (11 Eylül 2026'da `/contact` testine
+    üç yeni test eklenince ortaya çıktı: dosyadaki toplam POST isteği sayısı
+    "5/minute" limitini aşıp SONRAKİ testleri 429 ile çökertti). Her testten
+    ÖNCE sıfırlanır ki testler birbirinden izole kalsın."""
+    from src.adapters.api.limiter import limiter
+    limiter.reset()
+    yield
+
+
 @pytest.fixture
 def app_client():
     """

@@ -231,6 +231,13 @@ export const UI: Record<Lang, Record<string, string>> = {
     addSponsor: "◈ Sponsor Ekle", saving: "Kaydediliyor…",
     sponsorMsgPlaceholder: "Sponsor mesajı...", genericError: "Hata.",
 
+    // ── Admin: iletişim mesajları (roadmap #26, 11 Eylül 2026) ──
+    // contactCategoryGeneral/contactCategoryTakedown zaten yukarıda ("Contact
+    // / Telif itirazı" bölümü) tanımlı — /contact formuyla PAYLAŞILIYOR.
+    contactMessages: "İletişim", contactMessagesTitle: "İletişim Mesajları",
+    noContactMessages: "Henüz mesaj yok.", markRead: "Okundu işaretle",
+    readStatus: "Okundu", unreadStatus: "Okunmadı",
+
     // ── Admin: kullanıcı/müşteri listesi ──
     users: "Kullanıcılar",
     usersTitle: "Kullanıcılar & Ödeme Durumu",
@@ -466,6 +473,13 @@ export const UI: Record<Lang, Record<string, string>> = {
     messageLabel: "Message", startLabel: "Start", endLabel: "End",
     addSponsor: "◈ Add Sponsor", saving: "Saving…",
     sponsorMsgPlaceholder: "Sponsor message...", genericError: "Error.",
+
+    // ── Admin: contact messages (roadmap #26, 11 Sep 2026) ──
+    // contactCategoryGeneral/contactCategoryTakedown already defined above
+    // ("Contact / Takedown" section) — SHARED with the /contact form.
+    contactMessages: "Contact", contactMessagesTitle: "Contact Messages",
+    noContactMessages: "No messages yet.", markRead: "Mark as read",
+    readStatus: "Read", unreadStatus: "Unread",
 
     // ── Admin: user/customer list ──
     users: "Users",

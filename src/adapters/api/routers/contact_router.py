@@ -8,11 +8,14 @@ olarak taşınıyor (sahibi doğrudan "yanıtla"ya basabilir).
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.orm import Session
 from typing import Literal, Optional
 from src.adapters.notifications.email_adapter import get_email_adapter
 from src.adapters.api.limiter import limiter
+from src.adapters.repositories.orm_models import ContactMessageORM
+from src.infrastructure.config.database import get_db
 from src.infrastructure.config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -29,8 +32,13 @@ class ContactRequest(BaseModel):
 
 @router.post("/")
 @limiter.limit("5/minute")
-def submit_contact(request: Request, req: ContactRequest):
-    """Mesajı `CONTACT_RECIPIENT_EMAIL`'e iletir.
+def submit_contact(request: Request, req: ContactRequest, db: Session = Depends(get_db)):
+    """Mesajı hem DB'ye yazar hem `CONTACT_RECIPIENT_EMAIL`'e iletir.
+
+    DB yazma (roadmap madde 26, CLAUDE.md) e-posta denemesinden ÖNCE ve
+    KOŞULSUZ yapılır — kanal yapılandırılmamış olsa (503) ya da sağlayıcı
+    gönderimi başarısız olsa (502) bile mesaj `/admin/contact-messages`'tan
+    görülebilir kalır; e-posta spam'e düşse/gecikse bile kaybolmaz.
 
     Yapılandırılmamışsa 503 (billing_router'ın "yapılandırılmazsa 503"
     deseniyle aynı) — sessizce console'a düşüp mesajın kaybolması yerine.
@@ -38,6 +46,15 @@ def submit_contact(request: Request, req: ContactRequest):
     provider error" ile aynı desen) — forgot-password'ün aksine burada bir
     user-enumeration riski yok, göndereni sessizce oyalamanın faydası yok.
     """
+    db.add(ContactMessageORM(
+        name=req.name,
+        email=req.email,
+        category=req.category,
+        message=req.message,
+        language=req.language,
+    ))
+    db.commit()
+
     if not settings.contact_recipient_email:
         raise HTTPException(status_code=503, detail="Contact channel not configured")
 

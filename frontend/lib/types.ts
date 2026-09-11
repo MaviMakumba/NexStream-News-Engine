@@ -185,6 +185,19 @@ export interface Sponsor {
   is_active: boolean;
 }
 
+// v2.10 — /contact formundan gelen mesajlar (roadmap #26). E-posta spam'e
+// düşse/gecikse bile mesaj burada (admin panelde) görülebilir kalır.
+export interface ContactMessage {
+  id: number;
+  name: string | null;
+  email: string;
+  category: "general" | "takedown";
+  message: string;
+  language: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 // v2.6 — RAG soru-cevap (roadmap #13).
 export interface AskMessage {
   role: "user" | "assistant";
