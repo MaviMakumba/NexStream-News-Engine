@@ -151,11 +151,20 @@ jobs:
           # (3 Eyl 2026 canli kesinti, kok neden budur). `restart nginx`
           # ucuz (sadece nginx ~1sn kesilir, app/frontend zaten ayakta) ve
           # DNS'i her deploy'da tazeler.
+          # 11 Eylül 2026: health-check artık BU komutun içinde, sunucunun
+          # kendi localhost'undan yapılıyor (bkz. infra/scripts/wait_for_health.sh
+          # başındaki not) — CI'ın nexstreamnews.com'a (Cloudflare arkasından)
+          # dışarıdan attığı ayrı bir "Health check" adımı buradan KALDIRILDI,
+          # çünkü GitHub Actions runner'ının IP'si Cloudflare'in Managed
+          # Challenge'ını (cf-mitigated: challenge, IP-reputation bazlı,
+          # User-Agent'tan bağımsız) her seferinde tetikleyip düz 403
+          # döndürüyordu — deploy GERÇEKTEN başarılı olsa bile. `--timeout-seconds`
+          # bu yüzden 900'den 1200'e çıkarıldı (build + 7.5dk health payı).
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["export HOME=/home/ubuntu","cd ~/NexStream-News-Engine","git config --global --add safe.directory $(pwd)","git checkout main","git fetch origin","git reset --hard origin/main","docker compose -f docker-compose.prod.yml up --build -d","docker compose -f docker-compose.prod.yml restart nginx"]}' \
-            --timeout-seconds 900 \
+            --parameters '{"commands":["export HOME=/home/ubuntu","cd ~/NexStream-News-Engine","git config --global --add safe.directory $(pwd)","git checkout main","git fetch origin","git reset --hard origin/main","docker compose -f docker-compose.prod.yml up --build -d","docker compose -f docker-compose.prod.yml restart nginx","bash infra/scripts/wait_for_health.sh"]}' \
+            --timeout-seconds 1200 \
             --query "Command.CommandId" --output text)
           echo "SSM command: $COMMAND_ID"
 
@@ -180,24 +189,6 @@ jobs:
             echo "::error::Deploy komutu başarısız oldu (status=$STATUS)"
             exit 1
           fi
-
-      - name: Health check
-        run: |
-          set -euo pipefail
-          # 10 Eylül 2026: deneme sayısı 12'den 30'a çıkarıldı (3dk -> 7.5dk).
-          # Aynı gün içinde SSM deploy komutu her seferinde başarılı olduğu
-          # halde bu adım tekrar tekrar (6+ kez) yanlış-pozitif "başarısız"
-          # raporladı — gerçek sorun deploy değil, app'in /api/health'i
-          # sağlıklı hale gelme süresinin (özellikle t3.small'ın kaynak
-          # kısıtlarında, embedder OOM-kill/restart gibi senaryolarda) eski
-          # 3dk'lık pencereyi aşabilmesiydi.
-          for i in $(seq 1 30); do
-            if curl -fsS https://nexstreamnews.com/api/health; then
-              echo "Healthy"
-              exit 0
-            fi
-            echo "Retry $i..."
-            sleep 15
-          done
-          echo "::error::Health check zaman aşımına uğradı"
-          exit 1
+          # Health-check artık yukarıdaki SSM komutunun İÇİNDE (bkz. not) —
+          # "Success" dönmesi zaten localhost health-check'in de geçtiği
+          # anlamına gelir, ayrı bir adıma gerek yok.
