@@ -463,6 +463,7 @@ Her madde tek bir kalıcı kural — "ne zaman/nasıl bulundu" forensic detayı
   yere iniyor). Henüz düzeltilmedi — ya `api.ts`'teki v1 çağrılarını
   `${BASE}/v1/...`'e çevir ya da nginx `/api/v1/` bloğunu güncelle.
 - **Site 8 Eyl 2026'dan beri Cloudflare proxy'sinin arkasında** — nginx `set_real_ip_from`+`real_ip_header CF-Connecting-IP` ile Cloudflare'in edge IP'lerini güvenilir sayıp gerçek ziyaretçi IP'sini okuyor (bkz. `infra/nginx/nginx.conf`). Bu YOKSA `$remote_addr` TÜM ziyaretçiler için Cloudflare'in birkaç edge IP'sine düşer — `limit_req_zone`'lar (rate limiting) ve app'e giden `X-Real-IP` (slowapi'nin dayandığı) "ziyaretçi başına" değil "Cloudflare node başına" işlemeye başlar. Cloudflare'in IP aralığı nadiren değişir ama değişirse `nginx.conf`'taki liste `cloudflare.com/ips-v4`+`ips-v6`'dan güncellenmeli.
+- **CI/CD'nin kendi sağlık kontrolü, Cloudflare/WAF arkasındaki public domain'e DIŞARIDAN atılmaz** — genel amaçlı CI runner'ları (GitHub Actions, datacenter IP) Cloudflare'in Managed Challenge'ını (`cf-mitigated: challenge`, User-Agent'tan bağımsız, saf IP-reputation bazlı) tetikleyip hep 403 alır; bu User-Agent değiştirerek ÇÖZÜLEMEZ (AA scraper fix'inden farklı sınıf bir sorun). Health-check aynı SSM/SSH oturumunda sunucunun KENDİ `localhost`'undan yapılmalı (bkz. `infra/scripts/wait_for_health.sh`). Detay: CHANGELOG "PR #110-120".
 - Groq free tier: 14.400 req/gün — production'da dikkat
 - Scraper limit: 25 haber/kaynak/çalışma
 - DB duplicate kontrolü var — aynı URL tekrar kaydedilmez
