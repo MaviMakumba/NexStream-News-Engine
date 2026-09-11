@@ -1081,6 +1081,36 @@ gerekmedi).
   MUTLAKA elle gözden geçir; ve bir reverse-proxy katmanı (Cloudflare gibi)
   eklerken nginx/app'in gerçek ziyaretçi IP'sini nasıl gördüğünü HER ZAMAN
   kontrol et — rate limiting sessizce bozulur, hata vermez.**
+- **PR #110-120, 10-11 Eylül 2026 — Groq darboğazı planı + CI health-check
+  403 kök nedeni.** 10 Eylül: Groq havuz bölme/near-dup/scheduler-rotasyonu
+  planı bitti (PR #111-113); AYNI GÜN kritik bir deploy bug'ı bulundu (PR
+  #114) — `docker-compose.prod.yml`'deki `SCRAPE_SOURCES` 6 kaynağı (AA, AA
+  Ekonomi, Guardian Tech, TechCrunch, Hacker News, The Verge) hiç
+  içermiyordu, scheduler onları HİÇ tetiklemiyordu; fix + regresyon testi ile
+  17/17 kaynak SSM'de doğrulandı. Ardından 20 Dependabot PR'ı triyaj edildi
+  (PR #115-116). Aynı gün açılan PR #117, CI'daki "Health check" adımının
+  deploy başarılı olsa bile sürekli 403 almasını **timeout süresi** sorunu
+  sanıp 3dk'yı 7.5dk'ya çıkardı — bu YANLIŞ teşhisti. 11 Eylül'de bir
+  sonraki oturum PR #117+#118'in deploy'larını doğrularken aynı 403'ün
+  hâlâ sürdüğünü gördü (30/30 denemede düz 403, timeout değil) ve
+  `superpowers:systematic-debugging` ile kök nedene indi: nginx access
+  log'unda o pencerede GERÇEK trafik (Chrome, Googlebot, python-requests
+  botları) akarken CI'ın `/api/health` isteği HİÇ görünmüyordu — Cloudflare
+  edge'de reddedilmiş. Kanıtlamak için main'e hiç dokunmadan, GERÇEK bir
+  deploy tetiklemeden, `pull_request`-tetikli GEÇİCİ bir debug workflow'u
+  (PR #119, sonra kapatılıp silindi) ile GitHub Actions runner'ından canlı
+  `curl -v` atıldı: yanıt `cf-mitigated: challenge` header'ı + Cloudflare'in
+  "Just a moment..." JS-challenge sayfasıydı — hem curl'un varsayılan
+  User-Agent'ıyla hem gerçekçi bir Chrome UA'sıyla AYNI sonuç, yani
+  User-Agent'tan tamamen BAĞIMSIZ, saf IP-reputation bazlı bir engelleme
+  (GitHub Actions runner'ının Azure datacenter IP'si). Fix (PR #120):
+  health-check artık aynı SSM oturumu içinde, sunucunun KENDİ içinden
+  (`infra/scripts/wait_for_health.sh`, `https://localhost/api/health`)
+  yapılıyor — istek hiç internete çıkmadığı için Cloudflare'e hiç uğramıyor;
+  dışarıdan atan ayrı "Health check" job'u kaldırıldı (düzeltilemez bir 403
+  kaynağıydı). Gerçek deploy ile doğrulandı: log'da `Healthy (localhost,
+  deneme 1)`, SSM ile embedder/worker/engine/scheduler `OOMKilled=false`/
+  `Restarts=0`, canlı site 200.
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu, custom (Stripe dışı) billing portalı, App Store/Play Store (sadece PWA)
