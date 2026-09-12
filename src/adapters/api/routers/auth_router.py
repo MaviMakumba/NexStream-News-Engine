@@ -30,6 +30,8 @@ from src.adapters.api.auth_utils import (
     hash_password as _hash_password, verify_password as _verify_password,
 )
 from src.adapters.api.limiter import limiter
+from src.adapters.api.security_audit import record_security_event
+from src.domain.models.security_event import EventCategory, EventType
 from src.adapters.notifications.email_adapter import get_email_adapter
 from src.adapters.repositories.user_repository import UserRepository
 from src.domain.models.user import User, UserSession, UserTier, PasswordResetToken, EmailVerificationToken
@@ -207,6 +209,7 @@ def register(request: Request, req: RegisterRequest, response: Response, db: Ses
     token = _open_session(repo, saved.id)
     _set_session_cookie(response, token)
     _send_verification_email(repo, saved, req.language)
+    record_security_event(db, request, EventCategory.AUTH, EventType.REGISTER, email=saved.email, user_id=saved.id)
 
     logger.info("Yeni kullanıcı: %s (tier=free)", saved.email)
     return {"user": _user_payload(saved)}
@@ -223,18 +226,29 @@ def login(request: Request, req: LoginRequest, response: Response, db: Session =
     password_hash = user.password_hash if user else _DUMMY_PASSWORD_HASH
     password_ok = _verify_password(req.password, password_hash)
     if not user or not password_ok:
+        # Denenen adres hesap YOKSA bile yazılır — brute force hedefini/deseni
+        # görmenin tek yolu bu (12 Eyl: 25 dakikada ~120 deneme, IP ile birlikte).
+        record_security_event(
+            db, request, EventCategory.AUTH, EventType.LOGIN_FAILURE,
+            email=req.email, user_id=user.id if user else None,
+            detail="unknown email" if not user else "wrong password",
+        )
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not user.is_active:
+        record_security_event(db, request, EventCategory.AUTH, EventType.LOGIN_FAILURE,
+                              email=user.email, user_id=user.id, detail="account deactivated")
         raise HTTPException(status_code=403, detail="Account is deactivated")
 
     token = _open_session(repo, user.id)
     _set_session_cookie(response, token)
+    record_security_event(db, request, EventCategory.AUTH, EventType.LOGIN_SUCCESS, email=user.email, user_id=user.id)
     logger.info("Giriş: %s", user.email)
     return {"user": _user_payload(user)}
 
 
 @router.post("/logout")
 def logout(
+    request: Request,
     response: Response,
     x_session_token: str = Header(None),
     session_cookie: str = Cookie(None, alias=SESSION_COOKIE_NAME),
@@ -244,9 +258,12 @@ def logout(
     if not token:
         raise HTTPException(status_code=401, detail="Missing session token")
     repo = UserRepository(db)
+    session = repo.get_session(token)
     if not repo.delete_session(token):
         raise HTTPException(status_code=401, detail="Invalid session token")
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+    record_security_event(db, request, EventCategory.AUTH, EventType.LOGOUT,
+                          user_id=session.user_id if session else None)
     return {"message": "Logged out"}
 
 
@@ -274,6 +291,8 @@ def forgot_password(request: Request, req: ForgotPasswordRequest, db: Session = 
     """
     repo = UserRepository(db)
     user = repo.get_by_email(req.email)
+    record_security_event(db, request, EventCategory.AUTH, EventType.PASSWORD_RESET_REQUESTED,
+                          email=req.email, user_id=user.id if user else None)
     if user and user.is_active:
         token = _make_token()
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.password_reset_ttl_minutes)
@@ -309,6 +328,7 @@ def reset_password(request: Request, req: ResetPasswordRequest, db: Session = De
 
     repo.update_password(reset_token.user_id, _hash_password(req.password))
     repo.delete_sessions_for_user(reset_token.user_id)
+    record_security_event(db, request, EventCategory.AUTH, EventType.PASSWORD_RESET_DONE, user_id=reset_token.user_id)
 
     logger.info("Şifre sıfırlandı: user_id=%s", reset_token.user_id)
     return {"message": "Password updated successfully"}
@@ -360,6 +380,7 @@ def verify_email(request: Request, req: VerifyEmailRequest, db: Session = Depend
         raise HTTPException(status_code=400, detail="Invalid or expired verification token")
 
     repo.mark_email_verified(verification_token.user_id)
+    record_security_event(db, request, EventCategory.AUTH, EventType.EMAIL_VERIFIED, user_id=verification_token.user_id)
 
     logger.info("E-posta doğrulandı: user_id=%s", verification_token.user_id)
     return {"message": "Email verified successfully"}

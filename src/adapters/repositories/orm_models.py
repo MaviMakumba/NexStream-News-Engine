@@ -192,3 +192,21 @@ class ContactMessageORM(Base):
     language = Column(String(8), nullable=False)
     is_read = Column(Boolean, nullable=False, server_default=text("false"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SecurityEventORM(Base):
+    """Güvenlik günlüğü (13 Eyl 2026) — bkz. domain/models/security_event.py.
+    Kişisel veri (IP/e-posta/UA) içerir, retention job 90 gün sonra siler."""
+    __tablename__ = "security_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    category = Column(String(16), nullable=False)
+    event_type = Column(String(40), nullable=False, index=True)
+    email = Column(String(255), nullable=True, index=True)
+    user_id = Column(Integer, nullable=True)
+    ip = Column(String(64), nullable=True, index=True)
+    user_agent = Column(String(256), nullable=True)
+    request_id = Column(String(64), nullable=True)
+    path = Column(String(255), nullable=True)
+    detail = Column(String(500), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)

@@ -207,6 +207,9 @@ class Settings(BaseSettings):
     # Postgres'ten KALICI silme — yıkıcı, varsayılan kapalı, bilinçli açılmalı.
     db_retention_days: int = 0           # 0 = kapalı
     retention_hour_utc: int = 4          # newsletter'dan (05:00 UTC) önce çalışır
+    # Güvenlik günlüğü (security_events) saklama süresi — IP/e-posta/UA içerir,
+    # KVKK gereği sonsuz tutulmaz (13 Eyl 2026). 0 = temizleme kapalı.
+    security_events_retention_days: int = 90
 
     # ── Ham veri export (v1.16, Enterprise özelliği) ────────────────────────
     # Tek istekte döndürülen üst satır sınırı — runaway sorgudan/yanıttan korur.

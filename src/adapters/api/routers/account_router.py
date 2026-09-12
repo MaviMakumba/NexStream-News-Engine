@@ -25,6 +25,8 @@ from sqlalchemy.orm import Session
 
 from src.adapters.api.auth_utils import get_current_user, has_owner_role, user_effective_tier, verify_password, SESSION_COOKIE_NAME
 from src.adapters.api.limiter import limiter
+from src.adapters.api.security_audit import record_security_event
+from src.domain.models.security_event import EventCategory, EventType
 from src.adapters.repositories.news_repository import NewsRepository
 from src.adapters.repositories.saved_article_repository import SavedArticleRepository
 from src.adapters.repositories.subscriber_repository import SubscriberRepository
@@ -81,6 +83,8 @@ def generate_api_key(
     key = _API_KEY_PREFIX + secrets.token_urlsafe(24)
     UserRepository(db).set_api_key(current_user.id, key)
     logger.info("API anahtarı üretildi: user_id=%s", current_user.id)
+    record_security_event(db, request, EventCategory.ACCESS, EventType.API_KEY_GENERATED,
+                          email=current_user.email, user_id=current_user.id)
     return {"api_key": key}
 
 
@@ -94,6 +98,8 @@ def revoke_api_key(
     """Kişisel API anahtarını iptal eder — anahtar anında geçersizleşir."""
     UserRepository(db).set_api_key(current_user.id, None)
     logger.info("API anahtarı iptal edildi: user_id=%s", current_user.id)
+    record_security_event(db, request, EventCategory.ACCESS, EventType.API_KEY_REVOKED,
+                          email=current_user.email, user_id=current_user.id)
     return {"message": "API key revoked"}
 
 

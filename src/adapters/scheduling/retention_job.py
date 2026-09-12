@@ -16,6 +16,7 @@ from datetime import datetime, timezone, timedelta
 from src.infrastructure.config.database import SessionLocal
 from src.infrastructure.config.settings import settings
 from src.adapters.repositories.news_repository import NewsRepository
+from src.adapters.repositories.security_event_repository import SecurityEventRepository
 from src.dependencies import get_search_repository
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,12 @@ async def _run_retention() -> None:
             db_cutoff = now - timedelta(days=settings.db_retention_days)
             removed = news_repo.delete_articles_before(db_cutoff)
             logger.info("Retention: Postgres'ten %d haber kalıcı silindi (cutoff=%s)", removed, db_cutoff.isoformat())
+
+        # Güvenlik günlüğü (13 Eyl 2026): kişisel veri içerir, süresi dolanı sil.
+        if settings.security_events_retention_days > 0:
+            sec_cutoff = now - timedelta(days=settings.security_events_retention_days)
+            purged = SecurityEventRepository(db).delete_older_than(sec_cutoff)
+            logger.info("Retention: %d eski security_events satırı silindi (cutoff=%s)", purged, sec_cutoff.isoformat())
 
         # Self-healing: son 7 günün haberlerini tekrar indexler (ucuz, idempotent upsert).
         heal_cutoff = now - timedelta(days=_SELF_HEAL_WINDOW_DAYS)
