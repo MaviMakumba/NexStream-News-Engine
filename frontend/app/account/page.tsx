@@ -567,8 +567,17 @@ export default function AccountPage() {
             </div>
           </div>
 
+          {/* 12 Eyl 2026: backend doğrulanmamış adresle aboneliği 403 ile reddediyor
+              (başkasının adresiyle hesap açıp digest spam'i başlatmak mümkün olmasın)
+              — kullanıcı "Kaydet"e basıp hata görmek yerine nedenini baştan görsün. */}
+          {!user.email_verified && !user.is_owner && (
+            <p style={{ fontSize: "0.8rem", color: "var(--warning, #b8860b)", marginBottom: 10, lineHeight: 1.5 }}>
+              {t.newsletterVerifyFirst}
+            </p>
+          )}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button onClick={handleSaveNewsletter} disabled={nlBusy} className="btn-primary" style={{ fontSize: "0.82rem" }}>
+            <button onClick={handleSaveNewsletter} disabled={nlBusy || (!user.email_verified && !user.is_owner)}
+                    className="btn-primary" style={{ fontSize: "0.82rem" }}>
               {nlSaved ? t.newsletterSaved : t.newsletterSave}
             </button>
             {nlSubscribed && (

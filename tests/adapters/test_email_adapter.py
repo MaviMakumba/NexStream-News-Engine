@@ -414,3 +414,18 @@ def test_get_email_adapter_explicit_provider_forces_smtp():
         mock_settings.smtp_password = ""
         adapter = get_email_adapter()
     assert isinstance(adapter, SmtpEmailAdapter)
+
+
+def test_digest_unsubscribe_link_carries_signed_token():
+    """12 Eyl 2026 güvenlik turu: mail içindeki iptal linki artık sadece e-posta
+    değil, e-postaya bağlı HMAC imzalı `token` da taşır — link olmadan (adresi
+    bilerek) başkasını abonelikten çıkarmak mümkün olmasın."""
+    from src.adapters.notifications.email_adapter import _unsubscribe_url
+    from src.adapters.api.subscription_tokens import verify_unsubscribe_token
+    from urllib.parse import urlparse, parse_qs
+
+    url = _unsubscribe_url("user@test.com", "TR")
+    params = parse_qs(urlparse(url).query)
+    assert params["email"] == ["user@test.com"]
+    assert params["lang"] == ["TR"]
+    assert verify_unsubscribe_token("user@test.com", params["token"][0]) is True
