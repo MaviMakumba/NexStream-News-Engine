@@ -243,6 +243,7 @@ export default function LandingPage() {
               { label: "RSS",       href: `${BASE}/feed.xml` },
               { label: t.privacy,   href: "/privacy" },
               { label: t.terms,     href: "/terms" },
+              { label: t.security,  href: "/security" },
               { label: t.contactLink, href: "/contact" },
             ].map((l) => (
               <a key={l.label} href={l.href} target={l.href.startsWith("http") ? "_blank" : "_self"}
