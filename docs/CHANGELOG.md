@@ -1233,6 +1233,21 @@ gerekmedi).
   docs temizlendi, regresyon testleri, repo `user.email` GitHub noreply
   adresine çevrildi; geçmiş commit'ler için history rewrite kullanıcı kararı.
   Aynı PR: docs-only push'lar artık deploy tetiklemiyor (`paths-ignore`).
+- **Gece devamı (13 Eyl, PR #131-132):** kullanıcı Grafana'nın
+  `localhost/grafana` boş ekran verdiğini bildirdi — `GF_SERVER_ROOT_URL`'deki
+  `%(domain)s` GF_SERVER_DOMAIN olmadığı için localhost'a çözülüyordu (#131,
+  `${FRONTEND_URL}/grafana/`); düzeltince sonsuz 301 çıktı: nginx
+  `proxy_pass $grafana_upstream/;` öneki siliyordu (#132, URI parçasız).
+  Aynı PR'da 443 bloğuna ACME webroot eklendi; ardından SSM ile sertifika
+  duckdns SAN'sız yeniden alındı (`certbot certonly --cert-name
+  nexstreamnewsengine.duckdns.org -d nexstreamnews.com -d www...`), origin
+  artık sadece 2 SAN sunuyor (Aralık 2026). Saldırgan IP'nin açtığı hesaplar
+  nginx register zaman damgasıyla saniyesine eşleşti: id 16
+  `burakgurbuz@gmail.com` (8 Eyl) ve id 18 `mehmet.cndn@gmail.com` (12 Eyl);
+  id 17 `nexstream13@gmail.com` FARKLI bir IP'den (176.88.142.41, normal
+  kullanım) — saldırganla ilişkilendirilemedi. "GitHub'ı nereden buldu": `/api/
+  docs` açıklamasındaki repo linki (openapi contact/license). Prod disk %80 →
+  `docker builder prune --filter until=48h` ile %42 (PR #130 notu).
 - **Kullanıcının repo public/private sorusu:** public kalması önerildi
   (portfolyo değeri projenin varlık sebebi; sır yok; kod görünürlüğü ihlale yol
   açmadı, bulgular kodu okumadan da bulunabilirdi). Karar kullanıcıda.

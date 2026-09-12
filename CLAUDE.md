@@ -106,7 +106,7 @@ container-crash testleri bunu yakalamaz, sadece gerçek reboot ortaya çıkarır
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v2.9 🚀 **CANLIDA: https://nexstreamnews.com** (2 Eylül 2026'da gerçek domain'e taşındı — eski `nexstreamnewsengine.duckdns.org` 301 ile yönleniyor, kapatılmadı). İlk canlıya çıkış: 29 Temmuz 2026. E-posta artık Resend üzerinden gidiyor (`bildirim@nexstreamnews.com`, DKIM+SPF+DMARC doğrulandı) — kişisel Gmail/SMTP artık birincil kanal DEĞİL. 2-4 Eylül'de iki ayrı deploy-kesintisi yaşandı (SSM timeout'unun host'ta zombi build süreci bırakması + nginx'in stale upstream IP'si), ikisi de kalıcı düzeltildi (detay: CHANGELOG "2 Eylül"/"3-4 Eylül"). **12 Eylül 2026 güvenlik turu (PR #126-128):** bir "güvenlik araştırmacısı" izinsiz test yapıp ücret karşılığı rapor teklif etti — A'dan Z'ye denetim yapıldı, sızıntı/zarar YOK, 6 bulgu (1 orta, 5 düşük/bilgi) aynı gün düzeltilip deploy edildi, `/security` + `security.txt` eklendi (detay: CHANGELOG "12 Eylül").
+- **Versiyon:** v2.9 🚀 **CANLIDA: https://nexstreamnews.com** (2 Eylül 2026'da gerçek domain'e taşındı — eski `nexstreamnewsengine.duckdns.org` 13 Eyl 2026'dan beri SERTİFİKADA YOK — origin IP'yi ifşa ettiği için SAN'dan çıkarıldı, DNS kaydını duckdns.org'dan kullanıcı silecek; certbot lineage ADI hâlâ `nexstreamnewsengine.duckdns.org` (dosya yolu değişmesin diye, `certbot certificates` bunu gösterir, şaşırma). İlk canlıya çıkış: 29 Temmuz 2026. E-posta artık Resend üzerinden gidiyor (`bildirim@nexstreamnews.com`, DKIM+SPF+DMARC doğrulandı) — kişisel Gmail/SMTP artık birincil kanal DEĞİL. 2-4 Eylül'de iki ayrı deploy-kesintisi yaşandı (SSM timeout'unun host'ta zombi build süreci bırakması + nginx'in stale upstream IP'si), ikisi de kalıcı düzeltildi (detay: CHANGELOG "2 Eylül"/"3-4 Eylül"). **12 Eylül 2026 güvenlik turu (PR #126-128):** bir "güvenlik araştırmacısı" izinsiz test yapıp ücret karşılığı rapor teklif etti — A'dan Z'ye denetim yapıldı, sızıntı/zarar YOK, 6 bulgu (1 orta, 5 düşük/bilgi) aynı gün düzeltilip deploy edildi, `/security` + `security.txt` eklendi (detay: CHANGELOG "12 Eylül").
 - **Test sayısı:** 931+ test, hepsi yeşil (backend); frontend `next build` temiz (React 19 + Next 16 ile, PR #93).
 - **Frontend:** Next.js 16 + React 19. 10 sinematik tema (varsayılan `day`), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
@@ -352,13 +352,14 @@ GERÇEKTEN bekleyen işler var:
       + `ips-v6`, nginx.conf'taki `set_real_ip_from` listesiyle aynı) —
       origin IP'si (63.178.59.10) doğrudan cevap veriyor, Cloudflare'in Bot
       Fight Mode/WAF'ı atlanabiliyor ve loglarda IP'ye doğrudan tarama var.
-      **ÖNCE:** (a) `nexstreamnewsengine.duckdns.org` DNS kaydını kapat (IP'yi
-      ifşa ediyor, proxy'siz), (b) certbot sertifikasından duckdns SAN'ını
-      çıkar (`certbot certonly --cert-name <ad> -d nexstreamnews.com -d
-      www.nexstreamnews.com` ile yeniden al) — yoksa Let's Encrypt'in HTTP-01
-      doğrulaması duckdns için origin'e doğrudan gelmeye çalışıp yenilemede
-      kırılır (nexstreamnews.com için sorun yok, CF proxy 80'i origin'e
-      iletir). (c) Sonra SG'de 80/443 kaynağını CF aralıklarıyla değiştir.
+      **Ön şartlar 13 Eyl 2026'da TAMAMLANDI:** duckdns SAN'ı sertifikadan
+      çıkarıldı (yeni cert sadece nexstreamnews.com + www, Aralık 2026'ya kadar),
+      nginx 443 bloğuna ACME webroot location'ı eklendi (CF 'Always Use HTTPS'
+      yenilemeyi kırmasın). **Kalan:** (a) kullanıcı duckdns.org'dan subdomain'i
+      siler, (b) SG'de 80/443 kaynağı CF aralıklarıyla değiştirilir — bunu
+      Claude'un yapabilmesi için `nexstream-deploy` IAM kullanıcısına
+      `ec2:DescribeSecurityGroups` (Resource *) + `ec2:AuthorizeSecurityGroupIngress`/
+      `ec2:RevokeSecurityGroupIngress` (sadece sg-061424eb4ff9eb775) eklenmeli.
     - **GitHub → Settings → Emails:** "Keep my email addresses private" ve
       "Block command line pushes that expose my email" işaretle (adresin
       commit'lerden sızmasını keser; geçmiş için bkz. BİLİNEN NOTLAR).
@@ -561,6 +562,8 @@ Her madde tek bir kalıcı kural — "ne zaman/nasıl bulundu" forensic detayı
 - **Sahip e-postası public repo'da 267 commit'in author alanında açık (`git log --format=%ae`, GitHub commits API)** — "güvenlik araştırmacısı" adresi büyük ihtimalle buradan aldı. 12 Eyl 2026'dan itibaren bu repo'da `git config user.email 76664196+MaviMakumba@users.noreply.github.com` (yeni commit'ler noreply ile gider); GitHub → Settings → Emails'te "Keep my email addresses private" + "Block command line pushes that expose my email" KULLANICI tarafından açılmalı. Geçmişteki 267 commit'i temizlemek `git filter-repo --mailmap` + force push + tüm SHA'ların değişmesi demek (21 Ağu'daki gibi) — kullanıcı kararı, henüz YAPILMADI. Tracked dosyalarda düz metin adres YASAK (`test_owner_email_not_in_tracked_docs`), Grafana alert adresi `.env`'deki `GRAFANA_ALERT_EMAIL`'den gelir (prod'da zorunlu, `:?`).
 - **Sadece `.md`/`docs/**` değişen main push'ları CI'ı ve deploy'u HİÇ tetiklemez** (`paths-ignore`, 12 Eyl 2026) — dokümantasyon PR'ı merge edince "deploy olmadı" diye şaşırma; PR tetikleyicisi paths-ignore'suz, testler PR'da yine koşar.
 - **Prod diskini BuildKit build cache sessizce doldurur** — 12 Eyl 2026'da 77GB diskin %80'i doluydu, `docker system df` 50GB build cache (49GB reclaimable) gösterdi; `docker builder prune --filter until=48h -f` ile 31GB geri alındı (%42), son deploy'ların katmanları korundu (tam `prune -af` sonraki build'i sıfırdan yapar, t3.small'da RAM/süre riski + pip hash gotcha'sı). Her birkaç haftada bir SSM ile `df -h /` + `docker system df` kontrol et, %70'i geçtiyse aynı filtreli prune'u çalıştır.
+- **Grafana nginx arkasında sub-path'te: `proxy_pass $grafana_upstream;` URI PARÇASIZ olmalı ve `GF_SERVER_ROOT_URL=${FRONTEND_URL}/grafana/` sabit domain'li olmalı** (13 Eyl 2026'da iki bug üst üste bulundu: `%(domain)s` yer tutucusu localhost'a çözülüyordu, sonra sondaki `/` öneki silip sonsuz 301 döngüsü yaratıyordu). `curl -sI https://nexstreamnews.com/grafana/` → 302 `/grafana/login` beklenir; `localhost` ya da kendine 301 görürsen bu ikisine bak. Regresyon testleri `tests/infrastructure`.
+- **"Adam GitHub'ı nereden buldu?" → `/api/docs` (Swagger) sayfasının açıklaması ve `openapi.json` `contact`/`license` alanları repo linkini içeriyor** (footer "API Docs" → oraya). Bilinçli (self-serve API portalı) — kaldırılmadı, ama repo linki = commit e-postası zinciri olduğunu bil.
 - **Otomatik saldırgan engelleme kapsamı:** nginx `limit_req_zone` + slowapi endpoint limitleri sadece YAVAŞLATIR/429 döner, kalıcı bir IP ban/WAF/fail2ban YOK (Cloudflare geçişi bunu değiştirebilir, bkz. YOL HARİTASI madde 6). Kullanıcı bazlı banlama AYRI ve VAR (`PATCH /admin/users/{id}/active`) ama IP değil hesap seviyesinde.
 - **`nexstream-deploy` IAM kullanıcısı AdministratorAccess DEĞİL** — `NexStreamDeployMinimal` policy'sine scope'landı (sadece EC2 describe/start/stop/reboot + SSM, `i-0608c897a3d8ca3f3` ile sınırlı). Başka bir AWS eylemi (S3, IAM, RDS, Budgets dahil) bu kimlikle YAPILAMAZ, kullanıcıya sor.
 - **v1.11 sonrası yeni env var'lar:** güncel/tam liste `docker-compose.prod.yml` + `settings.py`'de — hangi versiyonda eklendiğinin kronolojisi CHANGELOG'da.
