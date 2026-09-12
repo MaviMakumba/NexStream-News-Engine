@@ -2308,7 +2308,7 @@ Expected: no errors
 Summarize: owner role + graduated role management + SmtpEmailAdapter are implemented and tested. Remaining manual steps before this is live (per the design spec's "Canlı doğrulama" section, cannot be automated):
 
 1. User has already added `SMTP_USER`/`SMTP_PASSWORD` to local `.env` (done earlier this session).
-2. Add `OWNER_EMAILS=erenk897@gmail.com`, `EMAIL_PROVIDER=smtp`, and the `SMTP_*` values to the **production** `.env` on the AWS server (via SSM — see `DEPLOY.md` §2-AWS).
+2. Add `OWNER_EMAILS=<sahip-email>`, `EMAIL_PROVIDER=smtp`, and the `SMTP_*` values to the **production** `.env` on the AWS server (via SSM — see `DEPLOY.md` §2-AWS).
 3. Run `docker compose -f docker-compose.prod.yml up -d app worker` on the server (`restart` is not enough — env vars are read at container start).
 4. Live-verify: log in as the owner, confirm the badge reads "Kurucu", confirm `boeingb747.800@gmail.com` actually receives a real registration email (the one thing Resend's sandbox could never do), confirm `/health`'s `email` field reads `"smtp"`.
 

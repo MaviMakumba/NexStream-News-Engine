@@ -1173,6 +1173,70 @@ gerekmedi).
   ile yapılır, git commit hash'ine bakmak YETMEZ (git checkout hızlı,
   Docker build/recreate yavaş ve ayrı ayrı kesintiye uğrayabilir).
 
+### 12 Eylül 2026 — Güvenlik turu ("Hetman" maili), PR #126-128
+
+- **Tetikleyici:** kullanıcıya `hetman.04789@gmail.com`'dan "NexStream Güvenlik
+  Analizi ve Zafiyet Raporu" başlıklı bir mail geldi: 4 doğrulanmış zafiyet
+  (1 yüksek/yetkilendirme, 1 orta-yüksek/girdi doğrulama, 1 orta, 1 düşük-orta/
+  altyapı), detay yok, "daha önce bilgilendirmiştim", "raporun teslim sürecini
+  netleştirelim". Kullanıcı A'dan Z'ye denetim + trafik analizi + zarar tespiti
+  + hukuki değerlendirme istedi.
+- **Gönderen kim?** Şahıs (Gmail, takma ad). Klasik beg-bounty kalıbı; `contact_
+  messages` tablosu BOŞ (önceki bildirim iddiası yanlış). GitHub repo public →
+  "statik kod analizi" = klonlayıp tarayıcı koşmuş.
+- **Trafik analizi (nginx 14 gün, 68.502 satır):** IP `78.186.147.254` (Türk
+  Telekom, TR) 7-12 Eylül arası 1.442 istek; son isteği mailden 7 dk önce.
+  Yaptıkları: Swagger'dan uç uç deneme, 2 hesap (DB id 16: 8 Eyl 13:42:00 —
+  nginx zaman damgasıyla saniyesi saniyesine eşleşti; id 18: 12 Eyl), 25 dk'da
+  ~120 login denemesi (66×401, **34×429** — rate limit çalıştı), negatif ID'ler,
+  `source=%27` SQLi tırnağı (ORM, etkisiz), `/admin` `/api/debug/users` (404),
+  `/api/metrics` + `openapi.json` okuma, ve PoC: site sahibinin adresine
+  `BaskaBiriBunuYazdi` anahtar kelimesiyle bülten aboneliği + 4 sahte
+  `@example.com` abone + unsubscribe linki denemeleri.
+- **Zarar/sızıntı YOK:** admin uçlarına hiç girememiş (admin 200'ler sadece
+  kullanıcının kendi IP'sinden — 95.0.186.73 ve 178.233.152.132, ikisi de bu
+  makinenin `curl 8.17.0` imzasıyla teyit edildi), rol/tier değişikliği yok,
+  SSH'a başarılı giriş sadece Ağustos'ta AWS Instance Connect'ten,
+  `authorized_keys` tek satır, beklenmeyen container/cron/process yok, 16
+  container restart=0/OOM=false, sunucu repo'su temiz, git geçmişinde gerçek
+  sır yok, `pip-audit` + `npm audit` 0 zafiyet. Kullanıcı yetkili hesapları
+  teyit etti (boeing/bzeren arkadaşları); ikinci sorguda id 1'in admin→
+  moderatör, id 3'ün moderatör→user'a düşürüldüğü görüldü (kullanıcı
+  tarafından yapıldığı varsayıldı, soruldu).
+- **Bağımsız denetim bulguları ve düzeltmeler (hepsi TDD, aynı gün deploy):**
+  1. ORTA — bülten uçları kimliksiz (herkes herkesin adına abone/iptal, DELETE
+     200/404 enumeration). **PR #126:** POST/DELETE sadece kendi doğrulanmış
+     e-postan veya X-API-Key; iptal linki HMAC imzalı `token`; hesap sayfası
+     doğrulanmamış kullanıcıya not gösterir. Tek frontend çağıranı hesap
+     sayfasıydı, anonim abonelik formu hiç yoktu — public olması ihmaldi.
+  2. DÜŞÜK — `/api/metrics` herkese açık. **PR #127:** nginx `location =
+     /api/metrics { return 404; }` + regresyon testi.
+  3. DÜŞÜK — kullanıcı API anahtarı DB'de düz metin. **PR #127:** SHA-256
+     hash (String(64) tam sığar, migration yok), GET ham değeri dönmez;
+     prod'daki tek düz-metin anahtar (boeing) geçersizleşti, yeniden üretilir.
+  4. BİLGİ — `/news/-999/sources` boş 200. **PR #127:** servis None → 404.
+  5. DÜŞÜK-ORTA — origin IP doğrudan erişilebilir (Cloudflare bypass), SSH 22
+     dünyaya açık. Kod tarafından yapılamaz (deploy IAM kullanıcısının SG
+     yetkisi yok) → roadmap madde 29, kullanıcı konsoldan yapacak.
+  6. Hukuki/caydırıcı — **PR #128:** `/security` sayfası (TR/EN: kapsam,
+     izinsiz test yasağı TCK 243/244, sorumlu ifşa kanalı sadece `/contact`,
+     ÖDÜL PROGRAMI YOK, 90 gün), `/.well-known/security.txt` (RFC 9116,
+     Expires 2027-09-01 + testi), Kullanım Şartları maddesi genişletildi.
+- **Süreç dersi:** `gh pr merge --auto` main'de zorunlu check olmadığı için
+  anında merge etti, 3 PR'ın deploy'u art arda kuyruğa girdi (11 Eylül dersine
+  aykırı) — `--auto` artık kullanılmıyor, bkz. CLAUDE.md BİLİNEN NOTLAR.
+- **"Mailimi nereden buldu?"** — public repo'daki 267 commit'in author
+  e-postası `erenk897@gmail.com` (GitHub commits API'sinden tek istekle
+  okunuyor); ayrıca `infra/grafana/.../contactpoints.yml` ve 2 tasarım
+  dokümanında düz metin duruyordu. WHOIS (RDAP) temiz — registrar gizlemiş.
+  Düzeltme (PR #129): Grafana adresi `GRAFANA_ALERT_EMAIL` env'ine taşındı,
+  docs temizlendi, regresyon testleri, repo `user.email` GitHub noreply
+  adresine çevrildi; geçmiş commit'ler için history rewrite kullanıcı kararı.
+  Aynı PR: docs-only push'lar artık deploy tetiklemiyor (`paths-ignore`).
+- **Kullanıcının repo public/private sorusu:** public kalması önerildi
+  (portfolyo değeri projenin varlık sebebi; sır yok; kod görünürlüğü ihlale yol
+  açmadı, bulgular kodu okumadan da bulunabilirdi). Karar kullanıcıda.
+
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu, custom (Stripe dışı) billing portalı, App Store/Play Store (sadece PWA)
 

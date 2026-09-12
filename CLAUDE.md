@@ -106,7 +106,7 @@ container-crash testleri bunu yakalamaz, sadece gerçek reboot ortaya çıkarır
 
 ## MEVCUT DURUM
 
-- **Versiyon:** v2.9 🚀 **CANLIDA: https://nexstreamnews.com** (2 Eylül 2026'da gerçek domain'e taşındı — eski `nexstreamnewsengine.duckdns.org` 301 ile yönleniyor, kapatılmadı). İlk canlıya çıkış: 29 Temmuz 2026. E-posta artık Resend üzerinden gidiyor (`bildirim@nexstreamnews.com`, DKIM+SPF+DMARC doğrulandı) — kişisel Gmail/SMTP artık birincil kanal DEĞİL. 2-4 Eylül'de iki ayrı deploy-kesintisi yaşandı (SSM timeout'unun host'ta zombi build süreci bırakması + nginx'in stale upstream IP'si), ikisi de kalıcı düzeltildi (detay: CHANGELOG "2 Eylül"/"3-4 Eylül").
+- **Versiyon:** v2.9 🚀 **CANLIDA: https://nexstreamnews.com** (2 Eylül 2026'da gerçek domain'e taşındı — eski `nexstreamnewsengine.duckdns.org` 301 ile yönleniyor, kapatılmadı). İlk canlıya çıkış: 29 Temmuz 2026. E-posta artık Resend üzerinden gidiyor (`bildirim@nexstreamnews.com`, DKIM+SPF+DMARC doğrulandı) — kişisel Gmail/SMTP artık birincil kanal DEĞİL. 2-4 Eylül'de iki ayrı deploy-kesintisi yaşandı (SSM timeout'unun host'ta zombi build süreci bırakması + nginx'in stale upstream IP'si), ikisi de kalıcı düzeltildi (detay: CHANGELOG "2 Eylül"/"3-4 Eylül"). **12 Eylül 2026 güvenlik turu (PR #126-128):** bir "güvenlik araştırmacısı" izinsiz test yapıp ücret karşılığı rapor teklif etti — A'dan Z'ye denetim yapıldı, sızıntı/zarar YOK, 6 bulgu (1 orta, 5 düşük/bilgi) aynı gün düzeltilip deploy edildi, `/security` + `security.txt` eklendi (detay: CHANGELOG "12 Eylül").
 - **Test sayısı:** 931+ test, hepsi yeşil (backend); frontend `next build` temiz (React 19 + Next 16 ile, PR #93).
 - **Frontend:** Next.js 16 + React 19. 10 sinematik tema (varsayılan `day`), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
@@ -341,6 +341,31 @@ GERÇEKTEN bekleyen işler var:
     Tekrar bir tıkanma yaşanırsa ÖNCELİK bu maddeye verilmeli. Detay:
     CHANGELOG "11 Eylül prod kesintisi".
 
+29. **Güvenlik turu (12 Eyl 2026) — KULLANICININ AWS KONSOLUNDAN yapması
+    gereken 2 iş (deploy IAM kullanıcısının Security Group yetkisi YOK, kod
+    tarafından yapılamaz):**
+    - **SSH 22 portunu dünyaya kapat** — sunucuya SSM ile bağlanıyoruz, 22'ye
+      hiç ihtiyaç yok; 3 günde 757 başarısız SSH denemesi görüldü (arka plan
+      gürültüsü ama gereksiz yüzey). EC2 → Security Groups →
+      `sg-061424eb4ff9eb775` → Inbound → 22 kuralını sil.
+    - **80/443'ü SADECE Cloudflare IP aralıklarına aç** (`cloudflare.com/ips-v4`
+      + `ips-v6`, nginx.conf'taki `set_real_ip_from` listesiyle aynı) —
+      origin IP'si (63.178.59.10) doğrudan cevap veriyor, Cloudflare'in Bot
+      Fight Mode/WAF'ı atlanabiliyor ve loglarda IP'ye doğrudan tarama var.
+      **ÖNCE:** (a) `nexstreamnewsengine.duckdns.org` DNS kaydını kapat (IP'yi
+      ifşa ediyor, proxy'siz), (b) certbot sertifikasından duckdns SAN'ını
+      çıkar (`certbot certonly --cert-name <ad> -d nexstreamnews.com -d
+      www.nexstreamnews.com` ile yeniden al) — yoksa Let's Encrypt'in HTTP-01
+      doğrulaması duckdns için origin'e doğrudan gelmeye çalışıp yenilemede
+      kırılır (nexstreamnews.com için sorun yok, CF proxy 80'i origin'e
+      iletir). (c) Sonra SG'de 80/443 kaynağını CF aralıklarıyla değiştir.
+    - **GitHub → Settings → Emails:** "Keep my email addresses private" ve
+      "Block command line pushes that expose my email" işaretle (adresin
+      commit'lerden sızmasını keser; geçmiş için bkz. BİLİNEN NOTLAR).
+    - Ayrıca 3. parti hesaplar (AWS root + IAM, Cloudflare, GitHub, domain
+      kayıt firması, Resend, Groq, Gmail) için MFA/2FA + parola yöneticisi
+      kontrol listesi kullanıcıya iletildi — kod tarafında karşılığı yok.
+
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,
 custom (Stripe dışı) billing portalı, App Store/Play Store (sadece PWA)
@@ -526,6 +551,15 @@ Her madde tek bir kalıcı kural — "ne zaman/nasıl bulundu" forensic detayı
 - **AWS SSM operasyon deseni:** komutlarda `git` kullanmadan önce `export HOME=/home/ubuntu` + `git -c safe.directory=<repo-path>` (repo: `~/NexStream-News-Engine`) gerekir. Windows'taki native `aws.exe`'ye Git Bash'ten `file:///...` paramfile yolu VERME — JSON'u inline geç. Çıktıda Türkçe karakter varsa (`get-command-invocation` sonucu) `aws.exe` Windows'ta `'charmap' codec can't encode` ile patlar — `chcp.com 65001` + `export PYTHONIOENCODING=utf-8:replace` ile çöz.
 - **`docker compose up --build -d` sırasında (özellikle birden fazla image aynı anda rebuild olunca) t3.small'in 1.9GB RAM'i yetersiz kalabiliyor** — `nexstream_embedder` (ML modelini RAM'de tutan servis) ilk kurban oluyor (`OOMKilled=true`, 10 Eylül 2026'da canlıda gözlemlendi). `restart: always` sayesinde birkaç dakikada kendi kendine toparlanıyor ama deploy sonrası SADECE `Up`/`healthy` durumuna değil `docker inspect <container> --format '{{.State.OOMKilled}}'`e de bak.
 - **11 Eylül 2026 — bu OOM riski BÜYÜYÜP ÜÇ KEZ instance'ı TAMAMEN tıkadı** (SSM Agent bile "Undeliverable"/"Delayed" döndü, sadece embedder değil TÜM sistem — site 3 kez tamamen erişilemez oldu, 3 `aws ec2 reboot-instances` gerekti). Tetikleyici: art arda birden fazla main merge'i (kısa aralıklarla, hatta CONCURRENCY LOCK varken bile TEK BAŞINA bir deploy). **Reboot CPU credit'i DOLDURMAZ** — sadece o anki donmuş process state'ini temizler, kök nedeni çözmez. Ara-önlem (build+health-check penceresinde Prometheus/Grafana/Loki/Promtail'i geçici durdurmak, PR #124) yeterli göründü ama garanti değil — gerçek kalıcı çözüm build'i EC2 dışına taşımak (bkz. YOL HARİTASI madde 28). Deploy sonrası site'ın gerçekten dış dünyadan erişilebildiğini (`curl` timeout DEĞİL) doğrulamadan "deploy başarılı" deme — GitHub Actions'ın "Success" demesi bile SSM komutunun tamamlandığı anlamına gelir, reboot ARADA gerçekleşmişse container'lar ESKİ image'da kalmış olabilir (`docker exec <container> grep <yeni-kod-izi> <dosya>` ile doğrula).
+- **"Güvenlik araştırmacısı" / beg-bounty maili gelirse (12 Eyl 2026'da yaşandı):** panik yok, önce nginx logunda (`docker logs nexstream_nginx --since 336h`) `/api/auth/login` 401/429 yığını, `/api/docs` referer'lı denemeler, negatif ID'ler, `source=%27` gibi SQLi tırnakları ve `/api/subscriptions/` POST'larıyla IP'yi bul; DB'de o IP'nin açtığı hesapları (`users.created_at` nginx zaman damgasıyla birebir eşleşir) ve `contact_messages`'ı kontrol et. Mail kalıbı: detay yok + aciliyet + "daha önce yazmıştım" (form boşsa yalan) + "teslim sürecini netleştirelim" (=ücret). Cevap: ödül programı yok (`/security`), rapor gönderirse değerlendirilir, pazarlığa girilmez. Repo PUBLIC olduğu için "statik kod analizi" iddiası normaldir.
+- **`gh pr merge --auto` main'de zorunlu status check OLMADIĞI için ANINDA merge eder, testlerin bitmesini BEKLEMEZ** — 12 Eyl 2026'da 3 PR'da bu yüzden 2 deploy art arda kuyruğa girdi (concurrency lock çakışmayı önledi ama t3.small'da art arda deploy riskli, bkz. CHANGELOG 11 Eylül dersi). `--auto` KULLANMA; dal testinin yeşil olduğunu gördükten sonra elle `gh pr merge --squash` çalıştır ve bir sonraki PR'ı bir öncekinin deploy'u bitmeden merge etme.
+- **Bülten uçları artık kimlik doğrulamalı (12 Eyl 2026):** `POST /subscriptions/` ve `DELETE /subscriptions/{email}` → X-API-Key VEYA e-postası eşleşen oturum (POST ayrıca `email_verified` ister, owner muaf). Mail içindeki iptal linki `email`+`token` (HMAC-SHA256, `adapters/api/subscription_tokens.py`, secret `UNSUBSCRIBE_TOKEN_SECRET` boşsa `API_KEY`) — imzasız link aboneliği KAPATMAZ. `API_KEY` rotasyonu eski maillerdeki iptal linklerini kırar; önce `UNSUBSCRIBE_TOKEN_SECRET`'ı eski API_KEY değerine sabitle.
+- **Kullanıcı API anahtarı DB'de SHA-256 hash olarak saklanıyor (12 Eyl 2026)** — `UserRepository.set_api_key` ham anahtarı hash'ler, `get_by_api_key` ham anahtarı hash'leyip arar, `GET /account/api-key` ham değeri ASLA dönmez (sadece `has_api_key`). Anahtar üretim yanıtında BİR KEZ görünür. Yeni bir "anahtarı göster" özelliği eklemeye kalkma — elimizde yok.
+- **`/api/metrics` nginx'te `location = /api/metrics { return 404; }` ile dışarıya KAPALI** — Prometheus iç ağdan `app:8000/metrics` okuyor. Yeni bir iç-servis endpoint'i (health hariç) eklerken aynı soruyu sor: dışarıdan görünmesi gerekiyor mu?
+- **`frontend/public/.well-known/security.txt` `Expires: 2027-09-01`** — RFC 9116 geçmiş tarihi geçersiz sayar, `tests/infrastructure/test_security_txt.py` o tarihten sonra KIRMIZIYA döner; Ağustos 2027'de tarihi ileri al. Politika metni `frontend/lib/legal-content.ts::SECURITY_POLICY`, sayfa `/security`.
+- **Cloudflare proxy'si origin'i SADECE Security Group 80/443'ü Cloudflare IP'lerine kısıtlarsa korur** — aksi halde origin IP'ye doğrudan istek Bot Fight Mode/WAF/rate-limit'i atlar (bkz. YOL HARİTASI madde 29). `set_real_ip_from` sadece IP'yi doğru okumak içindir, erişimi kısıtlamaz.
+- **Sahip e-postası public repo'da 267 commit'in author alanında açık (`git log --format=%ae`, GitHub commits API)** — "güvenlik araştırmacısı" adresi büyük ihtimalle buradan aldı. 12 Eyl 2026'dan itibaren bu repo'da `git config user.email 76664196+MaviMakumba@users.noreply.github.com` (yeni commit'ler noreply ile gider); GitHub → Settings → Emails'te "Keep my email addresses private" + "Block command line pushes that expose my email" KULLANICI tarafından açılmalı. Geçmişteki 267 commit'i temizlemek `git filter-repo --mailmap` + force push + tüm SHA'ların değişmesi demek (21 Ağu'daki gibi) — kullanıcı kararı, henüz YAPILMADI. Tracked dosyalarda düz metin adres YASAK (`test_owner_email_not_in_tracked_docs`), Grafana alert adresi `.env`'deki `GRAFANA_ALERT_EMAIL`'den gelir (prod'da zorunlu, `:?`).
+- **Sadece `.md`/`docs/**` değişen main push'ları CI'ı ve deploy'u HİÇ tetiklemez** (`paths-ignore`, 12 Eyl 2026) — dokümantasyon PR'ı merge edince "deploy olmadı" diye şaşırma; PR tetikleyicisi paths-ignore'suz, testler PR'da yine koşar.
 - **Otomatik saldırgan engelleme kapsamı:** nginx `limit_req_zone` + slowapi endpoint limitleri sadece YAVAŞLATIR/429 döner, kalıcı bir IP ban/WAF/fail2ban YOK (Cloudflare geçişi bunu değiştirebilir, bkz. YOL HARİTASI madde 6). Kullanıcı bazlı banlama AYRI ve VAR (`PATCH /admin/users/{id}/active`) ama IP değil hesap seviyesinde.
 - **`nexstream-deploy` IAM kullanıcısı AdministratorAccess DEĞİL** — `NexStreamDeployMinimal` policy'sine scope'landı (sadece EC2 describe/start/stop/reboot + SSM, `i-0608c897a3d8ca3f3` ile sınırlı). Başka bir AWS eylemi (S3, IAM, RDS, Budgets dahil) bu kimlikle YAPILAMAZ, kullanıcıya sor.
 - **v1.11 sonrası yeni env var'lar:** güncel/tam liste `docker-compose.prod.yml` + `settings.py`'de — hangi versiyonda eklendiğinin kronolojisi CHANGELOG'da.

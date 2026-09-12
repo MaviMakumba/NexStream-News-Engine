@@ -463,6 +463,9 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?GRAFANA_PASSWORD .env icinde set edilmeli - guclu/rastgele bir sifre uretin}
       - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      # Alert contact point adresi (contactpoints.yml ${GRAFANA_ALERT_EMAIL} okur) —
+      # boş bırakılırsa Grafana provisioning'i geçersiz alıcıyla başlar, o yüzden zorunlu.
+      - GRAFANA_ALERT_EMAIL=${GRAFANA_ALERT_EMAIL:?GRAFANA_ALERT_EMAIL .env icinde set edilmeli - alert maillerinin gidecegi adres}
       # v2.1.1: alert e-postaları için — app'in SMTP hesabıyla AYNI Gmail
       # hesabı paylaşılıyor (SMTP_USER/SMTP_PASSWORD zaten .env'de). SMTP_USER
       # boşsa Grafana kimliksiz bağlanmayı dener ve göndermede sessizce

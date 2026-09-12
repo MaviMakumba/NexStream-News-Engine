@@ -37,3 +37,37 @@ def test_prod_compose_scrape_sources_matches_settings_default():
 
 def test_dev_compose_scrape_sources_matches_settings_default():
     assert _scrape_sources_from_compose("docker-compose.yml") == _canonical_sources()
+
+
+# ── Sahip e-postası repo'da düz metin olmamalı (12 Eylül 2026 güvenlik turu) ──
+# "Güvenlik araştırmacısı" kullanıcının kişisel Gmail adresine mail attı; adres
+# public repo'daki 267 commit'in author alanında VE bu dosyalarda düz metin
+# duruyordu. Grafana contact point'i artık env'den (GRAFANA_ALERT_EMAIL) okur.
+
+_OWNER_EMAIL_FRAGMENT = "erenk897"
+
+
+def _read(path: str) -> str:
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def test_grafana_contact_point_reads_email_from_env_not_literal():
+    conf = _read("infra/grafana/provisioning/alerting/contactpoints.yml")
+    assert _OWNER_EMAIL_FRAGMENT not in conf
+    assert "${GRAFANA_ALERT_EMAIL}" in conf
+
+
+def test_prod_compose_passes_grafana_alert_email():
+    with open("docker-compose.prod.yml", "r", encoding="utf-8") as f:
+        compose = yaml.safe_load(f)
+    env = compose["services"]["grafana"]["environment"]
+    assert any(str(e).startswith("GRAFANA_ALERT_EMAIL=") for e in env)
+
+
+def test_owner_email_not_in_tracked_docs():
+    for path in (
+        "docs/superpowers/plans/2026-07-31-owner-rolu-ve-gercek-email-gonderimi.md",
+        "docs/superpowers/specs/2026-07-29-owner-rolu-ve-gercek-email-gonderimi-design.md",
+    ):
+        assert _OWNER_EMAIL_FRAGMENT not in _read(path), path

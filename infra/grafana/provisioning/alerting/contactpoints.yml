@@ -20,5 +20,9 @@ contactPoints:
       - uid: nexstream-ops-email-receiver
         type: email
         settings:
-          addresses: erenk897@gmail.com
+          # Düz metin adres YOK (12 Eyl 2026 güvenlik turu: repo public, sahip
+          # e-postası burada ve commit author alanında açıktaydı). Grafana
+          # provisioning dosyalarında ${VAR} env genişletmesini destekler;
+          # değer docker-compose.prod.yml → .env'deki GRAFANA_ALERT_EMAIL'den gelir.
+          addresses: ${GRAFANA_ALERT_EMAIL}
           singleEmail: true
