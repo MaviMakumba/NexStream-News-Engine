@@ -17,7 +17,6 @@ artık limiter'ın da anahtarı (limiter.py).
 günlüğü (`security_audit.py`) satıra yazar, yanıt header'ında geri döner.
 """
 
-import contextvars
 import re
 import uuid
 from typing import Optional
@@ -25,11 +24,14 @@ from typing import Optional
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
+# ContextVar altyapı katmanında yaşar (logger oradan okur, fastapi'siz
+# scheduler/worker image'ları bu modülü hiç import etmez) — burada sadece
+# HTTP sarmalayıcısı var. Re-export: çağıranlar tek yerden import etsin.
+from src.infrastructure.logging.request_id import current_request_id, bind_request_id  # noqa: F401
+
 REQUEST_ID_HEADER = "X-Request-ID"
 _REQUEST_ID_RE = re.compile(r"[^A-Za-z0-9-]")
 _REQUEST_ID_MAX_LEN = 64
-
-_request_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("request_id", default=None)
 
 
 def client_ip(request: Request) -> str:
@@ -38,18 +40,6 @@ def client_ip(request: Request) -> str:
     if real_ip:
         return real_ip.strip()
     return request.client.host if request.client else "unknown"
-
-
-def current_request_id() -> Optional[str]:
-    return _request_id_var.get()
-
-
-def bind_request_id(request_id: Optional[str], token: Optional[contextvars.Token] = None):
-    """ContextVar'ı ayarlar (token verilirse geri alır). Middleware ve testler kullanır."""
-    if token is not None:
-        _request_id_var.reset(token)
-        return None
-    return _request_id_var.set(request_id)
 
 
 def _sanitize(raw: Optional[str]) -> Optional[str]:
