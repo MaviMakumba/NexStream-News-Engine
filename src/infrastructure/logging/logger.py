@@ -9,7 +9,7 @@ import logging
 import sys
 from datetime import datetime, timezone
 from src.infrastructure.config.settings import settings
-from src.adapters.api.request_context import current_request_id
+from src.infrastructure.logging.request_id import current_request_id
 
 
 class _JSONFormatter(logging.Formatter):
