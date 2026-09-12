@@ -461,7 +461,10 @@ services:
       # anında SERT HATA vermesi sağlandı, sessiz zayıf fallback'e izin verilmiyor.
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?GRAFANA_PASSWORD .env icinde set edilmeli - guclu/rastgele bir sifre uretin}
-      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
+      # 13 Eyl 2026: eski %(protocol)s://%(domain)s/grafana/ degeri GF_SERVER_DOMAIN
+      # set edilmedigi icin 'localhost'a cozuluyordu -> /grafana/ 301 http://localhost/
+      # (bos ekran). FRONTEND_URL zaten gercek domain (https://nexstreamnews.com).
+      - GF_SERVER_ROOT_URL=${FRONTEND_URL:?FRONTEND_URL .env icinde set edilmeli}/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
       # Alert contact point adresi (contactpoints.yml ${GRAFANA_ALERT_EMAIL} okur) —
       # boş bırakılırsa Grafana provisioning'i geçersiz alıcıyla başlar, o yüzden zorunlu.

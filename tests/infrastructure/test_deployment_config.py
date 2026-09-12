@@ -71,3 +71,17 @@ def test_owner_email_not_in_tracked_docs():
         "docs/superpowers/specs/2026-07-29-owner-rolu-ve-gercek-email-gonderimi-design.md",
     ):
         assert _OWNER_EMAIL_FRAGMENT not in _read(path), path
+
+
+# ── Grafana kök URL'i gerçek domain'den gelmeli (13 Eylül 2026) ──────────────
+# `%(domain)s` yer tutucusu GF_SERVER_DOMAIN set edilmediği için "localhost"a
+# çözülüyordu: https://nexstreamnews.com/grafana/ → 301 http://localhost/grafana/
+# (kullanıcı "boş ekran" gördü). FRONTEND_URL zaten .env'de gerçek domain.
+
+def test_prod_grafana_root_url_uses_frontend_url_not_domain_placeholder():
+    with open("docker-compose.prod.yml", "r", encoding="utf-8") as f:
+        compose = yaml.safe_load(f)
+    env = [str(e) for e in compose["services"]["grafana"]["environment"]]
+    root = next(e for e in env if e.startswith("GF_SERVER_ROOT_URL="))
+    assert "%(domain)s" not in root
+    assert "${FRONTEND_URL" in root and root.endswith("/grafana/")
