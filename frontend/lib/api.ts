@@ -7,7 +7,7 @@
 import type {
   AccountUsage, AdminUserList, Article, AskMessage, BillingConfig, CheckoutResponse, ContactMessage, MarketSnapshot,
   NewsPage, RagAnswerResponse, RelatedResponse, SearchResult, Sponsor, StoryClusterResponse, TrendingResponse,
-  UsageRow, User,
+  UsageRow, User, SecurityEvent,
 } from "./types";
 
 export const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -390,6 +390,24 @@ export async function markContactMessageRead(creds: AdminCreds, id: number): Pro
     method: "PATCH",
     headers: adminHeaders(creds),
   });
+}
+
+// Güvenlik günlüğü (13 Eyl 2026) — moderator+ oturumu veya X-API-Key.
+export interface SecurityEventFilters {
+  email?: string;
+  ip?: string;
+  event_type?: string;
+  hours?: number;
+  limit?: number;
+}
+
+export async function fetchSecurityEvents(creds: AdminCreds, filters: SecurityEventFilters = {}): Promise<SecurityEvent[]> {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) {
+    if (v !== undefined && v !== "") params.set(k, String(v));
+  }
+  const qs = params.toString();
+  return req<SecurityEvent[]>(`${BASE}/admin/security-events${qs ? `?${qs}` : ""}`, { headers: adminHeaders(creds) });
 }
 
 // ── Billing ───────────────────────────────────────────────────────────────────

@@ -187,6 +187,21 @@ export interface Sponsor {
 
 // v2.10 — /contact formundan gelen mesajlar (roadmap #26). E-posta spam'e
 // düşse/gecikse bile mesaj burada (admin panelde) görülebilir kalır.
+// Güvenlik günlüğü satırı (13 Eyl 2026) — backend security_events.
+export interface SecurityEvent {
+  id: number;
+  category: "auth" | "access" | "abuse" | "admin";
+  event_type: string;
+  email: string | null;
+  user_id: number | null;
+  ip: string | null;
+  user_agent: string | null;
+  request_id: string | null;
+  path: string | null;
+  detail: string | null;
+  created_at: string;
+}
+
 export interface ContactMessage {
   id: number;
   name: string | null;
