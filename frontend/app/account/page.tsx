@@ -427,9 +427,9 @@ export default function AccountPage() {
               </button>
             </div>
           ) : (
-            !hasKey && (
-              <p style={{ fontSize: "0.8rem", color: "var(--text3)", marginBottom: 12 }}>{t.noApiKey}</p>
-            )
+            <p style={{ fontSize: "0.8rem", color: "var(--text3)", marginBottom: 12 }}>
+              {hasKey ? t.apiKeyHidden : t.noApiKey}
+            </p>
           )}
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>

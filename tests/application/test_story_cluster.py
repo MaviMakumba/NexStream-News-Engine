@@ -211,3 +211,14 @@ def test_get_story_cluster_sources_include_trust_score():
 
     assert len(result["sources"]) == 1
     assert result["sources"][0]["trust_score"] == compute_trust_score(0.8, 0.9, 5)
+
+
+def test_story_cluster_returns_none_when_target_article_missing():
+    """Hedef haber DB'de yoksa (silinmiş/negatif/uydurma ID) None — router 404'e
+    çevirir. Eskiden semantik arama + entity-overlap yine de koşup boş liste
+    döndürüyordu (boşuna ChromaDB/DB yükü + yanıltıcı 200)."""
+    search_repo = MagicMock()
+    service, repo = _service(search_repository=search_repo)
+    repo.get_article_by_id.return_value = None
+    assert service.get_story_cluster(-999, limit=6) is None
+    search_repo.find_similar.assert_not_called()

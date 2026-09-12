@@ -816,7 +816,7 @@ class NewsService:
         ]
         return {"article_id": article_id, "related": related}
 
-    def get_story_cluster(self, article_id: int, limit: int = 6) -> dict:
+    def get_story_cluster(self, article_id: int, limit: int = 6) -> Optional[dict]:
         """"Bu haberi kim nasıl anlatıyor" — aynı olayı kapsayan diğer kaynaklar
         (v2.2, rakip taraması — Ground News Blindspot'un küçük ölçekli hali).
 
@@ -844,14 +844,19 @@ class NewsService:
         `search_repository` opsiyoneldir — ChromaDB yapılandırılmamışsa sadece (2)
         çalışır, çökmez. Sonuçlar skora göre azalan sıralanır, `limit` ile kesilir.
         """
+        # Hedef yoksa (silinmiş/negatif/uydurma ID) None → router 404. Eskiden
+        # semantik arama + entity-overlap yine de koşup boş liste dönüyordu
+        # (12 Eyl 2026 güvenlik turu: /news/-999/sources canlıda 200 dönüyordu).
+        target = self.repository.get_article_by_id(article_id)
+        if target is None:
+            return None
+
         semantic: list = []
         if self.search_repository:
             try:
                 semantic = self.search_repository.find_similar(article_id, n_results=limit)
             except Exception as e:
                 logger.warning("Story cluster semantik arama başarısız: %s", e)
-
-        target = self.repository.get_article_by_id(article_id)
 
         verified_semantic = semantic
         if semantic and target:

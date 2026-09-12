@@ -75,8 +75,8 @@ def generate_api_key(
 ):
     """Kişisel API anahtarı üretir; mevcut anahtar varsa üzerine yazar (rotate).
 
-    Anahtar yalnızca bu yanıtta tam gösterilir varsayımı YOKTUR — basitlik
-    için düz saklanır ve /account/api-key güvenli oturumla yeniden üretilebilir.
+    Ham anahtar YALNIZCA bu yanıtta görünür — DB'de hash'i saklanır (12 Eyl
+    2026, bkz. user_repository.hash_api_key), GET geri veremez.
     """
     key = _API_KEY_PREFIX + secrets.token_urlsafe(24)
     UserRepository(db).set_api_key(current_user.id, key)
@@ -99,8 +99,14 @@ def revoke_api_key(
 
 @router.get("/api-key")
 def get_api_key(current_user: User = Depends(get_current_user)):
-    """Mevcut anahtarı döner (hesap sayfasında 'kopyala' için)."""
-    return {"api_key": current_user.api_key, "has_api_key": bool(current_user.api_key)}
+    """Sadece anahtarın var olup olmadığını döner.
+
+    12 Eyl 2026: anahtar hash'lenmiş saklanıyor (bkz. user_repository.hash_api_key)
+    — ham değer üretim yanıtında BİR KEZ görünür, sonra ne biz ne kullanıcı geri
+    okuyabilir (GitHub/Stripe ile aynı model). `api_key` alanı geriye dönük
+    uyumluluk için duruyor, her zaman None.
+    """
+    return {"api_key": None, "has_api_key": bool(current_user.api_key)}
 
 
 # v2.1.1 (18 Ağu 2026): /subscriptions/{email} GET/PATCH X-API-Key (paylaşımlı

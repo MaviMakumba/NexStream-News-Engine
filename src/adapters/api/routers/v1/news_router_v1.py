@@ -201,7 +201,10 @@ def get_story_cluster_v1(
 ):
     """"Bu haberi kim nasıl anlatıyor" — semantik olarak aynı olayı kapsayan
     diğer kaynaklar (v2.2). Tier gating yok — herkese açık şeffaflık özelliği."""
-    return service.get_story_cluster(article_id, limit)
+    cluster = service.get_story_cluster(article_id, limit)
+    if cluster is None:
+        raise HTTPException(status_code=404, detail="Haber bulunamadı. / Article not found.")
+    return cluster
 
 
 @router.post("/news/ask", response_model=RagAnswerResponse)
