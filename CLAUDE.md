@@ -341,31 +341,28 @@ GERÇEKTEN bekleyen işler var:
     Tekrar bir tıkanma yaşanırsa ÖNCELİK bu maddeye verilmeli. Detay:
     CHANGELOG "11 Eylül prod kesintisi".
 
-29. **Güvenlik turu (12 Eyl 2026) — KULLANICININ AWS KONSOLUNDAN yapması
-    gereken 2 iş (deploy IAM kullanıcısının Security Group yetkisi YOK, kod
-    tarafından yapılamaz):**
-    - **SSH 22 portunu dünyaya kapat** — sunucuya SSM ile bağlanıyoruz, 22'ye
-      hiç ihtiyaç yok; 3 günde 757 başarısız SSH denemesi görüldü (arka plan
-      gürültüsü ama gereksiz yüzey). EC2 → Security Groups →
-      `sg-061424eb4ff9eb775` → Inbound → 22 kuralını sil.
-    - **80/443'ü SADECE Cloudflare IP aralıklarına aç** (`cloudflare.com/ips-v4`
-      + `ips-v6`, nginx.conf'taki `set_real_ip_from` listesiyle aynı) —
-      origin IP'si (63.178.59.10) doğrudan cevap veriyor, Cloudflare'in Bot
-      Fight Mode/WAF'ı atlanabiliyor ve loglarda IP'ye doğrudan tarama var.
-      **Ön şartlar 13 Eyl 2026'da TAMAMLANDI:** duckdns SAN'ı sertifikadan
-      çıkarıldı (yeni cert sadece nexstreamnews.com + www, Aralık 2026'ya kadar),
-      nginx 443 bloğuna ACME webroot location'ı eklendi (CF 'Always Use HTTPS'
-      yenilemeyi kırmasın). **Kalan:** (a) kullanıcı duckdns.org'dan subdomain'i
-      siler, (b) SG'de 80/443 kaynağı CF aralıklarıyla değiştirilir — bunu
-      Claude'un yapabilmesi için `nexstream-deploy` IAM kullanıcısına
-      `ec2:DescribeSecurityGroups` (Resource *) + `ec2:AuthorizeSecurityGroupIngress`/
-      `ec2:RevokeSecurityGroupIngress` (sadece sg-061424eb4ff9eb775) eklenmeli.
-    - **GitHub → Settings → Emails:** "Keep my email addresses private" ve
-      "Block command line pushes that expose my email" işaretle (adresin
-      commit'lerden sızmasını keser; geçmiş için bkz. BİLİNEN NOTLAR).
-    - Ayrıca 3. parti hesaplar (AWS root + IAM, Cloudflare, GitHub, domain
-      kayıt firması, Resend, Groq, Gmail) için MFA/2FA + parola yöneticisi
-      kontrol listesi kullanıcıya iletildi — kod tarafında karşılığı yok.
+29. ~~**Security Group sıkılaştırma + duckdns kapatma**~~ — ✅ **13 Eyl 2026.**
+    Kullanıcı `nexstream-deploy` IAM kullanıcısına inline policy
+    `NexStreamSecurityGroupEdit` (DescribeSecurityGroups/Rules `*`,
+    Authorize/RevokeSecurityGroupIngress sadece `sg-061424eb4ff9eb775`) verdi;
+    Claude SG'yi düzenledi: **22 kapalı** (SSM ile bağlanıyoruz), **80/443 sadece
+    Cloudflare IPv4 (15) + IPv6 (7) aralıklarına açık** (`cloudflare.com/ips-v4`
+    + `ips-v6`, nginx `set_real_ip_from` listesiyle aynı). Sıra: önce CF
+    aralıkları eklendi → site doğrulandı → `0.0.0.0/0` kuralları kaldırıldı
+    (kesintisiz). Doğrulama: CF üzerinden 200, origin IP'ye doğrudan 80/443
+    timeout, 22 filtered, SSM çalışıyor. duckdns subdomain'i kullanıcı sildi
+    (NXDOMAIN), sertifika zaten duckdns SAN'sız. **Cloudflare IP listesi
+    değişirse** hem `nginx.conf` hem SG güncellenmeli — ikisi de aynı listeyi
+    taşıyor; `aws ec2 describe-security-groups --group-ids sg-061424eb4ff9eb775`
+    ile karşılaştır. Let's Encrypt yenilemesi CF proxy üzerinden 80'e gelir
+    (CF aralıkları açık), 443 bloğunda da ACME webroot var.
+    - Kalan (kullanıcıda): GitHub → Settings → Emails gizlilik kutuları; 3.
+      parti hesaplarda MFA (AWS root+IAM, Cloudflare, GitHub, domain kayıt,
+      Resend, Groq, Gmail).
+    - **Sunucu büyütme (t3.medium) BİLİNÇLİ YAPILMADI** (13 Eyl): build cache
+      temizliği sonrası host rahatladı, kullanıcı krediyi korumak istiyor;
+      RAM/CPU-credit sorunu tekrar yaşanırsa `ec2:ModifyInstanceAttribute`
+      izniyle stop→tip değiştir→start (5 dk kesinti) ya da Hetzner kararı.
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,
@@ -558,7 +555,7 @@ Her madde tek bir kalıcı kural — "ne zaman/nasıl bulundu" forensic detayı
 - **Kullanıcı API anahtarı DB'de SHA-256 hash olarak saklanıyor (12 Eyl 2026)** — `UserRepository.set_api_key` ham anahtarı hash'ler, `get_by_api_key` ham anahtarı hash'leyip arar, `GET /account/api-key` ham değeri ASLA dönmez (sadece `has_api_key`). Anahtar üretim yanıtında BİR KEZ görünür. Yeni bir "anahtarı göster" özelliği eklemeye kalkma — elimizde yok.
 - **`/api/metrics` nginx'te `location = /api/metrics { return 404; }` ile dışarıya KAPALI** — Prometheus iç ağdan `app:8000/metrics` okuyor. Yeni bir iç-servis endpoint'i (health hariç) eklerken aynı soruyu sor: dışarıdan görünmesi gerekiyor mu?
 - **`frontend/public/.well-known/security.txt` `Expires: 2027-09-01`** — RFC 9116 geçmiş tarihi geçersiz sayar, `tests/infrastructure/test_security_txt.py` o tarihten sonra KIRMIZIYA döner; Ağustos 2027'de tarihi ileri al. Politika metni `frontend/lib/legal-content.ts::SECURITY_POLICY`, sayfa `/security`.
-- **Cloudflare proxy'si origin'i SADECE Security Group 80/443'ü Cloudflare IP'lerine kısıtlarsa korur** — aksi halde origin IP'ye doğrudan istek Bot Fight Mode/WAF/rate-limit'i atlar (bkz. YOL HARİTASI madde 29). `set_real_ip_from` sadece IP'yi doğru okumak içindir, erişimi kısıtlamaz.
+- **Origin artık SADECE Cloudflare IP'lerinden erişilebilir (SG, 13 Eyl 2026)** — `curl https://63.178.59.10` timeout NORMAL, bug değil. Cloudflare'i devre dışı bırakırsan (gri bulut) site ölür; önce SG'ye `0.0.0.0/0` 80/443 eklemen gerekir. `set_real_ip_from` sadece IP'yi doğru okumak içindir, erişimi kısıtlayan SG'dir (bkz. YOL HARİTASI madde 29).
 - **Sahip e-postası public repo'da 267 commit'in author alanında açık (`git log --format=%ae`, GitHub commits API)** — "güvenlik araştırmacısı" adresi büyük ihtimalle buradan aldı. 12 Eyl 2026'dan itibaren bu repo'da `git config user.email 76664196+MaviMakumba@users.noreply.github.com` (yeni commit'ler noreply ile gider); GitHub → Settings → Emails'te "Keep my email addresses private" + "Block command line pushes that expose my email" KULLANICI tarafından açılmalı. Geçmişteki 267 commit'i temizlemek `git filter-repo --mailmap` + force push + tüm SHA'ların değişmesi demek (21 Ağu'daki gibi) — kullanıcı kararı, henüz YAPILMADI. Tracked dosyalarda düz metin adres YASAK (`test_owner_email_not_in_tracked_docs`), Grafana alert adresi `.env`'deki `GRAFANA_ALERT_EMAIL`'den gelir (prod'da zorunlu, `:?`).
 - **Sadece `.md`/`docs/**` değişen main push'ları CI'ı ve deploy'u HİÇ tetiklemez** (`paths-ignore`, 12 Eyl 2026) — dokümantasyon PR'ı merge edince "deploy olmadı" diye şaşırma; PR tetikleyicisi paths-ignore'suz, testler PR'da yine koşar.
 - **Prod diskini BuildKit build cache sessizce doldurur** — 12 Eyl 2026'da 77GB diskin %80'i doluydu, `docker system df` 50GB build cache (49GB reclaimable) gösterdi; `docker builder prune --filter until=48h -f` ile 31GB geri alındı (%42), son deploy'ların katmanları korundu (tam `prune -af` sonraki build'i sıfırdan yapar, t3.small'da RAM/süre riski + pip hash gotcha'sı). Her birkaç haftada bir SSM ile `df -h /` + `docker system df` kontrol et, %70'i geçtiyse aynı filtreli prune'u çalıştır.

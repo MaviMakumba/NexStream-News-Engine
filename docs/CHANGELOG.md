@@ -1248,6 +1248,10 @@ gerekmedi).
   kullanım) — saldırganla ilişkilendirilemedi. "GitHub'ı nereden buldu": `/api/
   docs` açıklamasındaki repo linki (openapi contact/license). Prod disk %80 →
   `docker builder prune --filter until=48h` ile %42 (PR #130 notu).
+- **13 Eyl sabahı — SG kapatıldı:** kullanıcı IAM inline policy verdi ve
+  duckdns'i sildi; SG'de 22 kaldırıldı, 80/443 sadece Cloudflare aralıklarına
+  (önce ekle→doğrula→sonra 0.0.0.0/0'ı kaldır, kesintisiz). Origin doğrudan
+  erişilemez, SSM çalışıyor. Sunucu büyütme bilinçli ertelendi (kredi).
 - **Kullanıcının repo public/private sorusu:** public kalması önerildi
   (portfolyo değeri projenin varlık sebebi; sır yok; kod görünürlüğü ihlale yol
   açmadı, bulgular kodu okumadan da bulunabilirdi). Karar kullanıcıda.
