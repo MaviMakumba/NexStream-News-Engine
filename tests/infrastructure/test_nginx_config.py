@@ -22,3 +22,13 @@ def test_prod_nginx_blocks_public_metrics():
     block = re.search(r"location\s*=\s*/api/metrics\s*\{(?P<body>[^}]*)\}", conf)
     assert block, "nginx.conf'ta `location = /api/metrics { ... }` bloğu yok"
     assert re.search(r"return\s+404", block.group("body")), "metrics bloğu 404 dönmüyor"
+
+
+def test_acme_challenge_served_on_https_too():
+    """13 Eyl 2026: Cloudflare 'Always Use HTTPS' HTTP-01 isteğini 443'e
+    yönlendirebilir — 443 bloğunda acme location yoksa istek frontend'e düşüp
+    404 verir ve sertifika yenilemesi sessizce kırılır. Her iki server bloğunda
+    da aynı webroot location olmalı."""
+    conf = _conf()
+    https_block = conf.split("listen 443 ssl default_server;", 1)[1]
+    assert re.search(r"location\s+/\.well-known/acme-challenge/\s*\{[^}]*root\s+/var/www/certbot", https_block)
