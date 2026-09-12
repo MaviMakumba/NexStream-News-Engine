@@ -1,11 +1,26 @@
 """Newsletter abonelik endpoint'leri (/subscriptions).
 
-Kayıt ve iptal publictir (kullanıcı kendisi yönetir); tercih okuma/güncelleme
-X-API-Key gerektirir (başkasının aboneliğini kurcalamayı engeller).
+Yetki modeli (12 Eylül 2026 güvenlik turu — önceden kayıt VE iptal tamamen
+kimliksizdi; canlıda üçüncü bir kişi site sahibinin adresine abonelik açıp
+bunu "zafiyet raporu" olarak mail attı):
+
+    POST /              → X-API-Key VEYA e-postası body'dekiyle eşleşen ve
+                          e-postası DOĞRULANMIŞ oturum (owner doğrulamadan muaf,
+                          diğer doğrulama kapılarıyla tutarlı). Doğrulama şartı
+                          çift-onay (double opt-in) yerine geçer: kurbanın
+                          adresiyle hesap açıp günlük digest spam'i başlatmak
+                          mümkün olmasın.
+    DELETE /{email}     → X-API-Key VEYA e-postası eşleşen oturum.
+    GET /unsubscribe    → mail linki: email + HMAC imzalı token
+                          (bkz. adapters/api/subscription_tokens.py).
+    GET/PATCH /{email}  → X-API-Key (admin, değişmedi).
+
+Tek çağıran frontend hesap sayfası (kendi oturumu, kendi e-postası) — anonim
+bir abonelik formu hiç yoktu, public olması sadece bir ihmaldi.
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
@@ -15,9 +30,11 @@ from src.adapters.repositories.user_repository import UserRepository
 from src.adapters.notifications.email_adapter import get_email_adapter
 from src.domain.models.subscriber import Subscriber
 from src.domain.models.user import UserTier, tier_at_least
-from src.adapters.api.auth import verify_api_key
-from src.adapters.api.auth_utils import user_effective_tier
+from src.adapters.api.auth import api_key_matches, verify_api_key
+from src.adapters.api.auth_utils import get_optional_user, has_owner_role, user_effective_tier
 from src.adapters.api.limiter import limiter
+from src.adapters.api.subscription_tokens import verify_unsubscribe_token
+from src.domain.models.user import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/subscriptions", tags=["Subscriptions"])
@@ -72,6 +89,26 @@ def _get_user_repo() -> UserRepository:
         db.close()
 
 
+def _assert_may_manage(email: str, x_api_key: Optional[str], user: Optional[User], require_verified: bool) -> None:
+    """Bu e-postanın aboneliğini yönetme yetkisi: paylaşımlı anahtar VEYA adresin sahibi.
+
+    401 = kimlik yok, 403 = kimlik var ama bu adres senin değil (ya da adres
+    henüz doğrulanmamış). E-posta karşılaştırması lowercase — kayıt normalize
+    ediyor ama eski kullanıcı satırları karışık harfli olabilir.
+    """
+    if api_key_matches(x_api_key):
+        return
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if (user.email or "").strip().lower() != email.strip().lower():
+        raise HTTPException(status_code=403, detail="Sadece kendi e-posta adresinizin aboneliğini yönetebilirsiniz. / You can only manage your own subscription.")
+    if require_verified and not user.email_verified and not has_owner_role(user):
+        raise HTTPException(
+            status_code=403,
+            detail="Bültene abone olmadan önce e-posta adresinizi doğrulayın. / Please verify your email address before subscribing.",
+        )
+
+
 def _assert_instant_allowed(email: str, frequency: str, users: UserRepository) -> None:
     """Anlık (instant) keyword alert Pro+ özelliğidir.
 
@@ -97,7 +134,10 @@ def subscribe(
     req: SubscribeRequest,
     repo: SubscriberRepository = Depends(_get_repo),
     users: UserRepository = Depends(_get_user_repo),
+    x_api_key: Optional[str] = Header(None),
+    user: Optional[User] = Depends(get_optional_user),
 ):
+    _assert_may_manage(req.email, x_api_key, user, require_verified=True)
     if req.frequency not in ("daily", "instant", "never"):
         raise HTTPException(status_code=400, detail="frequency must be daily, instant or never")
     _assert_instant_allowed(req.email, req.frequency, users)
@@ -121,13 +161,22 @@ def subscribe(
 
 @router.get("/unsubscribe", response_class=HTMLResponse)
 @limiter.limit("20/minute")
-def unsubscribe_via_link(request: Request, email: str, lang: str = "TR", repo: SubscriberRepository = Depends(_get_repo)):
+def unsubscribe_via_link(
+    request: Request,
+    email: str,
+    token: Optional[str] = None,
+    lang: str = "TR",
+    repo: SubscriberRepository = Depends(_get_repo),
+):
     """E-postadaki tıklanabilir 'aboneliği iptal et' linkinin hedefi — tarayıcıda
     açılan basit bir onay sayfası döner (JSON değil, çünkü doğrudan e-posta
     istemcisinden/tarayıcıdan tıklanır). Bu route `/{email}` parametreli
     route'lardan ÖNCE tanımlanmalı, yoksa "unsubscribe" bir e-posta adresi
-    sanılıp oraya yönlenir."""
-    ok = repo.deactivate(email)
+    sanılıp oraya yönlenir.
+
+    `token` e-postaya bağlı HMAC imzası — yoksa/yanlışsa DB'ye hiç dokunulmaz ve
+    "bulunamadı" sayfası gösterilir (adresin abone olup olmadığı da sızmaz)."""
+    ok = verify_unsubscribe_token(email, token) and repo.deactivate(email)
     title, body = (_UNSUBSCRIBE_CONFIRM_HTML if ok else _UNSUBSCRIBE_NOTFOUND_HTML).get(
         lang, _UNSUBSCRIBE_CONFIRM_HTML["TR"] if ok else _UNSUBSCRIBE_NOTFOUND_HTML["TR"]
     )
@@ -138,7 +187,14 @@ def unsubscribe_via_link(request: Request, email: str, lang: str = "TR", repo: S
 
 @router.delete("/{email}", status_code=status.HTTP_200_OK)
 @limiter.limit("20/minute")
-def unsubscribe(request: Request, email: str, repo: SubscriberRepository = Depends(_get_repo)):
+def unsubscribe(
+    request: Request,
+    email: str,
+    repo: SubscriberRepository = Depends(_get_repo),
+    x_api_key: Optional[str] = Header(None),
+    user: Optional[User] = Depends(get_optional_user),
+):
+    _assert_may_manage(email, x_api_key, user, require_verified=False)
     ok = repo.deactivate(email)
     if not ok:
         raise HTTPException(status_code=404, detail="Subscriber not found")

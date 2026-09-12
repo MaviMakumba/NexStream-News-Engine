@@ -22,6 +22,7 @@ import requests
 from src.domain.models.article import Article
 from src.domain.ports.email_port import EmailPort
 from src.infrastructure.config.settings import settings
+from src.adapters.api.subscription_tokens import make_unsubscribe_token
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +140,13 @@ def _topic_label(topic: str, language: str) -> str:
 
 
 def _unsubscribe_url(email: str, language: str) -> str:
-    return f"{settings.api_base_url}/subscriptions/unsubscribe?email={quote(email)}&lang={quote(language)}"
+    # `token`: adrese bağlı HMAC imzası (12 Eyl 2026) — link olmadan, sadece
+    # adresi bilerek başkasını abonelikten çıkarmak mümkün olmasın.
+    token = make_unsubscribe_token(email)
+    return (
+        f"{settings.api_base_url}/subscriptions/unsubscribe"
+        f"?email={quote(email)}&token={token}&lang={quote(language)}"
+    )
 
 
 def _sponsor_html(sponsor, language: str) -> str:

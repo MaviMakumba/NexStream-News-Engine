@@ -102,7 +102,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     goToLogin: "Girişe git",
 
     // ── E-posta doğrulama (v1.15) ──
-    verifyBannerText: "E-posta adresini doğrulamadın. Free tier'da tam erişimin var, ama Pro/Kurumsal'a yükseltmek için doğrulama gerekiyor.",
+    verifyBannerText: "E-posta adresini doğrulamadın. Free tier'da tam erişimin var, ama Pro/Kurumsal'a yükseltmek ve bültene abone olmak için doğrulama gerekiyor.",
     verifyBannerResend: "Doğrulama e-postası gönder",
     verifyBannerSent: "Doğrulama e-postası gönderildi, gelen kutunu kontrol et.",
     verifyBannerFailed: "Gönderilemedi, lütfen tekrar dene.",
@@ -201,6 +201,7 @@ export const UI: Record<Lang, Record<string, string>> = {
 
     newsletterSave: "Kaydet", newsletterSaved: "Kaydedildi ✓", newsletterUnsubscribe: "Aboneliği İptal Et",
     newsletterSubscribedNote: "Şu an abonesin.", newsletterNotSubscribedNote: "Henüz abone değilsin.",
+    newsletterVerifyFirst: "Bültene abone olabilmek için önce e-posta adresini doğrulaman gerekiyor (yukarıdaki doğrulama kartına bak).",
     pushLabel: "Bu tarayıcıda bildirimleri aç", pushSubscribedLabel: "Bu tarayıcıda bildirimler açık",
     pushErrorLabel: "Bildirim izni alınamadı, tekrar dener misin?",
     pushLockedReason: "Önce yukarıdan 'Anlık uyarı' seçip kaydetmelisin.",
@@ -345,7 +346,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     goToLogin: "Go to sign in",
 
     // ── Email verification (v1.15) ──
-    verifyBannerText: "Your email isn't verified yet. You have full Free tier access, but verification is required to upgrade to Pro/Enterprise.",
+    verifyBannerText: "Your email isn't verified yet. You have full Free tier access, but verification is required to upgrade to Pro/Enterprise and to subscribe to the newsletter.",
     verifyBannerResend: "Send verification email",
     verifyBannerSent: "Verification email sent, check your inbox.",
     verifyBannerFailed: "Couldn't send it, please try again.",
@@ -444,6 +445,7 @@ export const UI: Record<Lang, Record<string, string>> = {
 
     newsletterSave: "Save", newsletterSaved: "Saved ✓", newsletterUnsubscribe: "Unsubscribe",
     newsletterSubscribedNote: "You're currently subscribed.", newsletterNotSubscribedNote: "You're not subscribed yet.",
+    newsletterVerifyFirst: "Verify your email address first to subscribe to the newsletter (see the verification card above).",
     pushLabel: "Enable notifications in this browser", pushSubscribedLabel: "Notifications are on in this browser",
     pushErrorLabel: "Couldn't get notification permission, try again?",
     pushLockedReason: "First select 'Instant alerts' above and save.",

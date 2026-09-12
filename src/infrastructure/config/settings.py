@@ -108,6 +108,11 @@ class Settings(BaseSettings):
     # (DB'ye dokunmadan). Owner rolü API'den ASLA atanamaz — tek kaynak bu env
     # (veya DB'ye elle yazılan role='owner'). Bkz. auth_utils.has_owner_role.
     owner_emails: str = ""
+    # Bülten iptal linki HMAC secret'ı (12 Eyl 2026 güvenlik turu, bkz.
+    # adapters/api/subscription_tokens.py). Boşsa api_key kullanılır — ayrı
+    # tutmanın tek faydası API_KEY rotasyonunda eski maillerdeki iptal
+    # linklerinin kırılmaması.
+    unsubscribe_token_secret: str = ""
 
     # ── Logging ────────────────────────────────────────────────────────────
     log_level: str = "INFO"

@@ -424,6 +424,15 @@ def test_ws_feed_accepts_owner_despite_free_db_tier(app_client):
 
 
 # ── /subscriptions — anlık (instant) uyarı Pro+ özelliği ────────────────────
+# 12 Eyl 2026 güvenlik turu: POST /subscriptions/ artık kimliksiz değil — ya
+# X-API-Key ya da e-postası body'dekiyle eşleşen DOĞRULANMIŞ oturum gerekir
+# (bkz. test_subscription_router.py). Buradaki tier senaryoları bu yüzden
+# "kendi e-postasıyla giriş yapmış kullanıcı" olarak kuruluyor; "hesapsız"
+# senaryolar sadece X-API-Key yoluyla mümkün.
+
+from src.infrastructure.config.settings import settings as _settings
+_API_KEY = {"X-API-Key": _settings.api_key}
+
 
 def _mock_sub_repo():
     repo = MagicMock()
@@ -435,84 +444,91 @@ def _mock_sub_repo():
     return repo
 
 
+def _sub_user(email, tier=UserTier.FREE, role=UserRole.USER):
+    return User(id=1, email=email, password_hash="h", tier=tier, role=role, email_verified=True)
+
+
+def _sub_override(app_client, mock_repo, mock_users, user=None):
+    app_client.app.dependency_overrides[_get_repo] = lambda: mock_repo
+    app_client.app.dependency_overrides[_get_user_repo] = lambda: mock_users
+    app_client.app.dependency_overrides[get_optional_user] = lambda: user
+
+
+def _sub_clear(app_client):
+    for dep in (_get_repo, _get_user_repo, get_optional_user):
+        app_client.app.dependency_overrides.pop(dep, None)
+
+
+def _post_sub(app_client, email, frequency, headers=None):
+    from unittest.mock import patch
+    with patch("src.adapters.api.routers.subscription_router.get_email_adapter") as mock_email:
+        mock_email.return_value.send_welcome.return_value = True
+        return app_client.post("/subscriptions/", json={"email": email, "frequency": frequency}, headers=headers or {})
+
+
 def test_subscribe_instant_rejected_for_unregistered_email(app_client):
+    """X-API-Key ile hesabı olmayan bir adrese instant istenirse 403 (Pro şartı)."""
     mock_repo = _mock_sub_repo()
     mock_users = MagicMock()
     mock_users.get_by_email.return_value = None
-    app_client.app.dependency_overrides[_get_repo] = lambda: mock_repo
-    app_client.app.dependency_overrides[_get_user_repo] = lambda: mock_users
+    _sub_override(app_client, mock_repo, mock_users, user=None)
     try:
-        r = app_client.post("/subscriptions/", json={"email": "anon@example.com", "frequency": "instant"})
+        r = _post_sub(app_client, "anon@example.com", "instant", headers=_API_KEY)
     finally:
-        app_client.app.dependency_overrides.pop(_get_repo, None)
-        app_client.app.dependency_overrides.pop(_get_user_repo, None)
+        _sub_clear(app_client)
     assert r.status_code == 403
 
 
 def test_subscribe_instant_rejected_for_free_tier_email(app_client):
     mock_repo = _mock_sub_repo()
+    free_user = _sub_user("free@example.com", UserTier.FREE)
     mock_users = MagicMock()
-    mock_users.get_by_email.return_value = _make_user(UserTier.FREE)
-    app_client.app.dependency_overrides[_get_repo] = lambda: mock_repo
-    app_client.app.dependency_overrides[_get_user_repo] = lambda: mock_users
+    mock_users.get_by_email.return_value = free_user
+    _sub_override(app_client, mock_repo, mock_users, user=free_user)
     try:
-        r = app_client.post("/subscriptions/", json={"email": "free@example.com", "frequency": "instant"})
+        r = _post_sub(app_client, "free@example.com", "instant")
     finally:
-        app_client.app.dependency_overrides.pop(_get_repo, None)
-        app_client.app.dependency_overrides.pop(_get_user_repo, None)
+        _sub_clear(app_client)
     assert r.status_code == 403
 
 
 def test_subscribe_instant_allowed_for_pro_tier_email(app_client):
-    with_patch = None
     mock_repo = _mock_sub_repo()
+    pro_user = _sub_user("pro@example.com", UserTier.PRO)
     mock_users = MagicMock()
-    mock_users.get_by_email.return_value = _make_user(UserTier.PRO)
-    app_client.app.dependency_overrides[_get_repo] = lambda: mock_repo
-    app_client.app.dependency_overrides[_get_user_repo] = lambda: mock_users
+    mock_users.get_by_email.return_value = pro_user
+    _sub_override(app_client, mock_repo, mock_users, user=pro_user)
     try:
-        from unittest.mock import patch
-        with patch("src.adapters.api.routers.subscription_router.get_email_adapter") as mock_email:
-            mock_email.return_value.send_welcome.return_value = True
-            r = app_client.post("/subscriptions/", json={"email": "pro@example.com", "frequency": "instant"})
+        r = _post_sub(app_client, "pro@example.com", "instant")
     finally:
-        app_client.app.dependency_overrides.pop(_get_repo, None)
-        app_client.app.dependency_overrides.pop(_get_user_repo, None)
+        _sub_clear(app_client)
     assert r.status_code == 201
 
 
 def test_subscribe_instant_allowed_for_owner_email(app_client):
     mock_repo = _mock_sub_repo()
+    owner = _sub_user("owner@example.com", UserTier.FREE, role=UserRole.OWNER)
     mock_users = MagicMock()
-    mock_users.get_by_email.return_value = _make_user(UserTier.FREE, role=UserRole.OWNER)
-    app_client.app.dependency_overrides[_get_repo] = lambda: mock_repo
-    app_client.app.dependency_overrides[_get_user_repo] = lambda: mock_users
+    mock_users.get_by_email.return_value = owner
+    _sub_override(app_client, mock_repo, mock_users, user=owner)
     try:
-        from unittest.mock import patch
-        with patch("src.adapters.api.routers.subscription_router.get_email_adapter") as mock_email:
-            mock_email.return_value.send_welcome.return_value = True
-            r = app_client.post("/subscriptions/", json={"email": "owner@example.com", "frequency": "instant"})
+        r = _post_sub(app_client, "owner@example.com", "instant")
     finally:
-        app_client.app.dependency_overrides.pop(_get_repo, None)
-        app_client.app.dependency_overrides.pop(_get_user_repo, None)
+        _sub_clear(app_client)
     assert r.status_code == 201
 
 
 def test_subscribe_daily_allowed_without_any_user_account(app_client):
-    """daily/never her zaman serbest — sadece instant Pro gerektirir."""
+    """daily/never için Pro şartı yok — X-API-Key ile hesapsız bir adres de
+    abone yapılabilir ve kullanıcı tablosuna hiç bakılmaz."""
     mock_repo = _mock_sub_repo()
     mock_users = MagicMock()
     mock_users.get_by_email.return_value = None
-    app_client.app.dependency_overrides[_get_repo] = lambda: mock_repo
-    app_client.app.dependency_overrides[_get_user_repo] = lambda: mock_users
+    _sub_override(app_client, mock_repo, mock_users, user=None)
     try:
-        from unittest.mock import patch
-        with patch("src.adapters.api.routers.subscription_router.get_email_adapter") as mock_email:
-            mock_email.return_value.send_welcome.return_value = True
-            r = app_client.post("/subscriptions/", json={"email": "anyone@example.com", "frequency": "daily"})
+        r = _post_sub(app_client, "anyone@example.com", "daily", headers=_API_KEY)
     finally:
-        app_client.app.dependency_overrides.pop(_get_repo, None)
-        app_client.app.dependency_overrides.pop(_get_user_repo, None)
+        _sub_clear(app_client)
     assert r.status_code == 201
     mock_users.get_by_email.assert_not_called()
 
