@@ -106,7 +106,7 @@ export const TERMS_OF_SERVICE: Record<Lang, LegalPage> = {
       {
         heading: "Kabul edilebilir kullanım",
         body:
-          "Hizmeti yasa dışı amaçlarla, otomatik kötüye kullanım (rate limit'leri aşmaya yönelik sistematik girişimler dahil) veya başkalarının haklarını ihlal edecek şekilde kullanamazsınız. Kurallara uyulmaması hesabın askıya alınmasına yol açabilir.",
+          "Hizmeti yasa dışı amaçlarla, otomatik kötüye kullanım (rate limit'leri aşmaya yönelik sistematik girişimler dahil) veya başkalarının haklarını ihlal edecek şekilde kullanamazsınız. Yazılı iznimiz olmadan sistem üzerinde sızma testi, zafiyet taraması, parola deneme (brute force), başkasının e-posta adresi ya da hesabı adına işlem yapma ve otomatik tarama yapamazsınız; bu tür eylemler Türk Ceza Kanunu'nun 243 ve 244. maddeleri kapsamında suç oluşturabilir, kayıt altına alınır ve gerekirse yetkili makamlara bildirilir. İyi niyetli güvenlik bulguları için Güvenlik Politikası sayfamızdaki sorumlu ifşa kanalını kullanın; ücretli bir ödül programımız yoktur. Kurallara uyulmaması hesabın askıya alınmasına yol açabilir.",
       },
       {
         heading: "İçerik ve doğruluk",
@@ -139,7 +139,7 @@ export const TERMS_OF_SERVICE: Record<Lang, LegalPage> = {
       {
         heading: "Acceptable use",
         body:
-          "You may not use the service for unlawful purposes, systematic automated abuse (including attempts to bypass rate limits), or in a way that infringes on others' rights. Violations may result in account suspension.",
+          "You may not use the service for unlawful purposes, for automated abuse (including systematic attempts to bypass rate limits), or in ways that infringe the rights of others. Without our written permission you may not perform penetration testing, vulnerability scanning, password guessing (brute force), actions on behalf of someone else's email address or account, or automated crawling against the system; such actions may constitute an offence under Articles 243 and 244 of the Turkish Penal Code, are logged, and may be reported to the authorities. For good-faith security findings use the responsible disclosure channel on our Security Policy page; we do not run a paid bug bounty program. Violations may lead to account suspension.",
       },
       {
         heading: "Content and accuracy",
@@ -150,6 +150,81 @@ export const TERMS_OF_SERVICE: Record<Lang, LegalPage> = {
         heading: "Changes",
         body:
           "We may update these terms from time to time. Material changes will be notified to the email address associated with your account.",
+      },
+    ],
+  },
+};
+
+// Güvenlik politikası / sorumlu ifşa (12 Eyl 2026 güvenlik turu). Bir "güvenlik
+// araştırmacısı" prod'da izinsiz test yapıp (brute force, başkası adına
+// abonelik) bulgularını ücret karşılığı "teslim etmek" için mail attı. Bu sayfa
+// + /.well-known/security.txt: (1) iyi niyetli bulgular için tek kanalı
+// tanımlar, (2) ödül programı olmadığını açıkça söyler, (3) izinsiz testin
+// yasak ve loglandığını belirtir — hem caydırıcı hem gerekirse kanıt.
+export const SECURITY_POLICY: Record<Lang, LegalPage> = {
+  TR: {
+    title: "Güvenlik Politikası ve Sorumlu İfşa",
+    updated: "Son güncelleme: Eylül 2026",
+    disclaimer:
+      "⚠ Bu sayfa bir başlangıç şablonudur — bağlayıcı bir hukuki belge değildir ve bir hukuk danışmanı tarafından incelenmelidir. Yine de burada yazan kurallar Kullanım Şartları'nın parçasıdır.",
+    sections: [
+      {
+        heading: "Kapsam",
+        body:
+          "Bu politika nexstreamnews.com ve alt alan adları ile /api altındaki uygulama arayüzünü kapsar. Kullandığımız üçüncü taraf hizmetler (Cloudflare, Groq, Resend, Stripe, AWS) kapsam dışıdır; onlarla ilgili bulgular doğrudan ilgili sağlayıcıya bildirilmelidir.",
+      },
+      {
+        heading: "İzinsiz test yasaktır",
+        body:
+          "Yazılı iznimiz olmadan sistem üzerinde sızma testi, zafiyet taraması, otomatik tarayıcı çalıştırma, parola deneme (brute force), rate limit'leri aşmaya yönelik sistematik istekler, başkasının e-posta adresi ya da hesabı adına işlem yapma, üçüncü kişilere ait verilere erişme veya hizmeti yavaşlatma/durdurma girişimleri yasaktır. Bu eylemler Kullanım Şartları'nı ihlal eder, Türk Ceza Kanunu'nun 243 (bilişim sistemine girme) ve 244 (sistemi engelleme, bozma, verileri yok etme veya değiştirme) maddeleri kapsamında suç oluşturabilir. Tüm istekler IP adresi ve zaman damgasıyla kayıt altına alınır; gerekirse yetkili makamlara iletilir.",
+      },
+      {
+        heading: "İyi niyetli bulguları nasıl bildirirsiniz?",
+        body:
+          "Kendi hesabınızı ve kendi verilerinizi kullanırken fark ettiğiniz bir güvenlik sorununu, sistemde herhangi bir değişiklik yapmadan ve başka kullanıcıların verisine erişmeden, iletişim sayfamızdaki form üzerinden (kategori: Genel) bildirebilirsiniz. Makine tarafından okunabilir kanal /.well-known/security.txt adresindedir. İyi bir rapor etkilenen uç noktayı, tekrar adımlarını ve olası etkiyi içerir; 'detaylar görüşmede' tarzı içeriksiz bildirimler değerlendirilmez.",
+      },
+      {
+        heading: "Ödül programı yoktur",
+        body:
+          "NexStream gönüllü olarak geliştirilen, gelir amacı gütmeyen bir portfolyo projesidir. Ücretli bir bug bounty programı yürütmüyoruz; rapor, danışmanlık ya da 'teslim süreci' karşılığında ödeme yapılmaz ve bu yöndeki talepler yanıtlanmaz. Doğrulanan iyi niyetli bulgular için, dilerseniz, bu sayfada isminizle teşekkür edilir.",
+      },
+      {
+        heading: "Ne beklemelisiniz?",
+        body:
+          "Bildirimler makul bir sürede (hedef: 7 iş günü) değerlendirilir, doğrulanan bulgular düzeltilir ve size geri bildirim verilir. Bulguyu kamuya açıklamadan önce bize düzeltme için en az 90 gün tanımanızı rica ederiz. Bu politikanın sınırları içinde kalan, zarar vermeyen ve iyi niyetli bildirimler için hukuki yollara başvurmayız.",
+      },
+    ],
+  },
+  EN: {
+    title: "Security Policy and Responsible Disclosure",
+    updated: "Last updated: September 2026",
+    disclaimer:
+      "⚠ This page is a starter template — it is not a binding legal document and should be reviewed by legal counsel. The rules below are nevertheless part of the Terms of Service.",
+    sections: [
+      {
+        heading: "Scope",
+        body:
+          "This policy covers nexstreamnews.com, its subdomains and the application interface under /api. Third-party services we rely on (Cloudflare, Groq, Resend, Stripe, AWS) are out of scope; findings about them must be reported directly to the respective provider.",
+      },
+      {
+        heading: "Unauthorized testing is prohibited",
+        body:
+          "Without our written permission you may not perform penetration testing, vulnerability scanning, automated scanner runs, password guessing (brute force), systematic requests intended to bypass rate limits, actions on behalf of someone else's email address or account, access to other users' data, or attempts to slow down or disrupt the service. Such actions violate the Terms of Service and may constitute an offence under Articles 243 (unauthorized access to an information system) and 244 (obstructing, corrupting, destroying or altering a system or its data) of the Turkish Penal Code. All requests are logged with IP address and timestamp and may be handed to the authorities.",
+      },
+      {
+        heading: "How to report a good-faith finding",
+        body:
+          "If, while using your own account and your own data, you notice a security issue, report it through the form on our contact page (category: General) without modifying anything in the system or accessing other users' data. The machine-readable channel is /.well-known/security.txt. A useful report names the affected endpoint, the steps to reproduce and the likely impact; content-free notices of the 'details in a call' kind are not evaluated.",
+      },
+      {
+        heading: "There is no bounty program",
+        body:
+          "NexStream is a volunteer-built, non-commercial portfolio project. We do not run a paid bug bounty program; no payment is made for reports, consulting or a 'delivery process', and requests of that kind will not be answered. Verified good-faith findings can, if you wish, be acknowledged with your name on this page.",
+      },
+      {
+        heading: "What to expect",
+        body:
+          "Reports are reviewed within a reasonable time (target: 7 business days), verified findings are fixed and you receive feedback. We ask that you give us at least 90 days to fix an issue before disclosing it publicly. We will not pursue legal action for good-faith, non-damaging reports that stay within the limits of this policy.",
       },
     ],
   },

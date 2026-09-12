@@ -1,0 +1,8 @@
+# NexStream — güvenlik bulguları için iletişim (RFC 9116)
+# Ödül programı YOKTUR; izinsiz test Kullanım Şartları'nı ihlal eder.
+# Detay / Details: https://nexstreamnews.com/security
+Contact: https://nexstreamnews.com/contact
+Policy: https://nexstreamnews.com/security
+Preferred-Languages: tr, en
+Canonical: https://nexstreamnews.com/.well-known/security.txt
+Expires: 2027-09-01T00:00:00.000Z
