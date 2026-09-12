@@ -32,3 +32,15 @@ def test_acme_challenge_served_on_https_too():
     conf = _conf()
     https_block = conf.split("listen 443 ssl default_server;", 1)[1]
     assert re.search(r"location\s+/\.well-known/acme-challenge/\s*\{[^}]*root\s+/var/www/certbot", https_block)
+
+
+def test_grafana_proxy_keeps_subpath_prefix():
+    """13 Eyl 2026: `proxy_pass $grafana_upstream/;` (sondaki `/`) /grafana/ önekini
+    SİLİP Grafana'ya `/` gönderiyordu; Grafana serve_from_sub_path=true ile
+    `/grafana/`'ye geri yönlendirince sonsuz 301 döngüsü oluştu (root URL
+    localhost'tan gerçek domain'e çevrilince ortaya çıktı). Grafana'nın kendi
+    dokümanındaki nginx örneği önekli geçirir: proxy_pass'te URI parçası OLMAMALI."""
+    conf = _conf()
+    block = re.search(r"location\s+/grafana/\s*\{(?P<body>[^}]*)\}", conf)
+    assert block
+    assert re.search(r"proxy_pass\s+\$grafana_upstream\s*;", block.group("body")), block.group("body")
