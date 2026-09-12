@@ -242,6 +242,15 @@ export const UI: Record<Lang, Record<string, string>> = {
     noContactMessages: "Henüz mesaj yok.", markRead: "Okundu işaretle",
     readStatus: "Okundu", unreadStatus: "Okunmadı",
 
+    // ── Admin: güvenlik günlüğü (13 Eylül 2026) ──
+    securityEvents: "Güvenlik", securityEventsTitle: "Güvenlik Günlüğü",
+    securityFilterEmail: "E-posta", securityFilterIp: "IP", securityFilterEvent: "Olay",
+    securityFilterWindow: "Son", securityAllEvents: "Tümü",
+    win1h: "1 saat", win24h: "24 saat", win7d: "7 gün", win30d: "30 gün", win90d: "90 gün",
+    securityColTime: "Zaman", securityColEvent: "Olay", securityColEmail: "E-posta", securityColDetail: "Detay",
+    securityFilterByThis: "Buna göre filtrele (sonra Göster)",
+    noSecurityEvents: "Bu filtrede olay yok.",
+
     // ── Admin: kullanıcı/müşteri listesi ──
     users: "Kullanıcılar",
     usersTitle: "Kullanıcılar & Ödeme Durumu",
@@ -488,6 +497,15 @@ export const UI: Record<Lang, Record<string, string>> = {
     contactMessages: "Contact", contactMessagesTitle: "Contact Messages",
     noContactMessages: "No messages yet.", markRead: "Mark as read",
     readStatus: "Read", unreadStatus: "Unread",
+
+    // ── Admin: security log (13 September 2026) ──
+    securityEvents: "Security", securityEventsTitle: "Security Log",
+    securityFilterEmail: "Email", securityFilterIp: "IP", securityFilterEvent: "Event",
+    securityFilterWindow: "Last", securityAllEvents: "All",
+    win1h: "1 hour", win24h: "24 hours", win7d: "7 days", win30d: "30 days", win90d: "90 days",
+    securityColTime: "Time", securityColEvent: "Event", securityColEmail: "Email", securityColDetail: "Detail",
+    securityFilterByThis: "Filter by this (then Show)",
+    noSecurityEvents: "No events for this filter.",
 
     // ── Admin: user/customer list ──
     users: "Users",

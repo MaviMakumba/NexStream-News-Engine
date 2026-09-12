@@ -27,7 +27,7 @@ export const PRIVACY_POLICY: Record<Lang, LegalPage> = {
       {
         heading: "Hangi verileri topluyoruz?",
         body:
-          "Hesap oluşturduğunuzda e-posta adresinizi, adınızı (isteğe bağlı) ve şifrenizi (bcrypt ile geri döndürülemez şekilde hash'lenmiş olarak, asla düz metin saklanmaz) topluyoruz. Oturumunuzu sürdürmek için tarayıcınıza HttpOnly, yalnızca sunucunun okuyabildiği bir çerez (nxs_session) yerleştiriyoruz — bu çerez JavaScript tarafından okunamaz ve üçüncü taraflarla paylaşılmaz.",
+          "Hesap oluşturduğunuzda e-posta adresinizi, adınızı (isteğe bağlı) ve şifrenizi (bcrypt ile geri döndürülemez şekilde hash'lenmiş olarak, asla düz metin saklanmaz) topluyoruz. Oturumunuzu sürdürmek için tarayıcınıza HttpOnly, yalnızca sunucunun okuyabildiği bir çerez (nxs_session) yerleştiriyoruz — bu çerez JavaScript tarafından okunamaz ve üçüncü taraflarla paylaşılmaz. Güvenlik amacıyla giriş, kayıt, şifre sıfırlama gibi hesap olaylarını IP adresi ve tarayıcı bilgisiyle birlikte bir güvenlik günlüğüne yazıyoruz; bu kayıtlar 90 gün sonra otomatik silinir ve yalnızca kötüye kullanım tespiti için kullanılır.",
       },
       {
         heading: "Üçüncü taraf hizmet sağlayıcılar",
@@ -60,7 +60,7 @@ export const PRIVACY_POLICY: Record<Lang, LegalPage> = {
       {
         heading: "What data do we collect?",
         body:
-          "When you create an account we collect your email address, your name (optional), and your password (hashed irreversibly with bcrypt, never stored in plain text). To keep you signed in we place an HttpOnly, server-only session cookie (nxs_session) in your browser — it cannot be read by JavaScript and is never shared with third parties.",
+          "When you create an account we collect your email address, your name (optional), and your password (hashed irreversibly with bcrypt, never stored in plain text). To keep you signed in we place an HttpOnly, server-only session cookie (nxs_session) in your browser — it cannot be read by JavaScript and is never shared with third parties. For security we record account events such as sign-in, registration and password reset in a security log together with the IP address and browser information; these records are deleted automatically after 90 days and are used only to detect abuse.",
       },
       {
         heading: "Third-party service providers",

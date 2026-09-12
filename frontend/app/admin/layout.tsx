@@ -18,6 +18,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: "/admin/usage",            icon: "◈", label: t.usage },
     { href: "/admin/sponsors",         icon: "⬡", label: t.sponsors },
     { href: "/admin/contact-messages", icon: "✉", label: t.contactMessages },
+    { href: "/admin/security",         icon: "⛨", label: t.securityEvents },
   ];
 
   // Giriş yapmış ama moderator/admin OLMAYAN kullanıcıya "API anahtarı gir"
