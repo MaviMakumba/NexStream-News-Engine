@@ -89,3 +89,25 @@ def test_setup_logging_text():
         setup_logging()
         root = logging.getLogger()
         assert isinstance(root.handlers[0].formatter, _TextFormatter)
+
+
+def test_json_formatter_includes_request_id_when_set():
+    """13 Eyl 2026: uçtan uca request_id — nginx log ↔ app log ↔ security_events."""
+    import json, logging
+    from src.infrastructure.logging.logger import _JSONFormatter
+    from src.adapters.api.request_context import bind_request_id
+
+    token = bind_request_id("abc123")
+    try:
+        record = logging.LogRecord("t", logging.INFO, "f.py", 1, "hello", None, None)
+        entry = json.loads(_JSONFormatter().format(record))
+    finally:
+        bind_request_id(None, token)
+    assert entry["request_id"] == "abc123"
+
+
+def test_json_formatter_omits_request_id_outside_requests():
+    import json, logging
+    from src.infrastructure.logging.logger import _JSONFormatter
+    record = logging.LogRecord("t", logging.INFO, "f.py", 1, "hello", None, None)
+    assert "request_id" not in json.loads(_JSONFormatter().format(record))

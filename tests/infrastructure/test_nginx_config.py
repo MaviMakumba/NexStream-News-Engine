@@ -44,3 +44,22 @@ def test_grafana_proxy_keeps_subpath_prefix():
     block = re.search(r"location\s+/grafana/\s*\{(?P<body>[^}]*)\}", conf)
     assert block
     assert re.search(r"proxy_pass\s+\$grafana_upstream\s*;", block.group("body")), block.group("body")
+
+
+# ── Uçtan uca request_id (13 Eylül 2026) ──────────────────────────────────────
+
+def test_access_log_carries_request_id_and_cf_ray():
+    conf = _conf()
+    log_format = re.search(r"log_format\s+main\s+(.*?);", conf, re.S).group(1)
+    assert "$request_id" in log_format
+    assert "$http_cf_ray" in log_format
+
+
+def test_api_locations_pass_nginx_request_id_to_app():
+    """İstemcinin gönderdiği X-Request-ID EZİLİR — proxy_set_header ile nginx'in
+    kendi $request_id'si basılır; app bu header'a bu yüzden güvenebilir."""
+    conf = _conf()
+    for loc in (r"location\s+/api/v1/\s*\{", r"location\s+/api/\s*\{", r"location\s+/api/health\s*\{"):
+        m = re.search(loc + r"(?P<body>[^}]*)\}", conf)
+        assert m, loc
+        assert re.search(r"proxy_set_header\s+X-Request-ID\s+\$request_id;", m.group("body")), loc

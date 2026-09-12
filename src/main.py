@@ -16,7 +16,8 @@ import logging
 import time
 from contextlib import asynccontextmanager
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
@@ -27,6 +28,9 @@ from src.infrastructure.config.settings import settings
 from src.infrastructure.logging.logger import setup_logging
 from src.infrastructure.observability.sentry import init_sentry
 from src.adapters.api.limiter import limiter
+from src.adapters.api.request_context import RequestContextMiddleware
+from src.adapters.api.security_audit import record_security_event
+from src.domain.models.security_event import EventCategory, EventType
 from src.adapters.api.routers import news_router, health_router
 from src.adapters.api.routers.websocket_router import router as ws_router
 from src.adapters.api.routers.feed_router import router as feed_router
@@ -207,7 +211,43 @@ aramasıyla sunan bir haber motoru API'si.
 )
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+def _audit_db():
+    """Exception handler'larda DI yok — güvenlik günlüğü için kısa ömürlü session."""
+    return SessionLocal()
+
+
+async def _rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """slowapi 429'u + güvenlik günlüğüne `rate_limited` (13 Eyl 2026, abuse)."""
+    db = _audit_db()
+    try:
+        record_security_event(db, request, EventCategory.ABUSE, EventType.RATE_LIMITED,
+                              detail=f"{request.method} {request.url.path} limit={exc.detail}")
+    finally:
+        db.close()
+    return _rate_limit_exceeded_handler(request, exc)
+
+
+async def _http_exception_handler(request: Request, exc: HTTPException):
+    """/admin altındaki 401/403'leri güvenlik günlüğüne yazar (access), sonra
+    FastAPI'nin varsayılan handler'ına devreder — yanıt gövdesi değişmez."""
+    if exc.status_code in (401, 403) and request.url.path.startswith("/admin"):
+        db = _audit_db()
+        try:
+            record_security_event(db, request, EventCategory.ACCESS, EventType.ADMIN_ACCESS_DENIED,
+                                  detail=f"{exc.status_code} {request.method} {request.url.path}")
+        finally:
+            db.close()
+    return await http_exception_handler(request, exc)
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
+app.add_exception_handler(HTTPException, _http_exception_handler)
+# request_id: nginx'in X-Request-ID'si (yoksa üretilir) → ContextVar → JSON log +
+# security_events + yanıt header'ı. Middleware'ler ters sırada sarar; bu en
+# dışta olmalı ki CORS dahil her şey request_id'li çalışsın (13 Eyl 2026).
+app.add_middleware(RequestContextMiddleware)
 
 origins = settings.cors_origins.split(",") if settings.cors_origins != "*" else ["*"]
 app.add_middleware(

@@ -9,6 +9,7 @@ import logging
 import sys
 from datetime import datetime, timezone
 from src.infrastructure.config.settings import settings
+from src.adapters.api.request_context import current_request_id
 
 
 class _JSONFormatter(logging.Formatter):
@@ -19,6 +20,12 @@ class _JSONFormatter(logging.Formatter):
             "logger": record.name,
             "msg": record.getMessage(),
         }
+        # Uçtan uca izleme (13 Eyl 2026): nginx access log ↔ app log ↔
+        # security_events aynı request_id ile bağlanır. İstek dışı (worker,
+        # startup) satırlarda alan hiç yazılmaz.
+        request_id = current_request_id()
+        if request_id:
+            entry["request_id"] = request_id
         if record.exc_info:
             entry["exc"] = self.formatException(record.exc_info)
         return json.dumps(entry, ensure_ascii=False)

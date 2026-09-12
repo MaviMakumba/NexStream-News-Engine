@@ -17,7 +17,7 @@ genel "exception yut, fallback dön" ilkesiyle tutarlı).
 from typing import Optional
 
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+from src.adapters.api.request_context import client_ip
 
 from src.infrastructure.config.settings import settings
 
@@ -27,8 +27,13 @@ def _limiter_storage_uri(redis_url: str) -> Optional[str]:
     return redis_url or None
 
 
+# key_func (13 Eyl 2026): eskiden slowapi'nin get_remote_address'i —
+# request.client.host — kullanılıyordu; uvicorn proxy header'larını kabul
+# etmediği için bu prod'da NGINX'in iç IP'siydi, yani TÜM ziyaretçiler tek
+# kovada sayılıyordu (bir kötüye kullanan herkesi 429'a düşürebilirdi).
+# client_ip nginx'in yazdığı X-Real-IP'yi (Cloudflare düzeltmeli) okur.
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=client_ip,
     storage_uri=_limiter_storage_uri(settings.redis_url),
     in_memory_fallback_enabled=True,
 )

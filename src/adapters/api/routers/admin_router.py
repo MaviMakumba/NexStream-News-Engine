@@ -18,16 +18,19 @@ silme yerine `is_active=false` yazılır ki geçmiş kampanyalar raporlanabilsin
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.adapters.api.auth_utils import require_admin, require_moderator, require_owner, get_current_user, get_optional_user, effective_role, has_owner_role
 from src.adapters.repositories.user_repository import UserRepository
+from src.adapters.repositories.security_event_repository import SecurityEventRepository
+from src.adapters.api.security_audit import record_security_event
+from src.domain.models.security_event import EventCategory, EventType
 from src.adapters.repositories.orm_models import SponsorORM, ContactMessageORM
 from src.domain.models.sponsor import Sponsor
 from src.domain.models.user import User, UserRole, UserTier, role_at_least
@@ -107,6 +110,7 @@ _ASSIGNABLE_ROLES = (UserRole.USER.value, UserRole.MODERATOR.value, UserRole.ADM
 
 @router.patch("/users/{user_id}/role")
 def update_user_role(
+    request: Request,
     user_id: int,
     req: RoleUpdateRequest,
     current_user: User = Depends(get_current_user),
@@ -144,6 +148,9 @@ def update_user_role(
     if not repo.update_role(user_id, req.role):
         raise HTTPException(status_code=404, detail="User not found")
     logger.info("Rol değişti: user_id=%s → %s (işlemi yapan: %s)", user_id, req.role, current_user.email)
+    record_security_event(db, request, EventCategory.ADMIN, EventType.ROLE_CHANGED,
+                          email=target.email, user_id=user_id,
+                          detail=f"{target_role} -> {req.role} by {current_user.email}")
     return {"id": user_id, "role": req.role}
 
 
@@ -165,6 +172,7 @@ class ActiveUpdateRequest(BaseModel):
 
 @router.patch("/users/{user_id}/active")
 def update_user_active(
+    request: Request,
     user_id: int,
     req: ActiveUpdateRequest,
     actor: Optional[User] = Depends(get_optional_user),
@@ -201,6 +209,11 @@ def update_user_active(
         raise HTTPException(status_code=404, detail="User not found")
     if not req.is_active:
         repo.delete_sessions_for_user(user_id)
+    record_security_event(
+        db, request, EventCategory.ADMIN,
+        EventType.USER_UNBANNED if req.is_active else EventType.USER_BANNED,
+        email=target.email, user_id=user_id, detail=f"by {actor.email if actor else 'X-API-Key'}",
+    )
 
     logger.info(
         "Kullanıcı durumu değişti: user_id=%s → is_active=%s (işlemi yapan: %s)",
@@ -220,6 +233,7 @@ _ASSIGNABLE_TIERS = (UserTier.FREE.value, UserTier.PRO.value, UserTier.ENTERPRIS
 
 @router.patch("/users/{user_id}/tier", dependencies=[Depends(require_owner)])
 def update_user_tier(
+    request: Request,
     user_id: int,
     req: TierUpdateRequest,
     db: Session = Depends(get_db),
@@ -238,10 +252,14 @@ def update_user_tier(
         raise HTTPException(status_code=400, detail="tier must be free, pro or enterprise")
 
     repo = UserRepository(db)
-    if not repo.get_by_id(user_id):
+    target = repo.get_by_id(user_id)
+    if not target:
         raise HTTPException(status_code=404, detail="User not found")
 
     repo.update_tier(user_id, req.tier)
+    record_security_event(db, request, EventCategory.ADMIN, EventType.TIER_CHANGED,
+                          email=target.email, user_id=user_id,
+                          detail=f"{target.tier} -> {req.tier} by {actor.email if actor else 'X-API-Key'}")
     logger.info(
         "Manuel tier verildi: user_id=%s → %s (işlemi yapan: %s)",
         user_id, req.tier, actor.email if actor else "X-API-Key",
@@ -421,3 +439,31 @@ def mark_contact_message_read(message_id: int, db: Session = Depends(get_db)):
     orm.is_read = True
     db.commit()
     return _contact_message_to_dict(orm)
+
+
+# ── Güvenlik günlüğü (13 Eylül 2026) ─────────────────────────────────────────
+# "Bu IP hangi hesapları açtı? Bu hesap hangi IP'lerden girdi? Kim brute force
+# yedi?" — 12 Eylül olayında nginx logu + DB zaman damgası eşleştirerek
+# cevaplanan sorular artık tek sorgu. Görüntüleme require_moderator (router
+# geneli) yeterli; yazma ucu YOK (olaylar sadece uygulama tarafından üretilir).
+
+def _security_event_to_dict(e) -> dict:
+    return {
+        "id": e.id, "category": e.category, "event_type": e.event_type,
+        "email": e.email, "user_id": e.user_id, "ip": e.ip, "user_agent": e.user_agent,
+        "request_id": e.request_id, "path": e.path, "detail": e.detail, "created_at": e.created_at,
+    }
+
+
+@router.get("/security-events")
+def list_security_events(
+    email: Optional[str] = Query(None, max_length=255),
+    ip: Optional[str] = Query(None, max_length=64),
+    event_type: Optional[str] = Query(None, max_length=40),
+    hours: int = Query(24, ge=1, le=24 * 90),
+    limit: int = Query(200, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    rows = SecurityEventRepository(db).query(email=email, ip=ip, event_type=event_type, since=since, limit=limit)
+    return [_security_event_to_dict(r) for r in rows]
