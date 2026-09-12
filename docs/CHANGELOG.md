@@ -1252,6 +1252,20 @@ gerekmedi).
   duckdns'i sildi; SG'de 22 kaldırıldı, 80/443 sadece Cloudflare aralıklarına
   (önce ekle→doğrula→sonra 0.0.0.0/0'ı kaldır, kesintisiz). Origin doğrudan
   erişilemez, SSM çalışıyor. Sunucu büyütme bilinçli ertelendi (kredi).
+- **13 Eyl — güvenlik günlüğü (PR #135 backend, #136 admin sayfası):**
+  kullanıcı "saldırganı kayıt tarihine bakarak mı buldun?" diye sordu — evet,
+  nginx logu + DB `created_at` saniye eşleşmesiyle; kalıcı bir bağ yoktu.
+  Dış görüş (kullanıcının "bilgili abi"si) ile tasarım revize edildi: tek
+  `security_events` tablosu (category ile bölümlü), `request_id` zorunlu,
+  X-Real-IP güven sınırı nginx'te, 90 gün retention, admin sayfası,
+  gelecekte `security_events` genişlemesine uygun. Olaylar: register,
+  login_success/failure (denenen e-posta), logout, password reset, email
+  verified, role/tier/ban, api key gen/revoke, /admin 401-403, slowapi 429.
+  **Yan bulgu ve fix:** slowapi `get_remote_address` prod'da nginx'in iç
+  IP'sini görüyordu (uvicorn proxy header kabul etmiyor) → tüm ziyaretçiler
+  tek rate-limit kovasındaydı; limiter `client_ip`'ye geçti. Migration
+  prod'a SSM ile uygulandı (fail-open olduğu için sıra önemli değildi).
+  `/privacy`'ye güvenlik günlüğü cümlesi eklendi.
 - **Kullanıcının repo public/private sorusu:** public kalması önerildi
   (portfolyo değeri projenin varlık sebebi; sır yok; kod görünürlüğü ihlale yol
   açmadı, bulgular kodu okumadan da bulunabilirdi). Karar kullanıcıda.
