@@ -1266,6 +1266,13 @@ gerekmedi).
   tek rate-limit kovasındaydı; limiter `client_ip`'ye geçti. Migration
   prod'a SSM ile uygulandı (fail-open olduğu için sıra önemli değildi).
   `/privacy`'ye güvenlik günlüğü cümlesi eklendi.
+- **13 Eyl 22:20-22:50 — scheduler crash-loop (PR #138):** güvenlik günlüğü
+  deploy'undan sonra host sağlık kontrolünde `nexstream_scheduler
+  restarts=10` görüldü. Neden: `logger.py` → `adapters/api/request_context`
+  → `fastapi`; scheduler light image'da fastapi yok → `ModuleNotFoundError`.
+  Bağımlılık yönü ihlaliydi. ContextVar `infrastructure/logging/request_id.py`
+  'ye taşındı, subprocess tabanlı regresyon testi eklendi. Ders: deploy
+  sonrası TÜM container'ların RestartCount'una bak (CLAUDE.md notu).
 - **Kullanıcının repo public/private sorusu:** public kalması önerildi
   (portfolyo değeri projenin varlık sebebi; sır yok; kod görünürlüğü ihlale yol
   açmadı, bulgular kodu okumadan da bulunabilirdi). Karar kullanıcıda.
