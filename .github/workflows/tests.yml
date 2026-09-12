@@ -3,6 +3,12 @@ name: Tests
 on:
   push:
     branches: [ main ]
+    # Sadece dokümantasyon değişen push'lar (CLAUDE.md, docs/, README) ne test
+    # ne DEPLOY tetikler — t3.small'da her deploy RAM/CPU-credit riski (bkz.
+    # CHANGELOG 11 Eylül). PR tetikleyicisinde paths-ignore YOK: PR yine test edilir.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   pull_request:
     branches: [ main ]
 

@@ -10,7 +10,7 @@
 
 Site canlıya çıktıktan sonra üç somut sorun ortaya çıktı:
 
-1. **Sahip hesabı "Ücretsiz" görünüyor.** `erenk897@gmail.com` `ADMIN_EMAILS`
+1. **Sahip hesabı "Ücretsiz" görünüyor.** `<sahip-email>` `ADMIN_EMAILS`
    bootstrap'i sayesinde admin yetkisine sahip ama DB'de `role=user`,
    `tier=free`. Rol ve tier birbirinden bağımsız eksenler olduğu için "admin
    ama ücretsiz kullanıcı" hali doğuyor: günlük kota 100 istek, Pro+ özellikler
