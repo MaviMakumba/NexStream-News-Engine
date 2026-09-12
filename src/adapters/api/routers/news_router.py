@@ -117,7 +117,10 @@ def get_story_cluster(
     `related`'ın aksine tier gating YOK — corroboration rozeti gibi bir
     şeffaflık özelliği, herkese açık.
     """
-    return service.get_story_cluster(article_id, limit)
+    cluster = service.get_story_cluster(article_id, limit)
+    if cluster is None:
+        raise HTTPException(status_code=404, detail="Haber bulunamadı. / Article not found.")
+    return cluster
 
 
 @router.post("/reanalyze")

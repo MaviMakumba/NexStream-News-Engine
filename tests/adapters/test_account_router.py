@@ -150,15 +150,17 @@ def test_revoke_api_key_clears_key(app_client):
     repo.set_api_key.assert_called_once_with(1, None)
 
 
-def test_get_api_key_returns_current(app_client):
-    _override(app_client, _make_user(api_key="nxs_abc123"))
+def test_get_api_key_never_returns_stored_value(app_client):
+    """12 Eyl 2026: anahtar artık hash'lenmiş saklanıyor — GET ham anahtarı
+    veremez (elinde yok), hash'i de sızdırmamalı; sadece var/yok bilgisi döner."""
+    _override(app_client, _make_user(api_key="sha256-of-key"))
     try:
         resp = app_client.get("/account/api-key")
     finally:
         _clear(app_client)
 
     assert resp.status_code == 200
-    assert resp.json() == {"api_key": "nxs_abc123", "has_api_key": True}
+    assert resp.json() == {"api_key": None, "has_api_key": True}
 
 
 # ── /account/newsletter ─────────────────────────────────────────────────────

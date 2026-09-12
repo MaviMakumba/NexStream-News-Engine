@@ -7,6 +7,7 @@ nesnesi görmez.
 """
 
 import logging
+import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
@@ -21,6 +22,19 @@ from src.adapters.repositories.orm_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def hash_api_key(api_key: str) -> str:
+    """Kullanıcı API anahtarının saklama biçimi (12 Eyl 2026 güvenlik turu).
+
+    `users.api_key` düz metin tutuluyordu — DB sızıntısı/yedek dosyası tüm
+    anahtarları doğrudan kullanılabilir kılardı. Anahtar zaten rastgele 24 byte
+    (`secrets.token_urlsafe`), tahmin/sözlük saldırısı anlamsız; bu yüzden
+    bcrypt gibi yavaş bir hash gereksiz, SHA-256 yeterli ve String(64) kolona
+    tam sığar (64 hex). Eski düz-metin anahtarlar bu değişiklikle geçersizleşir,
+    kullanıcı hesap sayfasından yeniden üretir.
+    """
+    return hashlib.sha256(api_key.encode()).hexdigest()
 
 
 class UserRepository(UserRepositoryPort):
@@ -99,7 +113,9 @@ class UserRepository(UserRepositoryPort):
         return self._to_user(orm) if orm else None
 
     def get_by_api_key(self, api_key: str) -> Optional[User]:
-        orm = self.db.query(UserORM).filter(UserORM.api_key == api_key).first()
+        """Ham anahtardan kullanıcıyı çözer — kolonda hash saklandığı için önce
+        hash'lenir; DB'den sızan hash'in kendisi kimlik olarak işe yaramaz."""
+        orm = self.db.query(UserORM).filter(UserORM.api_key == hash_api_key(api_key)).first()
         return self._to_user(orm) if orm else None
 
     def list_users(self, limit: int = 50, offset: int = 0, tier: Optional[str] = None) -> List[User]:
@@ -145,10 +161,12 @@ class UserRepository(UserRepositoryPort):
         return True
 
     def set_api_key(self, user_id: int, api_key: Optional[str]) -> bool:
+        """Ham anahtarı alır, HASH'İNİ saklar (None = iptal). Ham değer bir daha
+        okunamaz — çağıran (account_router) onu sadece üretim yanıtında gösterir."""
         orm = self.db.query(UserORM).filter(UserORM.id == user_id).first()
         if not orm:
             return False
-        orm.api_key = api_key
+        orm.api_key = hash_api_key(api_key) if api_key else None
         self.db.commit()
         return True
 

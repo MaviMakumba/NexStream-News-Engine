@@ -78,3 +78,27 @@ def test_story_cluster_v1_endpoint(app_client):
 
     assert r.status_code == 200
     assert r.json()["sources"][0]["id"] == 2
+
+
+def test_story_cluster_404_when_article_missing_legacy(app_client):
+    """12 Eyl 2026: var olmayan/negatif ID'de boş 200 yerine 404 (girdi doğrulama
+    bulgusu — canlıda /news/-999/sources 200 dönüyordu)."""
+    mock_service = MagicMock()
+    mock_service.get_story_cluster.return_value = None
+    _override(app_client, mock_service)
+    try:
+        r = app_client.get("/news/-999/sources")
+    finally:
+        _clear(app_client)
+    assert r.status_code == 404
+
+
+def test_story_cluster_404_when_article_missing_v1(app_client):
+    mock_service = MagicMock()
+    mock_service.get_story_cluster.return_value = None
+    _override(app_client, mock_service)
+    try:
+        r = app_client.get("/api/v1/news/-999/sources")
+    finally:
+        _clear(app_client)
+    assert r.status_code == 404
