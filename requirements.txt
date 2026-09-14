@@ -8,7 +8,7 @@ uvicorn==0.52.3
 # transitive getirdiği için sorun hiç fark edilmemişti.
 websockets==16.0
 sqlalchemy==2.0.46
-psycopg2-binary==2.9.12
+psycopg2-binary==2.9.13
 pydantic==2.13.4
 pydantic-settings==2.15.0
 python-dotenv==1.2.3
