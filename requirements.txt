@@ -18,7 +18,7 @@ beautifulsoup4==4.15.0
 lxml==6.1.2
 aiokafka==0.14.0
 apscheduler==3.11.3
-chromadb-client==1.5.5
+chromadb-client==1.5.9
 # sentence-transformers BURADA YOK: model ayrı `embedder` servisinde tek kopya
 # duruyor (requirements-embedder.txt). app/worker embedding'i HTTP ile soruyor,
 # bu yüzden torch da kurulmuyor. httpx AŞAĞIDA KALMALI — HttpEmbedderAdapter onu
