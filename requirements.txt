@@ -1,4 +1,4 @@
-fastapi==0.139.2
+fastapi==0.141.1
 uvicorn==0.52.3
 # uvicorn[standard] DEĞİL — bilinçli minimal seçim (o extras httptools/uvloop/
 # watchfiles de getirir). /ws/feed'in ASGI seviyesinde çalışması için gereken
