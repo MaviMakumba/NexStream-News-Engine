@@ -123,10 +123,22 @@ container-crash testleri bunu yakalamaz, sadece gerçek reboot ortaya çıkarır
 Tamamlanan işlerin tam kronolojik dökümü `docs/CHANGELOG.md`'de. Burada sadece
 GERÇEKTEN bekleyen işler var:
 
-1. **Anasayfa tasarım yenilemesi** — kullanıcı "şu an tamamen basit bir AI
-   tasarımı gibi duruyor" dedi (18 Ağu 2026), özellikle hero. Bilinçli olarak
-   BAŞLANMADI — gerçek bir tasarım kararı işi, `frontend-design` skill'i ile
-   ayrı/temiz bir oturumda ele alınmalı, aceleye getirilmemeli.
+1. ~~Anasayfa tasarım yenilemesi~~ — ✅ 18 Eylül 2026 (PR #155). `frontend-design`
+   skill'iyle brainstorm edildi: Day teması (varsayılan) kırmızı vurgu +
+   Newsreader serif kimliğine yenilendi — **tema seçici hâlâ anasayfayı da
+   kapsıyor** (kullanıcı bilinçli kararı: "temalar değiştikçe sayfanın
+   değişmesi güzel bir özellik, kalsın" — bu yüzden yeni palet ayrı bir
+   sayfa-scope class'a değil doğrudan `[data-theme="day"]`'e yazıldı, diğer
+   9 tema ve dashboard/admin etkilenmedi). Hero'ya gerçek `/feed.xml`'i
+   çeken bir canlı akış paneli (`LiveWireStrip.tsx`, Pro-özel WebSocket
+   yerine public RSS poll — anonim ziyaretçide paywall göstermesin diye)
+   ve yeni "Bir haber kartında neler var?" bölümü (`CardSpotlight.tsx`,
+   Kaydet/Güvenilirlik skoru/Sor/Dinle/İlgili haberler/Habere git numaralı
+   pin'lerle işaretli — kullanıcı geri bildirimi: ziyaretçiler bu
+   özellikleri fark etmiyordu) eklendi. Aynı oturumda bulunan iki bug da
+   düzeltildi: Navbar aktif-sekme prefix-match çakışması (Haberler/Arama/
+   Soru Sor aynı anda aktif görünüyordu) ve `/dashboard/ask`'ın mount'ta
+   gereksiz `scrollIntoView` ile sayfayı kaydırması.
 2. **Gerçek Stripe entegrasyonu — 24 Ağu 2026'da kullanıcı kararıyla ERTELENDİ**
    (şirket kurma/vergi levhası gibi ek hukuki-mali yük istemiyor). Kod tarafı
    hazır kalıyor ama öncelik değil. **Bunun yerine gelir yolu olarak Google
