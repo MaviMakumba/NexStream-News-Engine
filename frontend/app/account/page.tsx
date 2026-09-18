@@ -465,8 +465,10 @@ export default function AccountPage() {
           )}
         </div>
 
-        {/* Bülten tercihleri (v2.1.1) */}
-        <div className="card">
+        {/* Bülten tercihleri (v2.1.1) — id: anasayfadaki "Bülten" özellik kartı
+            (18 Eylül 2026) buraya #newsletter ile geliyor, sayfanın en
+            üstünde bırakmak yerine doğrudan bu karta kaydırır. */}
+        <div id="newsletter" className="card" style={{ scrollMarginTop: 76 }}>
           <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>
             ✉ {t.newsletterTitle}
           </h2>
@@ -598,9 +600,13 @@ export default function AccountPage() {
           />
         </div>
 
-        {/* Ham veri export (v1.16, Enterprise) */}
+        {/* Ham veri export (v1.16, Enterprise) — id: anasayfadaki "Ham Veri
+            Export" kartı #export ile buraya kaydırır (18 Eylül 2026). Sadece
+            Enterprise kullanıcıda render edilir — diğerlerinde hedef element
+            yok, tarayıcı sayfanın tepesinde kalır (mevcut davranışla aynı,
+            regresyon değil). */}
         {(user.effective_tier ?? user.tier) === "enterprise" && (
-          <div className="card">
+          <div id="export" className="card" style={{ scrollMarginTop: 76 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text)" }}>
                 ⇩ {t.exportTitle}
