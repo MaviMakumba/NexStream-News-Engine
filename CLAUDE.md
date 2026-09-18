@@ -138,7 +138,28 @@ GERÇEKTEN bekleyen işler var:
    özellikleri fark etmiyordu) eklendi. Aynı oturumda bulunan iki bug da
    düzeltildi: Navbar aktif-sekme prefix-match çakışması (Haberler/Arama/
    Soru Sor aynı anda aktif görünüyordu) ve `/dashboard/ask`'ın mount'ta
-   gereksiz `scrollIntoView` ile sayfayı kaydırması.
+   gereksiz `scrollIntoView` ile sayfayı kaydırması. **Deploy sonrası
+   kullanıcı bulgusu (PR #157):** anasayfadaki Bülten/Ham Veri Export
+   kartları `/account`'a düz gidiyordu, sayfanın tepesinde açılıyordu —
+   ilgili `.card`'lara `id="newsletter"`/`id="export"` +
+   `scrollMarginTop` eklendi, link'ler `#newsletter`/`#export`'a
+   güncellendi (Export sadece Enterprise'da render edildiği için diğer
+   tier'larda hedef yok, tarayıcı tepede kalır — regresyon değil). **Footer
+   artık paylaşılan bir bileşen** (`components/Footer.tsx`) — sadece
+   anasayfada değil, /privacy /terms /security /contact'ta da var (kullanıcı
+   bulgusu: arama motorundan bu sayfalara doğrudan gelen ziyaretçinin siteyi
+   keşfetme yolu yoktu). Bilinçli olarak dashboard/hesabım/admin ve auth
+   (giriş/kayıt) ekranlarına EKLENMEDİ — ilki uygulama-içi yoğun ekran,
+   ikincisi odaklanma gerektiren minimal ekran (Stripe/Linear deseni).
+   **E-posta şablonları da yenilendi** (`email_adapter.py::_brand_shell`,
+   kullanıcı bulgusu: "bülten/şifre/anlık maillerin içeriği eski ve sade
+   kaldı, siteye git gibi linkler yok") — tüm kullanıcı-görünür mailler
+   (digest/alert/reset/verify/welcome) artık aynı NexStream başlığı + footer'da
+   her zaman "Siteye git", digest/alert'te ayrıca "Aboneliği iptal et"
+   paylaşıyor. Renkler CSS `var()` DEĞİL düz hex (e-posta istemcileri custom
+   property okumaz) — Day temasının paletiyle (`#c31e2a` vb.) elle senkron,
+   yeni bir marka rengi değişikliğinde `_brand_shell`'i de güncellemeyi
+   unutma.
 2. **Gerçek Stripe entegrasyonu — 24 Ağu 2026'da kullanıcı kararıyla ERTELENDİ**
    (şirket kurma/vergi levhası gibi ek hukuki-mali yük istemiyor). Kod tarafı
    hazır kalıyor ama öncelik değil. **Bunun yerine gelir yolu olarak Google

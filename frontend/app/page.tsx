@@ -9,6 +9,7 @@ import { BASE } from "@/lib/api";
 import { LandingSearchDemo } from "@/components/LandingSearchDemo";
 import { LiveWireStrip } from "@/components/LiveWireStrip";
 import { CardSpotlight } from "@/components/CardSpotlight";
+import { Footer } from "@/components/Footer";
 import { UI, FEATURES, PRICING } from "@/lib/i18n";
 
 export default function LandingPage() {
@@ -241,37 +242,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer style={{ borderTop: "1px solid var(--border)", padding: "24px 20px" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between",
-                      alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-          <span style={{ fontSize: "0.82rem", color: "var(--text3)" }}>
-            © 2026 <span style={{ fontWeight: 700, color: "var(--accent)" }}>NexStream</span> — {t.footerTagline}
-          </span>
-          {/* flexWrap: dar ekranda 7 link (Haberler..İletişim) tek satıra
-              sığmıyordu, body'deki global overflow-x:hidden taşan kısmı
-              sayfa kaydırmasına çevirmek yerine kırpıyordu — Güvenlik/
-              İletişim linkleri mobilde görünmüyordu (18 Eylül 2026). */}
-          <div style={{ display: "flex", gap: "10px 24px", flexWrap: "wrap" }}>
-            {[
-              { label: t.dashboard, href: "/dashboard" },
-              { label: t.apiDocs,   href: `${BASE}/docs` },
-              { label: "RSS",       href: `${BASE}/feed.xml` },
-              { label: t.privacy,   href: "/privacy" },
-              { label: t.terms,     href: "/terms" },
-              { label: t.security,  href: "/security" },
-              { label: t.contactLink, href: "/contact" },
-            ].map((l) => (
-              <a key={l.label} href={l.href} target={l.href.startsWith("http") ? "_blank" : "_self"}
-                 style={{ fontSize: "0.82rem", color: "var(--text3)", textDecoration: "none", transition: "color 0.15s" }}
-                 onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent)")}
-                 onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text3)")}>
-                {l.label}
-              </a>
-            ))}
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
