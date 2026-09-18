@@ -363,16 +363,30 @@ GERÇEKTEN bekleyen işler var:
     ve YENİ kopyası kısa süre aynı anda bellekte kalabiliyor). Image'ı
     GitHub Actions runner'ında build edip ücretsiz bir registry'ye (GHCR)
     push etmek, EC2'nin sadece `docker pull`+`up -d` yapmasını sağlar —
-    build hiç EC2'de olmaz. **Ara-önlem (PR #124, aynı gün) uygulandı ve
-    YETERLİ göründü:** build+health-check penceresinde RAM-ağır izleme
-    servisleri (Prometheus/Grafana/Loki/Promtail) geçici durduruluyor,
-    sonraki deploy sorunsuz tamamlandı. **Kullanıcı CPU Credit "Unlimited"
+    build hiç EC2'de olmaz. **Ara-önlem (PR #124, 11 Eylül) TEK BAŞINA
+    YETERSİZ olduğu 18 Eylül 2026'da KANITLANDI:** izleme yığını
+    (Prometheus/Grafana/Loki/Promtail) build sırasında zaten durdurulmuş
+    haldeyken bile (mitigation aktifti, doğrulandı) tek bir frontend+backend
+    değişikliği içeren normal bir deploy'da load average 24'e, swap
+    kullanımı 2.0Gi'nin tamamına çıktı; `nexstream_engine`/`embedder`/
+    `redpanda` sırayla unhealthy/OOM oldu, site ~20 dakika 10+ saniyelik
+    yanıt süreleriyle fiilen kullanılamaz durumdaydı (SSM Agent bu sefer
+    "Online" kaldı, komutlar sadece çok yavaştı — 11 Eylül'deki gibi tam
+    kopma olmadı ama aynı kök neden). Sistem ~20 dakika sonra KENDİ
+    KENDİNE toparlandı (reboot'a GEREK KALMADI — reboot denemesi zaten
+    Claude Code'un otomatik izin sınıflandırıcısı tarafından iki kez
+    reddedildi, "Production Deploy"/"dangerous" gerekçesiyle; kullanıcı
+    onayı bunu AŞAMADI, gerçek reboot ancak kullanıcının kendi AWS
+    Console/CLI erişimiyle mümkün). **Kullanıcı CPU Credit "Unlimited"
     moduna geçmeyi bilinçli REDDETTİ** (küçük de olsa bir maliyet riski
     istemedi) — bu yüzden registry'ye taşıma tek gerçek "$0 garantili"
-    kalıcı çözüm. Bounded değil, ayrı bir tasarım/plan turu gerektirir
-    (registry auth, image tagging/versioning, workflow yeniden yazımı).
-    Tekrar bir tıkanma yaşanırsa ÖNCELİK bu maddeye verilmeli. Detay:
-    CHANGELOG "11 Eylül prod kesintisi".
+    kalıcı çözüm, artık ERTELENEMEZ. Bounded değil, ayrı bir tasarım/plan
+    turu gerektirir (registry auth, image tagging/versioning, workflow
+    yeniden yazımı). **Bu maddeye kadar geçici disiplin: küçük/acil
+    olmayan değişiklikleri tek tek deploy etmek yerine biriktirip TEK
+    seferde göndermek** (kullanıcı kararı, 18 Eylül) — her `main` push'u
+    EC2'de tam bir `--build` tetikliyor, sık push = sık RAM/CPU spike'ı.
+    Detay: CHANGELOG "11 Eylül prod kesintisi", "18 Eylül deploy yavaşlaması".
 
 29. ~~**Security Group sıkılaştırma + duckdns kapatma**~~ — ✅ **13 Eyl 2026.**
     Kullanıcı `nexstream-deploy` IAM kullanıcısına inline policy
@@ -396,6 +410,26 @@ GERÇEKTEN bekleyen işler var:
       temizliği sonrası host rahatladı, kullanıcı krediyi korumak istiyor;
       RAM/CPU-credit sorunu tekrar yaşanırsa `ec2:ModifyInstanceAttribute`
       izniyle stop→tip değiştir→start (5 dk kesinti) ya da Hetzner kararı.
+
+30. **Güvenlik günlüğü (security_events) sekmesinin tam denetimi — 18 Eylül
+    2026'da kullanıcı isteğiyle açıldı, HENÜZ YAPILMADI.** Tetikleyici:
+    kullanıcı hesap silmenin (`DELETE /account`) günlükte hiç görünmediğini
+    fark etti — bu TEK eksik aynı gün bounded bir düzeltmeyle kapatıldı
+    (`EventType.ACCOUNT_DELETED`, TDD, `account_router.py::delete_account` +
+    `admin/security/page.tsx::EVENT_TYPES`). Ama kullanıcının asıl isteği
+    daha genişti ("sekmeyi iyice bir elden geçirmek lazım") — bu, o anda
+    oturum zaten çok uzadığı (aynı gün: anasayfa yenileme + mobil responsive
+    turu + footer + e-posta şablonları + bir prod yavaşlaması) için AYRI/TAZE
+    bir oturuma ertelendi, ama kullanıcı "erteleme dediğin iş kayboluyor"
+    diye haklı bir kaygı belirtti — bu yüzden burada AÇIK bir madde olarak
+    duruyor, sözle geçmedi. **Sonraki oturumun işi:** mevcut 15 `EventType`'ın
+    (artık ACCOUNT_DELETED dahil) kullanıcı yaşam döngüsünün geri kalanını
+    (bülten aboneliği/iptali, kaydedilen haber, push bildirim aboneliği gibi
+    güvenlik-ilişkisiz olanlar HARİÇ tutulmalı — hepsini eklemek gürültü
+    yaratır) gerçekten kapsayıp kapsamadığını sistematik gözden geçir; ayrıca
+    `/admin/security` sayfasının kendisinin (filtre UX'i, sayfalama var mı,
+    IP/e-posta çapraz sorgulama akışı) kullanıcı gözünden hâlâ yeterli olup
+    olmadığını sor.
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,

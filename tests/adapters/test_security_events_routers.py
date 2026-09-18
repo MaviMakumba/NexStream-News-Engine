@@ -137,6 +137,31 @@ def test_non_admin_401_is_not_recorded_as_admin_denial(app_client):
 
 # ── access: API anahtarı ──────────────────────────────────────────────────────
 
+def test_account_deletion_is_recorded(app_client):
+    """18 Eylül 2026 kullanıcı bulgusu: hesap silme (DELETE /account) güvenlik
+    günlüğüne hiç yazılmıyordu — 14 olay tipi arasında ACCOUNT_DELETED yoktu."""
+    _override_user(app_client, _user(id=7, email="silinecek@test.com"))
+    try:
+        with patch("src.adapters.api.routers.account_router.verify_password", return_value=True), \
+             patch("src.adapters.api.routers.account_router.UserRepository") as MockUserRepo, \
+             patch("src.adapters.api.routers.account_router.SubscriberRepository"), \
+             patch("src.adapters.api.routers.account_router.PushSubscriptionRepository"), \
+             patch("src.adapters.api.routers.account_router.record_security_event") as rec:
+            user_repo = MagicMock()
+            user_repo.delete_user.return_value = True
+            MockUserRepo.return_value = user_repo
+            resp = app_client.request("DELETE", "/account", json={"password": "correct"})
+    finally:
+        _clear(app_client)
+
+    assert resp.status_code == 200
+    rec.assert_called_once()
+    assert rec.call_args.args[2] == EventCategory.AUTH
+    assert rec.call_args.args[3] == EventType.ACCOUNT_DELETED
+    assert rec.call_args.kwargs["email"] == "silinecek@test.com"
+    assert rec.call_args.kwargs["user_id"] == 7
+
+
 def test_api_key_generation_and_revocation_recorded(app_client):
     _override_user(app_client, _user(id=3))
     try:
