@@ -57,6 +57,9 @@ _STRINGS: dict = {
         "contact_category_takedown": "Telif İtirazı / Kaldırma Talebi",
         "contact_from_label": "Gönderen",
         "contact_category_label": "Kategori",
+        "visit_site": "Siteye git",
+        "digest_cta": "Tüm haberleri gör →",
+        "alert_cta": "Habere git →",
     },
     "EN": {
         "digest_subject": "NexStream Daily Digest",
@@ -84,6 +87,9 @@ _STRINGS: dict = {
         "contact_category_takedown": "Copyright / Takedown Request",
         "contact_from_label": "From",
         "contact_category_label": "Category",
+        "visit_site": "Visit site",
+        "digest_cta": "See all articles →",
+        "alert_cta": "Read article →",
     },
 }
 
@@ -149,22 +155,61 @@ def _unsubscribe_url(email: str, language: str) -> str:
     )
 
 
+def _brand_shell(body: str, language: str, unsubscribe_for: Optional[str] = None) -> str:
+    """Kullanıcıya-görünen TÜM maillerin paylaştığı marka kabuğu (18 Eylül 2026,
+    kullanıcı geri bildirimi: "bülten mailleri gibi maillerden mailin içine
+    mail aboneliğini iptal etme, siteye direkt gitme gibi işe yarar linkler
+    koyabiliriz... atılan bülten, şifre yenileme, anlık gibi maillerin içeriği
+    eski ve sade kaldı"). Eskiden her şablon kendi <html>/<body>'sini ayrı ayrı
+    açıyordu — eski mavi (#1a73e8), link'siz, marka kimliği yok. Artık hepsi
+    aynı NexStream başlığı (siteye link) + footer'da her zaman "Siteye git" +
+    (sadece toplu/abonelik maillerinde — digest/alert) "Aboneliği iptal et"
+    paylaşıyor. Renkler CSS var() DEĞİL, düz hex — e-posta istemcileri custom
+    property okumaz, `frontend/app/globals.css`'teki Day teması paletiyle
+    (18 Eylül anasayfa yenilemesi) elle senkron tutulmalı.
+    """
+    site_url = settings.frontend_url
+    footer_links = f"<a href='{site_url}' style='color:#8a8477;text-decoration:underline'>{_t(language, 'visit_site')}</a>"
+    if unsubscribe_for:
+        footer_links += (
+            f" &nbsp;·&nbsp; <a href='{_unsubscribe_url(unsubscribe_for, language)}' "
+            f"style='color:#8a8477;text-decoration:underline'>{_t(language, 'unsubscribe')}</a>"
+        )
+    return f"""<html><body style="margin:0;padding:24px 12px;background:#f5f1e8;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<table role="presentation" width="100%" style="max-width:600px;background:#ffffff;border-radius:12px;border:1px solid #eee2d0" cellpadding="0" cellspacing="0">
+<tr><td style="padding:22px 32px;border-bottom:1px solid #f0ece0">
+<a href="{site_url}" style="text-decoration:none;font-size:19px;font-weight:800;font-family:Georgia,'Times New Roman',serif">
+<span style="color:#1c1a16">Nex</span><span style="color:#c31e2a">Stream</span>
+</a>
+</td></tr>
+<tr><td style="padding:28px 32px">
+{body}
+</td></tr>
+<tr><td style="padding:18px 32px;border-top:1px solid #f0ece0;font-size:12px;color:#8a8477">
+{footer_links}
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>"""
+
+
 def _sponsor_html(sponsor, language: str) -> str:
     if not sponsor:
         return ""
     label = _t(language, "sponsor_label")
     return (
-        f"<div style='background:#f0f7ff;border-left:4px solid #1a73e8;padding:12px 16px;margin:16px 0'>"
-        f"<small style='color:#888;text-transform:uppercase;letter-spacing:1px'>{label}</small><br>"
-        f"<b><a href='{html.escape(sponsor.url)}' style='color:#1a73e8;text-decoration:none'>{html.escape(sponsor.name)}</a></b><br>"
-        f"<span style='color:#444;font-size:14px'>{html.escape(sponsor.message)}</span>"
+        f"<div style='background:#faf6ec;border-left:4px solid #c31e2a;padding:12px 16px;margin:0 0 20px'>"
+        f"<small style='color:#8a8477;text-transform:uppercase;letter-spacing:1px'>{label}</small><br>"
+        f"<b><a href='{html.escape(sponsor.url)}' style='color:#c31e2a;text-decoration:none'>{html.escape(sponsor.name)}</a></b><br>"
+        f"<span style='color:#4b463c;font-size:14px'>{html.escape(sponsor.message)}</span>"
         f"</div>"
     )
 
 
 def _digest_html(to: str, articles: List[Article], language: str, sponsor=None) -> str:
     header = _t(language, "digest_header")
-    unsubscribe_label = _t(language, "unsubscribe")
+    cta_label = _t(language, "digest_cta")
     rows = ""
     for a in articles:
         icon = _SENTIMENT_ICON.get(a.sentiment_label or "Neutral", "⚪")
@@ -177,59 +222,58 @@ def _digest_html(to: str, articles: List[Article], language: str, sponsor=None) 
         url = html.escape(a.url)
         summary = html.escape(a.summary or "")
         rows += (
-            f"<tr><td style='padding:10px 0;border-bottom:1px solid #eee'>"
-            f"<b><a href='{url}' style='color:#1a73e8;text-decoration:none'>{title}</a></b><br>"
-            f"<small style='color:#666'>{icon} {source} · {topic}</small><br>"
-            f"<span style='color:#444;font-size:14px'>{summary}</span>"
+            f"<tr><td style='padding:12px 0;border-bottom:1px solid #f0ece0'>"
+            f"<b><a href='{url}' style='color:#1c1a16;text-decoration:none;font-size:15px'>{title}</a></b><br>"
+            f"<small style='color:#8a8477'>{icon} {source} · {topic}</small><br>"
+            f"<span style='color:#4b463c;font-size:14px'>{summary}</span>"
             f"</td></tr>"
         )
     sponsor_section = _sponsor_html(sponsor, language)
-    return f"""<html><body style='font-family:sans-serif;max-width:640px;margin:auto'>
-<h2 style='color:#1a1a1a'>{header}</h2>
+    body = f"""<h2 style="margin:0 0 16px;color:#1c1a16;font-family:Georgia,'Times New Roman',serif;font-size:20px">{header}</h2>
 {sponsor_section}
-<table width='100%' cellpadding='0' cellspacing='0'>{rows}</table>
-<p style='color:#999;font-size:12px;margin-top:24px'>
-NexStream · <a href='{_unsubscribe_url(to, language)}' style='color:#999;text-decoration:underline'>{unsubscribe_label}</a>
-</p></body></html>"""
+<table width="100%" cellpadding="0" cellspacing="0">{rows}</table>
+<p style="margin:20px 0 0"><a href="{settings.frontend_url}/dashboard" style="color:#c31e2a;text-decoration:none;font-weight:700;font-size:14px">{cta_label}</a></p>"""
+    return _brand_shell(body, language, unsubscribe_for=to)
 
 
 def _password_reset_html(reset_url: str, language: str) -> str:
-    title, body, cta, expiry = (
+    title, body_text, cta, expiry = (
         _t(language, "reset_title"), _t(language, "reset_body"),
         _t(language, "reset_cta"), _t(language, "reset_expiry"),
     )
-    return f"""<html><body style='font-family:sans-serif;max-width:640px;margin:auto'>
-<h2 style='color:#1a1a1a'>{title}</h2>
-<p style='color:#444'>{body}</p>
-<p><a href='{reset_url}' style='display:inline-block;background:#1a73e8;color:#fff;text-decoration:none;
-padding:12px 24px;border-radius:6px;font-weight:600'>{cta}</a></p>
-<p style='color:#999;font-size:12px;margin-top:24px'>{expiry}</p>
-</body></html>"""
+    body = f"""<h2 style="margin:0 0 12px;color:#1c1a16;font-family:Georgia,'Times New Roman',serif;font-size:20px">{title}</h2>
+<p style="color:#4b463c;line-height:1.6">{body_text}</p>
+<p style="margin:20px 0"><a href="{reset_url}" style="display:inline-block;background:#c31e2a;color:#fff;text-decoration:none;
+padding:12px 26px;border-radius:8px;font-weight:700">{cta}</a></p>
+<p style="color:#8a8477;font-size:12px;margin-top:20px">{expiry}</p>"""
+    return _brand_shell(body, language)
 
 
 def _verification_html(verify_url: str, language: str) -> str:
-    title, body, cta, expiry = (
+    title, body_text, cta, expiry = (
         _t(language, "verify_title"), _t(language, "verify_body"),
         _t(language, "verify_cta"), _t(language, "verify_expiry"),
     )
-    return f"""<html><body style='font-family:sans-serif;max-width:640px;margin:auto'>
-<h2 style='color:#1a1a1a'>{title}</h2>
-<p style='color:#444'>{body}</p>
-<p><a href='{verify_url}' style='display:inline-block;background:#1a73e8;color:#fff;text-decoration:none;
-padding:12px 24px;border-radius:6px;font-weight:600'>{cta}</a></p>
-<p style='color:#999;font-size:12px;margin-top:24px'>{expiry}</p>
-</body></html>"""
+    body = f"""<h2 style="margin:0 0 12px;color:#1c1a16;font-family:Georgia,'Times New Roman',serif;font-size:20px">{title}</h2>
+<p style="color:#4b463c;line-height:1.6">{body_text}</p>
+<p style="margin:20px 0"><a href="{verify_url}" style="display:inline-block;background:#c31e2a;color:#fff;text-decoration:none;
+padding:12px 26px;border-radius:8px;font-weight:700">{cta}</a></p>
+<p style="color:#8a8477;font-size:12px;margin-top:20px">{expiry}</p>"""
+    return _brand_shell(body, language)
 
 
-def _alert_html(article: Article, keyword: str, language: str) -> str:
+def _alert_html(to: str, article: Article, keyword: str, language: str) -> str:
     label = _t(language, "alert_keyword_label")
+    cta = _t(language, "alert_cta")
     topic = html.escape(_topic_label(article.topic, language))
-    return f"""<html><body style='font-family:sans-serif;max-width:640px;margin:auto'>
-<p style='color:#666'>{label}: <b>{html.escape(keyword)}</b></p>
-<h2><a href='{html.escape(article.url)}' style='color:#1a73e8;text-decoration:none'>{html.escape(article.title)}</a></h2>
-<p style='color:#555'>{html.escape(article.source)} · {topic}</p>
-<p>{html.escape(article.summary or '')}</p>
-</body></html>"""
+    url = html.escape(article.url)
+    body = f"""<p style="margin:0 0 8px;color:#8a8477;font-size:13px">{label}: <b style="color:#c31e2a">{html.escape(keyword)}</b></p>
+<h2 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:19px">
+<a href="{url}" style="color:#1c1a16;text-decoration:none">{html.escape(article.title)}</a></h2>
+<p style="margin:0 0 14px;color:#8a8477;font-size:13px">{html.escape(article.source)} · {topic}</p>
+<p style="color:#4b463c;line-height:1.6">{html.escape(article.summary or '')}</p>
+<p style="margin:20px 0 0"><a href="{url}" style="color:#c31e2a;text-decoration:none;font-weight:700;font-size:14px">{cta}</a></p>"""
+    return _brand_shell(body, language, unsubscribe_for=to)
 
 
 def _contact_subject(category: str, language: str) -> str:
@@ -259,8 +303,10 @@ def _contact_message_html(name: str, from_email: str, category: str, message: st
 
 
 def _welcome_html(language: str) -> str:
-    title, body = _t(language, "welcome_title"), _t(language, "welcome_body")
-    return f"<html><body style='font-family:sans-serif'><h2>{title}</h2><p>{body}</p></body></html>"
+    title, body_text = _t(language, "welcome_title"), _t(language, "welcome_body")
+    body = f"""<h2 style="margin:0 0 12px;color:#1c1a16;font-family:Georgia,'Times New Roman',serif;font-size:20px">{title}</h2>
+<p style="color:#4b463c;line-height:1.6">{body_text}</p>"""
+    return _brand_shell(body, language)
 
 
 class ConsoleEmailAdapter(EmailPort):
@@ -326,7 +372,7 @@ class _HtmlEmailAdapter(EmailPort):
     def send_alert(self, to: str, article: Article, matched_keyword: str, language: str) -> bool:
         subject = f"{_t(language, 'alert_subject_prefix')}: {matched_keyword}"
         return self._deliver(
-            to, subject, _alert_html(article, matched_keyword, language),
+            to, subject, _alert_html(to, article, matched_keyword, language),
             headers=self._list_unsubscribe_headers(to, language),
         )
 

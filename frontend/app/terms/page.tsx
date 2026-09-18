@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
 import { useSettings } from "@/lib/settings-context";
 import { TERMS_OF_SERVICE } from "@/lib/legal-content";
 import { UI } from "@/lib/i18n";
@@ -47,6 +48,7 @@ export default function TermsPage() {
           </Link>
         </div>
       </div>
+      <Footer />
     </div>
   );
 }

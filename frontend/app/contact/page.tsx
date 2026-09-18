@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
 import { submitContact } from "@/lib/api";
 import { useSettings } from "@/lib/settings-context";
 import { UI } from "@/lib/i18n";
@@ -83,6 +84,7 @@ export default function ContactPage() {
           )}
         </div>
       </div>
+      <Footer />
     </div>
   );
 }

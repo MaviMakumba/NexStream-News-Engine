@@ -106,7 +106,7 @@ def test_digest_html_escapes_malicious_article_title():
 
 def test_alert_html_escapes_malicious_article_title():
     from src.adapters.notifications.email_adapter import _alert_html
-    out = _alert_html(_malicious_article(), "keyword", "TR")
+    out = _alert_html("user@test.com", _malicious_article(), "keyword", "TR")
     assert "<script>" not in out
     assert "&lt;script&gt;" in out
 
@@ -414,6 +414,41 @@ def test_get_email_adapter_explicit_provider_forces_smtp():
         mock_settings.smtp_password = ""
         adapter = get_email_adapter()
     assert isinstance(adapter, SmtpEmailAdapter)
+
+
+# ── Marka kimliği + "siteye git" linki (18 Eylül 2026, kullanıcı isteği) ────
+
+def test_digest_html_includes_site_link():
+    """Bülten maili sadece haber linkleri + iptal linki değil, doğrudan siteye
+    dönen bir link de taşımalı — kullanıcı geri bildirimi: bülten/uyarı gibi
+    maillerin içine 'siteye git' gibi işe yarar linkler konmalı."""
+    from src.adapters.notifications.email_adapter import _digest_html
+    out = _digest_html("user@test.com", [_article()], "TR")
+    assert "http://localhost:3000" in out
+
+
+def test_alert_html_includes_site_link():
+    from src.adapters.notifications.email_adapter import _alert_html
+    out = _alert_html("user@test.com", _article(), "keyword", "TR")
+    assert "http://localhost:3000" in out
+
+
+def test_password_reset_html_includes_site_link_in_brand_header():
+    from src.adapters.notifications.email_adapter import _password_reset_html
+    out = _password_reset_html("http://test.com/reset?token=abc", "TR")
+    assert "http://localhost:3000" in out
+
+
+def test_verification_html_includes_site_link_in_brand_header():
+    from src.adapters.notifications.email_adapter import _verification_html
+    out = _verification_html("http://test.com/verify?token=abc", "TR")
+    assert "http://localhost:3000" in out
+
+
+def test_welcome_html_includes_site_link_in_brand_header():
+    from src.adapters.notifications.email_adapter import _welcome_html
+    out = _welcome_html("TR")
+    assert "http://localhost:3000" in out
 
 
 def test_digest_unsubscribe_link_carries_signed_token():
