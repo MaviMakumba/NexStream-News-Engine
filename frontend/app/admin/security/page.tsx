@@ -15,7 +15,7 @@ import { UI } from "@/lib/i18n";
 
 const EVENT_TYPES = [
   "register", "login_success", "login_failure", "logout",
-  "password_reset_requested", "password_reset_done", "email_verified",
+  "password_reset_requested", "password_reset_done", "email_verified", "account_deleted",
   "admin_access_denied", "api_key_generated", "api_key_revoked",
   "rate_limited", "role_changed", "user_banned", "user_unbanned", "tier_changed",
 ] as const;

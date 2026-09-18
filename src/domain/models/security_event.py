@@ -33,6 +33,7 @@ class EventType:
     PASSWORD_RESET_REQUESTED = "password_reset_requested"
     PASSWORD_RESET_DONE = "password_reset_done"
     EMAIL_VERIFIED = "email_verified"
+    ACCOUNT_DELETED = "account_deleted"
     # access
     ADMIN_ACCESS_DENIED = "admin_access_denied"
     API_KEY_GENERATED = "api_key_generated"

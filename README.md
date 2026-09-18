@@ -10,7 +10,7 @@
 ![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=nextdotjs)
 ![Redpanda](https://img.shields.io/badge/Redpanda-Kafka--compatible-E33237)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
-![Tests](https://img.shields.io/badge/tests-837_passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1004_passing-brightgreen)
 ![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
@@ -52,14 +52,14 @@ What started as a course project on enterprise architecture has grown into a pro
 - **Event-driven** via Redpanda (Kafka-compatible, ARM-friendly); **fully containerized** with Docker Compose
 - **Observability**: Prometheus + Grafana + Loki, `/health` and `/metrics` endpoints
 - **Security-hardened**: prod-startup config guard, timing-safe auth checks, HTML-escaped emails, per-route rate limits, encrypted + offsite-capable backups
-- **837 tests**, all green; CI via GitHub Actions with Dependabot-driven dependency updates
+- **1004 tests**, all green; CI via GitHub Actions with Dependabot-driven dependency updates
 
 **At a glance:**
 
 | Metric | Value |
 |--------|-------|
 | News sources | 17 (11 Turkish + 6 English) |
-| Backend tests | 837 — all green |
+| Backend tests | 1004 — all green |
 | API endpoints | 60, across 11 routers |
 | Cinematic frontend themes | 9 |
 | API tiers | 3 (Free / Pro / Enterprise) — server-enforced |
@@ -70,16 +70,19 @@ What started as a course project on enterprise architecture has grown into a pro
 
 ### Screenshots
 
-| Landing — Matrix theme | Landing — Star Wars theme |
+| Landing — Day theme (default, light) | Landing — Night theme (default, dark) |
 |---|---|
-| ![Landing page in the Matrix theme](docs/screenshots/landing.png) | ![Landing page in the Star Wars theme](docs/screenshots/landing-starwars-theme.png) |
+| ![Landing page in the Day theme](docs/screenshots/landing.png) | ![Landing page in the Night theme](docs/screenshots/landing-night-theme.png) |
+
+| Landing — Star Wars theme (one of 8 cinematic themes) | Theme picker |
+|---|---|
+| ![Landing page in the Star Wars theme](docs/screenshots/landing-starwars-theme.png) | ![Theme picker showing the cinematic themes](docs/screenshots/theme-picker.png) |
 
 | Dashboard (live data, trending, tier badges) | Semantic search (match % per result) |
 |---|---|
 | ![Dashboard with trending topics and news feed](docs/screenshots/dashboard.png) | ![Semantic search results with match percentages](docs/screenshots/search.png) |
 
-![Theme picker showing the 9 cinematic themes](docs/screenshots/theme-picker.png)
-<p align="center"><sub>All screenshots taken from a live local run against real scraped data.</sub></p>
+<p align="center"><sub>All screenshots taken from the live production site (nexstreamnews.com) against real scraped data.</sub></p>
 
 ---
 
@@ -153,7 +156,7 @@ flowchart LR
 | Reverse proxy | Nginx + Let's Encrypt (production) |
 | Containerization | Docker + Docker Compose |
 | CI/CD | GitHub Actions |
-| Testing | pytest (837 tests, ~33s) |
+| Testing | pytest (1004 tests, ~33s) |
 | Dependency updates | Dependabot (pip + npm + GitHub Actions, weekly) |
 
 ---
@@ -230,7 +233,7 @@ estimated): Groq analysis latency averages **~0.5s**, p95 **~2.1s** per article.
 17 sources scraped every 10 minutes, ~25 articles/source/run. Moving the
 embedding model into its own service cut the `app`/`worker` Docker images from
 1.55GB to **516MB** and startup from 1-2 minutes to **~6 seconds**. The test
-suite (837 tests) runs in **~33 seconds**, down from ~400s after finding and
+suite (1004 tests) runs in **~33 seconds**, down from ~400s after finding and
 fixing a test fixture that was silently attempting a real (2-second-timeout)
 database connection on every request.
 
@@ -360,7 +363,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-**Test coverage: 837 tests** across domain, application, and adapter layers. Every external call (Groq, Kafka, DB, ChromaDB, SMTP/Resend) is mocked — no network access, no real emails sent — required.
+**Test coverage: 1004 tests** across domain, application, and adapter layers. Every external call (Groq, Kafka, DB, ChromaDB, SMTP/Resend) is mocked — no network access, no real emails sent — required.
 
 <details>
 <summary>Actual local run output</summary>
@@ -379,7 +382,7 @@ $ python -m pytest tests/ -q
 ........................................................................ [ 86%]
 ........................................................................ [ 94%]
 .............................................                            [100%]
-837 passed, 1 warning in 32.76s
+1004 passed, 1 warning in 42.16s
 ```
 
 </details>
@@ -478,7 +481,7 @@ Every push / PR to `main` triggers GitHub Actions:
 
 1. Spins up a PostgreSQL 15 service container
 2. Installs Python dependencies (incl. `pytest-asyncio`)
-3. Runs all 837 tests with `pytest`
+3. Runs all 1004 tests with `pytest`
 4. Reports pass/fail status
 5. **On `main` only, if tests pass:** connects to the production instance over AWS SSM, pulls and rebuilds, then polls `/api/health` to confirm the new version is actually up — a merge to `main` reaches production with no manual step
 
@@ -561,14 +564,14 @@ Kurumsal mimari dersi için başlayan proje; e-posta doğrulamalı kullanıcı h
 - Redpanda (Kafka-uyumlu, ARM-dostu) ile **olay güdümlü**; Docker Compose ile **tamamen konteynerli**
 - **Gözlemlenebilirlik**: Prometheus + Grafana + Loki, `/health` ve `/metrics`
 - **Güvenlik sertleştirmesi**: prod-açılış config guard'ı, zamanlama-güvenli auth kontrolleri, HTML-escape'li e-postalar, route-bazlı rate limit'ler, şifrelenebilir + offsite yedekleme
-- **837 test**, hepsi yeşil; GitHub Actions CI + Dependabot ile otomatik bağımlılık güncellemesi
+- **1004 test**, hepsi yeşil; GitHub Actions CI + Dependabot ile otomatik bağımlılık güncellemesi
 
 **Bir bakışta:**
 
 | Metrik | Değer |
 |--------|-------|
 | Haber kaynağı | 17 (11 TR + 6 EN) |
-| Backend test | 837 — hepsi yeşil |
+| Backend test | 1004 — hepsi yeşil |
 | API endpoint'i | 60, 11 router’da |
 | Sinematik frontend teması | 9 |
 | API katmanı | 3 (Free / Pro / Enterprise) — sunucu tarafında zorunlu |
@@ -579,16 +582,19 @@ Kurumsal mimari dersi için başlayan proje; e-posta doğrulamalı kullanıcı h
 
 ### Ekran Görüntüleri
 
-| Landing — Matrix teması | Landing — Star Wars teması |
+| Landing — Day teması (varsayılan, aydınlık) | Landing — Night teması (varsayılan, karanlık) |
 |---|---|
-| ![Matrix temasında landing sayfası](docs/screenshots/landing.png) | ![Star Wars temasında landing sayfası](docs/screenshots/landing-starwars-theme.png) |
+| ![Day temasında landing sayfası](docs/screenshots/landing.png) | ![Night temasında landing sayfası](docs/screenshots/landing-night-theme.png) |
+
+| Landing — Star Wars teması (8 sinematik temadan biri) | Tema seçici |
+|---|---|
+| ![Star Wars temasında landing sayfası](docs/screenshots/landing-starwars-theme.png) | ![Sinematik temaları gösteren tema seçici](docs/screenshots/theme-picker.png) |
 
 | Dashboard (canlı veri, trend olan konular, tier rozetleri) | Anlamsal arama (sonuç başına eşleşme %'si) |
 |---|---|
 | ![Trend konular ve haber akışlı dashboard](docs/screenshots/dashboard.png) | ![Eşleşme yüzdeli anlamsal arama sonuçları](docs/screenshots/search.png) |
 
-![9 sinematik temayı gösteren tema seçici](docs/screenshots/theme-picker.png)
-<p align="center"><sub>Tüm ekran görüntüleri, gerçek scrape edilmiş veri üzerinden canlı bir lokal çalıştırmadan alındı.</sub></p>
+<p align="center"><sub>Tüm ekran görüntüleri canlı prod sitesinden (nexstreamnews.com) gerçek scrape edilmiş veriyle alındı.</sub></p>
 
 ---
 
@@ -662,7 +668,7 @@ flowchart LR
 | Reverse proxy | Nginx + Let's Encrypt (production) |
 | Konteynerleştirme | Docker + Docker Compose |
 | CI/CD | GitHub Actions |
-| Test | pytest (837 test, ~33sn) |
+| Test | pytest (1004 test, ~33sn) |
 | Bağımlılık güncellemesi | Dependabot (pip + npm + GitHub Actions, haftalık) |
 
 ---
@@ -736,7 +742,7 @@ davranışına çevrilince düzeldi.
 analiz gecikmesi ortalama **~0.5sn**, p95 **~2.1sn**/haber. 17 kaynak her 10
 dakikada bir taranıyor, ~25 haber/kaynak/çalışma. Embedding modelini ayrı bir
 servise taşımak `app`/`worker` Docker imajlarını 1.55GB'den **516MB**'a, açılış
-süresini 1-2 dakikadan **~6 saniyeye** indirdi. Test paketi (837 test) **~33
+süresini 1-2 dakikadan **~6 saniyeye** indirdi. Test paketi (1004 test) **~33
 saniyede** koşuyor — her istekte sessizce gerçek (2 saniye timeout'lu) bir
 veritabanı bağlantısı deneyen bir test fixture'ı bulunup düzeltilmeden önce
 ~400sn'di.
@@ -839,7 +845,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-**837 test** — domain, application ve adapter katmanları. Her dış çağrı (Groq, Kafka, DB, ChromaDB, SMTP/Resend) mock'lanır; ağ erişimi gerekmez, gerçek e-posta gönderilmez.
+**1004 test** — domain, application ve adapter katmanları. Her dış çağrı (Groq, Kafka, DB, ChromaDB, SMTP/Resend) mock'lanır; ağ erişimi gerekmez, gerçek e-posta gönderilmez.
 
 <details>
 <summary>Gerçek lokal çalıştırma çıktısı</summary>
@@ -858,7 +864,7 @@ $ python -m pytest tests/ -q
 ........................................................................ [ 86%]
 ........................................................................ [ 94%]
 .............................................                            [100%]
-837 passed, 1 warning in 32.76s
+1004 passed, 1 warning in 42.16s
 ```
 
 </details>
@@ -947,7 +953,7 @@ Varsayılan `FallbackAnalyzer`, Groq → Hugging Face → nötr fallback zinciri
 
 1. Bir PostgreSQL 15 servis konteyneri ayağa kaldırır
 2. Python bağımlılıklarını kurar (`pytest-asyncio` dahil)
-3. `pytest` ile 837 testin tamamını çalıştırır
+3. `pytest` ile 1004 testin tamamını çalıştırır
 4. Başarılı/başarısız durumunu raporlar
 5. **Sadece `main`'de, testler geçerse:** AWS SSM üzerinden production'a bağlanır, kodu çeker ve yeniden build eder, ardından yeni sürümün gerçekten ayakta olduğunu `/api/health` ile doğrular — `main`'e bir merge elle hiçbir adım gerektirmeden production'a ulaşır
 

@@ -301,4 +301,6 @@ def delete_account(
 
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
     logger.info("Hesap silindi: user_id=%s", current_user.id)
+    record_security_event(db, request, EventCategory.AUTH, EventType.ACCOUNT_DELETED,
+                          email=current_user.email, user_id=current_user.id)
     return {"message": "Account deleted"}
