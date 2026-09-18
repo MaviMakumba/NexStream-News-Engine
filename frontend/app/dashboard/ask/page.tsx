@@ -61,8 +61,17 @@ export default function AskPage() {
   // taşır, takipler ona atıfla devam eder.
   const topicKeyword = messages.find((m) => m.role === "user")?.content ?? "";
 
+  // İlk mount'ta messages.length zaten 0'dan değişir (effect dependency
+  // array'i ilk render'da da bir kere çalışır) — boş bir sohbette "en alta
+  // kaydır" yapılacak bir şey yokken sayfa navigasyonunda kullanıcıyı
+  // hafifçe aşağı kaydırıyordu (18 Eylül 2026, kullanıcı bulgusu: "Soru
+  // Sor"a basınca sayfa normalden aşağı atıyor). `block: "nearest"` ayrıca
+  // sadece mesaj listesinin kendi scroll container'ını kaydırır, sayfanın
+  // geri kalanını etkilemez.
+  const isFirstRender = useRef(true);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages.length]);
 
   async function handleSend() {

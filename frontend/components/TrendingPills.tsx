@@ -30,7 +30,15 @@ export function TrendingPills({ entities, onSelect }: Props) {
           <span style={{ color: "var(--accent)", fontSize: "0.7rem" }}>
             {TYPE_ICON[e.type ?? ""] ?? "↑"}
           </span>
-          <span style={{ color: "var(--text)", fontWeight: 600 }}>{e.name}</span>
+          {/* maxWidth+ellipsis: NewsCard'daki entity chip taşma düzeltmesiyle
+              (24 Ağu/1 Eyl 2026) aynı sınıf risk — trending isimleri de
+              keyfi uzunlukta olabiliyor (uzun kurum/yer adı), sabit
+              genişlik olmadan pill kartın dışına taşıp yatay kaydırmaya
+              yol açabiliyordu (18 Eylül 2026). */}
+          <span style={{ color: "var(--text)", fontWeight: 600, maxWidth: 180,
+                         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {e.name}
+          </span>
           <span style={{
             fontSize: "0.62rem", fontWeight: 700, color: "var(--accent)",
             background: "var(--accent-soft)", border: "1px solid var(--accent-line)",

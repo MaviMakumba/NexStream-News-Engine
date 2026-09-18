@@ -7,6 +7,8 @@ import { useSettings } from "@/lib/settings-context";
 import { useAuth } from "@/lib/auth-context";
 import { BASE } from "@/lib/api";
 import { LandingSearchDemo } from "@/components/LandingSearchDemo";
+import { LiveWireStrip } from "@/components/LiveWireStrip";
+import { CardSpotlight } from "@/components/CardSpotlight";
 import { UI, FEATURES, PRICING } from "@/lib/i18n";
 
 export default function LandingPage() {
@@ -53,93 +55,87 @@ export default function LandingPage() {
     <div style={{ minHeight: "100vh" }}>
       <Navbar />
 
-      {/* Hero — overflow burada (bölüm seviyesinde) clip'lenir; kökte overflowX:hidden
-          navbar'ın sticky/scroll-hide davranışını kırıyordu (scroll container'a çeviriyordu). */}
-      <section style={{ position: "relative", padding: "100px 20px 80px", textAlign: "center", overflow: "hidden" }}>
-        <div className="grid-bg" style={{
-          position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none",
-          maskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent)",
-          WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent)",
-        }} />
+      {/* Hero — sol: manşet + CTA, sağ: GERÇEK verilerle beslenen canlı akış
+          (LiveWireStrip) — ürünün "sürekli canlı besleme" farkını süsle değil
+          fonksiyonla gösteriyor (18 Eylül 2026 yenileme). auto-fit grid: dar
+          ekranda tek sütuna düşer, sabit bir breakpoint gerekmez (Features/
+          Pricing bölümleriyle aynı, kanıtlanmış desen). */}
+      <section style={{ padding: "72px 20px 64px" }}>
         <div style={{
-          position: "absolute", top: 0, left: "25%", width: 600, height: 300,
-          background: "radial-gradient(ellipse, var(--glow) 0%, transparent 70%)",
-          pointerEvents: "none", zIndex: 0,
-        }} />
-        <div style={{
-          position: "absolute", top: 50, right: "15%", width: 400, height: 250,
-          background: "radial-gradient(ellipse, var(--glow2) 0%, transparent 70%)",
-          pointerEvents: "none", zIndex: 0,
-        }} />
-
-        <div style={{ position: "relative", zIndex: 1, maxWidth: 800, margin: "0 auto" }}>
-          <div style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            background: "var(--accent-soft)", border: "1px solid var(--accent-line)",
-            borderRadius: 9999, padding: "6px 16px", marginBottom: 32, fontSize: "0.8rem",
-            color: "var(--accent)",
-          }}>
-            <span style={{
-              width: 7, height: 7, borderRadius: "50%", background: "var(--accent)",
-              boxShadow: "0 0 8px var(--accent)",
-              animation: "glow-pulse 2s ease-in-out infinite", display: "inline-block",
-            }} />
-            {t.heroBadge}
-          </div>
-
-          <h1 style={{
-            fontSize: "clamp(2.4rem, 6vw, 4.2rem)", fontWeight: 900, lineHeight: 1.08,
-            marginBottom: 24, color: "var(--text)",
-          }}>
-            {t.heroPre}
-            <span className="gradient-text">{t.heroAccent}</span>
-            {t.heroPost}
-          </h1>
-
-          <p style={{
-            fontSize: "1.1rem", color: "var(--text2)", maxWidth: 540, margin: "0 auto 40px",
-            lineHeight: 1.7,
-          }}>
-            {t.heroSub}
-          </p>
-
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            <Link href={primaryHref} className="btn-primary" style={{ fontSize: "0.95rem", padding: "11px 28px" }}>
-              {primaryLabel}
-            </Link>
-            {/* Kayıt/giriş gerektirmez — sayfanın altındaki canlı arama demosuna kaydırır.
-                Önceden ikisi de /dashboard'a gidiyordu (giriş yapmış kullanıcıda hem
-                birincil hem ikincil buton aynı yere), "Demo Görüntüle" fiilen "Panele
-                Git"in kopyasıydı — 18 Ağu 2026'da kullanıcı bulgusu. */}
-            <a href="#demo" className="btn-secondary" style={{ fontSize: "0.95rem", padding: "11px 28px" }}>
-              {t.ctaSecondary}
-            </a>
-          </div>
-        </div>
-
-        <div style={{
-          position: "relative", zIndex: 1,
-          display: "flex", justifyContent: "center", gap: 48, marginTop: 64, flexWrap: "wrap",
+          maxWidth: 1180, margin: "0 auto", display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 48, alignItems: "center",
         }}>
-          {stats.map((s) => (
-            // Sabit minWidth: TR/EN etiket uzunlukları farklı (örn. "Haber İndekslendi"
-            // vs "Articles Indexed") — genişlik içeriğe göre belirlenirse dil değişince
-            // her sütun farklı boy alır ve tüm satır kayar. Her ikisi de bu genişliğe sığar.
-            <div key={s.label} style={{ textAlign: "center", minWidth: 160 }}>
-              <div className="gradient-text font-display" style={{ fontSize: "1.9rem", fontWeight: 800, lineHeight: 1 }}>
-                {s.value}
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text3)", marginTop: 6,
-                            textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                {s.label}
-              </div>
+          <div>
+            <h1 style={{
+              fontSize: "clamp(2.3rem, 5.4vw, 3.7rem)", fontWeight: 700, lineHeight: 1.12,
+              marginBottom: 20, color: "var(--text)", textWrap: "balance" as any,
+            }}>
+              {t.heroPre}
+              <span style={{ color: "var(--accent)" }}>{t.heroAccent}</span>
+              {t.heroPost}
+            </h1>
+
+            <p style={{
+              fontFamily: "var(--font-body)", fontSize: "1.08rem", color: "var(--text2)",
+              maxWidth: "46ch", marginBottom: 36, lineHeight: 1.65,
+            }}>
+              {t.heroSub}
+            </p>
+
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 44 }}>
+              <Link href={primaryHref} className="btn-primary" style={{ fontSize: "0.95rem", padding: "11px 28px" }}>
+                {primaryLabel}
+              </Link>
+              {/* Kayıt/giriş gerektirmez — sayfanın altındaki canlı arama demosuna kaydırır.
+                  Önceden ikisi de /dashboard'a gidiyordu (giriş yapmış kullanıcıda hem
+                  birincil hem ikincil buton aynı yere), "Demo Görüntüle" fiilen "Panele
+                  Git"in kopyasıydı — 18 Ağu 2026'da kullanıcı bulgusu. */}
+              <a href="#demo" className="btn-secondary" style={{ fontSize: "0.95rem", padding: "11px 28px" }}>
+                {t.ctaSecondary}
+              </a>
             </div>
-          ))}
+
+            <div style={{ display: "flex", gap: 36, flexWrap: "wrap" }}>
+              {stats.map((s) => (
+                // Sabit minWidth: TR/EN etiket uzunlukları farklı (örn. "Haber İndekslendi"
+                // vs "Articles Indexed") — genişlik içeriğe göre belirlenirse dil değişince
+                // her sütun farklı boy alır ve tüm satır kayar. Her ikisi de bu genişliğe sığar.
+                <div key={s.label} style={{ minWidth: 120 }}>
+                  <div className="font-display" style={{ fontSize: "1.7rem", fontWeight: 700, lineHeight: 1, color: "var(--accent)" }}>
+                    {s.value}
+                  </div>
+                  <div style={{ fontSize: "0.74rem", color: "var(--text3)", marginTop: 5 }}>
+                    {s.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <LiveWireStrip />
         </div>
+      </section>
+
+      {/* "Bir haber kartında neler var" — kullanıcıların Kaydet/güvenilirlik
+          skoru/Sor'u fark etmediği geri bildirimi üzerine eklendi (18 Eylül
+          2026). Gerçek bir kartın statik kopyası + numaralı pin'ler. */}
+      <section style={{ maxWidth: 1100, margin: "0 auto", padding: "16px 20px 72px" }}>
+        <h2 style={{ fontSize: "1.7rem", fontWeight: 700, color: "var(--text)", marginBottom: 10 }}>
+          {t.spotlightTitle}
+        </h2>
+        <p style={{ fontFamily: "var(--font-body)", fontSize: "0.92rem", color: "var(--text3)",
+                     marginBottom: 32, maxWidth: "60ch" }}>
+          {t.spotlightIntro}
+        </p>
+        <CardSpotlight />
       </section>
 
       {/* Canlı arama demosu — kayıt olmadan denenebilir */}
       <section id="demo" style={{ padding: "0 20px 80px", scrollMarginTop: 80 }}>
+        <p style={{ textAlign: "center", fontFamily: "var(--font-body)", fontSize: "0.86rem",
+                     color: "var(--text3)", marginBottom: 18 }}>
+          {t.landingSearchConnector}
+        </p>
         <LandingSearchDemo />
       </section>
 
@@ -150,27 +146,43 @@ export default function LandingPage() {
           <h2 style={{ fontSize: "1.9rem", fontWeight: 800, color: "var(--text)" }}>{t.featuresTitle}</h2>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
-          {features.map((f) => (
-            <div key={f.title} className="card" style={{ overflow: "hidden" }}>
-              <div style={{
-                position: "absolute", top: 0, right: 0, width: 150, height: 150,
-                background: "radial-gradient(circle, var(--glow), transparent 70%)",
-                pointerEvents: "none",
-              }} />
-              <div style={{
-                width: 46, height: 46, borderRadius: 12, marginBottom: 16,
-                background: "var(--accent-soft)", border: "1px solid var(--accent-line)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "1.35rem", color: f.accent,
-              }}>
-                {f.icon}
-              </div>
-              <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>
-                {f.title}
-              </h3>
-              <p style={{ fontSize: "0.875rem", color: "var(--text2)", lineHeight: 1.65 }}>{f.desc}</p>
-            </div>
-          ))}
+          {features.map((f) => {
+            const body = (
+              <>
+                <div style={{
+                  width: 46, height: 46, borderRadius: 12, marginBottom: 16,
+                  background: "var(--accent-soft)", border: "1px solid var(--accent-line)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "1.35rem", color: f.accent,
+                }}>
+                  {f.icon}
+                </div>
+                <h3 style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "1.05rem",
+                              fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>
+                  {f.title}
+                  {f.badge && (
+                    <span className="badge" style={{ background: "var(--accent-soft)", color: "var(--accent)",
+                                                      borderColor: "var(--accent-line)", fontSize: "0.6rem" }}>
+                      {f.badge}
+                    </span>
+                  )}
+                </h3>
+                <p style={{ fontSize: "0.875rem", color: "var(--text2)", lineHeight: 1.65 }}>{f.desc}</p>
+              </>
+            );
+            // Bülten/Export/İletişim gerçek bir hedefe gidiyor (/account,
+            // /contact) — kullanıcı bunları "sadece anlatmakla kalmayıp
+            // faydalanabilsinler" istedi, o yüzden tıklanabilir (18 Eylül
+            // 2026). İlk üç özellik tek bir sayfa değil, tüm deneyime yayılan
+            // davranışlar — onlar statik kart olarak kalıyor.
+            return f.href ? (
+              <Link key={f.title} href={f.href} className="card" style={{ textDecoration: "none", display: "block" }}>
+                {body}
+              </Link>
+            ) : (
+              <div key={f.title} className="card">{body}</div>
+            );
+          })}
         </div>
       </section>
 
@@ -234,9 +246,13 @@ export default function LandingPage() {
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between",
                       alignItems: "center", flexWrap: "wrap", gap: 16 }}>
           <span style={{ fontSize: "0.82rem", color: "var(--text3)" }}>
-            © 2026 <span className="gradient-text" style={{ fontWeight: 700 }}>NexStream</span> — {t.footerTagline}
+            © 2026 <span style={{ fontWeight: 700, color: "var(--accent)" }}>NexStream</span> — {t.footerTagline}
           </span>
-          <div style={{ display: "flex", gap: 24 }}>
+          {/* flexWrap: dar ekranda 7 link (Haberler..İletişim) tek satıra
+              sığmıyordu, body'deki global overflow-x:hidden taşan kısmı
+              sayfa kaydırmasına çevirmek yerine kırpıyordu — Güvenlik/
+              İletişim linkleri mobilde görünmüyordu (18 Eylül 2026). */}
+          <div style={{ display: "flex", gap: "10px 24px", flexWrap: "wrap" }}>
             {[
               { label: t.dashboard, href: "/dashboard" },
               { label: t.apiDocs,   href: `${BASE}/docs` },

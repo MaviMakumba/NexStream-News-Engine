@@ -90,7 +90,17 @@ export function Navbar() {
     ...(user?.is_moderator ? [{ href: "/admin/users", label: t.admin }] : []),
   ];
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  // Basit prefix-match ("/dashboard/search" de "/dashboard"ı prefix olarak
+  // içerir) "Haberler" ile "Arama"/"Soru Sor"un AYNI ANDA aktif görünmesine
+  // yol açıyordu — bu üç link kardeş sayfalar, hiyerarşi değil (18 Eylül
+  // 2026, kullanıcı bulgusu). En UZUN (en spesifik) eşleşen href kazanır;
+  // "/admin/users" gibi tek link altında gerçekten alt sayfaları olan
+  // (ileride eklenebilecek) durumlar için davranış aynı kalır.
+  const bestMatch = navLinks
+    .map((l) => l.href)
+    .filter((href) => pathname === href || pathname.startsWith(href + "/"))
+    .sort((a, b) => b.length - a.length)[0];
+  const isActive = (href: string) => href === bestMatch;
 
   return (
     <>
