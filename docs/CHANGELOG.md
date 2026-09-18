@@ -1277,6 +1277,79 @@ gerekmedi).
   (portfolyo değeri projenin varlık sebebi; sır yok; kod görünürlüğü ihlale yol
   açmadı, bulgular kodu okumadan da bulunabilirdi). Karar kullanıcıda.
 
+### 18 Eylül 2026 — Anasayfa yenileme + mobil responsive tur + prod yavaşlaması, PR #155-159
+
+- **Tetikleyici:** kullanıcı önce mobil responsive eksikliklerini (admin
+  sekme çubuğu, footer, haber kartları) fark etti, sonra "anasayfa çok AI
+  duruyor, özgün istiyorum" dedi (roadmap madde 1, 18 Ağu'dan beri bekliyordu).
+- **Responsive tur (PR #155):** `body`'deki global `overflow-x:hidden`'ın
+  taşan içeriği sayfa kaydırmasına çevirmek yerine SESSİZCE KIRPTIĞI
+  keşfedildi — admin sekme çubuğu, footer linkleri, `TrendingPills` entity
+  isimleri mobilde bu yüzden görünmüyordu. Admin sekme çubuğuna kendi
+  `overflowX:auto`'su, diğerlerine `flexWrap`/`maxWidth` eklendi. CLAUDE.md'ye
+  kalıcı kural işlendi: yeni UI mobil uyumu SONRAKİ bir iş değil, ilk
+  teslimatın parçası olmalı.
+- **Anasayfa yenileme (PR #155, brainstorming + frontend-design skill):**
+  Day teması (varsayılan) kırmızı vurgu (`#c31e2a`) + Newsreader serif
+  başlık kimliğine yenilendi. **Kullanıcı kararı — kapsam:** yeni palet ayrı
+  bir sayfa-scope class'a değil doğrudan `[data-theme="day"]`'e yazıldı,
+  çünkü "temalar değiştikçe sayfanın değişmesi güzel bir özellik, kalsın"
+  dendi (Matrix temasına geçince anasayfanın da yeşile döndüğü canlı
+  doğrulandı) — dashboard/admin ve diğer 9 tema etkilenmedi. Hero'ya gerçek
+  `/feed.xml`'i 45sn'de bir çeken bir canlı akış paneli (`LiveWireStrip.tsx`)
+  eklendi — gerçek WebSocket canlı akışı Pro-özel, anonim ziyaretçide kilit
+  ekranı gösterirdi, o yüzden public RSS poll'e gidildi. Yeni "Bir haber
+  kartında neler var?" bölümü (`CardSpotlight.tsx`) — kullanıcı geri
+  bildirimiyle 3'ten (Kaydet/Güvenilirlik/Sor) 6'ya (+ Dinle/İlgili haberler/
+  Habere git) genişletildi, numaralı pin'lerle işaretli, Sor için minik bir
+  soru-cevap örneği. Özellikler bölümüne Bülten/Ham Veri Export/İletişim
+  eklendi. Yol arası 2 bug bulunup düzeltildi: Navbar aktif-sekme
+  prefix-match çakışması (Haberler/Arama/Soru Sor aynı anda aktif
+  görünüyordu — en spesifik eşleşen href kazanacak şekilde düzeltildi) ve
+  `/dashboard/ask`'ın boş sohbette bile mount'ta `scrollIntoView({block:
+  "start"})` ile sayfayı ~220px aşağı kaydırması (izole bir Playwright
+  testiyle root cause `autoFocus` DEĞİL scrollIntoView olduğu kanıtlandı).
+- **Deploy öncesi QA:** 19 sayfa × masaüstü(1440)/mobil(390) otomatik taşma
+  taraması (38 kontrol, hepsi temiz) + kontrast hesabı (WCAG AA) + tema-geçiş
+  doğrulaması. 2 küçük "gözden kaçan" bulundu: `themeColor` + PWA manifest
+  hâlâ eski `#f3f1ec`'i kullanıyordu, düzeltildi.
+- **PR #157 — kullanıcı bulgusu:** anasayfadaki Bülten/Ham Veri Export
+  kartları `/account`'a düz gidiyordu, sayfanın tepesinde açılıyordu. İlgili
+  `.card`'lara `id="newsletter"`/`id="export"` + `scrollMarginTop` eklendi,
+  linkler `#newsletter`/`#export` anchor'larına güncellendi.
+- **PR #158 — footer + e-posta şablonları:** footer paylaşılan bir bileşene
+  çıkarıldı (`components/Footer.tsx`), anasayfa dışında `/privacy` `/terms`
+  `/security` `/contact`'a da eklendi (kullanıcı bulgusu: arama motorundan
+  bu sayfalara gelen ziyaretçinin site keşfi yoktu) — dashboard/hesabım/
+  admin ve auth ekranlarına bilinçli eklenmedi. E-posta şablonları
+  (digest/alert/reset/verify/welcome) yeni bir paylaşılan marka kabuğu
+  kullanıyor (`email_adapter.py::_brand_shell`) — NexStream başlığı + her
+  zaman "Siteye git" + (digest/alert'te) "Aboneliği iptal et", eski düz
+  mavi (#1a73e8) yerine kırmızı/serif kimlik. TDD ile yazıldı.
+- **18 Eylül prod yavaşlaması (PR #158 deploy'u sırasında, ~20 dakika):**
+  ardışık 4 küçük deploy'un sonuncusunda (footer+email) load average 24'e,
+  swap kullanımı 2.0Gi'nin tamamına çıktı; `nexstream_engine`/`embedder`/
+  `redpanda` sırayla unhealthy/OOM oldu, site 10+ saniyelik yanıt
+  süreleriyle fiilen kullanılamaz hale geldi. Kök neden 11 Eylül'dekiyle
+  AYNI (`docker compose up --build` EC2'nin kendisinde çalışıyor) — PR #124
+  ara-önlemi (izleme yığınını build sırasında durdurmak) AKTİFTİ ama TEK
+  BAŞINA yetersiz kaldığı kanıtlandı. Reboot denemesi Claude Code'un
+  otomatik izin sınıflandırıcısı tarafından iki kez reddedildi (kullanıcı
+  onayı bunu aşamadı); sistem ~20 dakika sonra reboot'suz kendi kendine
+  toparlandı. Kullanıcı kararı: küçük/acil olmayan değişiklikler artık
+  biriktirilip TEK seferde deploy edilecek (roadmap madde 28 güncellendi,
+  kalıcı çözüm — build'i EC2 dışına taşımak — artık ERTELENEMEZ).
+- **PR #159 — hesap silme güvenlik günlüğünde + README:** kullanıcı demo
+  hesap silme testinden sonra `DELETE /account`'ın 14 olay tipi arasında
+  hiç olmadığını fark etti — `EventType.ACCOUNT_DELETED` eklendi (TDD).
+  Kullanıcının asıl isteği ("güvenlik sekmesini iyice elden geçirmek
+  lazım") daha genişti, oturum uzunluğu nedeniyle roadmap madde 30 olarak
+  AÇIK bırakıldı (kaybolmasın diye). README ekran görüntüleri (landing
+  Day+Night+Star Wars, dashboard, arama, tema seçici) canlı prod sitesinden
+  geçici bir demo hesapla (`nxs-readme-demo@nexstreamnews.com`, kullanıcı
+  Pro yaptı, iş bitince kendi self-delete akışıyla silindi) yeniden çekildi;
+  bayat "837 test" sayısı 1004'e güncellendi.
+
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu, custom (Stripe dışı) billing portalı, App Store/Play Store (sadece PWA)
 
