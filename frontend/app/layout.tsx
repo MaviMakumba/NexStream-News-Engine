@@ -56,7 +56,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f3f1ec",
+  // Day temasının --bg'siyle senkron (18 Eylül 2026 yenilemesi) — mobil
+  // tarayıcı chrome/status bar rengi. Diğer 9 sinematik temanın ayrı ayrı
+  // bir themeColor'ı yok (bilinçli basitleştirme), bu yüzden sadece
+  // varsayılan (Day) ile eşleşmesi yeterli.
+  themeColor: "#f5f1e8",
 };
 
 // One combined Google Fonts request covering every theme's display face.
@@ -72,6 +76,7 @@ const FONTS_HREF =
     "family=Bangers",
     "family=Oswald:wght@400;500;600;700",
     "family=Black+Ops+One",
+    "family=Newsreader:wght@400;500;600;700;800",
   ].join("&") +
   "&display=swap";
 

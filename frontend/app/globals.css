@@ -160,25 +160,34 @@
 }
 
 /* ── Day (clean / readable, DEFAULT) ─────────────────────────────────
-   Warm off-white instead of the previous cool blue-white — pure white
-   surfaces read as "ice glare" on phone screens (user testing, 21 Ağu
-   2026). Text/accent kept dark enough that swapping the background
-   warmth doesn't erode existing WCAG AA contrast. ────────────────── */
+   18 Eylül 2026: "çok AI/generic duruyor" geri bildirimi üzerine paleti
+   editoryal bir kimliğe (gazete kırmızısı vurgu + Newsreader serif başlık
+   fontu) yenilendi. Bilinçli olarak sayfa-özel bir sınıfa DEĞİL — doğrudan
+   bu temaya yazıldı, kullanıcı "temalar değiştikçe sayfanın değişmesi güzel
+   bir özellik, kalsın" dedi (yani anasayfa da dashboard/admin gibi
+   diğer 9 tema seçiliyken kendi kimliğini korur, sadece Day aktifken bu
+   editoryal görünüm devreye girer).
+   Arka plan: sıcak/glare'siz beyaz — pure white'ın telefon ekranında "buz
+   parlaması" yaptığı 21 Ağu 2026 kullanıcı testinde bulunmuştu, o sıcaklık
+   seviyesi korunuyor (bkz. eski #f3f1ec), sadece ton tazelendi. Text/accent
+   kontrastı WCAG AA'yı koruyacak şekilde ayarlandı. */
 [data-theme="day"] {
   --font-body: "Inter", sans-serif;
-  --font-display: "Inter", sans-serif;
-  --radius: 14px;
-  --display-tracking: -0.02em;
-  --bg: #f3f1ec; --bg2: #e8e4d9;
-  --surface: rgba(255, 253, 250, 0.78);
-  --border: rgba(120, 113, 95, 0.16); --border2: rgba(29, 78, 216, 0.36);
+  --font-display: "Newsreader", Georgia, serif;
+  --radius: 8px;
+  --display-tracking: -0.01em;
+  --bg: #f5f1e8; --bg2: #eae4d6;
+  --surface: rgba(255, 253, 249, 0.82);
+  --border: rgba(23, 20, 15, 0.14); --border2: rgba(195, 30, 42, 0.35);
   --text: #1c1a16; --text2: #4b463c; --text3: #6b6558;
-  --accent: #1d4ea9; --accent2: #6d28d9; --accent-h: #163e87;
-  --accent-soft: rgba(29, 78, 169, 0.08); --accent-line: rgba(29, 78, 169, 0.3);
+  /* accent2 kasıtlı accent'e yakın (mor/mavi gradyan klişesinden kaçış —
+     gradient-text/gradient-border neredeyse tek renge düşer). */
+  --accent: #c31e2a; --accent2: #8f1620; --accent-h: #9c1620;
+  --accent-soft: rgba(195, 30, 42, 0.08); --accent-line: rgba(195, 30, 42, 0.32);
   --pos: #15803d; --neg: #c62222; --neu: #b45309;
   --pos-bg: rgba(21, 128, 61, .08); --neg-bg: rgba(198, 34, 34, .08); --neu-bg: rgba(180, 83, 9, .08);
-  --glow: rgba(29, 78, 169, .12); --glow2: rgba(109, 40, 217, .08);
-  --grid: rgba(29, 78, 169, .05);
+  --glow: rgba(195, 30, 42, .1); --glow2: rgba(195, 30, 42, .06);
+  --grid: rgba(23, 20, 15, .05);
 }
 
 /* ── Night (dark sibling of Day — same calm/no-effect family) ──────── */

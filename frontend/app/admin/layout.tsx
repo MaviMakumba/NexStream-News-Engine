@@ -53,17 +53,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         ) : (
         <>
-        {/* Tabs */}
+        {/* Tabs — dar ekranda 5 sekme (Kullanıcılar..Güvenlik) yan yana
+            container'dan taşıyordu; `body`'deki global `overflow-x: hidden`
+            (globals.css) bu taşmayı sayfa kaydırmasına çevirmek yerine
+            SESSİZCE KIRPIYORDU — İletişim/Güvenlik sekmeleri mobilde hiç
+            görünmüyor, dokunulamıyordu (18 Eylül 2026, kullanıcı bulgusu).
+            Fix: sekme çubuğunun KENDİSİ yatay kaydırılabilir (yatay scroll
+            page'e değil bu div'e hapsedilir), her sekme flexShrink:0 ile
+            sabit genişliğini korur. */}
         <div style={{ display: "flex", gap: 6, marginBottom: 28, padding: 4,
                       background: "var(--surface)", border: "1px solid var(--border)",
-                      borderRadius: 12, width: "fit-content",
+                      borderRadius: 12, width: "fit-content", maxWidth: "100%",
+                      overflowX: "auto", WebkitOverflowScrolling: "touch",
                       backdropFilter: "blur(12px)" }}>
           {tabs.map((tab) => {
             const active = pathname === tab.href;
             return (
               <Link key={tab.href} href={tab.href} style={{
                 padding: "7px 18px", borderRadius: 8, fontSize: "0.84rem", fontWeight: 600,
-                textDecoration: "none", transition: "all 0.15s",
+                textDecoration: "none", transition: "all 0.15s", flexShrink: 0,
                 display: "flex", alignItems: "center", gap: 6,
                 color:      active ? "#fff"             : "var(--text3)",
                 background: active ? "var(--accent)"   : "transparent",

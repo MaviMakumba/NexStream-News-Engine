@@ -115,7 +115,6 @@ export const UI: Record<Lang, Record<string, string>> = {
     upgradeNeedsVerification: "Yükseltmeden önce e-postanı doğrulaman gerekiyor.",
 
     // ── Landing ──
-    heroBadge: "Canlı — 17 kaynaktan sürekli güncelleniyor",
     heroPre: "Türkiye Haberlerini ", heroAccent: "Yapay Zeka", heroPost: " ile Keşfet",
     heroSub: "17 kaynaktan gerçek zamanlı akış. Duygu analizi, entity tanıma, semantik arama ve ilişki grafı — tek platformda.",
     ctaPrimary: "Ücretsiz Başla →", ctaSecondary: "Demo Görüntüle",
@@ -136,6 +135,34 @@ export const UI: Record<Lang, Record<string, string>> = {
     landingSearchErrorGeneric: "Arama şu anda başarısız oldu, birazdan tekrar deneyin.",
     landingSearchSignupCta: "Tam deneyim için ücretsiz kaydolun →",
     landingSearchMatchRate: "eşleşme",
+    landingSearchConnector: "Arama nasıl çalışıyor? Kaydırmadan hemen aşağıda dene.",
+
+    // ── Landing: canlı akış şeridi + "bir kartta neler var" (18 Eylül 2026) ──
+    liveWireLabel: "Canlı akış",
+    liveWireEmpty: "Şu an gösterilecek bir şey yok.",
+    liveWireError: "Akış şu an yüklenemedi.",
+    spotlightTitle: "Bir haber kartında neler var?",
+    spotlightIntro: "Aşağıdaki gerçek bir kart — çoğu kişi ilk bakışta şu üçünü fark etmiyor.",
+    spotlightSaveTitle: "Kaydet",
+    spotlightSaveDesc: "Şimdi okuyacak vaktin yoksa işaretle, sonra hesabındaki Kaydedilenler'den bul.",
+    spotlightTrustTitle: "Güvenilirlik skoru",
+    spotlightTrustDesc: "Kaynağın geçmişi, içeriğin kalitesi ve kaç farklı kaynağın aynı haberi doğruladığından hesaplanan, 0-100 arası şeffaf bir puan.",
+    spotlightAskTitle: "Sor",
+    spotlightAskDesc: "O haber hakkında soru sor — cevap sadece o haberin içeriğine dayanır, uydurmaz.",
+    spotlightAskExampleQ: "Karar piyasaları nasıl etkiledi?",
+    spotlightAskExampleA: "Kararın ardından döviz kurlarında hızlı hareket yaşandı. (2 kaynak doğruluyor)",
+    spotlightListenTitle: "Dinle",
+    spotlightListenDesc: "Elleri meşgulken bile takip et — başlık ve özet tarayıcı tarafından sesli okunur.",
+    spotlightRelatedTitle: "İlgili haberler",
+    spotlightRelatedDesc: "Aynı konudaki diğer makaleleri tek tıkla aç, tek habere sıkışıp kalma.",
+    spotlightGoTitle: "Habere git",
+    spotlightGoDesc: "Orijinal kaynağın kendi sitesinde tam metni okumak için.",
+    spotlightMetaLine: "Kaynak adı, yayın zamanı, haber tipi ve genel duygu tonu her kartın üstünde otomatik gösterilir — anahtar kelime rozetlerine tıklarsan o konudaki diğer haberlere gidersin.",
+    spotlightMockSource: "BBC TÜRKÇE", spotlightMockTopic: "Ekonomi",
+    spotlightMockTitle: "Merkez Bankası faiz kararını açıkladı: Piyasalar ilk yarım saatte nasıl tepki verdi?",
+    spotlightMockSummary: "Beklentilerin üzerinde gelen karar sonrası döviz kurlarında hızlı hareket yaşandı, analistler sonraki toplantıya dair sinyalleri değerlendiriyor.",
+    spotlightMockEntity1: "Merkez Bankası", spotlightMockEntity2: "TCMB", spotlightMockEntity3: "İstanbul",
+
     mostPopular: "En Popüler", footerTagline: "AI Haber Motoru",
     privacy: "Gizlilik", terms: "Şartlar",
     security: "Güvenlik",
@@ -371,7 +398,6 @@ export const UI: Record<Lang, Record<string, string>> = {
     upgradeNeedsVerification: "You need to verify your email before upgrading.",
 
     // ── Landing ──
-    heroBadge: "Live — continuously updated from 17 sources",
     heroPre: "Discover the News with ", heroAccent: "Artificial Intelligence", heroPost: "",
     heroSub: "Real-time stream from 17 sources. Sentiment analysis, entity recognition, semantic search and a relation graph — all in one platform.",
     ctaPrimary: "Start Free →", ctaSecondary: "View Demo",
@@ -392,6 +418,34 @@ export const UI: Record<Lang, Record<string, string>> = {
     landingSearchErrorGeneric: "Search failed right now, please try again shortly.",
     landingSearchSignupCta: "Sign up free for the full experience →",
     landingSearchMatchRate: "match",
+    landingSearchConnector: "Curious how search works? Try it right below.",
+
+    // ── Landing: live wire strip + "what's on a card" (Sep 18, 2026) ──
+    liveWireLabel: "Live wire",
+    liveWireEmpty: "Nothing to show right now.",
+    liveWireError: "Couldn't load the feed right now.",
+    spotlightTitle: "What's on a news card?",
+    spotlightIntro: "This is a real card — most people miss these three things at first glance.",
+    spotlightSaveTitle: "Save",
+    spotlightSaveDesc: "No time to read now? Bookmark it, then find it later under Saved in your account.",
+    spotlightTrustTitle: "Trust score",
+    spotlightTrustDesc: "A transparent 0-100 score built from the source's track record, content quality, and how many other outlets confirm the same story.",
+    spotlightAskTitle: "Ask",
+    spotlightAskDesc: "Ask a question about that story — the answer is grounded only in its content, never invented.",
+    spotlightAskExampleQ: "How did markets react to the decision?",
+    spotlightAskExampleA: "Currency markets moved quickly after the decision. (2 sources confirm)",
+    spotlightListenTitle: "Listen",
+    spotlightListenDesc: "Follow along even with your hands full — the title and summary are read aloud by your browser.",
+    spotlightRelatedTitle: "Related articles",
+    spotlightRelatedDesc: "Open other coverage of the same story in one click, don't get stuck on a single article.",
+    spotlightGoTitle: "Go to article",
+    spotlightGoDesc: "Read the full text on the original source's own site.",
+    spotlightMetaLine: "Source, publish time, topic and overall tone are always shown at the top of a card — tap a keyword chip to see other stories about it.",
+    spotlightMockSource: "BBC", spotlightMockTopic: "Economy",
+    spotlightMockTitle: "Central bank announces rate decision: how markets reacted in the first half hour",
+    spotlightMockSummary: "The decision came in above expectations, sending currency markets into rapid moves as analysts weigh signals for the next meeting.",
+    spotlightMockEntity1: "Central Bank", spotlightMockEntity2: "CBRT", spotlightMockEntity3: "Istanbul",
+
     mostPopular: "Most Popular", footerTagline: "AI News Engine",
     privacy: "Privacy", terms: "Terms",
     security: "Security",
@@ -543,18 +597,24 @@ export const LANDING_SEARCH_EXAMPLES: Record<Lang, string[]> = {
   EN: ["economic crisis and tech companies", "AI regulation", "climate change summit"],
 };
 
-export interface Feature { icon: string; accent: string; title: string; desc: string; }
+export interface Feature { icon: string; accent: string; title: string; desc: string; badge?: string; href?: string; }
 
 export const FEATURES: Record<Lang, Feature[]> = {
   TR: [
-    { icon: "◈", accent: "var(--accent)",  title: "AI Sentiment Analizi", desc: "Groq llama-3.1 ile her haberin duygu durumu, entity tanıma ve konu sınıflandırması saniyeler içinde." },
+    { icon: "◈", accent: "var(--accent)",  title: "AI Sentiment Analizi", desc: "Groq ile her haberin duygu durumu, entity tanıma ve konu sınıflandırması saniyeler içinde." },
     { icon: "⬡", accent: "var(--accent2)", title: "Semantik Arama",       desc: "ChromaDB vektör veritabanı ile anlamsal arama — aradığın kelime haberde olmasa bile bulur." },
     { icon: "◎", accent: "var(--pos)",     title: "Canlı Haber Akışı",     desc: "WebSocket ile yeni haberler anında ekrana düşüyor. 17 kaynak, sürekli güncellenen feed." },
+    { icon: "🔔", accent: "var(--accent2)", title: "Bülten", desc: "Seçtiğin kaynak ve konulara göre günlük özet e-postası al, ya da anahtar kelime eşleştiğinde anında haberdar ol.", href: "/account" },
+    { icon: "⇩", accent: "var(--neu)",     title: "Ham Veri Export", desc: "Tüm haber verini CSV veya JSON olarak indir — başlık, içerik, duygu analizi, entity ve kalite skorları dahil.", badge: "KURUMSAL", href: "/account" },
+    { icon: "✉", accent: "var(--accent)",  title: "İletişim", desc: "Sorunuz mu var, bir haberle ilgili telif itirazınız mı var? Doğrudan bize ulaşın, gerçek bir kişi yanıtlar.", href: "/contact" },
   ],
   EN: [
-    { icon: "◈", accent: "var(--accent)",  title: "AI Sentiment Analysis", desc: "Sentiment, entity recognition and topic classification for every article in seconds, powered by Groq llama-3.1." },
+    { icon: "◈", accent: "var(--accent)",  title: "AI Sentiment Analysis", desc: "Sentiment, entity recognition and topic classification for every article in seconds, powered by Groq." },
     { icon: "⬡", accent: "var(--accent2)", title: "Semantic Search",       desc: "Vector search with ChromaDB — finds the right articles even when your exact keyword isn't in the text." },
     { icon: "◎", accent: "var(--pos)",     title: "Live News Stream",      desc: "New articles hit the screen instantly over WebSocket. 17 sources, a continuously updated feed." },
+    { icon: "🔔", accent: "var(--accent2)", title: "Newsletter", desc: "Get a daily digest email for the sources and topics you pick, or an instant alert the moment a keyword matches.", href: "/account" },
+    { icon: "⇩", accent: "var(--neu)",     title: "Raw Data Export", desc: "Download all your news data as CSV or JSON — title, content, sentiment, entities and quality scores included.", badge: "ENTERPRISE", href: "/account" },
+    { icon: "✉", accent: "var(--accent)",  title: "Contact", desc: "Got a question, or a takedown request about a story? Reach us directly — a real person replies.", href: "/contact" },
   ],
 };
 
