@@ -49,6 +49,18 @@ from src.adapters.api.metrics import groq_latency_seconds, groq_rate_limit_total
 logger = logging.getLogger(__name__)
 
 _DURATION_RE = re.compile(r"(?:(\d+)m)?([\d.]+)s")
+# 429 gövdesi: "... on tokens per day (TPD): Limit 200000, Used ..."
+_LIMIT_KIND_RE = re.compile(r"\((TPD|TPM|RPD|RPM|ASH|ASD)\)")
+
+
+class GroqRateLimited(AnalysisError):
+    """Havuz modunda (wait_on_rate_limit=False) 429 alındığında fırlatılır —
+    PooledGroqAnalyzer modeli retry_after kadar soğumaya alıp diğerine geçer."""
+
+    def __init__(self, retry_after: float, kind: str = "?"):
+        super().__init__(f"Groq rate limit ({kind}), retry_after={retry_after}s")
+        self.retry_after = retry_after
+        self.kind = kind
 
 
 class GroqAnalyzer(AnalysisPort):
@@ -57,10 +69,23 @@ class GroqAnalyzer(AnalysisPort):
     # taşıdığı anlamına gelir — güvenlik payı olarak biraz yüksek tutuldu.
     _TOKEN_SAFETY_MARGIN = 1000
 
-    def __init__(self, model: str = "openai/gpt-oss-20b"):
+    def __init__(self, model: str = "openai/gpt-oss-20b", wait_on_rate_limit: bool = True):
         self.api_key = settings.groq_api_key
         self.model = model
+        # False: 429'da uyumak yerine GroqRateLimited fırlat (havuz kendisi
+        # başka modele geçer / bekler). True: tek-model eski davranış.
+        self.wait_on_rate_limit = wait_on_rate_limit
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
+
+    @staticmethod
+    def _rate_limit_kind(response) -> str:
+        """429 gövdesinden hangi kovanın dolduğunu (TPD/TPM/RPD/RPM) çıkarır."""
+        try:
+            message = response.json()["error"]["message"]
+        except Exception:
+            return "?"
+        match = _LIMIT_KIND_RE.search(message) if isinstance(message, str) else None
+        return match.group(1) if match else "?"
 
     @staticmethod
     def _parse_duration(value: str) -> float:
@@ -149,7 +174,11 @@ class GroqAnalyzer(AnalysisPort):
                 if r.status_code == 429:
                     groq_rate_limit_total.inc()
                     wait = int(r.headers.get("retry-after", 5))
-                    logger.warning("Groq rate limit, %ds bekleniyor...", wait)
+                    kind = self._rate_limit_kind(r)
+                    if not self.wait_on_rate_limit:
+                        logger.warning("Groq rate limit (%s, %s), model %ds soğumaya alınıyor", self.model, kind, wait)
+                        raise GroqRateLimited(wait, kind)
+                    logger.warning("Groq rate limit (%s, %s), %ds bekleniyor...", self.model, kind, wait)
                     time.sleep(wait)
                     continue
 
@@ -163,6 +192,8 @@ class GroqAnalyzer(AnalysisPort):
             except json.JSONDecodeError:
                 logger.warning("Groq JSON parse hatası, deneme %d", attempt + 1)
                 continue
+            except GroqRateLimited:
+                raise
             except Exception as e:
                 logger.error("Groq analiz hatası: %s", e)
                 if attempt < 2:

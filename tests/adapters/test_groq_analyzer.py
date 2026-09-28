@@ -309,3 +309,61 @@ def test_analyzer_default_model_unchanged():
     """Parametre verilmezse eski davranış (gpt-oss-20b) korunmalı."""
     analyzer = GroqAnalyzer()
     assert analyzer.model == "openai/gpt-oss-20b"
+
+# ── Havuz modu: 429'da uyumak yerine GroqRateLimited (28 Eyl 2026) ────────────
+# Prod ölçümü: gpt-oss-20b günlük token kovası (TPD) doluyken analyzer aynı
+# modelde ~200 sn uyuyordu (günde 702 kez), havuzdaki qwen'in kotası boş
+# dururken. Havuz içinde kullanılan analyzer 429'u yukarı bildirmeli ki
+# PooledGroqAnalyzer hemen diğer modele geçebilsin.
+
+
+def _rate_limit_response(retry_after: str = "187", message: str = ""):
+    mock = MagicMock()
+    mock.status_code = 429
+    mock.headers = {"retry-after": retry_after}
+    mock.json.return_value = {"error": {"message": message}}
+    mock.raise_for_status = MagicMock()
+    return mock
+
+
+def test_pool_mode_raises_rate_limited_without_sleeping():
+    from src.adapters.analysis.groq_analyzer import GroqRateLimited
+    analyzer = GroqAnalyzer(wait_on_rate_limit=False)
+    with patch("requests.post", return_value=_rate_limit_response("187")):
+        with patch("time.sleep") as sleep:
+            with pytest.raises(GroqRateLimited) as exc:
+                analyzer.analyze_or_raise("Some news.")
+    assert exc.value.retry_after == 187
+    sleep.assert_not_called()
+
+
+def test_rate_limited_is_an_analysis_error():
+    """Havuz dışındaki bir çağıran (fallback zinciri) onu normal başarısızlık sayabilmeli."""
+    from src.domain.ports.analysis_port import AnalysisError
+    from src.adapters.analysis.groq_analyzer import GroqRateLimited
+    assert issubclass(GroqRateLimited, AnalysisError)
+
+
+def test_rate_limit_log_names_the_exhausted_limit(caplog):
+    """429 gövdesindeki '(TPD)' gibi limit türü loglanmalı — hangi kovanın
+    dolduğu 28 Eyl'de ancak dolaylı hesapla bulunabildi."""
+    msg = ("Rate limit reached for model `openai/gpt-oss-20b` in organization `org_x` "
+           "service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199800")
+    analyzer = GroqAnalyzer(wait_on_rate_limit=False)
+    with patch("requests.post", return_value=_rate_limit_response("187", msg)):
+        with caplog.at_level("WARNING"):
+            with pytest.raises(Exception):
+                analyzer.analyze_or_raise("Some news.")
+    assert "TPD" in caplog.text
+    assert "openai/gpt-oss-20b" in caplog.text
+
+
+def test_default_mode_still_waits_and_retries_on_rate_limit():
+    """Havuz dışı (varsayılan) davranış değişmedi: bekle + tekrar dene."""
+    analyzer = GroqAnalyzer()
+    success = make_mock_response('{"sentiment_score": 0.5, "sentiment_label": "Positive", "summary": "Good."}')
+    with patch("requests.post", side_effect=[_rate_limit_response("3"), success]):
+        with patch("time.sleep") as sleep:
+            result = analyzer.analyze_text("Some news.")
+    assert result["sentiment_label"] == "Positive"
+    sleep.assert_any_call(3)

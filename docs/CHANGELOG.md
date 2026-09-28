@@ -1350,6 +1350,69 @@ gerekmedi).
   Pro yaptı, iş bitince kendi self-delete akışıyla silindi) yeniden çekildi;
   bayat "837 test" sayısı 1004'e güncellendi.
 
+### 28 Eylül 2026 — Uzun aradan sonra prod sağlık taraması + Groq havuz failover, PR #168-169
+
+10 günlük aranın ardından SSM ile uçtan uca tarama (host, container,
+DB, worker/scheduler/nginx log'ları, Redpanda, Prometheus, `pip-audit`/
+`npm audit`). Site sağlıklıydı (16 container 0 restart, güvenlik
+günlüğünde anormallik yok, bağımlılık açığı 0) ama altta üç ciddi sorun
+bulundu:
+
+- **Yedek HİÇ alınmamış (28 Tem'den beri).** `infra/backup/crontab`
+  host'tan bind-mount ediliyordu, dosya uid 1000'e aitti; busybox `crond`
+  root'a ait olmayan crontab'ları SESSİZCE yok sayar. Çıktı da container
+  içi bir dosyaya gittiği için `docker logs`'ta iz yoktu. Fix: crontab
+  imaja `COPY` ile (root), çıktı `/proc/1/fd/1`'e. İlk yedek elle alındı.
+- **ChromaDB verisi hiçbir volume'da değildi.** chroma 1.x `/data`'ya
+  yazar; prod compose named volume'u eski 0.x yolu `/chroma/chroma`'ya
+  bağlıyordu (dev compose doğruydu). 27k vektör 29 Temmuz'dan beri
+  container'ın YAZILABİLİR KATMANINDA duruyordu — herhangi bir recreate
+  indeksi silerdi, yedek de boş tar'dı (207 byte). İlk taşıma script'i
+  "anonim volume" varsayımıyla yazılmıştı; güvenlik kontrolü ("/data mount
+  bulunamadı") sayesinde hiçbir şeye dokunmadan durdu ve gerçek konum
+  ortaya çıktı. Taşıma: chroma durduruldu → `docker cp nexstream_chromadb:/data/. -
+  | tar -x` ile named volume'a → `cmp` ile sqlite birebir doğrulandı →
+  hemen merge → deploy yeni mount'la açtı (27.033 kayıt korundu). Host'ta
+  `/home/ubuntu/chroma-migration-backup` geri dönüş kopyası duruyor.
+- **Worker kuyruğu hiç erimiyordu.** Scheduler 10 dk'da 17 emir üretir,
+  worker Groq beklemeleri yüzünden kaynak başına ~12 dk harcıyordu:
+  `news_updates`'ta 38.881 mesajlık backlog, 17 kaynaklık tur ~3,5 saat,
+  bazı kaynaklarda 7 saate varan gecikme. Ayrıca aiokafka'nın varsayılan
+  `max_poll_interval_ms`'i (5 dk) mesaj işleme süresinden kısa olduğu için
+  worker sürekli gruptan atılıyordu (rpk: `STATE Empty, MEMBERS 0`). Fix:
+  15 dk'dan eski emirler atlanıyor (`worker_stale_command_seconds`),
+  poll aralığı 60 dk.
+- Küçükler: redpanda healthcheck'inin bıraktığı 52 zombi (`init: true`),
+  RSS feed kanal linkleri bize ait olmayan `nexstream.news`'e işaret
+  ediyordu (artık `FRONTEND_URL`), scraper hata logunda istisna tipi
+  (HN `ReadTimeout`'u boş mesajla görünüyordu), 5 `@example.com` test
+  abonesi silindi (her sabah Resend 422), 11,9 GB build cache temizlendi,
+  kernel güncellemesi için reboot (~1,5 dk kesinti, 16 container kendi
+  kendine döndü).
+- **Groq darboğazının gerçek kökü (PR #169):** Prometheus
+  (`nexstream_groq_*` — metrik adları `nexstream_` önekli, öneksiz sorgu
+  boş döner) 24 saatte ~484 başarılı çağrı, 702 adet 429, ~250K token
+  gösterdi; çağrı başına ~517 token. RPD (998/1000 kalan) ve TPM bağlayıcı
+  DEĞİLDİ — bağlayıcı olan günlük token kovası (TPD): ~220 sn'lik
+  beklemeler "517 token'lık yerin açılma süresi"yle uyuşuyor, canlı 429
+  gövdesi de "(TPD)" dedi. 10 Eylül'de kurulan `PooledGroqAnalyzer`
+  (20b + qwen3.8-27b) fiilen tek modelle çalışıyordu (24 saatte 20b 248K,
+  qwen 1,3K token): seçim her dakika sıfırlanan TPM'e bakıyordu ve 429
+  alan analyzer diğer modele geçmek yerine AYNI modelde uyuyordu. Fix:
+  havuz içindeki `GroqAnalyzer(wait_on_rate_limit=False)` 429'da
+  `GroqRateLimited(retry_after)` fırlatır, havuz modeli o süre soğumaya
+  alıp istek hemen diğerine gider; hepsi soğumadaysa en erken açılanı
+  bekler. 429 logu artık limit türünü (TPD/TPM/...) yazıyor. Yan bulgu:
+  havuz `analyze_or_raise`'i override etmediği için `FallbackAnalyzer`'daki
+  HuggingFace yedeği hiç tetiklenemiyordu — düzeltildi. Gerçek çağrıyla
+  doğrulandı: 20b TPD 429 → 103 sn uyku yerine qwen'den 1-2 sn'de doğru
+  analiz. Qwen çıktı kalitesi tek örnekte 20b ile eşdeğer; deploy sonrası
+  model bazlı sentiment dağılımı/boş özet oranı izlenecek.
+- Süreç: Claude Code'un auto-mode sınıflandırıcısı oturumun ortasında
+  uzun süre "no verdict" hatası verdi (her Bash/PowerShell komutu
+  reddedildi, 10 ardışıkta tur kilitlendi) — normal izin moduna geçince
+  iş devam etti.
+
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu, custom (Stripe dışı) billing portalı, App Store/Play Store (sadece PWA)
 
