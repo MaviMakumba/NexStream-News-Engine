@@ -123,6 +123,21 @@ container-crash testleri bunu yakalamaz, sadece gerçek reboot ortaya çıkarır
 Tamamlanan işlerin tam kronolojik dökümü `docs/CHANGELOG.md`'de. Burada sadece
 GERÇEKTEN bekleyen işler var:
 
+0. **📋 HER OTURUM BAŞINDA: `docs/DURUM-DEGERLENDIRMESI.md`'deki öncelik
+   tablosunu kullanıcıyla gözden geçir** (28 Eyl 2026 SWOT + ölçümler + elimizde
+   olan/olmayan + fazlalar + aciliyet sıralı iş listesi — kullanıcı isteği:
+   "sonraki oturumlarda mutlaka değinelim, kaybolmasınlar"). Tamamlanan satırı
+   orada işaretle, silme. Özet (28 Eyl):
+   - 🔴 **Sunucu/bütçe kararı** — AWS kredisi ~Kasım 2026 ortası biter;
+     Hetzner CX33 taşıma planı+provası **Ekim başında** başlamalı.
+   - 🔴 **R2 offsite yedek** — kullanıcı CF'de bucket `nexstream-backups` +
+     bucket-scope'lu Object R/W token açıp anahtarları verecek.
+   - 🔴 **Yedekten geri yükleme testi** — hiç yapılmadı (taşımayla birleştir).
+   - 🟠 28 Eyl değişikliklerini izle (qwen kalite/kota, 03:00 yedeği, Chroma
+     rollback kopyasını sil), Dependabot toplu (16 PR), #28 GHCR, #30.
+   - 🟡 #14, #13, yeni kaynaklar, `api.ts` yolu, `_stem_tr`, #26.
+   - 🟢 Launch/AdSense/Reddit, #18, #3, #2.
+
 1. ~~Anasayfa tasarım yenilemesi~~ — ✅ 18 Eylül 2026 (PR #155). `frontend-design`
    skill'iyle brainstorm edildi: Day teması (varsayılan) kırmızı vurgu +
    Newsreader serif kimliğine yenilendi — **tema seçici hâlâ anasayfayı da
