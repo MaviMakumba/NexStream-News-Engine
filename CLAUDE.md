@@ -107,7 +107,7 @@ container-crash testleri bunu yakalamaz, sadece gerçek reboot ortaya çıkarır
 ## MEVCUT DURUM
 
 - **Versiyon:** v2.9 🚀 **CANLIDA: https://nexstreamnews.com** (2 Eylül 2026'da gerçek domain'e taşındı — eski `nexstreamnewsengine.duckdns.org` 13 Eyl 2026'dan beri SERTİFİKADA YOK — origin IP'yi ifşa ettiği için SAN'dan çıkarıldı, DNS kaydını duckdns.org'dan kullanıcı silecek; certbot lineage ADI hâlâ `nexstreamnewsengine.duckdns.org` (dosya yolu değişmesin diye, `certbot certificates` bunu gösterir, şaşırma). İlk canlıya çıkış: 29 Temmuz 2026. E-posta artık Resend üzerinden gidiyor (`bildirim@nexstreamnews.com`, DKIM+SPF+DMARC doğrulandı) — kişisel Gmail/SMTP artık birincil kanal DEĞİL. 2-4 Eylül'de iki ayrı deploy-kesintisi yaşandı (SSM timeout'unun host'ta zombi build süreci bırakması + nginx'in stale upstream IP'si), ikisi de kalıcı düzeltildi (detay: CHANGELOG "2 Eylül"/"3-4 Eylül"). **12 Eylül 2026 güvenlik turu (PR #126-128):** bir "güvenlik araştırmacısı" izinsiz test yapıp ücret karşılığı rapor teklif etti — A'dan Z'ye denetim yapıldı, sızıntı/zarar YOK, 6 bulgu (1 orta, 5 düşük/bilgi) aynı gün düzeltilip deploy edildi, `/security` + `security.txt` eklendi (detay: CHANGELOG "12 Eylül"). 13 Eyl: `security_events` güvenlik günlüğü + `/admin/security` + uçtan uca `request_id` (PR #135-136).
-- **Test sayısı:** 931+ test, hepsi yeşil (backend); frontend `next build` temiz (React 19 + Next 16 ile, PR #93).
+- **Test sayısı:** 1026+ test, hepsi yeşil (backend); frontend `next build` temiz (React 19 + Next 16 ile, PR #93).
 - **Frontend:** Next.js 16 + React 19. 10 sinematik tema (varsayılan `day`), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
@@ -250,12 +250,16 @@ GERÇEKTEN bekleyen işler var:
     tüketim rahat olsa bile BURST halinde istek atmak kovayı anlık boşaltıp
     dakikalarca 429'a yol açıyor. `groq_request_interval_seconds` (4.0s)
     üç noktada (makale-arası, `reanalyze_missed`, kaynaklar-arası) tek
-    doğruluk kaynağı yapıldı. **Sonraki oturumun işi: birkaç günlük
-    gözlemle (worker log'unda `rate limit` sıklığı) gerçekten işe yarayıp
-    yaramadığını doğrulamak** — yaramazsa tamamlayıcı kol hâlâ aynı:
-    `is_near_duplicate` kontrolü Groq analizinden SONRA çalışıyor, near-
-    duplicate haberler bile tam analiz alıyor (ürün kararı gerektiriyor,
-    bounded değil).
+    doğruluk kaynağı yapıldı. **3. dilim ✅ 28 Eyl 2026 (PR #169):**
+    pacing YETMEDİ — bağlayıcı limit TPD çıktı (Prometheus: 24 saatte ~250K
+    token, 702×429; RPD/TPM rahattı) ve model havuzu 429'da diğer modele
+    geçmeyip aynı modelde ~200 sn uyuyordu (qwen fiilen boştu). Artık 429
+    alan model soğumaya alınıp istek hemen havuzdaki diğerine gidiyor.
+    Near-duplicate kontrolü zaten analizden ÖNCE çalışıyor (eski not
+    yanlıştı). **Sonraki iş:** birkaç gün `nexstream_groq_tokens_total`'ı
+    model bazında + 429 sayısını + worker tur süresini izle; qwen analiz
+    kalitesini (sentiment dağılımı, boş özet oranı) 20b ile karşılaştır.
+    Kapasite yine yetmezse sıradaki kaldıraç: çağrı başına token (~517).
 26. **`/contact` formundan gönderilen mailler spam'e düşüyor (8 Eylül 2026,
     kullanıcı bulgusu, henüz çözülmedi)** — SPF şüphelendirdi ama ÇIKMAZ
     sonucu: Resend zaten `send.nexstreamnews.com` alt-domain'i üzerinden
@@ -637,6 +641,9 @@ Her madde tek bir kalıcı kural — "ne zaman/nasıl bulundu" forensic detayı
 - **Deploy sonrası doğrulama `docker ps`'te "Up" saymak DEĞİL, her container için `RestartCount`'a bakmaktır** — `restart: always` bir crash-loop'u "running/restarting" gibi gösterir; 13 Eyl'de app/nginx/worker sağlıklıyken scheduler 10 kez restart olmuştu ve `/api/health` bunu göstermez (scheduler'ın HTTP'si yok). Tek satır: `for c in $(docker ps -q); do docker inspect --format '{{.Name}} restarts={{.RestartCount}} oom={{.State.OOMKilled}}' $c; done | grep -E 'restarts=[1-9]|oom=true'`.
 - **Otomatik saldırgan engelleme kapsamı:** nginx `limit_req_zone` + slowapi endpoint limitleri sadece YAVAŞLATIR/429 döner, kalıcı bir IP ban/WAF/fail2ban YOK (Cloudflare geçişi bunu değiştirebilir, bkz. YOL HARİTASI madde 6). Kullanıcı bazlı banlama AYRI ve VAR (`PATCH /admin/users/{id}/active`) ama IP değil hesap seviyesinde.
 - **`nexstream-deploy` IAM kullanıcısı AdministratorAccess DEĞİL** — `NexStreamDeployMinimal` policy'sine scope'landı (sadece EC2 describe/start/stop/reboot + SSM, `i-0608c897a3d8ca3f3` ile sınırlı). Başka bir AWS eylemi (S3, IAM, RDS, Budgets dahil) bu kimlikle YAPILAMAZ, kullanıcıya sor.
+- **busybox `crond` (alpine) root'a ait OLMAYAN crontab dosyalarını SESSİZCE yok sayar** — host'tan bind-mount edilen crontab uid 1000'e aitti, 2 ay boyunca tek yedek alınmadı (28 Eyl 2026). Crontab'ı imaja `COPY` et, iş çıktısını `/proc/1/fd/1`'e yönlendir ki `docker logs`'ta görünsün. Yedeğin gerçekten alındığını dosya listesiyle doğrula: `docker exec nexstream_backup ls -la /backups`.
+- **ChromaDB 1.x veriyi `/data`'ya yazar (0.x: `/chroma/chroma`)** — prod'da volume eski yola bağlıydı, 27k vektör container katmanında duruyordu (28 Eyl'de taşındı). Veri yolunu değiştiren bir major bump'tan sonra `docker inspect <c> --format '{{range .Mounts}}{{.Name}} -> {{.Destination}}{{println}}{{end}}'` ile verinin GERÇEKTEN named volume'da olduğunu doğrula; "healthy + veri var" bunu göstermez.
+- **Groq 429 teşhisi: log'daki limit türüne bak** (`Groq rate limit (<model>, TPD)`) — 28 Eyl'de bağlayıcı kova TPD'ydi. `PooledGroqAnalyzer` 429'da modeli soğumaya alıp diğerine geçer; havuza yeni model eklerken önce gerçek bir analiz çağrısıyla JSON çıktısını doğrula (`<think>` gömen modeller parser'ı kırar). Prometheus metrikleri `nexstream_` önekli.
 - **v1.11 sonrası yeni env var'lar:** güncel/tam liste `docker-compose.prod.yml` + `settings.py`'de — hangi versiyonda eklendiğinin kronolojisi CHANGELOG'da.
 - **v2.0 nginx dersi:** `upstream` blokları AÇILIŞTA çözülür — tek bir upstream host'u ayakta değilse nginx HİÇ açılmaz. Opsiyonel/ikincil upstream'ler (grafana gibi) değişkenli `proxy_pass` + `resolver 127.0.0.11` ile lazy çözümlenmeli. `app`/`frontend` bilinçli olarak sabit upstream (zaten zorunlu).
 - **v2.0 Next.js standalone dersi:** Docker'ın otomatik koyduğu `HOSTNAME=<container-id>` Next.js standalone `server.js`'i TEK bir ağ arayüzüne bind eder — container iki ağdaysa nginx diğer ağdan ulaşamaz (502). `frontend/Dockerfile`'da `ENV HOSTNAME=0.0.0.0` şart.
