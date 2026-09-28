@@ -85,3 +85,53 @@ def test_prod_grafana_root_url_uses_frontend_url_not_domain_placeholder():
     root = next(e for e in env if e.startswith("GF_SERVER_ROOT_URL="))
     assert "%(domain)s" not in root
     assert "${FRONTEND_URL" in root and root.endswith("/grafana/")
+
+
+# ── 28 Eylül 2026 prod taraması ────────────────────────────────────────────────
+
+
+def _compose(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def _volume_targets(service: dict) -> dict[str, str]:
+    """'named:/target[:ro]' kısa sözdizimini {target: source} sözlüğüne çevirir."""
+    out = {}
+    for entry in service.get("volumes", []):
+        parts = entry.split(":")
+        out[parts[1]] = parts[0]
+    return out
+
+
+def test_chromadb_named_volume_mounted_at_chroma_1x_data_dir():
+    """chromadb/chroma 1.x imajı veriyi /data'ya yazar (eski 0.x: /chroma/chroma).
+    Prod compose named volume'u eski yola bağlıyordu — 27k vektör anonim bir
+    volume'da duruyordu (`compose down` ile kaybolurdu) ve yedek boş tar'dı."""
+    for path in ("docker-compose.prod.yml", "docker-compose.yml"):
+        targets = _volume_targets(_compose(path)["services"]["chromadb"])
+        assert targets.get("/data") == "chroma_data", path
+        assert "/chroma/chroma" not in targets, path
+
+
+def test_backup_crontab_baked_into_image_not_bind_mounted():
+    """busybox crond root'a ait OLMAYAN crontab dosyalarını sessizce yok sayar.
+    Host'tan bind-mount edilen dosya uid 1000'e aitti — 28 Tem'den beri tek bir
+    zamanlanmış yedek alınmadı. Crontab imaja (root sahipliğiyle) kopyalanmalı."""
+    backup = _compose("docker-compose.prod.yml")["services"]["backup"]
+    assert not any("crontab" in v for v in backup.get("volumes", []))
+    dockerfile = _read("infra/backup/Dockerfile")
+    assert re.search(r"^COPY\s+crontab\s+/etc/crontabs/root", dockerfile, re.M)
+
+
+def test_backup_cron_output_goes_to_container_logs():
+    """Yedek çıktısı container içi bir dosyaya gidince `docker logs`'ta hiçbir iz
+    kalmıyordu — hiç çalışmadığı 2 ay boyunca fark edilmedi."""
+    crontab = _read("infra/backup/crontab")
+    assert "/proc/1/fd/1" in crontab
+
+
+def test_redpanda_runs_with_init_to_reap_healthcheck_zombies():
+    """redpanda PID 1 olarak healthcheck'in (rpk | grep) çocuklarını reap etmiyordu."""
+    for path in ("docker-compose.prod.yml", "docker-compose.yml"):
+        assert _compose(path)["services"]["redpanda"].get("init") is True, path

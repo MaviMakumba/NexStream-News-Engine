@@ -1,1 +1,2 @@
-0 3 * * * /usr/local/bin/backup.sh >> /var/log/backup.log 2>&1
+# Çıktı PID 1'in stdout'una → `docker logs nexstream_backup` ile görünür.
+0 3 * * * /usr/local/bin/backup.sh >> /proc/1/fd/1 2>&1

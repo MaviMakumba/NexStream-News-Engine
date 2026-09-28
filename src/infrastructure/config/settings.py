@@ -70,6 +70,14 @@ class Settings(BaseSettings):
     # 0 = sınırsız (eski davranış).
     worker_max_new_articles_per_run: int = 5
 
+    # Bu yaştan (saniye) eski scrape emirleri worker tarafından atlanır — emir
+    # "bu kaynağı ŞİMDİ tara" demek, aynı kaynak sonraki scheduler turunda
+    # zaten yeniden istenir. Bu olmadan worker'ın işleme hızı (Groq beklemeleri
+    # yüzünden kaynak başına ~12 dk) scheduler'ın üretim hızının (10 dk'da 17
+    # emir) çok altında kaldığı için kuyruk hiç erimiyordu (28 Eyl 2026: 38.881
+    # mesajlık backlog). 0 = kapalı (her emir işlenir).
+    worker_stale_command_seconds: int = 900
+
     # İki ardışık Groq isteği arasındaki minimum bekleme (saniye) — TEK doğruluk
     # kaynağı, hem update_news_from_source'un makale döngüsünde hem
     # reanalyze_missed'in kendi döngüsünde hem de kafka_consumer._process'in

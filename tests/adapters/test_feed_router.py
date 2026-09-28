@@ -78,3 +78,20 @@ def test_rss_feed_calls_service_with_50(app_client):
         _clear(app_client)
 
     mock_service.list_news.assert_called_once_with(50)
+
+
+def test_rss_feed_links_point_to_configured_site_not_foreign_domain(app_client, monkeypatch):
+    """28 Eyl 2026: kanal linkleri sabit 'https://nexstream.news'e (bize ait
+    olmayan bir domain) işaret ediyordu — FRONTEND_URL'den türetilmeli."""
+    from src.infrastructure.config.settings import settings
+    monkeypatch.setattr(settings, "frontend_url", "https://example-site.test")
+    mock_service = MagicMock()
+    mock_service.list_news.return_value = [make_article(1)]
+    _override(app_client, mock_service)
+    try:
+        body = app_client.get("/feed.xml").text
+    finally:
+        _clear(app_client)
+    assert "nexstream.news" not in body
+    assert "<link>https://example-site.test/</link>" in body or "<link>https://example-site.test</link>" in body
+    assert 'href="https://example-site.test/api/feed.xml"' in body

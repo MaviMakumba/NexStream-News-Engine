@@ -94,6 +94,17 @@ def test_base_scraper_returns_empty_on_error():
         articles = asyncio.run(scraper.fetch_news())
     assert articles == []
 
+def test_scraper_error_log_includes_exception_type(caplog):
+    """httpx.ReadTimeout gibi istisnaların str()'i boş — prod log'unda sadece
+    'Hacker News hata: ' görünüyordu (28 Eyl 2026). Tip adı da loglanmalı."""
+    class ReadTimeout(Exception):
+        pass
+    scraper = BBCTechnologyScraper()
+    with patch.object(scraper, "_fetch_content", new=AsyncMock(side_effect=ReadTimeout())):
+        with caplog.at_level("ERROR"):
+            asyncio.run(scraper.fetch_news())
+    assert "ReadTimeout" in caplog.text
+
 def test_base_scraper_respects_limit():
     scraper = BBCTechnologyScraper()
     scraper.limit = 1
