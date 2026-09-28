@@ -87,7 +87,8 @@ class BaseRssScraper(NewsScraperPort):
                     published_at=_parse_pub_date(item),
                 ))
         except Exception as e:
-            logger.error("%s hata: %s", self.source_name, e)
+            # type(e).__name__: httpx.ReadTimeout gibi istisnaların str()'i boş.
+            logger.error("%s hata: %s: %s", self.source_name, type(e).__name__, e)
         return articles
 
 

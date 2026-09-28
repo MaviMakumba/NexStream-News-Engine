@@ -9,6 +9,7 @@ sonsuz döngüde yeniden bağlanılarak tolere edilir.
 import asyncio
 import json
 import logging
+import time
 from typing import Optional
 from aiokafka import AIOKafkaConsumer
 from src.infrastructure.config.database import SessionLocal
@@ -84,18 +85,39 @@ async def _process(scraper):
         db.close()
 
 
+def _is_stale_command(timestamp_ms: Optional[int], now: Optional[float] = None) -> bool:
+    """Scrape emri settings.worker_stale_command_seconds'tan eski mi?
+
+    Timestamp'i olmayan (None / -1) mesajlar asla bayat sayılmaz — atlamak
+    yerine işlemek daha güvenli.
+    """
+    max_age = settings.worker_stale_command_seconds
+    if not max_age or timestamp_ms is None or timestamp_ms < 0:
+        return False
+    now = time.time() if now is None else now
+    return now - timestamp_ms / 1000 > max_age
+
+
+def _build_consumer() -> AIOKafkaConsumer:
+    return AIOKafkaConsumer(
+        'news_updates',
+        bootstrap_servers=settings.kafka_bootstrap_servers,
+        group_id="news_workers_group",
+        auto_offset_reset="earliest",
+        # Tek bir kaynak Groq rate-limit beklemeleriyle 10+ dk sürebiliyor;
+        # varsayılan 5 dk'lık poll aralığı worker'ı her mesajda gruptan
+        # attırıyordu (28 Eyl 2026, rpk: STATE Empty / MEMBERS 0).
+        max_poll_interval_ms=60 * 60 * 1000,
+    )
+
+
 async def consume():
     setup_logging()
     init_sentry("worker")
     startup_done = False  # Run startup scrape only once per process, not on every reconnect
 
     while True:  # outer loop: reconnect on Kafka failures
-        consumer = AIOKafkaConsumer(
-            'news_updates',
-            bootstrap_servers=settings.kafka_bootstrap_servers,
-            group_id="news_workers_group",
-            auto_offset_reset="earliest",
-        )
+        consumer = _build_consumer()
         while True:
             try:
                 await consumer.start()
@@ -116,7 +138,16 @@ async def consume():
             startup_done = True
 
         try:
+            skipped = 0
             async for msg in consumer:
+                if _is_stale_command(msg.timestamp):
+                    skipped += 1
+                    if skipped % 500 == 0:
+                        logger.info("Bayat scrape emri atlandı (toplam %d)", skipped)
+                    continue
+                if skipped:
+                    logger.info("%d bayat scrape emri atlandı", skipped)
+                    skipped = 0
                 data = json.loads(msg.value)
                 source = data.get("source")
                 scraper = SCRAPER_REGISTRY.get(source)

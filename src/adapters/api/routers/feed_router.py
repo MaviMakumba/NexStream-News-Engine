@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 from src.application.services.news_service import NewsService
 from src.dependencies import get_news_service
+from src.infrastructure.config.settings import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Feed"])
@@ -38,11 +39,16 @@ def get_rss_feed(service: NewsService = Depends(get_news_service)):
             status_code=500,
         )
 
+    # Sabit bir domain yerine FRONTEND_URL — önceden bize ait olmayan
+    # "https://nexstream.news"e işaret ediyordu (28 Eyl 2026). Feed nginx
+    # arkasında /api/feed.xml'de yayınlanıyor.
+    site = settings.frontend_url.rstrip("/")
+    feed_url = f"{site}/api/feed.xml"
     fg = FeedGenerator()
-    fg.id("https://nexstream.news/feed.xml")
+    fg.id(feed_url)
     fg.title("NexStream News Engine")
-    fg.link(href="https://nexstream.news/feed.xml", rel="self")
-    fg.link(href="https://nexstream.news/", rel="alternate")
+    fg.link(href=feed_url, rel="self")
+    fg.link(href=f"{site}/", rel="alternate")
     fg.language("tr")
     fg.description("AI destekli haber motoru — sentiment, NER ve topic analizi")
 

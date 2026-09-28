@@ -81,6 +81,8 @@ services:
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
     container_name: nexstream_redpanda
+    # PID 1 redpanda, healthcheck'in (rpk | grep) çocuklarını reap etmiyordu → zombi.
+    init: true
     restart: unless-stopped
     command:
       - redpanda
