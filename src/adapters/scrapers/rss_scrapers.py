@@ -13,6 +13,7 @@ from email.utils import parsedate_to_datetime
 from typing import List, Optional
 from src.domain.ports.scraper_port import NewsScraperPort
 from src.domain.models.article import Article
+from src.domain.policies.ingest_policy import sort_newest_first
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,12 @@ class BaseRssScraper(NewsScraperPort):
     url: str = ""
     source_name: str = ""
     limit: int = 25
+    # Kaynak profili (S2): dil, odak konu (None = genel kaynak; değerler src/domain/topics.py
+    # kimlikleri) ve günlük tavan (None = sınırsız). Tavan toplamı test_source_portfolio.py ile
+    # kapasite modeline (≤ 950/gün) kilitli; operasyonel geçersiz kılma: SOURCE_DAILY_CAPS.
+    language: str = "TR"
+    focus_topic: Optional[str] = None
+    daily_cap: Optional[int] = None
 
     # Bare "Mozilla/5.0" klasik bot imzasıdır — gerçek tarayıcılar hiçbir zaman
     # tek başına göndermez. AA'nın WAF'ı bunu tanıyıp bağlantıyı TLS seviyesinde
@@ -60,9 +67,9 @@ class BaseRssScraper(NewsScraperPort):
             soup = BeautifulSoup(content, "xml")
 
             items = soup.find_all("item") or soup.find_all("entry")
-            logger.info("%s: %d haber bulundu, ilk %d alınıyor.", self.source_name, len(items), min(self.limit, len(items)))
+            logger.info("%s: %d haber bulundu, en yeni %d alınıyor.", self.source_name, len(items), min(self.limit, len(items)))
 
-            for item in items[:self.limit]:
+            for item in items:
                 title = item.find("title")
                 title = title.text.strip() if title else "Başlıksız"
 
@@ -86,6 +93,9 @@ class BaseRssScraper(NewsScraperPort):
                     url=url,
                     published_at=_parse_pub_date(item),
                 ))
+            # Önce HEPSİNİ ayrıştır, tarihe göre sırala, SONRA dilimle: tarih sırasız feed'lerde
+            # (ScienceDaily 60, BBC Health 52 öğe) "ilk N" taze haberi kaçırıp bayatı alıyordu.
+            articles = sort_newest_first(articles)[:self.limit]
         except Exception as e:
             # type(e).__name__: httpx.ReadTimeout gibi istisnaların str()'i boş.
             logger.error("%s hata: %s: %s", self.source_name, type(e).__name__, e)
