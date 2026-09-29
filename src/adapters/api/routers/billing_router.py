@@ -25,6 +25,8 @@ from src.adapters.api.auth_utils import get_current_user, has_owner_role
 from src.adapters.api.limiter import limiter
 from src.adapters.repositories.user_repository import UserRepository
 from src.domain.models.user import User
+from src.adapters.api.security_audit import record_security_event
+from src.domain.models.security_event import EventCategory, EventType
 from src.infrastructure.config.database import get_db
 from src.infrastructure.config.settings import settings
 
@@ -165,6 +167,7 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(None))
             payload, stripe_signature, settings.stripe_webhook_secret
         )
     except stripe.error.SignatureVerificationError:
+        _audit(request, EventCategory.ABUSE, EventType.WEBHOOK_SIGNATURE_INVALID)
         raise HTTPException(status_code=400, detail="Invalid Stripe signature")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -173,14 +176,24 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(None))
     logger.info("Stripe webhook: %s", event_type)
 
     if event_type in ("customer.subscription.created", "customer.subscription.updated"):
-        _handle_subscription_activated(event["data"]["object"])
+        _handle_subscription_activated(event["data"]["object"], request)
     elif event_type == "customer.subscription.deleted":
-        _handle_subscription_cancelled(event["data"]["object"])
+        _handle_subscription_cancelled(event["data"]["object"], request)
 
     return {"received": True}
 
 
-def _handle_subscription_activated(subscription: dict) -> None:
+def _audit(request: Request, category: str, event_type: str, **kw) -> None:
+    """Webhook request-scoped DB oturumu almaz → güvenlik günlüğü için kendi kısa oturumunu açar."""
+    from src.infrastructure.config.database import SessionLocal
+    db = SessionLocal()
+    try:
+        record_security_event(db, request, category, event_type, **kw)
+    finally:
+        db.close()
+
+
+def _handle_subscription_activated(subscription: dict, request: Request) -> None:
     """Abonelik açıldı/güncellendi → kullanıcı tier'ını yükselt.
 
     Webhook request context'i dışında çalıştığı için kendi DB session'ını açar.
@@ -196,11 +209,13 @@ def _handle_subscription_activated(subscription: dict) -> None:
     try:
         UserRepository(db).update_tier(int(user_id), tier, stripe_customer_id=customer_id)
         logger.info("Kullanıcı tier güncellendi: user_id=%s, tier=%s", user_id, tier)
+        record_security_event(db, request, EventCategory.ADMIN, EventType.TIER_CHANGED,
+                              user_id=int(user_id), detail=f"stripe_webhook tier={tier}")
     finally:
         db.close()
 
 
-def _handle_subscription_cancelled(subscription: dict) -> None:
+def _handle_subscription_cancelled(subscription: dict, request: Request) -> None:
     """Abonelik iptal → kullanıcı Free kademesine döner."""
     from src.infrastructure.config.database import SessionLocal
     metadata = subscription.get("metadata", {})
@@ -211,6 +226,8 @@ def _handle_subscription_cancelled(subscription: dict) -> None:
     try:
         UserRepository(db).update_tier(int(user_id), "free")
         logger.info("Abonelik iptal: user_id=%s → free tier", user_id)
+        record_security_event(db, request, EventCategory.ADMIN, EventType.TIER_CHANGED,
+                              user_id=int(user_id), detail="stripe_webhook tier=free (subscription cancelled)")
     finally:
         db.close()
 

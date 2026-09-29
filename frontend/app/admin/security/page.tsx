@@ -18,7 +18,13 @@ const EVENT_TYPES = [
   "password_reset_requested", "password_reset_done", "email_verified", "account_deleted",
   "admin_access_denied", "api_key_generated", "api_key_revoked",
   "rate_limited", "role_changed", "user_banned", "user_unbanned", "tier_changed",
+  "email_verify_failed", "password_reset_failed", "unsubscribe_token_invalid", "webhook_signature_invalid",
+  "data_export", "admin_data_changed",
 ] as const;
+
+// Tek seferde çekilen satır sayısı. Sunucuda sayfalama yok; bu sınıra ulaşılırsa eski olaylar
+// SESSİZCE kesilir — kullanıcıya bunu söylemek için limit açıkça gönderilir ve sayılır.
+const LIMIT = 200;
 
 const WINDOWS: { hours: number; key: "win1h" | "win24h" | "win7d" | "win30d" | "win90d" }[] = [
   { hours: 1, key: "win1h" }, { hours: 24, key: "win24h" }, { hours: 24 * 7, key: "win7d" },
@@ -51,12 +57,13 @@ export default function AdminSecurityPage() {
 
   const creds: AdminCreds = isModerator ? {} : { apiKey };
 
-  const load = useCallback(async (c: AdminCreds = creds) => {
+  const load = useCallback(async (c: AdminCreds = creds, override?: Partial<SecurityEventFilters>) => {
     if (!isModerator && !(c.apiKey ?? "").trim()) return;
     setLoading(true); setError("");
     const filters: SecurityEventFilters = {
       email: email.trim() || undefined, ip: ip.trim() || undefined,
-      event_type: eventType || undefined, hours,
+      event_type: eventType || undefined, hours, limit: LIMIT,
+      ...override,
     };
     try {
       setEvents(await fetchSecurityEvents(c, filters)); setLoaded(true);
@@ -73,6 +80,13 @@ export default function AdminSecurityPage() {
     // İlk yükleme: sadece oturum varsa, filtre değişimi kullanıcı "Göster"e basınca.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isModerator]);
+
+  // E-posta/IP hücresine tıklama = "bu kimliğin TÜM olayları": diğer filtreler temizlenip HEMEN
+  // sorgulanır (eskiden yalnız input dolduruyordu, kullanıcı bir de "Göster"e basmak zorundaydı).
+  const pivot = (by: { email?: string; ip?: string }) => {
+    setEmail(by.email ?? ""); setIp(by.ip ?? ""); setEventType("");
+    load(creds, { email: by.email, ip: by.ip, event_type: undefined });
+  };
 
   const fmt = (iso: string) => new Date(iso).toLocaleString(lang === "TR" ? "tr-TR" : "en-US");
 
@@ -126,6 +140,11 @@ export default function AdminSecurityPage() {
           <p className="section-label" style={{ marginBottom: 12 }}>
             {t.securityEventsTitle} · {events.length}
           </p>
+          {events.length >= LIMIT && (
+            <p style={{ fontSize: "0.8rem", color: "var(--neg)", marginBottom: 10 }}>
+              ⚠ {t.securityTruncated.replace("{n}", String(LIMIT))}
+            </p>
+          )}
           {events.length === 0 && (
             <p style={{ fontSize: "0.84rem", color: "var(--text3)" }}>{t.noSecurityEvents}</p>
           )}
@@ -153,25 +172,30 @@ export default function AdminSecurityPage() {
                         }}>{e.event_type}</span>
                       </td>
                       <td style={{ padding: "6px 8px", color: "var(--text)" }}>
-                        <button onClick={() => { if (e.email) { setEmail(e.email); } }} className="link-btn"
-                                style={{ background: "none", border: 0, padding: 0, color: "inherit", cursor: "pointer", font: "inherit" }}
+                        <button onClick={() => { if (e.email) pivot({ email: e.email }); }} className="tap"
+                                style={{ background: "none", border: 0, padding: "0 4px", color: "inherit", cursor: "pointer", font: "inherit" }}
                                 title={t.securityFilterByThis}>
                           {e.email ?? "—"}
                         </button>
                         {e.user_id != null && <span style={{ color: "var(--text3)" }}> #{e.user_id}</span>}
                       </td>
                       <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
-                        <button onClick={() => { if (e.ip) { setIp(e.ip); } }}
-                                style={{ background: "none", border: 0, padding: 0, color: "inherit", cursor: "pointer", font: "inherit" }}
+                        <button onClick={() => { if (e.ip) pivot({ ip: e.ip }); }} className="tap"
+                                style={{ background: "none", border: 0, padding: "0 4px", color: "inherit", cursor: "pointer", font: "inherit" }}
                                 title={t.securityFilterByThis}>
                           {e.ip ?? "—"}
                         </button>
                       </td>
                       <td style={{ padding: "6px 8px", color: "var(--text2)", maxWidth: 320 }}>
-                        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                             title={`${e.path ?? ""}\n${e.user_agent ?? ""}`}>
-                          {e.detail ?? e.path ?? ""}
-                        </div>
+                        {/* Tooltip dokunmatikte çalışmaz: detay kesilmeden (kaydırılabilir tabloda) gösterilir,
+                            yol ve user-agent altında küçük yazıyla. */}
+                        <div style={{ overflowWrap: "anywhere" }}>{e.detail ?? e.path ?? ""}</div>
+                        {e.detail && e.path && (
+                          <div style={{ color: "var(--text3)", fontSize: "0.72rem", overflowWrap: "anywhere" }}>{e.path}</div>
+                        )}
+                        {e.user_agent && (
+                          <div style={{ color: "var(--text3)", fontSize: "0.7rem", overflowWrap: "anywhere" }}>{e.user_agent}</div>
+                        )}
                       </td>
                       <td style={{ padding: "6px 8px", fontFamily: "monospace", color: "var(--text3)" }}>
                         {e.request_id ? e.request_id.slice(0, 12) : "—"}

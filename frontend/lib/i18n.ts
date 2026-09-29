@@ -277,6 +277,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     securityColTime: "Zaman", securityColEvent: "Olay", securityColEmail: "E-posta", securityColDetail: "Detay",
     securityFilterByThis: "Buna göre filtrele (sonra Göster)",
     noSecurityEvents: "Bu filtrede olay yok.",
+    securityTruncated: "Son {n} olay gösteriliyor — daha eskileri kesildi. Filtreyi (e-posta, IP, olay tipi, zaman) daraltın.",
 
     // ── Admin: kullanıcı/müşteri listesi ──
     users: "Kullanıcılar",
@@ -560,6 +561,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     securityColTime: "Time", securityColEvent: "Event", securityColEmail: "Email", securityColDetail: "Detail",
     securityFilterByThis: "Filter by this (then Show)",
     noSecurityEvents: "No events for this filter.",
+    securityTruncated: "Showing the latest {n} events — older ones are cut off. Narrow the filter (email, IP, event type, window).",
 
     // ── Admin: user/customer list ──
     users: "Users",

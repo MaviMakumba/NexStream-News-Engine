@@ -586,7 +586,9 @@ def test_create_sponsor(app_client):
         "active_until": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
     }
     try:
-        resp = app_client.post("/admin/sponsors", json=payload, headers=_HEADERS)
+        # Denetim yazıcısı aynı mock db'ye add/commit yapar — bu test iş mantığının çağrılarını sayar.
+        with patch("src.adapters.api.routers.admin_router.record_security_event"):
+            resp = app_client.post("/admin/sponsors", json=payload, headers=_HEADERS)
     finally:
         app_client.app.dependency_overrides.pop(get_db, None)
 
@@ -681,7 +683,8 @@ def test_delete_sponsor_permanently(app_client):
     db.get.return_value = orm
     app_client.app.dependency_overrides[get_db] = lambda: db
     try:
-        resp = app_client.delete("/admin/sponsors/3/permanent", headers=_HEADERS)
+        with patch("src.adapters.api.routers.admin_router.record_security_event"):
+            resp = app_client.delete("/admin/sponsors/3/permanent", headers=_HEADERS)
     finally:
         app_client.app.dependency_overrides.pop(get_db, None)
 
