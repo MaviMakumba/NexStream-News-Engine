@@ -136,7 +136,7 @@ export async function submitContact(payload: {
 
 export async function fetchNews(params: {
   limit?: number;
-  cursor?: number | null;
+  cursor?: string | null;
   source?: string;
   sentiment?: string;
   topic?: string;
@@ -144,7 +144,7 @@ export async function fetchNews(params: {
 }): Promise<NewsPage> {
   const p = new URLSearchParams();
   if (params.limit) p.set("limit", String(params.limit));
-  if (params.cursor) p.set("cursor", String(params.cursor));
+  if (params.cursor) p.set("cursor", params.cursor);
   if (params.source) p.set("source", params.source);
   if (params.sentiment) p.set("sentiment", params.sentiment);
   if (params.topic) p.set("topic", params.topic);

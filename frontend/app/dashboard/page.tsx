@@ -32,7 +32,7 @@ export default function DashboardPage() {
   const [trendingLoaded,  setTrendingLoaded]  = useState(false);
   const [sources,         setSources]         = useState<string[]>([]);
   const [loading,         setLoading]         = useState(true);
-  const [cursor,          setCursor]          = useState<number | null>(null);
+  const [cursor,          setCursor]          = useState<string | null>(null);
   const [hasMore,         setHasMore]         = useState(true);
   const [sentiment,       setSentiment]       = useState("");
   const [topic,           setTopic]           = useState("");
@@ -55,7 +55,7 @@ export default function DashboardPage() {
     setArticles((prev) => (prev.some((x) => x.id === newest.id) ? prev : [liveToArticle(newest), ...prev]));
   }, [liveArticles, sentiment, topic, source, minQuality]);
 
-  const load = useCallback(async (reset: boolean, cur: number | null) => {
+  const load = useCallback(async (reset: boolean, cur: string | null) => {
     setLoading(true);
     try {
       const page = await fetchNews({

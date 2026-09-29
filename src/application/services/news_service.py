@@ -21,6 +21,7 @@ from src.domain.ports.news_repository_port import NewsRepositoryPort
 from src.domain.ports.analysis_port import AnalysisPort
 from src.domain.ports.scraper_port import NewsScraperPort
 from src.domain.models.article import Article
+from src.domain.news_cursor import effective_date
 from src.domain.scoring.quality import compute_quality_score
 from src.domain.scoring.credibility import base_credibility, compute_credibility
 from src.domain.services.subscriber_matching import matched_keyword
@@ -28,7 +29,7 @@ from src.domain.ports.question_answering_port import QuestionAnsweringError
 from src.domain.scoring.trust import compute_trust_score
 from src.adapters.api.metrics import articles_processed_total
 from src.infrastructure.config.settings import settings
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING
 if TYPE_CHECKING:
     from src.domain.ports.email_port import EmailPort
     from src.domain.ports.subscriber_port import SubscriberRepositoryPort
@@ -1076,8 +1077,13 @@ class NewsService:
         except Exception as e:
             logger.error("Push bildirimi gönderilirken hata (email alert etkilenmedi): %s", e)
 
-    def list_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None, min_quality: Optional[float] = None) -> List[Article]:
-        return self.repository.get_news_paginated(limit, before_id, source, sentiment, topic, min_quality)
+    def list_news_paginated(self, limit: int, before: Optional[Tuple[datetime, int]] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None, min_quality: Optional[float] = None) -> List[Article]:
+        return self.repository.get_news_paginated(limit, before, source, sentiment, topic, min_quality)
+
+    def cursor_for_article_id(self, article_id: int) -> Optional[Tuple[datetime, int]]:
+        """Eski (düz id) imleci yeni (etkin tarih, id) imlecine çevirir; haber yoksa None."""
+        article = self.repository.get_article_by_id(article_id)
+        return (effective_date(article), article.id) if article else None
 
     def export_articles(
         self, limit: int,

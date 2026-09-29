@@ -396,3 +396,43 @@ def test_save_persists_quality_credibility_corroboration():
     assert fetched.quality_score == 0.7
     assert fetched.credibility_score == 0.85
     assert fetched.corroboration_count == 3
+
+def _save(repo, url, published_at):
+    repo.save_article(Article(
+        title=url, source="BBC", url=url, content="c",
+        sentiment_label="Neutral", sentiment_score=0.0, summary="s",
+        published_at=published_at,
+    ))
+
+
+def test_get_news_paginated_orders_by_published_at_not_insert_order():
+    """Worker eski bir haberi SONRADAN kaydederse (yüksek id) yine de en üste çıkmamalı."""
+    repo = NewsRepository(make_session())
+    now = datetime.now(timezone.utc)
+    _save(repo, "https://x/new", now - timedelta(hours=1))
+    _save(repo, "https://x/yesterday", now - timedelta(hours=30))  # id daha büyük, ama eski
+
+    urls = [a.url for a in repo.get_news_paginated(limit=10)]
+
+    assert urls == ["https://x/new", "https://x/yesterday"]
+
+
+def test_get_news_paginated_cursor_walks_pages_without_gaps_or_dupes():
+    repo = NewsRepository(make_session())
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    # Aynı yayın zamanı (tie-break id'ye düşmeli) + ters id/zaman sırası
+    _save(repo, "https://x/a", now - timedelta(hours=5))
+    _save(repo, "https://x/b", now - timedelta(hours=1))
+    _save(repo, "https://x/c", now - timedelta(hours=3))
+    _save(repo, "https://x/d", now - timedelta(hours=3))
+
+    seen, before = [], None
+    while True:
+        page = repo.get_news_paginated(limit=2, before=before)
+        if not page:
+            break
+        seen += [a.url for a in page]
+        last = page[-1]
+        before = (last.published_at, last.id)
+
+    assert seen == ["https://x/b", "https://x/d", "https://x/c", "https://x/a"]

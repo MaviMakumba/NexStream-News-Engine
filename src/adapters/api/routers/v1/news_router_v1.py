@@ -23,6 +23,7 @@ from src.domain.schemas.news_schema import (
     NewsPage, NewsResponse, SearchRequest, SearchResult, TrendingResponse,
     RelatedResponse, StoryClusterResponse, AskRequest, RagAnswerResponse,
 )
+from src.domain.news_cursor import decode_cursor, encode_cursor, legacy_cursor_id
 from src.domain.models.user import User, UserTier, TIER_SEARCH_RESULT_CAP, tier_at_least
 from src.domain.ports.question_answering_port import QuestionAnsweringError
 from src.application.services.news_service import NewsService
@@ -63,7 +64,7 @@ def _export_csv_row(article) -> dict:
 def get_news_v1(
     request: Request,
     limit: int = Query(20, ge=1, le=100, description="Sayfa başına haber sayısı"),
-    cursor: Optional[int] = Query(None, description="Önceki sayfanın son haber ID'si (cursor-based pagination)"),
+    cursor: Optional[str] = Query(None, max_length=64, description="Önceki yanıttaki next_cursor (opak string; cursor-based pagination)"),
     source: Optional[str] = Query(None, max_length=64),
     sentiment: Optional[str] = Query(None, pattern="^(Positive|Negative|Neutral)$"),
     topic: Optional[str] = Query(None, max_length=32),
@@ -76,8 +77,17 @@ def get_news_v1(
     cursor olarak gönder. next_cursor null ise daha fazla haber yok.
     """
     # limit+1 çekilir: fazladan kayıt varsa bir sonraki sayfa var demektir.
-    items = service.list_news_paginated(limit + 1, cursor, source, sentiment, topic, min_quality)
-    next_cursor = items[limit].id if len(items) > limit else None
+    before = None
+    if cursor is not None:
+        try:
+            legacy_id = legacy_cursor_id(cursor)
+            before = service.cursor_for_article_id(legacy_id) if legacy_id is not None else decode_cursor(cursor)
+        except ValueError:
+            before = None
+        if before is None:
+            raise HTTPException(status_code=400, detail="Geçersiz cursor")
+    items = service.list_news_paginated(limit + 1, before, source, sentiment, topic, min_quality)
+    next_cursor = encode_cursor(items[limit - 1]) if len(items) > limit else None
     page_items = items[:limit]
     return NewsPage(items=page_items, next_cursor=next_cursor, count=len(page_items))
 
