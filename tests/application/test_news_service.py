@@ -1369,3 +1369,22 @@ def test_no_evidence_response_invalid_ui_language_falls_back_to_heuristic():
     with patch.object(service, "hybrid_search", return_value=[]):
         result = service.answer_question("Who will be the new coach?", ui_language="fr-FR")
     assert result["answer"] == NewsService._NO_EVIDENCE_TEXT["EN"]
+
+# ── "altın" yanlış-dost çakışması: ARAMA tarafı (abone eşleşmesi 27 Ağu'da düzeltilmişti) ──
+
+def test_stem_tr_does_not_cut_into_false_friend_root():
+    """'altın' → 'alt' kırpması 'altında/altyapı/altı...' hepsini yakalıyordu."""
+    assert NewsService._stem_tr("altın") == "altın"
+    assert NewsService._stem_tr("altının") == "altın"      # genitive: kök korunur, ek gider
+    assert NewsService._stem_tr("altınlar") == "altın"
+    assert NewsService._stem_tr("beşiktaşın") == "beşiktaş"  # diğer kökler etkilenmez
+
+
+def test_keyword_relevance_gold_does_not_match_under():
+    """'altın' araması 'altında/altındaki' (alt=under) içeren haberi eşleştirmemeli."""
+    terms = NewsService._canonical_terms("altın")
+    under = Article(title="İşgal altındaki topraklar", source="TRT", url="u1",
+                    content="Bölge işgal altında ve altındaki tüneller kapatıldı")
+    gold = Article(title="Gram altın rekor kırdı", source="TRT", url="u2", content="Altın fiyatları yükseldi")
+    assert NewsService._keyword_relevance(under, terms) == 0.0
+    assert NewsService._keyword_relevance(gold, terms) > 0.5

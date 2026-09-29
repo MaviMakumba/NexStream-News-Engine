@@ -40,6 +40,11 @@ def _term_occurs_in(term: str, text: str) -> bool:
     return False
 
 
+# Arama tarafı (news_service) da aynı yardımcıları kullanır — tek doğruluk kaynağı.
+term_occurs_in = _term_occurs_in
+FALSE_FRIEND_ROOTS = tuple(_FALSE_FRIEND_WORDS)
+
+
 def _tr_lower(text: str) -> str:
     """Türkçe uyumlu küçük harfe çevirme. Python'un varsayılan `.lower()`'ı
     "İ" (U+0130) karakterini tek bir "i" değil "i" + birleşen nokta işaretine

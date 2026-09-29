@@ -23,7 +23,7 @@ from src.domain.ports.scraper_port import NewsScraperPort
 from src.domain.models.article import Article
 from src.domain.scoring.quality import compute_quality_score
 from src.domain.scoring.credibility import base_credibility, compute_credibility
-from src.domain.services.subscriber_matching import matched_keyword
+from src.domain.services.subscriber_matching import matched_keyword, term_occurs_in, FALSE_FRIEND_ROOTS
 from src.domain.ports.question_answering_port import QuestionAnsweringError
 from src.domain.scoring.trust import compute_trust_score
 from src.adapters.api.metrics import articles_processed_total
@@ -505,7 +505,14 @@ class NewsService:
         """
         for suffix in _TR_SUFFIXES:
             if word.endswith(suffix) and len(word) - len(suffix) >= 3:
-                return word[:-len(suffix)]
+                stem = word[:-len(suffix)]
+                # Bilinen yanlış-dost kökün İÇİNE kırpma: "altın" → "alt" olursa
+                # "altında/altyapı" gibi alakasız kelimeler de eşleşir (bkz.
+                # subscriber_matching._FALSE_FRIEND_WORDS). Kök korunur.
+                for root in FALSE_FRIEND_ROOTS:
+                    if word.startswith(root) and len(stem) < len(root):
+                        return root
+                return stem
         return word
 
     @staticmethod
@@ -560,11 +567,12 @@ class NewsService:
         birincil hem ikincil (genişletme) terimler için bunu paylaşır (DRY)."""
         if not terms:
             return 0.0
-        patterns = [re.compile(r"\b" + re.escape(t)) for t in terms]
         n = len(terms)
-        title_hits = sum(1 for p in patterns if p.search(title))
-        summary_hits = sum(1 for p in patterns if p.search(summary))
-        content_hits = sum(1 for p in patterns if p.search(content))
+        # term_occurs_in: kelime-başı (word-boundary) öneki + bilinen yanlış-dost istisnaları
+        # ("altın" araması "altında/altındaki"yi eşleştirmez — abone eşleşmesiyle ortak mantık).
+        title_hits = sum(1 for t in terms if term_occurs_in(t, title))
+        summary_hits = sum(1 for t in terms if term_occurs_in(t, summary))
+        content_hits = sum(1 for t in terms if term_occurs_in(t, content))
         title_score = (title_hits / n) * _FIELD_WEIGHTS["title"]
         summary_score = (summary_hits / n) * _FIELD_WEIGHTS["summary"]
         content_score = (content_hits / n) * _FIELD_WEIGHTS["content"]
