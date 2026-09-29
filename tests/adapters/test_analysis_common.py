@@ -12,7 +12,8 @@ from src.adapters.analysis.common import build_analysis_prompt
 # Şablonun kendisi (makale metni olmadan) — bu, her Groq çağrısında tekrarlanan
 # sabit ek yük. 850 karakter (~212 token) sıkıştırma öncesi ~1113 karakterdi
 # (~278 token); yeniden şişmeye karşı regresyon tavanı olarak biraz payla tutuldu.
-_TEMPLATE_ONLY_CHAR_BUDGET = 850
+# 29 Eyl 2026 (S1): 4 yeni konu + 5 kısa ipucu için 850 → 1000.
+_TEMPLATE_ONLY_CHAR_BUDGET = 1000
 
 
 def test_template_only_overhead_stays_under_budget():
@@ -34,6 +35,15 @@ def test_prompt_still_calibrates_sentiment_extremes():
     prompt = build_analysis_prompt("")
     assert "breakthrough" in prompt or "victory" in prompt
     assert "disaster" in prompt or "crisis" in prompt
+
+
+def test_prompt_lists_every_registered_topic_and_hints():
+    from src.domain.topics import TOPICS
+    prompt = build_analysis_prompt("")
+    for t in TOPICS:
+        assert t.id in prompt, t.id
+        if t.hint:
+            assert t.hint in prompt, t.id
 
 
 def test_prompt_truncates_article_at_1000_chars():

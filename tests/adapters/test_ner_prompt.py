@@ -100,7 +100,8 @@ def test_fallback_includes_entities_and_topic():
 
 def test_all_valid_topics_accepted():
     analyzer = GroqAnalyzer()
-    valid_topics = ["Technology", "Sports", "Economy", "Politics", "Health", "Culture", "World", "Other"]
+    from src.domain.topics import TOPICS
+    valid_topics = [t.id for t in TOPICS]
     for topic in valid_topics:
         response = f'{{"sentiment_score": 0.0, "sentiment_label": "Neutral", "summary": "N.", "entities": {{}}, "topic": "{topic}"}}'
         with patch("requests.post", return_value=make_mock_response(response)):
@@ -125,3 +126,12 @@ def test_prompt_contains_entity_instruction():
     assert "organizations" in prompt
     assert "locations" in prompt
     assert "topic" in prompt
+
+
+def test_model_invented_topic_variants_fall_back_to_other():
+    """'Finance', küçük harf 'crypto', boş ya da sayı → 'Other' (çökme yok)."""
+    import json as _json
+    from src.adapters.analysis.common import parse_analysis_json
+    for bad in ("Finance", "crypto", "", None, 7):
+        raw = _json.dumps({"sentiment_score": 0.0, "summary": "s", "entities": {}, "topic": bad})
+        assert parse_analysis_json(raw, "t")["topic"] == "Other", repr(bad)

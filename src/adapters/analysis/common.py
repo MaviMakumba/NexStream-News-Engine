@@ -15,7 +15,17 @@ aşabilir, bu yüzden bilinçli olarak dengeli bir noktada durduruldu.
 import json
 import re
 
-VALID_TOPICS = {"Technology", "Sports", "Economy", "Politics", "Health", "Culture", "World", "Other"}
+from src.domain.topics import TOPICS, VALID_TOPIC_IDS, normalize_topic
+
+VALID_TOPICS = VALID_TOPIC_IDS   # geriye uyumlu ad
+
+
+def _topic_prompt_line() -> str:
+    """'Technology, Economy (markets, business, not crypto), ...' — ipucu yalnız karışan konularda."""
+    return ", ".join(f"{t.id} ({t.hint})" if t.hint else t.id for t in TOPICS)
+
+
+_TOPIC_LINE = _topic_prompt_line()
 
 
 def build_analysis_prompt(text: str) -> str:
@@ -24,7 +34,7 @@ def build_analysis_prompt(text: str) -> str:
 - sentiment_label: "Positive" if score>0.2, "Negative" if score<-0.2, else "Neutral"
 - summary: 1-2 sentence summary, same language as the article
 - entities: object with persons/organizations/locations arrays — named entities mentioned, empty arrays OK
-- topic: one of Technology, Sports, Economy, Politics, Health, Culture, World, Other
+- topic: one of {_TOPIC_LINE}
 
 Article:
 {text[:1000]}
@@ -44,9 +54,7 @@ def parse_analysis_json(content: str, text: str) -> dict:
         if key not in entities or not isinstance(entities[key], list):
             entities[key] = []
 
-    topic = result.get("topic", "Other")
-    if topic not in VALID_TOPICS:
-        topic = "Other"
+    topic = normalize_topic(result.get("topic", "Other"))
 
     return {
         "sentiment_score": float(result.get("sentiment_score", 0.0)),
