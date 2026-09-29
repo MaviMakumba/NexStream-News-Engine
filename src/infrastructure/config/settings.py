@@ -59,7 +59,8 @@ class Settings(BaseSettings):
     scrape_sources: str = (
         "TRT Haber,BBC Türkçe,Hürriyet,Hürriyet Spor,Sabah,"
         "CNN Türk,Sözcü,Habertürk,HT Spor,Anadolu Ajansı,AA Ekonomi,"
-        "BBC Technology,BBC Sport,Guardian Tech,TechCrunch,Hacker News,The Verge"
+        "BBC Technology,BBC Sport,Guardian Tech,TechCrunch,Hacker News,The Verge,"
+        "Dünya,CoinDesk,Cointelegraph,ScienceDaily,AA Bilim-Teknoloji,AA Kültür,Al Jazeera,DW,BBC Health,BBC Entertainment,BBC Science & Environment"
     )
     # Worker kaynakları SIRAYLA işler (bkz. kafka_consumer.py) — Groq rate limit
     # ağırlaşınca tek bir yoğun kaynak (ör. TRT Haber) TÜM yeni haberlerini

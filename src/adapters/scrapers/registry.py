@@ -12,6 +12,9 @@ from src.adapters.scrapers.rss_scrapers import (
     BBCTechnologyScraper, BBCSportScraper,
     GuardianTechScraper, TechCrunchScraper, HackerNewsScraper, TheVergeScraper,
     AnadoluAjansiScraper, AnadoluEkonomiScraper,
+    DunyaScraper, CoinDeskScraper, CointelegraphScraper, ScienceDailyScraper,
+    AABilimTeknolojiScraper, AAKulturScraper, AlJazeeraScraper, DWScraper,
+    BBCHealthScraper, BBCEntertainmentScraper, BBCScienceEnvironmentScraper,
 )
 
 # Kayıtlı tüm scraper'ların tek kayıt noktası.
@@ -29,6 +32,9 @@ SCRAPER_REGISTRY: dict = {
     "HT Spor":         HaberturkSporScraper(),
     "Anadolu Ajansı":  AnadoluAjansiScraper(),
     "AA Ekonomi":      AnadoluEkonomiScraper(),
+    "Dünya": DunyaScraper(),
+    "AA Bilim-Teknoloji": AABilimTeknolojiScraper(),
+    "AA Kültür": AAKulturScraper(),
     # İngilizce
     "BBC Technology":  BBCTechnologyScraper(),
     "BBC Sport":       BBCSportScraper(),
@@ -36,4 +42,12 @@ SCRAPER_REGISTRY: dict = {
     "TechCrunch":      TechCrunchScraper(),
     "Hacker News":     HackerNewsScraper(),
     "The Verge":       TheVergeScraper(),
+    "CoinDesk": CoinDeskScraper(),
+    "Cointelegraph": CointelegraphScraper(),
+    "ScienceDaily": ScienceDailyScraper(),
+    "Al Jazeera": AlJazeeraScraper(),
+    "DW": DWScraper(),
+    "BBC Health": BBCHealthScraper(),
+    "BBC Entertainment": BBCEntertainmentScraper(),
+    "BBC Science & Environment": BBCScienceEnvironmentScraper(),
 }

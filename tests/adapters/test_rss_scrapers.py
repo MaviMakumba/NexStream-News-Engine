@@ -245,7 +245,8 @@ def test_each_scraper_has_url(scraper_class):
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 def test_registry_contains_all_scrapers():
-    assert len(SCRAPER_REGISTRY) == 17
+    # Sabit sayı yerine: her kayıtlı kaynak scheduler'da da var (bkz. test_source_portfolio.py).
+    assert len(SCRAPER_REGISTRY) >= 28
 
 def test_registry_values_are_scraper_instances():
     for name, scraper in SCRAPER_REGISTRY.items():
