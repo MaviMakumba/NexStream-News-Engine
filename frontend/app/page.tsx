@@ -64,7 +64,7 @@ export default function LandingPage() {
       <section style={{ padding: "72px 20px 64px" }}>
         <div style={{
           maxWidth: 1180, margin: "0 auto", display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 48, alignItems: "center",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))", gap: 48, alignItems: "center",
         }}>
           <div>
             <h1 style={{
@@ -146,7 +146,7 @@ export default function LandingPage() {
           <p className="section-label" style={{ marginBottom: 10 }}>{t.featuresLabel}</p>
           <h2 style={{ fontSize: "1.9rem", fontWeight: 800, color: "var(--text)" }}>{t.featuresTitle}</h2>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))", gap: 20 }}>
           {features.map((f) => {
             const body = (
               <>
@@ -193,7 +193,7 @@ export default function LandingPage() {
           <p className="section-label" style={{ marginBottom: 10 }}>{t.pricingLabel}</p>
           <h2 style={{ fontSize: "1.9rem", fontWeight: 800, color: "var(--text)" }}>{t.pricingTitle}</h2>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))", gap: 20 }}>
           {pricing.map((p) => (
             <div key={p.tier} className={p.highlight ? "gradient-border" : "card"}
                  style={{

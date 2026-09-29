@@ -25,6 +25,55 @@ def _subscriber(keywords=None, preferred_topics=None, preferred_sources=None):
 
 # ── matched_keyword ─────────────────────────────────────────────────────────
 
+def _tren_article(title, content="içerik"):
+    a = Article(title=title, source="HT Spor", url="http://t.com/x", content=content)
+    a.summary = ""
+    return a
+
+
+def test_keyword_does_not_match_words_that_merely_start_with_it():
+    """29 Eyl 2026 kullanıcı bulgusu: 'tren' anahtar kelimesi bülten e-postasında
+    'Trendyol 1. Lig' / 'Trendyol Süper Lig' haberlerini yakaladı (önek eşleşmesi).
+    Kalan parça çekim eki DEĞİLSE ('dyol', 'd') eşleşme olmamalı."""
+    assert matched_keyword(_tren_article("Mardin 1969 Spor, Petev'le imzaladı!",
+                                         "Trendyol 1. Lig ekiplerinden Mardin 1969 Spor..."), ["tren"]) is None
+    assert matched_keyword(_tren_article("G.Saray'da Kasımpaşa maçı mesaisi!",
+                                         "Trendyol Süper Lig’in 7. haftasında Kasımpaşa ile..."), ["tren"]) is None
+    assert matched_keyword(_tren_article("Yeni trend: kısa video"), ["tren"]) is None
+
+
+def test_keyword_still_matches_real_inflections():
+    """Çekimler yakalanmaya devam etmeli: mevcut aboneler bu yüzden 'tren' seçti."""
+    for title in ("Hızlı tren seferleri başladı", "Trenler rötarlı", "Trenin motoru arızalandı",
+                  "Trene yeni vagon eklendi", "Trende yangın çıktı", "Trenlerden inen yolcular",
+                  "Tren'in bileti", "Trenlerimizdeki yolcular", "TREN kazası"):
+        assert matched_keyword(_tren_article(title), ["tren"]) == "tren", title
+
+
+def test_keyword_multiword_phrase_last_word_must_be_inflection():
+    a = _tren_article("Gram altın rekor kırdı")
+    assert matched_keyword(a, ["gram altın"]) == "gram altın"
+    assert matched_keyword(_tren_article("Gram altınlar yükseldi"), ["gram altın"]) == "gram altın"
+    assert matched_keyword(_tren_article("Gram altıncı çeyrek"), ["gram altın"]) is None
+
+
+def test_keyword_english_plural_still_matches():
+    """Kaynakların yarısı İngilizce: 'tesla' → 'teslas' ya da 'apple' → 'apples' çoğulu."""
+    assert matched_keyword(_tren_article("Apples and oranges"), ["apple"]) == "apple"
+    assert matched_keyword(_tren_article("Applet is a small program"), ["apple"]) is None
+
+
+def test_city_keyword_still_matches_its_football_club():
+    """'kocaeli' takip eden biri Kocaelispor haberini de ister — tek bir dilbilgisi
+    kuralı (-spor bileşiği), şehir başına liste değil."""
+    assert matched_keyword(_tren_article("Kocaelispor'dan sakatlık açıklaması!"), ["kocaeli"]) == "kocaeli"
+    assert matched_keyword(_tren_article("Sakaryaspor kazandı"), ["sakarya"]) == "sakarya"
+
+
+def test_keyword_exact_brand_still_matches_itself():
+    assert matched_keyword(_tren_article("Trendyol yeni kampanya başlattı"), ["trendyol"]) == "trendyol"
+
+
 def test_matched_keyword_finds_match_in_title():
     assert matched_keyword(_article(), ["beşiktaş"]) == "beşiktaş"
 

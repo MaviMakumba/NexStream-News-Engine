@@ -71,7 +71,7 @@ class NewsResponse(BaseModel):
 
 class NewsPage(BaseModel):
     items: List[NewsResponse]
-    next_cursor: Optional[int] = None
+    next_cursor: Optional[str] = None
     count: int
 
 

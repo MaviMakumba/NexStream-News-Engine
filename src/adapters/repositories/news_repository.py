@@ -8,9 +8,9 @@ Yazma hataları rollback + log ile yutulur (pipeline tek kayıt için durmaz).
 import logging
 import re
 from datetime import datetime, timezone, timedelta
-from sqlalchemy import or_, func
+from sqlalchemy import and_, or_, func
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from src.domain.ports.news_repository_port import NewsRepositoryPort
 from src.domain.models.article import Article
 from src.adapters.repositories.orm_models import NewsORM
@@ -68,6 +68,13 @@ class NewsRepository(NewsRepositoryPort):
     # --- SÖZLEŞME (PORT) METOTLARI ---
     def article_exists(self, url: str) -> bool:
         return self.db.query(NewsORM).filter(NewsORM.url == url).first() is not None
+
+    def count_articles_since(self, source: str, since: datetime) -> int:
+        return (
+            self.db.query(func.count(NewsORM.id))
+            .filter(NewsORM.source == source, NewsORM.created_at >= since)
+            .scalar()
+        ) or 0
 
     def bulk_exists(self, urls: list[str]) -> set[str]:
         if not urls:
@@ -188,10 +195,18 @@ class NewsRepository(NewsRepositoryPort):
         self.db.commit()
         return deleted
 
-    def get_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None, min_quality: Optional[float] = None) -> List[Article]:
+    def get_news_paginated(self, limit: int, before: Optional[Tuple[datetime, int]] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None, min_quality: Optional[float] = None) -> List[Article]:
+        """YAYIN tarihine göre (yeni → eski), eşitlikte id.desc. `before` = önceki
+        sayfanın son satırının (etkin tarih, id) çifti.
+
+        Eskiden `id.desc()` idi: id kayıt sırasıdır, worker backlog'daki eski bir
+        haberi sonradan kaydedince yüksek id alıp listenin tepesine çıkıyordu
+        (kullanıcı bulgusu, 29 Eyl 2026)."""
+        effective_date = func.coalesce(NewsORM.published_at, NewsORM.created_at)
         q = self.db.query(NewsORM)
-        if before_id is not None:
-            q = q.filter(NewsORM.id < before_id)
+        if before is not None:
+            b_date, b_id = before
+            q = q.filter(or_(effective_date < b_date, and_(effective_date == b_date, NewsORM.id < b_id)))
         if source:
             q = q.filter(NewsORM.source == source)
         if sentiment:
@@ -200,7 +215,7 @@ class NewsRepository(NewsRepositoryPort):
             q = q.filter(NewsORM.topic == topic)
         if min_quality is not None:
             q = q.filter(NewsORM.quality_score >= min_quality)
-        rows = q.order_by(NewsORM.id.desc()).limit(limit).all()
+        rows = q.order_by(effective_date.desc(), NewsORM.id.desc()).limit(limit).all()
         return [self._to_domain(row) for row in rows]
 
     def get_articles_for_export(

@@ -122,7 +122,7 @@ export function Navbar() {
                       height: 56, gap: 8 }}>
 
           {/* Logo */}
-          <Link href="/" style={{ textDecoration: "none", marginRight: 8, flexShrink: 0 }}>
+          <Link href="/" className="tap" style={{ textDecoration: "none", marginRight: 8, flexShrink: 0 }}>
             <span className="font-display" style={{ fontSize: "1.15rem", fontWeight: 800 }}>
               <span style={{ color: "var(--text)" }}>Nex</span>
               <span className="gradient-text">Stream</span>
@@ -132,7 +132,7 @@ export function Navbar() {
           {/* Nav links — masaüstünde görünür, mobilde hamburger menüsüne taşınır */}
           <div className="hidden md:flex" style={{ alignItems: "center", gap: 2, flex: 1 }}>
             {navLinks.map((l) => (
-              <Link key={l.href} href={l.href} aria-current={isActive(l.href) ? "page" : undefined} style={{
+              <Link key={l.href} href={l.href} className="tap" aria-current={isActive(l.href) ? "page" : undefined} style={{
                 padding: "5px 12px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 500,
                 textDecoration: "none", transition: "all 0.15s",
                 color: isActive(l.href) ? "var(--accent)" : "var(--text2)",
@@ -149,7 +149,7 @@ export function Navbar() {
 
             {/* Settings */}
             <div style={{ position: "relative" }}>
-              <button onClick={() => { setSettings(!settings); setUserMenu(false); }}
+              <button onClick={() => { setSettings(!settings); setUserMenu(false); }} className="tap"
                       title={t.settings} aria-label={t.settings}
                       aria-haspopup="true" aria-expanded={settings}
                       style={{
@@ -246,7 +246,7 @@ export function Navbar() {
             {/* Auth */}
             {user ? (
               <div style={{ position: "relative" }}>
-                <button onClick={() => { setUserMenu(!userMenu); setSettings(false); }}
+                <button onClick={() => { setUserMenu(!userMenu); setSettings(false); }} className="tap"
                         aria-haspopup="true" aria-expanded={userMenu}
                         aria-label={user.name || user.email}
                         style={{
@@ -326,6 +326,7 @@ export function Navbar() {
                     border: `1px solid ${mobileMenu ? "var(--border2)" : "var(--border)"}`,
                     borderRadius: 8, color: mobileMenu ? "var(--accent)" : "var(--text3)",
                     cursor: "pointer", padding: "5px 10px", fontSize: "0.95rem",
+                    minWidth: 44, minHeight: 44,
                     transition: "all 0.15s", lineHeight: 1, flexShrink: 0,
                   }}>
             {mobileMenu ? "✕" : "☰"}
@@ -335,15 +336,18 @@ export function Navbar() {
 
       {/* Mobil menü paneli — hamburger'a basınca nav linkleri + hesap/giriş işlemleri */}
       {mobileMenu && (
-        <div className="flex md:hidden glass" style={{
+        // OPAK arka plan (glass DEĞİL): yarı saydam panelde arkadaki sayfa içeriği
+        // yazıların üstüne biniyordu (29 Eyl 2026 mobil tur). Yükseklik/scroll
+        // kuralları .mobile-menu-panel'de (100dvh — iOS adres çubuğu payı).
+        <div className="flex md:hidden mobile-menu-panel" style={{
           position: "fixed", top: 56, left: 0, right: 0, zIndex: 45,
           padding: 12, flexDirection: "column", gap: 4,
-          maxHeight: "calc(100vh - 56px)", overflowY: "auto",
+          background: "var(--bg2)", borderBottom: "1px solid var(--border2)",
           boxShadow: "0 16px 48px rgba(0,0,0,.55)",
         }}>
           {navLinks.map((l) => (
             <Link key={l.href} href={l.href} onClick={close} style={{
-              padding: "11px 14px", borderRadius: 10, fontSize: "0.9rem", fontWeight: 600,
+              padding: "13px 14px", borderRadius: 10, fontSize: "0.9rem", fontWeight: 600,
               textDecoration: "none",
               color: isActive(l.href) ? "var(--accent)" : "var(--text)",
               background: isActive(l.href) ? "var(--accent-soft)" : "transparent",
@@ -362,7 +366,7 @@ export function Navbar() {
                 <button key={th.id} onClick={() => setTheme(th.id)}
                         title={t[th.labelKey]} aria-label={t[th.labelKey]} aria-pressed={active}
                         style={{
-                          width: 34, height: 34, borderRadius: 8, cursor: "pointer",
+                          width: 44, height: 44, borderRadius: 8, cursor: "pointer",
                           display: "flex", alignItems: "center", justifyContent: "center",
                           fontSize: "0.95rem", color: active ? "var(--accent)" : "var(--text2)",
                           background: active ? "var(--accent-soft)" : "rgba(0,0,0,.2)",
@@ -378,7 +382,7 @@ export function Navbar() {
               <button key={l} onClick={() => setLang(l)}
                       aria-pressed={lang === l}
                       style={{
-                        flex: 1, padding: "7px", borderRadius: 8, fontSize: "0.82rem",
+                        flex: 1, padding: "7px", minHeight: 44, borderRadius: 8, fontSize: "0.82rem",
                         cursor: "pointer", fontWeight: 600, transition: "all 0.15s",
                         border: `1px solid ${lang === l ? "var(--accent)" : "var(--border)"}`,
                         background: lang === l ? "var(--accent-soft)" : "rgba(0,0,0,.2)",
@@ -394,7 +398,7 @@ export function Navbar() {
               <button key={p} onClick={() => setPerf(p)}
                       aria-pressed={perf === p}
                       style={{
-                        flex: 1, padding: "7px", borderRadius: 8, fontSize: "0.82rem",
+                        flex: 1, padding: "7px", minHeight: 44, borderRadius: 8, fontSize: "0.82rem",
                         cursor: "pointer", fontWeight: 600, transition: "all 0.15s",
                         border: `1px solid ${perf === p ? "var(--accent)" : "var(--border)"}`,
                         background: perf === p ? "var(--accent-soft)" : "rgba(0,0,0,.2)",
@@ -426,7 +430,7 @@ export function Navbar() {
                 <TierBadge tier={(user.effective_tier ?? user.tier) as Tier} lang={lang} isOwner={user.is_owner} />
               </Link>
               <button onClick={handleLogout} style={{
-                textAlign: "left", padding: "11px 14px", borderRadius: 10, fontSize: "0.9rem",
+                textAlign: "left", padding: "13px 14px", borderRadius: 10, fontSize: "0.9rem",
                 color: "var(--neg)", background: "none", border: "none", cursor: "pointer",
               }}>
                 ⏻ {t.logout}

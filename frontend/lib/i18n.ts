@@ -1,19 +1,16 @@
 import type { Lang } from "./settings-context";
+import { TOPICS } from "./topics";
 
-export const TOPIC_LABELS: Record<string, Record<string, string>> = {
-  TR: {
-    "": "Tüm Konular",
-    Technology: "Teknoloji", Sports: "Spor", Economy: "Ekonomi",
-    Politics: "Siyaset", Health: "Sağlık", Culture: "Kültür",
-    World: "Dünya", Other: "Diğer",
-  },
-  EN: {
-    "": "All Topics",
-    Technology: "Technology", Sports: "Sports", Economy: "Economy",
-    Politics: "Politics", Health: "Health", Culture: "Culture",
-    World: "World", Other: "Other",
-  },
-};
+const ALL_TOPICS_LABEL: Record<string, string> = { TR: "Tüm Konular", EN: "All Topics" };
+
+// Etiketler backend kayıt defterinden üretilir (lib/topics.ts, bkz. src/domain/topics.py) —
+// burada elle konu listesi TUTULMAZ.
+export const TOPIC_LABELS: Record<string, Record<string, string>> = Object.fromEntries(
+  Object.keys(ALL_TOPICS_LABEL).map((lang) => [
+    lang,
+    { "": ALL_TOPICS_LABEL[lang], ...Object.fromEntries(TOPICS.map((t) => [t.id, t.labels[lang as "TR" | "EN"]])) },
+  ]),
+);
 
 export const SENTIMENT_LABELS: Record<string, Record<string, string>> = {
   TR: { "": "Tüm Duygular", Positive: "Pozitif", Negative: "Negatif", Neutral: "Nötr" },
@@ -277,6 +274,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     securityColTime: "Zaman", securityColEvent: "Olay", securityColEmail: "E-posta", securityColDetail: "Detay",
     securityFilterByThis: "Buna göre filtrele (sonra Göster)",
     noSecurityEvents: "Bu filtrede olay yok.",
+    securityTruncated: "Son {n} olay gösteriliyor — daha eskileri kesildi. Filtreyi (e-posta, IP, olay tipi, zaman) daraltın.",
 
     // ── Admin: kullanıcı/müşteri listesi ──
     users: "Kullanıcılar",
@@ -560,6 +558,7 @@ export const UI: Record<Lang, Record<string, string>> = {
     securityColTime: "Time", securityColEvent: "Event", securityColEmail: "Email", securityColDetail: "Detail",
     securityFilterByThis: "Filter by this (then Show)",
     noSecurityEvents: "No events for this filter.",
+    securityTruncated: "Showing the latest {n} events — older ones are cut off. Narrow the filter (email, IP, event type, window).",
 
     // ── Admin: user/customer list ──
     users: "Users",

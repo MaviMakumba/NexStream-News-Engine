@@ -78,7 +78,7 @@ export interface Article {
 
 export interface NewsPage {
   items: Article[];
-  next_cursor: number | null;
+  next_cursor: string | null;
   count: number;
 }
 

@@ -23,6 +23,11 @@ from src.domain.schemas.news_schema import (
     NewsPage, NewsResponse, SearchRequest, SearchResult, TrendingResponse,
     RelatedResponse, StoryClusterResponse, AskRequest, RagAnswerResponse,
 )
+from src.domain.news_cursor import decode_cursor, encode_cursor, legacy_cursor_id
+from sqlalchemy.orm import Session
+from src.infrastructure.config.database import get_db
+from src.adapters.api.security_audit import record_security_event
+from src.domain.models.security_event import EventCategory, EventType
 from src.domain.models.user import User, UserTier, TIER_SEARCH_RESULT_CAP, tier_at_least
 from src.domain.ports.question_answering_port import QuestionAnsweringError
 from src.application.services.news_service import NewsService
@@ -31,6 +36,7 @@ from src.adapters.api.limiter import limiter
 from src.adapters.api.metrics import search_latency_seconds
 from src.adapters.api.auth_utils import check_tier_limit, user_effective_tier
 from src.adapters.scrapers.registry import SCRAPER_REGISTRY
+from src.domain.topics import TOPICS
 from src.infrastructure.config.settings import settings
 
 router = APIRouter(prefix="/api/v1", tags=["API v1"], dependencies=[Depends(check_tier_limit)])
@@ -63,7 +69,7 @@ def _export_csv_row(article) -> dict:
 def get_news_v1(
     request: Request,
     limit: int = Query(20, ge=1, le=100, description="Sayfa başına haber sayısı"),
-    cursor: Optional[int] = Query(None, description="Önceki sayfanın son haber ID'si (cursor-based pagination)"),
+    cursor: Optional[str] = Query(None, max_length=64, description="Önceki yanıttaki next_cursor (opak string; cursor-based pagination)"),
     source: Optional[str] = Query(None, max_length=64),
     sentiment: Optional[str] = Query(None, pattern="^(Positive|Negative|Neutral)$"),
     topic: Optional[str] = Query(None, max_length=32),
@@ -76,8 +82,17 @@ def get_news_v1(
     cursor olarak gönder. next_cursor null ise daha fazla haber yok.
     """
     # limit+1 çekilir: fazladan kayıt varsa bir sonraki sayfa var demektir.
-    items = service.list_news_paginated(limit + 1, cursor, source, sentiment, topic, min_quality)
-    next_cursor = items[limit].id if len(items) > limit else None
+    before = None
+    if cursor is not None:
+        try:
+            legacy_id = legacy_cursor_id(cursor)
+            before = service.cursor_for_article_id(legacy_id) if legacy_id is not None else decode_cursor(cursor)
+        except ValueError:
+            before = None
+        if before is None:
+            raise HTTPException(status_code=400, detail="Geçersiz cursor")
+    items = service.list_news_paginated(limit + 1, before, source, sentiment, topic, min_quality)
+    next_cursor = encode_cursor(items[limit - 1]) if len(items) > limit else None
     page_items = items[:limit]
     return NewsPage(items=page_items, next_cursor=next_cursor, count=len(page_items))
 
@@ -121,6 +136,12 @@ def get_sources_v1():
     return list(SCRAPER_REGISTRY.keys())
 
 
+@router.get("/news/topics")
+def get_topics_v1():
+    """Geçerli konu kimlikleri + TR/EN etiketleri (`topic=` filtresinin alabileceği değerler)."""
+    return [{"id": t.id, "labels": dict(t.labels)} for t in TOPICS]
+
+
 @router.get("/news/export")
 @limiter.limit("10/minute")
 def export_news_v1(
@@ -134,6 +155,7 @@ def export_news_v1(
     date_to: Optional[date] = Query(None, description="YYYY-MM-DD, dahil"),
     user: Optional[User] = Depends(check_tier_limit),
     service: NewsService = Depends(get_news_service),
+    db: Session = Depends(get_db),
 ):
     """Ham veri export — Enterprise özelliği. CSV veya JSON, filtre + tarih aralığı destekler.
 
@@ -150,6 +172,8 @@ def export_news_v1(
     df = datetime.combine(date_from, dtime.min, tzinfo=timezone.utc) if date_from else None
     dt = datetime.combine(date_to, dtime.max, tzinfo=timezone.utc) if date_to else None
     articles = service.export_articles(settings.export_max_rows, source, sentiment, topic, min_quality, df, dt)
+    record_security_event(db, request, EventCategory.ACCESS, EventType.DATA_EXPORT,
+                          user_id=user.id, email=user.email, detail=f"format={format} rows={len(articles)}")
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     if format == "json":

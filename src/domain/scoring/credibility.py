@@ -27,6 +27,17 @@ SOURCE_CREDIBILITY: dict = {
     "HT Spor":        0.65,
     "Sabah":          0.60,
     "Sözcü":          0.60,
+    "Dünya": 0.7,
+    "CoinDesk": 0.7,
+    "Cointelegraph": 0.65,
+    "ScienceDaily": 0.75,
+    "AA Bilim-Teknoloji": 0.75,
+    "AA Kültür": 0.75,
+    "Al Jazeera": 0.75,
+    "DW": 0.8,
+    "BBC Health": 0.9,
+    "BBC Entertainment": 0.85,
+    "BBC Science & Environment": 0.9,
 }
 
 DEFAULT_CREDIBILITY = 0.50

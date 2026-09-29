@@ -1,5 +1,6 @@
 import asyncio
 import pytest
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, AsyncMock, MagicMock
 import src.adapters.scrapers.rss_scrapers as rss_scrapers_module
 from src.adapters.scrapers.rss_scrapers import (
@@ -244,7 +245,8 @@ def test_each_scraper_has_url(scraper_class):
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 def test_registry_contains_all_scrapers():
-    assert len(SCRAPER_REGISTRY) == 17
+    # Sabit sayı yerine: her kayıtlı kaynak scheduler'da da var (bkz. test_source_portfolio.py).
+    assert len(SCRAPER_REGISTRY) >= 28
 
 def test_registry_values_are_scraper_instances():
     for name, scraper in SCRAPER_REGISTRY.items():
@@ -253,3 +255,35 @@ def test_registry_values_are_scraper_instances():
 def test_registry_keys_match_source_names():
     for key, scraper in SCRAPER_REGISTRY.items():
         assert scraper.source_name == key, f"Registry key '{key}' != source_name '{scraper.source_name}'"
+
+
+# ── S2: önce ayrıştır, tarihe göre sırala, SONRA dilimle ──────────────────────
+# ScienceDaily (60 öğe), BBC Health (52) gibi feed'ler tarih sıralı değil: "ilk 25'i al"
+# taze haberi kaçırıp bayat olanı alıyordu (29 Eyl 2026 canlı feed doğrulaması).
+
+def _feed_with_dates(day_offsets, undated=()):
+    items = "".join(
+        f"<item><title>Haber {d}</title><link>https://x/{d}</link><description>c</description>"
+        f"<pubDate>{(datetime(2026, 9, 1, 12, tzinfo=timezone.utc) + timedelta(days=d)).strftime('%a, %d %b %Y %H:%M:%S +0000')}</pubDate></item>"
+        for d in day_offsets
+    )
+    items += "".join(f"<item><title>Tarihsiz {n}</title><link>https://x/u{n}</link><description>c</description></item>" for n in undated)
+    return f'<?xml version="1.0"?><rss version="2.0"><channel>{items}</channel></rss>'.encode("utf-8")
+
+
+def test_scraper_takes_the_newest_items_even_when_feed_is_oldest_first():
+    scraper = BBCTechnologyScraper()
+    scraper.limit = 5
+    feed = _feed_with_dates(range(0, 30))            # feed sırası: en ESKİ → en yeni
+    with patch.object(scraper, "_fetch_content", new=AsyncMock(return_value=feed)):
+        articles = asyncio.run(scraper.fetch_news())
+    assert [a.title for a in articles] == [f"Haber {d}" for d in (29, 28, 27, 26, 25)]
+
+
+def test_scraper_puts_undated_items_after_dated_ones():
+    scraper = BBCTechnologyScraper()
+    scraper.limit = 10
+    feed = _feed_with_dates([3, 1, 2], undated=[1])
+    with patch.object(scraper, "_fetch_content", new=AsyncMock(return_value=feed)):
+        articles = asyncio.run(scraper.fetch_news())
+    assert [a.title for a in articles] == ["Haber 3", "Haber 2", "Haber 1", "Tarihsiz 1"]

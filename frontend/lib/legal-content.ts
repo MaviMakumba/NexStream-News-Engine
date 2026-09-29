@@ -47,7 +47,7 @@ export const PRIVACY_POLICY: Record<Lang, LegalPage> = {
       {
         heading: "Çerezler",
         body:
-          "Oturumunuzu sürdürmek için zorunlu bir çerez (nxs_session) ve tema/dil tercihiniz için tarayıcınızın yerel depolamasını (localStorage) kullanıyoruz. Kullanım analitiği (PostHog) yapılandırıldığında sayfa gezinmeleri gibi anonim kullanım verileri de toplanabilir — reklam amaçlı çerez şu an KULLANILMIYOR, ileride eklenirse bu sayfa önceden güncellenir ve gerekli açık rıza mekanizması eklenir.",
+          "Kullandığımız çerez ve yerel depolama kategorileri: (1) Zorunlu — oturumunuzu sürdüren HttpOnly çerez (nxs_session); (2) Tercih — tarayıcınızın yerel depolamasında tema, dil, performans ve oturum önbelleği (nxt_theme, nxt_lang, nxt_perf, nxt_user), bunlar sunucuya gönderilmez ve üçüncü taraflarla paylaşılmaz; (3) Analitik — PostHog yapılandırıldığında sayfa gezinmeleri gibi anonim kullanım verileri; (4) Reklam — şu an KULLANILMIYOR. İleride reklam gösterilirse (ör. Google AdSense) bu sayfa reklamlar yayına girmeden önce güncellenir, gerekli açık rıza mekanizması eklenir ve Google'ın reklam ayarlarınızı https://adssettings.google.com adresinden yönetebileceğinizi belirtiriz.",
       },
     ],
   },
@@ -80,7 +80,7 @@ export const PRIVACY_POLICY: Record<Lang, LegalPage> = {
       {
         heading: "Cookies",
         body:
-          "We use one essential cookie to keep you signed in (nxs_session) and your browser's local storage for your theme/language preference. When usage analytics (PostHog) is configured, anonymous usage data such as page views may also be collected — advertising cookies are NOT currently used; if that changes, this page will be updated in advance with the appropriate consent mechanism.",
+          "The cookie and local-storage categories we use: (1) Essential — the HttpOnly cookie that keeps you signed in (nxs_session); (2) Preferences — your theme, language, performance and session cache in your browser's local storage (nxt_theme, nxt_lang, nxt_perf, nxt_user); these are not sent to the server and not shared with third parties; (3) Analytics — anonymous usage data such as page views when PostHog is configured; (4) Advertising — NOT currently used. If ads are shown in the future (e.g. Google AdSense), this page will be updated before they go live, the required consent mechanism will be added, and we will point you to https://adssettings.google.com to manage your ad settings.",
       },
     ],
   },

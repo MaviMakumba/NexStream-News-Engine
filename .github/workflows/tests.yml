@@ -75,17 +75,29 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"   # node --test ile .ts test dosyaları için tip soyma (>=22.6)
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Frontend unit tests
+        run: npm run test:unit
+
       - name: Build
         run: npm run build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
+
+      # 29 Eylül 2026: mobil kullanılabilirlik regresyonu (taşma, dokunma hedefi,
+      # iOS input zoom, mobil menü). Backend gerektirmez — API testte taklit
+      # edilir. Kırılırsa `test`+`frontend` needs'i yüzünden deploy da başlamaz.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Mobile usability tests
+        run: npm run test:mobile
 
   # 19 Ağu 2026 güvenlik denetimi: Dependabot haftalık version-bump PR'ları
   # açıyor ama build'i bilinen bir CVE'de UYARAN bir CI adımı yoktu. Bilinçli

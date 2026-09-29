@@ -32,6 +32,25 @@ const SettingsContext = createContext<SettingsCtx>({
   setPerf: () => {},
 });
 
+/**
+ * Kullanıcı henüz bir performans tercihi kaydetmediyse: dokunmatik + zayıf donanım
+ * (<=4 çekirdek ya da <=4GB RAM) ise "low" ile başla. 9 sinematik tema sürekli canvas
+ * animasyonu çiziyor; ucuz Android'lerde bu kaydırmayı takılgan yapıyor ve kullanıcı
+ * menüdeki "Performans" ayarını bulamıyor. Tercih yapılınca (localStorage) bu devre dışı.
+ * `deviceMemory` Safari'de yok — hardwareConcurrency tek başına yeterli sinyal.
+ */
+function isLowEndTouchDevice(): boolean {
+  try {
+    const coarse = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    const cores = nav.hardwareConcurrency ?? 8;
+    const mem = nav.deviceMemory ?? 8;
+    return coarse && (cores <= 4 || mem <= 4);
+  } catch {
+    return false;
+  }
+}
+
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   // SSR ile eşleşmesi için ilk render hep DEFAULT_THEME/TR — hydration mismatch
   // riski almadan gerçek tercih aşağıdaki layout effect'te paint'ten ÖNCE
@@ -50,6 +69,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     if (isThemeId(stored)) setThemeState(stored);
     if (l === "TR" || l === "EN") setLangState(l);
     if (p === "low" || p === "high") setPerfState(p);
+    else if (isLowEndTouchDevice()) setPerfState("low"); // kayıtlı tercih YOKSA cihaza göre varsayılan
   }, []);
 
   // Apply the palette to <html> so :root CSS vars + canvas readers stay in sync.

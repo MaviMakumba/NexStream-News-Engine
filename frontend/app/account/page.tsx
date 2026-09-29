@@ -21,9 +21,10 @@ import {
 } from "@/lib/api";
 import type { AccountUsage, Article, BillingConfig, Tier } from "@/lib/types";
 import type { NewsletterPrefs } from "@/lib/api";
+import { TOPICS } from "@/lib/topics";
 import { UI, TIER_DETAILS, TOPIC_LABELS } from "@/lib/i18n";
 
-const NEWSLETTER_TOPICS = ["Technology", "Sports", "Economy", "Politics", "Health", "Culture", "World", "Other"];
+const NEWSLETTER_TOPICS = TOPICS.map((t) => t.id);
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
 export default function AccountPage() {
@@ -319,7 +320,8 @@ export default function AccountPage() {
             }}>
               {initial}
             </div>
-            <div>
+            {/* minWidth:0 + overflowWrap: uzun e-posta flex çocuğunu konteynerden taşırıyordu */}
+            <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
               <div style={{ fontWeight: 700, color: "var(--text)", fontSize: "1rem" }}>{user.name || "—"}</div>
               <div style={{ color: "var(--text3)", fontSize: "0.84rem" }}>{user.email}</div>
             </div>

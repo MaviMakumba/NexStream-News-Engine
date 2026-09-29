@@ -51,10 +51,11 @@ def test_settings_log_format_override():
     assert s.log_level == "DEBUG"
 
 
-def test_settings_scrape_sources_contains_all_17():
+def test_settings_scrape_sources_contains_every_registered_source():
+    from src.adapters.scrapers.registry import SCRAPER_REGISTRY
     s = _fresh_settings()
     sources = [src.strip() for src in s.scrape_sources.split(",")]
-    assert len(sources) == 17
+    assert len(sources) == len(SCRAPER_REGISTRY)
     assert "TRT Haber" in sources
     assert "BBC Technology" in sources
     assert "BBC Sport" in sources

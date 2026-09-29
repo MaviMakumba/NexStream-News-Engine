@@ -464,3 +464,13 @@ def test_digest_unsubscribe_link_carries_signed_token():
     assert params["email"] == ["user@test.com"]
     assert params["lang"] == ["TR"]
     assert verify_unsubscribe_token("user@test.com", params["token"][0]) is True
+
+
+def test_topic_label_new_and_legacy_topics():
+    from src.adapters.notifications.email_adapter import _topic_label
+    assert _topic_label("Crypto", "TR") == "Kripto"
+    assert _topic_label("Environment", "EN") == "Environment & Climate"
+    assert _topic_label("Sports", "TR") == "Spor"           # eski konu bozulmadı
+    assert _topic_label("Crime", "TR") == "Crime"           # kayıt defterinde olmayan → ham
+    assert _topic_label("", "TR") == ""
+    assert _topic_label("Science", "DE") == "Bilim"         # bilinmeyen dil → adapter varsayılanı (TR)

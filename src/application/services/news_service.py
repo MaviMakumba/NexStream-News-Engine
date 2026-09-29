@@ -16,19 +16,22 @@ import logging
 import re
 import time
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from src.domain.ports.news_repository_port import NewsRepositoryPort
 from src.domain.ports.analysis_port import AnalysisPort
 from src.domain.ports.scraper_port import NewsScraperPort
 from src.domain.models.article import Article
+from src.domain.news_cursor import effective_date
+from src.domain.policies.ingest_policy import select_for_analysis
 from src.domain.scoring.quality import compute_quality_score
 from src.domain.scoring.credibility import base_credibility, compute_credibility
-from src.domain.services.subscriber_matching import matched_keyword
+from src.domain.services.turkish_morphology import TR_NOMINAL_SUFFIXES
+from src.domain.services.subscriber_matching import matched_keyword, term_occurs_in, FALSE_FRIEND_ROOTS
 from src.domain.ports.question_answering_port import QuestionAnsweringError
 from src.domain.scoring.trust import compute_trust_score
-from src.adapters.api.metrics import articles_processed_total
+from src.adapters.api.metrics import articles_by_topic_total, articles_processed_total, source_capped_total
 from src.infrastructure.config.settings import settings
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING
 if TYPE_CHECKING:
     from src.domain.ports.email_port import EmailPort
     from src.domain.ports.subscriber_port import SubscriberRepositoryPort
@@ -49,29 +52,7 @@ _GENERIC_ENTITY_SOURCE_FLOOR = 4
 
 # Turkish nominal suffixes ordered longest-first so we always strip the longest match.
 # Enables queries like "beşiktaşın hocası" to match articles containing "beşiktaş hocası".
-_TR_SUFFIXES = (
-    "larından", "lerinden",
-    "lardan", "lerden", "larla", "lerle",
-    "larda", "lerde", "lara", "lere", "ların", "lerin",
-    "ından", "inden", "undan", "ünden",
-    "ları", "leri",
-    "ndan", "nden", "ında", "inde", "unda", "ünde",
-    "lar", "ler",
-    "nda", "nde", "nın", "nin", "nun", "nün",
-    "ına", "ine", "una", "üne",
-    "ını", "ini", "unu", "ünü",
-    "dan", "den", "tan", "ten",
-    "yla", "yle",
-    "nı", "ni", "nu", "nü",
-    "na", "ne",
-    "ya", "ye", "yı", "yi", "yu", "yü",
-    "da", "de", "ta", "te",
-    "la", "le",
-    "li", "lı", "lu", "lü",
-    "sı", "si", "su", "sü",
-    "ın", "in", "un", "ün",
-    "ı", "i", "u", "ü",
-)
+_TR_SUFFIXES = TR_NOMINAL_SUFFIXES   # tek doğruluk kaynağı: domain/services/turkish_morphology.py
 # Doğal dilli sorularda (RAG) hiçbir konu bilgisi taşımayan Türkçe soru
 # parçacıkları — 27 Ağu 2026'da canlı QA'da bulundu: "israil türkiye savaşı
 # çıkar mı" gibi bir soruda "mı" tek başına coverage bölenini şişirip
@@ -91,6 +72,15 @@ _TR_QUESTION_STOPWORDS = frozenset({
     "hangi", "hangisi",
     "nerede", "nerededir",
     "kaç", "kaçtır",
+})
+# Cümle başında büyük harfle yazılıp özel isim OLMAYAN soru/zaman sözcükleri —
+# `_distinguishing_query_terms` bunları özel isim sanıp "dün" geçen alakasız bir
+# haberi kanıt paketinde tutuyordu (RAG #13, 29 Eyl 2026). Küçük, elle bakımı yapılan liste.
+_NON_ENTITY_CAPS = frozenset({
+    "dün", "bugün", "yarın", "şimdi", "geçen", "son", "neden", "nasıl", "niçin", "ne", "nerede",
+    "kim", "kimin", "hangi", "kaç", "peki", "acaba", "bu", "şu", "o", "bir", "var", "yok",
+    "what", "who", "when", "where", "why", "how", "which", "is", "are", "did", "does", "do",
+    "was", "were", "the", "yesterday", "today", "tomorrow", "any", "latest",
 })
 # Hem semantik hem keyword aramada çıkan sonuç daha güvenilirdir → küçük bonus.
 _DOUBLE_HIT_BONUS = 0.10
@@ -175,7 +165,8 @@ class NewsService:
         article.topic = neighbor.topic
         return True
 
-    async def update_news_from_source(self, scraper: NewsScraperPort, max_new_articles: Optional[int] = None):
+    async def update_news_from_source(self, scraper: NewsScraperPort, max_new_articles: Optional[int] = None,
+                                      daily_cap: Optional[int] = None):
         """Tek kaynağı uçtan uca işler: çek → analiz et → skorla → kaydet → indexle.
 
         Groq rate limit'ini korumak için analizler sıralı ve 2sn aralıklı çalışır;
@@ -188,6 +179,11 @@ class NewsService:
         Limit dolarsa kalan haberler bu turda kaydedilmez, bulk_exists onları
         hâlâ "yeni" göreceği için bir sonraki taramada (scheduler 10dk'da bir
         tetikler) işlenmeye devam eder.
+
+        Tazelik önceliği (S2): analiz sırası EN YENİ yayın tarihinden başlar,
+        `max_article_age_hours`'tan eski haber hiç analiz edilmez (bkz.
+        `domain/policies/ingest_policy.py`). `daily_cap`: bu kaynağın son 24 saatte
+        kaydedebileceği toplam haber; dolunca tur atlanır (Groq kotası korunur).
         """
         logger.info("Güncelleme başladı: %s", scraper.__class__.__name__)
         articles: List[Article] = await scraper.fetch_news()
@@ -195,8 +191,14 @@ class NewsService:
         # Bulk duplicate check — tek SQL sorgusu, N+1 elimine edildi
         existing_urls = self.repository.bulk_exists([a.url for a in articles])
         new_articles = [a for a in articles if a.url not in existing_urls]
-        if max_new_articles is not None:
-            new_articles = new_articles[:max_new_articles]
+        now = datetime.now(timezone.utc)
+        budget_left = self._daily_budget_left(articles, daily_cap, now)
+        if budget_left is not None and budget_left <= 0:
+            source_capped_total.labels(source=articles[0].source).inc()
+        new_articles = select_for_analysis(
+            new_articles, now=now, max_age_hours=settings.max_article_age_hours,
+            daily_budget_left=budget_left, per_run_limit=max_new_articles,
+        )
         logger.info("%s: %d/%d yeni haber analiz edilecek", scraper.__class__.__name__, len(new_articles), len(articles))
 
         saved_count = 0
@@ -229,6 +231,7 @@ class NewsService:
             if saved:
                 saved_count += 1
                 articles_processed_total.labels(source=article.source, status="saved").inc()
+                articles_by_topic_total.labels(source=article.source, topic=article.topic or "Other").inc()
                 if self.search_repository and article.id:
                     try:
                         self.search_repository.index_article(article)
@@ -243,6 +246,13 @@ class NewsService:
                 articles_processed_total.labels(source=article.source, status="duplicate").inc()
 
         logger.info("Güncelleme bitti: %d/%d haber kaydedildi", saved_count, len(new_articles))
+
+    def _daily_budget_left(self, articles: List[Article], daily_cap: Optional[int], now: datetime) -> Optional[int]:
+        """Kaynağın bugünkü kalan analiz bütçesi; tavan yoksa (ya da feed boşsa) None = sınırsız."""
+        if daily_cap is None or not articles:
+            return None
+        used = self.repository.count_articles_since(articles[0].source, now - timedelta(hours=24))
+        return daily_cap - used
 
     def list_news(self, limit: int = 10, sentiment: Optional[str] = None) -> List[Article]:
         return self.repository.get_latest_news(limit, sentiment)
@@ -479,7 +489,7 @@ class NewsService:
         terms = []
         for w in query.split():
             stripped = w.strip(".,!?;:\"'()")
-            if stripped and stripped[0].isupper():
+            if stripped and stripped[0].isupper() and NewsService._lower_tr_safe(stripped) not in _NON_ENTITY_CAPS:
                 terms.append(stripped)
         return terms
 
@@ -505,7 +515,14 @@ class NewsService:
         """
         for suffix in _TR_SUFFIXES:
             if word.endswith(suffix) and len(word) - len(suffix) >= 3:
-                return word[:-len(suffix)]
+                stem = word[:-len(suffix)]
+                # Bilinen yanlış-dost kökün İÇİNE kırpma: "altın" → "alt" olursa
+                # "altında/altyapı" gibi alakasız kelimeler de eşleşir (bkz.
+                # subscriber_matching._FALSE_FRIEND_WORDS). Kök korunur.
+                for root in FALSE_FRIEND_ROOTS:
+                    if word.startswith(root) and len(stem) < len(root):
+                        return root
+                return stem
         return word
 
     @staticmethod
@@ -560,11 +577,12 @@ class NewsService:
         birincil hem ikincil (genişletme) terimler için bunu paylaşır (DRY)."""
         if not terms:
             return 0.0
-        patterns = [re.compile(r"\b" + re.escape(t)) for t in terms]
         n = len(terms)
-        title_hits = sum(1 for p in patterns if p.search(title))
-        summary_hits = sum(1 for p in patterns if p.search(summary))
-        content_hits = sum(1 for p in patterns if p.search(content))
+        # term_occurs_in: kelime-başı (word-boundary) öneki + bilinen yanlış-dost istisnaları
+        # ("altın" araması "altında/altındaki"yi eşleştirmez — abone eşleşmesiyle ortak mantık).
+        title_hits = sum(1 for t in terms if term_occurs_in(t, title))
+        summary_hits = sum(1 for t in terms if term_occurs_in(t, summary))
+        content_hits = sum(1 for t in terms if term_occurs_in(t, content))
         title_score = (title_hits / n) * _FIELD_WEIGHTS["title"]
         summary_score = (summary_hits / n) * _FIELD_WEIGHTS["summary"]
         content_score = (content_hits / n) * _FIELD_WEIGHTS["content"]
@@ -993,9 +1011,6 @@ class NewsService:
         if not passing:
             return self._no_evidence_response(question, general_mode=target is None, ui_language=ui_language)
 
-        distinct_sources = {c["source"] for c in passing if c["source"]}
-        corroboration_level = "multi_source" if len(distinct_sources) >= 2 else "single_source"
-
         articles_by_id = {a.id: a for a in self.repository.get_articles_by_ids([c["id"] for c in passing])}
         if target is not None:
             articles_by_id[target.id] = target  # her ihtimale karşı en taze halini kullan
@@ -1003,6 +1018,21 @@ class NewsService:
         evidence_bundle = [articles_by_id[c["id"]] for c in passing if c["id"] in articles_by_id]
         if not evidence_bundle:
             return self._no_evidence_response(question, general_mode=target is None, ui_language=ui_language)
+
+        # Sorudaki özel isim(ler)i kanıt paketinde LİTERAL doğrula: "maç" gibi genel bir
+        # kelimeyi paylaşan ama ismi hiç geçirmeyen haberler LLM'i yanlış yönlendiriyordu
+        # (RAG #13). Arama skorundaki `_grounding_factor` cezası sert filtre değildi.
+        # Fail-open: hiçbir makale ismi içermiyorsa (ya da "isim" yanlış-pozitifse) paket
+        # aynen kalır. Habere özel modda hedef makale her zaman korunur.
+        terms = self._distinguishing_query_terms(question)
+        if terms:
+            grounded = [a for a in evidence_bundle
+                        if (target is not None and a.id == target.id) or self._grounding_factor(terms, a) == 1.0]
+            if grounded:
+                evidence_bundle = grounded
+
+        distinct_sources = {a.source for a in evidence_bundle if a.source}
+        corroboration_level = "multi_source" if len(distinct_sources) >= 2 else "single_source"
 
         evidence_dicts = [
             {
@@ -1076,8 +1106,13 @@ class NewsService:
         except Exception as e:
             logger.error("Push bildirimi gönderilirken hata (email alert etkilenmedi): %s", e)
 
-    def list_news_paginated(self, limit: int, before_id: Optional[int] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None, min_quality: Optional[float] = None) -> List[Article]:
-        return self.repository.get_news_paginated(limit, before_id, source, sentiment, topic, min_quality)
+    def list_news_paginated(self, limit: int, before: Optional[Tuple[datetime, int]] = None, source: Optional[str] = None, sentiment: Optional[str] = None, topic: Optional[str] = None, min_quality: Optional[float] = None) -> List[Article]:
+        return self.repository.get_news_paginated(limit, before, source, sentiment, topic, min_quality)
+
+    def cursor_for_article_id(self, article_id: int) -> Optional[Tuple[datetime, int]]:
+        """Eski (düz id) imleci yeni (etkin tarih, id) imlecine çevirir; haber yoksa None."""
+        article = self.repository.get_article_by_id(article_id)
+        return (effective_date(article), article.id) if article else None
 
     def export_articles(
         self, limit: int,

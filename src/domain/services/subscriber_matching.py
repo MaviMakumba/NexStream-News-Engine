@@ -10,6 +10,7 @@ import re
 from typing import Dict, FrozenSet, List, Optional
 from src.domain.models.article import Article
 from src.domain.models.subscriber import Subscriber
+from src.domain.services.turkish_morphology import is_inflection_of
 
 # Bilinen "yanlış dost" (false friend) çakışmaları: bir kök harf düzeyinde
 # BAŞKA, dilbilgisel olarak alakasız bir kelimenin çekimli haliyle çakışıyorsa
@@ -31,13 +32,22 @@ def _term_occurs_in(term: str, text: str) -> bool:
     """`term` metinde bilinen bir yanlış-dost istisnası OLMADAN en az bir
     yerde geçiyor mu. `term`/`text` çağıran tarafta zaten `_tr_lower` ile
     küçültülmüş olmalı."""
-    exclusions = _FALSE_FRIEND_WORDS.get(term)
-    if not exclusions:
-        return bool(re.search(r"\b" + re.escape(term), text))
+    exclusions = _FALSE_FRIEND_WORDS.get(term, frozenset())
+    # Kelimenin tamamını al ("tren" → "trendyol"), sonra kalan parçanın gerçek bir
+    # çekim eki dizisi olup olmadığına bak. Saf önek eşleşmesi "tren" anahtar
+    # kelimesini "Trendyol"/"trend"e de eşleştiriyordu (29 Eyl 2026).
     for m in re.finditer(r"\b" + re.escape(term) + r"\w*", text):
-        if m.group(0) not in exclusions:
+        word = m.group(0)
+        if word in exclusions:
+            continue
+        if is_inflection_of(term, word):
             return True
     return False
+
+
+# Arama tarafı (news_service) da aynı yardımcıları kullanır — tek doğruluk kaynağı.
+term_occurs_in = _term_occurs_in
+FALSE_FRIEND_ROOTS = tuple(_FALSE_FRIEND_WORDS)
 
 
 def _tr_lower(text: str) -> str:

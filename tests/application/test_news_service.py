@@ -1369,3 +1369,133 @@ def test_no_evidence_response_invalid_ui_language_falls_back_to_heuristic():
     with patch.object(service, "hybrid_search", return_value=[]):
         result = service.answer_question("Who will be the new coach?", ui_language="fr-FR")
     assert result["answer"] == NewsService._NO_EVIDENCE_TEXT["EN"]
+
+# ── "altın" yanlış-dost çakışması: ARAMA tarafı (abone eşleşmesi 27 Ağu'da düzeltilmişti) ──
+
+def test_stem_tr_does_not_cut_into_false_friend_root():
+    """'altın' → 'alt' kırpması 'altında/altyapı/altı...' hepsini yakalıyordu."""
+    assert NewsService._stem_tr("altın") == "altın"
+    assert NewsService._stem_tr("altının") == "altın"      # genitive: kök korunur, ek gider
+    assert NewsService._stem_tr("altınlar") == "altın"
+    assert NewsService._stem_tr("beşiktaşın") == "beşiktaş"  # diğer kökler etkilenmez
+
+
+def test_keyword_relevance_gold_does_not_match_under():
+    """'altın' araması 'altında/altındaki' (alt=under) içeren haberi eşleştirmemeli."""
+    terms = NewsService._canonical_terms("altın")
+    under = Article(title="İşgal altındaki topraklar", source="TRT", url="u1",
+                    content="Bölge işgal altında ve altındaki tüneller kapatıldı")
+    gold = Article(title="Gram altın rekor kırdı", source="TRT", url="u2", content="Altın fiyatları yükseldi")
+    assert NewsService._keyword_relevance(under, terms) == 0.0
+    assert NewsService._keyword_relevance(gold, terms) > 0.5
+# ── RAG kanıt paketi: özel isim literal doğrulaması (#13) ──────────────────────
+
+def _named_article(article_id, title, content="içerik", source="BBC"):
+    a = Article(title=title, source=source, url=f"http://x/{article_id}", content=content)
+    a.id = article_id
+    return a
+
+
+def test_answer_question_drops_evidence_that_lacks_the_named_entity():
+    """'maç' gibi genel bir kelimeyi paylaşan ama sorudaki özel ismi (Fenerbahçe) hiç
+    geçirmeyen haberler kanıt paketine GİRMEMELİ — biri bile ismi içeriyorsa."""
+    service, mock_repo, mock_qa = make_service_with_qa()
+    candidates = [{"id": "1", "score": 0.9, "source": "BBC"}, {"id": "2", "score": 0.8, "source": "Sözcü"}]
+    mock_repo.get_articles_by_ids.return_value = [
+        _named_article(1, "Fenerbahçe Bayern Münih maçı saat kaçta?"),
+        _named_article(2, "Galatasaray maçı hangi kanalda", source="Sözcü"),
+    ]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Cevap.", "used_sources": [1]}
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        result = service.answer_question("Fenerbahçe maçı saat kaçta")
+    sources = mock_qa.answer.call_args.kwargs["sources"]
+    assert [s["title"] for s in sources] == ["Fenerbahçe Bayern Münih maçı saat kaçta?"]
+    assert result["corroboration_level"] == "single_source"   # elenen makalenin kaynağı sayılmaz
+
+
+def test_answer_question_keeps_all_evidence_when_no_article_names_the_entity():
+    """Fail-open: özel isim aday olarak yanlış-pozitifse (ya da hiçbir haberde yoksa)
+    paket boşalmaz — eski davranış korunur."""
+    service, mock_repo, mock_qa = make_service_with_qa()
+    candidates = [{"id": "1", "score": 0.9, "source": "BBC"}, {"id": "2", "score": 0.8, "source": "Sözcü"}]
+    mock_repo.get_articles_by_ids.return_value = [
+        _named_article(1, "Borsa güne yükselişle başladı"),
+        _named_article(2, "Dolar kuru sabit", source="Sözcü"),
+    ]
+    mock_qa.answer.return_value = {"coverage": "partial", "answer": "Cevap.", "used_sources": [1]}
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        service.answer_question("Zorlu Holding hakkında ne var")
+    assert len(mock_qa.answer.call_args.kwargs["sources"]) == 2
+
+
+def test_question_and_time_words_are_not_treated_as_named_entities():
+    """'Dün'/'Bugün'/'Neden' cümle başı büyük harf yanlış-pozitifi: 'dün' geçen ama
+    Fenerbahçe geçmeyen haber, isim doğrulamasını geçmemeli."""
+    assert NewsService._distinguishing_query_terms("Dün Fenerbahçe ne yaptı") == ["Fenerbahçe"]
+    assert NewsService._distinguishing_query_terms("Neden Galatasaray kaybetti") == ["Galatasaray"]
+    assert NewsService._distinguishing_query_terms("Bugün ne oldu") == []
+    service, mock_repo, mock_qa = make_service_with_qa()
+    candidates = [{"id": "1", "score": 0.9, "source": "BBC"}, {"id": "2", "score": 0.8, "source": "Sözcü"}]
+    mock_repo.get_articles_by_ids.return_value = [
+        _named_article(1, "Dün akşam yağmur bastırdı"),
+        _named_article(2, "Fenerbahçe deplasmanda kazandı", source="Sözcü"),
+    ]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Cevap.", "used_sources": [1]}
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        service.answer_question("Dün Fenerbahçe ne yaptı")
+    assert [s["title"] for s in mock_qa.answer.call_args.kwargs["sources"]] == ["Fenerbahçe deplasmanda kazandı"]
+# ── S2: tazelik öncelikli alım + günlük tavan ─────────────────────────────────
+
+def _dated(url, hours_ago):
+    a = make_article(url)
+    a.published_at = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+    return a
+
+
+def _run_update(service, articles, **kwargs):
+    scraper = MagicMock()
+    scraper.fetch_news = AsyncMock(return_value=articles)
+    with patch("src.application.services.news_service.asyncio.sleep", new=AsyncMock()):
+        asyncio.run(service.update_news_from_source(scraper, **kwargs))
+
+
+def test_update_analyzes_freshest_articles_first():
+    service, mock_repo, mock_analyzer = make_service()
+    mock_repo.save_article.return_value = True
+    _run_update(service, [_dated("https://x/old", 30), _dated("https://x/new", 1), _dated("https://x/mid", 10)])
+    saved_urls = [c.args[0].url for c in mock_repo.save_article.call_args_list]
+    assert saved_urls == ["https://x/new", "https://x/mid", "https://x/old"]
+
+
+def test_update_skips_articles_older_than_max_age():
+    service, mock_repo, mock_analyzer = make_service()
+    mock_repo.save_article.return_value = True
+    _run_update(service, [_dated("https://x/fresh", 5), _dated("https://x/stale", 60)])
+    assert mock_analyzer.analyze_text.call_count == 1
+    assert mock_repo.save_article.call_args.args[0].url == "https://x/fresh"
+
+
+def test_update_daily_cap_limits_to_remaining_budget():
+    service, mock_repo, mock_analyzer = make_service()
+    mock_repo.save_article.return_value = True
+    mock_repo.count_articles_since.return_value = 8          # bugün zaten 8 kaydedilmiş
+    _run_update(service, [_dated(f"https://x/{i}", i) for i in range(1, 6)], daily_cap=10)
+    assert mock_analyzer.analyze_text.call_count == 2       # 10 - 8
+
+
+def test_update_exhausted_daily_cap_makes_no_groq_call_and_counts_capping():
+    from src.adapters.api.metrics import source_capped_total
+    service, mock_repo, mock_analyzer = make_service()
+    mock_repo.count_articles_since.return_value = 10
+    before = source_capped_total.labels(source="BBC")._value.get()
+    _run_update(service, [_dated("https://x/1", 1)], daily_cap=10)
+    mock_analyzer.analyze_text.assert_not_called()
+    mock_repo.save_article.assert_not_called()
+    assert source_capped_total.labels(source="BBC")._value.get() == before + 1
+
+
+def test_update_without_daily_cap_never_queries_the_budget():
+    service, mock_repo, _ = make_service()
+    mock_repo.save_article.return_value = True
+    _run_update(service, [_dated("https://x/1", 1)])
+    mock_repo.count_articles_since.assert_not_called()

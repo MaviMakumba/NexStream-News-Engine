@@ -63,7 +63,7 @@ def test_v1_news_page_fields(app_client):
 
 
 def test_v1_news_next_cursor_set_when_more(app_client):
-    # service returns limit+1 items → next_cursor = item[limit].id
+    # service returns limit+1 items → next_cursor = SON GÖSTERİLEN item (strict "<" ile bir sonraki sayfa item[limit]'ten başlar)
     articles = [make_article(i) for i in range(11, 0, -1)]
     mock_service = MagicMock()
     mock_service.list_news_paginated.return_value = articles
@@ -74,7 +74,8 @@ def test_v1_news_next_cursor_set_when_more(app_client):
         _clear(app_client)
 
     data = r.json()
-    assert data["next_cursor"] == articles[10].id
+    from src.domain.news_cursor import encode_cursor
+    assert data["next_cursor"] == encode_cursor(articles[9])
     assert data["count"] == 10
     assert len(data["items"]) == 10
 
@@ -84,11 +85,38 @@ def test_v1_news_cursor_passed_to_service(app_client):
     mock_service.list_news_paginated.return_value = []
     _override(app_client, mock_service)
     try:
-        app_client.get("/api/v1/news?limit=5&cursor=20")
+        app_client.get("/api/v1/news?limit=5&cursor=1758000000000000_20")
     finally:
         _clear(app_client)
 
-    mock_service.list_news_paginated.assert_called_once_with(6, 20, None, None, None, None)
+    expected = (datetime.fromtimestamp(1758000000, tz=timezone.utc), 20)
+    mock_service.list_news_paginated.assert_called_once_with(6, expected, None, None, None, None)
+
+
+def test_v1_news_legacy_numeric_cursor_resolved_via_article(app_client):
+    """Açık sekmedeki eski JS düz id imleci gönderebilir — 400 değil, o haberin tarihine çevrilir."""
+    mock_service = MagicMock()
+    mock_service.list_news_paginated.return_value = []
+    mock_service.cursor_for_article_id.return_value = (datetime(2026, 5, 26, tzinfo=timezone.utc), 20)
+    _override(app_client, mock_service)
+    try:
+        r = app_client.get("/api/v1/news?limit=5&cursor=20")
+    finally:
+        _clear(app_client)
+
+    assert r.status_code == 200
+    mock_service.cursor_for_article_id.assert_called_once_with(20)
+
+
+def test_v1_news_garbage_cursor_is_400(app_client):
+    mock_service = MagicMock()
+    _override(app_client, mock_service)
+    try:
+        r = app_client.get("/api/v1/news?cursor=abc")
+    finally:
+        _clear(app_client)
+
+    assert r.status_code == 400
 
 
 def test_v1_news_filters_passed_to_service(app_client):
@@ -122,3 +150,13 @@ def test_v1_sources(app_client):
     assert isinstance(sources, list)
     assert len(sources) > 0
     assert "TRT Haber" in sources
+
+
+def test_v1_topics_lists_registry_in_order(app_client):
+    r = app_client.get("/api/v1/news/topics")
+    assert r.status_code == 200
+    data = r.json()
+    assert [t["id"] for t in data][:2] == ["Technology", "Sports"]
+    assert data[-1]["id"] == "Other"
+    assert {"id": "Crypto", "labels": {"TR": "Kripto", "EN": "Crypto"}} in data
+    assert len(data) == 12

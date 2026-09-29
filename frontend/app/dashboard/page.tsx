@@ -9,6 +9,7 @@ import type { LiveArticle } from "@/lib/useLiveFeed";
 import type { Article, TrendingEntity } from "@/lib/types";
 import { NewsCard } from "@/components/NewsCard";
 import { TrendingPills } from "@/components/TrendingPills";
+import { TOPICS } from "@/lib/topics";
 import { TOPIC_LABELS, SENTIMENT_LABELS, UI } from "@/lib/i18n";
 
 function liveToArticle(a: LiveArticle): Article {
@@ -19,7 +20,7 @@ function liveToArticle(a: LiveArticle): Article {
   };
 }
 
-const TOPIC_VALUES    = ["", "Technology", "Sports", "Economy", "Politics", "Health", "Culture", "World", "Other"];
+const TOPIC_VALUES    = ["", ...TOPICS.map((t) => t.id)];
 const SENTIMENT_VALUES = ["", "Positive", "Negative", "Neutral"];
 
 export default function DashboardPage() {
@@ -32,7 +33,7 @@ export default function DashboardPage() {
   const [trendingLoaded,  setTrendingLoaded]  = useState(false);
   const [sources,         setSources]         = useState<string[]>([]);
   const [loading,         setLoading]         = useState(true);
-  const [cursor,          setCursor]          = useState<number | null>(null);
+  const [cursor,          setCursor]          = useState<string | null>(null);
   const [hasMore,         setHasMore]         = useState(true);
   const [sentiment,       setSentiment]       = useState("");
   const [topic,           setTopic]           = useState("");
@@ -55,7 +56,7 @@ export default function DashboardPage() {
     setArticles((prev) => (prev.some((x) => x.id === newest.id) ? prev : [liveToArticle(newest), ...prev]));
   }, [liveArticles, sentiment, topic, source, minQuality]);
 
-  const load = useCallback(async (reset: boolean, cur: number | null) => {
+  const load = useCallback(async (reset: boolean, cur: string | null) => {
     setLoading(true);
     try {
       const page = await fetchNews({
@@ -156,7 +157,7 @@ export default function DashboardPage() {
           )}
         </h1>
         <a href={`${BASE}/feed.xml`} target="_blank"
-           style={{ fontSize: "0.75rem", color: "var(--text3)", textDecoration: "none", transition: "color 0.15s" }}
+           className="tap" style={{ fontSize: "0.75rem", color: "var(--text3)", textDecoration: "none", transition: "color 0.15s" }}
            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent)")}
            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text3)")}>
           RSS →

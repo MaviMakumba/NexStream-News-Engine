@@ -1,5 +1,6 @@
 "use client";
 
+import { isSummaryEcho } from "@/lib/summary-echo";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -213,7 +214,7 @@ export function NewsCard({ article }: { article: Article }) {
       </div>
 
       {/* Title */}
-      <a href={article.url} target="_blank" rel="noopener noreferrer" style={{
+      <a href={article.url} target="_blank" rel="noopener noreferrer" className="tap-pad" style={{
         color: "var(--text)", fontWeight: 700, fontSize: "0.95rem",
         lineHeight: 1.45, textDecoration: "none", transition: "color 0.15s",
         overflow: "hidden", display: "-webkit-box" as any,
@@ -225,7 +226,7 @@ export function NewsCard({ article }: { article: Article }) {
       </a>
 
       {/* Summary */}
-      {article.summary && (
+      {article.summary && !isSummaryEcho(article.title, article.summary) && (
         <p style={{
           marginTop: 8, fontSize: "0.84rem", color: "var(--text2)", lineHeight: 1.6,
           overflow: "hidden", display: "-webkit-box" as any,
@@ -258,7 +259,10 @@ export function NewsCard({ article }: { article: Article }) {
               borderColor: "var(--accent-line)",
               fontSize: "0.68rem",
               fontFamily: "inherit", margin: 0, cursor: "pointer",
-              maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis",
+              // inline-flex'te text-overflow çalışmaz (metin anonim flex öğesi) —
+              // inline-block ile "…" gerçekten görünür, sert kesim olmaz.
+              display: "inline-block", maxWidth: "min(160px, 100%)", overflow: "hidden",
+              textOverflow: "ellipsis", lineHeight: 1.8,
             }}>
               {e}
             </button>
@@ -335,7 +339,7 @@ export function NewsCard({ article }: { article: Article }) {
           </button>
         )}
 
-        <a href={article.url} target="_blank" rel="noopener noreferrer"
+        <a href={article.url} target="_blank" rel="noopener noreferrer" className="tap"
            style={{ fontSize: "0.75rem", color: "var(--text3)", textDecoration: "none",
                     marginLeft: "auto", transition: "color 0.15s" }}
            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent)")}

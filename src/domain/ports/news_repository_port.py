@@ -36,6 +36,11 @@ class NewsRepositoryPort(ABC):
         pass
 
     @abstractmethod
+    def count_articles_since(self, source: str, since: datetime) -> int:
+        """`source` kaynağından `since`'ten beri KAYDEDİLEN haber sayısı (günlük tavan bütçesi)."""
+        pass
+
+    @abstractmethod
     def delete_articles_before(self, cutoff: datetime) -> int:
         """KALICI silme — yalnızca `db_retention_days` açıkça ayarlıysa çağrılır."""
         pass

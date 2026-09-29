@@ -68,7 +68,7 @@ export default function LoginPage() {
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
                 <label className="label" style={{ marginBottom: 0 }}>{t.passwordLabel}</label>
-                <Link href="/auth/forgot-password"
+                <Link href="/auth/forgot-password" className="tap"
                       style={{ fontSize: "0.78rem", color: "var(--text3)", textDecoration: "none" }}>
                   {t.forgotPasswordLink}
                 </Link>
