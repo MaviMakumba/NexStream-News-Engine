@@ -319,7 +319,8 @@ export default function AccountPage() {
             }}>
               {initial}
             </div>
-            <div>
+            {/* minWidth:0 + overflowWrap: uzun e-posta flex çocuğunu konteynerden taşırıyordu */}
+            <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
               <div style={{ fontWeight: 700, color: "var(--text)", fontSize: "1rem" }}>{user.name || "—"}</div>
               <div style={{ color: "var(--text3)", fontSize: "0.84rem" }}>{user.email}</div>
             </div>

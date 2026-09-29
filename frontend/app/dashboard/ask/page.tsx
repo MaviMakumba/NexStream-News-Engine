@@ -45,6 +45,10 @@ export default function AskPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!window.matchMedia("(pointer: coarse)").matches) inputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     const idParam = new URLSearchParams(window.location.search).get("articleId");
@@ -104,8 +108,7 @@ export default function AskPage() {
   }
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column",
-                  height: "calc(100vh - 140px)" }}>
+    <div className="chat-shell" style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column" }}>
       <div style={{ marginBottom: 16 }}>
         <p className="section-label" style={{ marginBottom: 8 }}>{t.askNavLabel}</p>
         <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--text)", letterSpacing: "-0.02em" }}>
@@ -119,7 +122,7 @@ export default function AskPage() {
         )}
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, padding: "8px 0" }}>
+      <div className="chat-messages" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, padding: "8px 0" }}>
         {messages.length === 0 && (
           <p style={{ color: "var(--text3)", textAlign: "center", marginTop: 40, fontSize: "0.88rem" }}>
             {t.askEmptyState}
@@ -180,11 +183,13 @@ export default function AskPage() {
 
       {error && <p style={{ color: "var(--neg)", fontSize: "0.82rem", marginTop: 8 }}>⚠ {error}</p>}
 
-      <form onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+      <form className="chat-form" onSubmit={(e) => { e.preventDefault(); handleSend(); }}
             style={{ display: "flex", gap: 8, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
-        <input value={input} onChange={(e) => setInput(e.target.value)}
+        {/* autoFocus YOK: dokunmatik cihazda sayfa açılır açılmaz klavyeyi açıp ekranın
+            yarısını kapatıyordu (iOS zaten yok sayar). Masaüstü odağı effect'te. */}
+        <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)}
                className="input" style={{ flex: 1, minWidth: 0 }} placeholder={t.askPlaceholder}
-               disabled={busy} autoFocus />
+               disabled={busy} />
         <button type="submit" disabled={busy || !input.trim()} className="btn-primary"
                 style={{ whiteSpace: "nowrap", padding: "9px 20px" }}>
           {busy ? t.askThinking : t.askSendBtn}

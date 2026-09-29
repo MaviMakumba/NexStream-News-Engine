@@ -55,7 +55,7 @@ export function CardSpotlight() {
   ];
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 32, alignItems: "start" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))", gap: 32, alignItems: "start" }}>
       {/* Mockup kart — gerçek NewsCard ile aynı görsel dil, statik/etkileşimsiz */}
       <div>
         <article className="card" aria-hidden style={{ cursor: "default" }}>

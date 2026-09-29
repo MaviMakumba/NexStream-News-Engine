@@ -156,7 +156,7 @@ export default function DashboardPage() {
           )}
         </h1>
         <a href={`${BASE}/feed.xml`} target="_blank"
-           style={{ fontSize: "0.75rem", color: "var(--text3)", textDecoration: "none", transition: "color 0.15s" }}
+           className="tap" style={{ fontSize: "0.75rem", color: "var(--text3)", textDecoration: "none", transition: "color 0.15s" }}
            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent)")}
            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text3)")}>
           RSS →

@@ -461,3 +461,63 @@ select option {
   .theme-flash, .btn-primary::after { animation: none !important; }
   * { scroll-behavior: auto !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBİL / DOKUNMATİK SERTLEŞTİRME (29 Eylül 2026 mobil kullanılabilirlik turu)
+   Tek noktadan, bileşenlere dokunmadan: yeni bir input/buton/link eklendiğinde
+   de otomatik uygulanır. Doğrulama: `npm run test:mobile` (e2e/mobile-usability).
+═══════════════════════════════════════════════════════════════════ */
+
+html { -webkit-text-size-adjust: 100%; }
+
+/* 300 ms çift-dokunma zoom gecikmesini ve gri dokunma parlamasını kapat. */
+a, button, [role="button"], [role="tab"], select, summary, label, input {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Dokunmatik ekranlarda "hover" yapışır (dokunulan kart kalkık/parlak kalır). */
+@media (hover: none) {
+  .card:hover, .card-sm:hover { transform: none; box-shadow: none; }
+  .btn-primary:hover { transform: none; }
+}
+
+@media (pointer: coarse) {
+  /* iOS Safari, 16px'ten küçük bir alana odaklanınca sayfayı ZOOM'lar ve geri
+     küçültmez. Inline fontSize'ı ezmek için !important gerekli. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select, textarea, .input { font-size: 16px !important; }
+
+  /* Parmak hedefi: birincil kontroller 44px (Apple HIG), yoğun çipler 36-40px. */
+  .btn-primary, .btn-secondary, .btn-danger,
+  .input, select.input { min-height: 44px; }
+  .icon-chip, .pill { min-height: 40px; }
+  button.badge, a.badge { min-height: 36px; }
+
+  /* Küçük metin linkleri / satır içi kontroller için yardımcı: görünümü aynı
+     kalır, dokunma alanı büyür. */
+  .tap { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; }
+  .tap-pad { padding-block: 10px; }
+}
+
+/* Sohbet ekranı: iOS'ta 100vh = adres çubuğu GİZLİYKEN yükseklik → input alanı
+   ekranın altına taşar. dvh destekleyen tarayıcı ikincisini kullanır. */
+.chat-shell { height: calc(100vh - 140px); height: calc(100dvh - 140px); min-height: 360px; }
+
+/* Mobil menü paneli: dvh + kendi içinde kaydır, arkadaki sayfaya taşma. */
+.mobile-menu-panel {
+  max-height: calc(100vh - 56px); max-height: calc(100dvh - 56px);
+  overflow-y: auto; overscroll-behavior: contain;
+}
+
+/* Dar ekranda sohbet: sabit-yükseklik+iç-scroll YERİNE sayfa akışı, mesaj kutusu
+   ekranın altına yapışık (navbar + iki ticker + padding yüksekliği tahmin
+   edilemez; sabit hesap kısa ekranda kutuyu katın altına itiyordu). */
+@media (max-width: 767px) {
+  .chat-shell { height: auto; min-height: calc(100vh - 210px); min-height: calc(100dvh - 210px); }
+  .chat-shell .chat-messages { overflow: visible !important; }
+  .chat-shell .chat-form {
+    position: sticky; bottom: 0; z-index: 5; background: var(--bg);
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
