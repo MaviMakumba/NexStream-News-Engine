@@ -1418,6 +1418,50 @@ K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu
 
 ---
 
+### 29 Eylül 2026 — Haber sıralama düzeltmesi + mobil kullanılabilirlik turu
+
+**1) Haberler sayfası sıralaması (PR #171).** `/api/v1/news` `id.desc()` ile sıralıyordu;
+`id` KAYIT sırasıdır, yayın zamanı değil — worker backlog'daki eski haberi sonradan
+işleyince (28 Eylül) o haber yüksek id alıp listenin tepesine çıkıyordu ("dünkü maçın
+kanalı neden bugün üstte" bulgusu). Ana akış (`get_latest_news`) bunu 31 Ağustos'ta
+düzeltmişti, sayfalı uç unutulmuştu. Fix: `coalesce(published_at, created_at) DESC, id DESC`
++ bileşik imleç `"<epoch µs>_<id>"` (`domain/news_cursor.py`), `next_cursor` int→string,
+eski düz-id imleç geriye uyumlu. Bonus: eski imleç mantığı (`id < next_cursor` =
+`items[limit].id`) her sayfa geçişinde 1 haberi ATLIYORDU, o da düzeldi.
+
+**2) Mobil kullanılabilirlik denetimi.** Backend'siz (API `page.route` ile taklit,
+`frontend/e2e/mock-api.ts` BİLİNÇLİ kötü veri: uzun başlık/entity/e-posta) Playwright
+taraması: 10 cihaz profili (280-844px, yatay dahil) x 17 sayfa x 10 tema x TR/EN =
+228 senaryo. Ölçümler `e2e/audit-lib.ts`: yatay taşma (body `overflow-x:hidden`
+sessiz kırpmayı yakalamak için tek tek eleman sağ kenarı), dokunma hedefi, iOS input
+zoom (<16px), küçük metin. **Bulgular ve kök nedenler:**
+- Anasayfa/`CardSpotlight` 320px'te taşıyordu: `minmax(320px,1fr)` (içerik alanı 280px).
+  Fix: `minmax(min(320px,100%),1fr)`.
+- Mobil menü paneli `glass` (yarı saydam) idi: arkadaki sayfa yazıların üstüne biniyordu;
+  `100vh` yüksekliği iOS adres çubuğu yüzünden çıkış butonunu ekran dışında bırakıyordu.
+  Fix: opak `--bg2` + `.mobile-menu-panel` (`100dvh`, `overscroll-behavior: contain`).
+- Sohbet (`/dashboard/ask`) sabit `calc(100vh - 140px)`: navbar + 2 ticker yüksekliği
+  hesaba katılmadığı için mesaj kutusu 568px ekranda katın altındaydı; ayrıca
+  `autoFocus` dokunmatikte klavyeyi anında açıyordu. Fix: dar ekranda sayfa akışı +
+  `position: sticky; bottom: 0` form, autoFocus sadece `pointer: fine`.
+- Tüm `.input` 15.2px (filtre `select`'leri 13.4px): iOS odaklanınca sayfayı zoomluyordu.
+  Fix: `@media (pointer: coarse)` altında `font-size:16px !important`.
+- Dokunma hedefleri: footer linkleri 20px, entity çipleri 22px, "Habere git" 18px,
+  nav/sekmeler 32-35px. Fix: `.tap` yardımcı sınıfı (min 44px, sadece coarse pointer),
+  `button.badge` 36px, `.btn-*`/`.input` 44px.
+- Entity çipi uzun adda "…" yerine sert kesiliyordu: `inline-flex`'te `text-overflow`
+  çalışmaz → `display:inline-block`.
+- `/account` uzun e-posta flex çocuğunu taşırıyordu (`minWidth:0` + `overflowWrap`).
+- `@media (hover:none)`: dokunulan kart "kalkık" yapışık kalmasın.
+- Zayıf dokunmatik cihaz (<=4 çekirdek/<=4GB) + kayıtlı tercih yoksa `perf` varsayılanı
+  "low" (canvas temaları ucuz Android'de takılıyordu; menüdeki ayarı kimse bulmuyordu).
+**Sonuç:** taşma 18 → 0, `e2e/mobile-usability.spec.ts` 120 test yeşil, CI'da `frontend`
+job'una bağlandı (kırılırsa deploy da başlamaz). **Araç gotcha'ları:** @playwright/test
+1.63 kendi Chromium revizyonunu (1243) ister, makinede 1234 var → `PW_CHROME` env'i ile
+kurulu Chrome'u göster (indirme güvenilmez). Bu makinede Docker kapalıyken bile çalışır.
+`next start` + `output: standalone` uyarı verir ama çalışır. Kapsam DIŞI (gerçek cihaz
+gerektirir): iOS Safari'ye özgü adres çubuğu/klavye davranışı, gerçek dokunma hissi.
+
 ## PRODUCTION DEPLOYMENT NOTLARI — ilk deployment tarihçesi (v1.6+)
 
 Güncel/canlı deployment komutları için `CLAUDE.md`'nin "PRODUCTION DEPLOYMENT

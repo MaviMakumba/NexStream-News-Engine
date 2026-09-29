@@ -131,7 +131,7 @@ export default function AdminSponsorsPage() {
 
       {loaded && (
         <div style={{ display: "grid",
-                      gridTemplateColumns: canManage ? "repeat(auto-fit, minmax(280px, 1fr))" : "1fr",
+                      gridTemplateColumns: canManage ? "repeat(auto-fit, minmax(min(280px, 100%), 1fr))" : "1fr",
                       gap: 20 }}>
 
           {/* Sponsor list */}

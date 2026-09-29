@@ -36,7 +36,7 @@ export function Footer() {
             { label: t.security,  href: "/security" },
             { label: t.contactLink, href: "/contact" },
           ].map((l) => (
-            <a key={l.label} href={l.href} target={l.href.startsWith("http") ? "_blank" : "_self"}
+            <a key={l.label} href={l.href} className="tap" target={l.href.startsWith("http") ? "_blank" : "_self"}
                style={{ fontSize: "0.82rem", color: "var(--text3)", textDecoration: "none", transition: "color 0.15s" }}
                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent)")}
                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text3)")}>

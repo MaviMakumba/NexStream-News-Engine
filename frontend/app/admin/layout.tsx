@@ -69,7 +69,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {tabs.map((tab) => {
             const active = pathname === tab.href;
             return (
-              <Link key={tab.href} href={tab.href} style={{
+              <Link key={tab.href} href={tab.href} className="tap" style={{
                 padding: "7px 18px", borderRadius: 8, fontSize: "0.84rem", fontWeight: 600,
                 textDecoration: "none", transition: "all 0.15s", flexShrink: 0,
                 display: "flex", alignItems: "center", gap: 6,

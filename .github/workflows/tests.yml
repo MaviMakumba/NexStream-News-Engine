@@ -87,6 +87,15 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
 
+      # 29 Eylül 2026: mobil kullanılabilirlik regresyonu (taşma, dokunma hedefi,
+      # iOS input zoom, mobil menü). Backend gerektirmez — API testte taklit
+      # edilir. Kırılırsa `test`+`frontend` needs'i yüzünden deploy da başlamaz.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Mobile usability tests
+        run: npm run test:mobile
+
   # 19 Ağu 2026 güvenlik denetimi: Dependabot haftalık version-bump PR'ları
   # açıyor ama build'i bilinen bir CVE'de UYARAN bir CI adımı yoktu. Bilinçli
   # olarak continue-on-error: true — hem backend'de (torch/transformers gibi
