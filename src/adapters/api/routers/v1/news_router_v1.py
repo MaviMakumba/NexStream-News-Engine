@@ -31,6 +31,7 @@ from src.adapters.api.limiter import limiter
 from src.adapters.api.metrics import search_latency_seconds
 from src.adapters.api.auth_utils import check_tier_limit, user_effective_tier
 from src.adapters.scrapers.registry import SCRAPER_REGISTRY
+from src.domain.topics import TOPICS
 from src.infrastructure.config.settings import settings
 
 router = APIRouter(prefix="/api/v1", tags=["API v1"], dependencies=[Depends(check_tier_limit)])
@@ -119,6 +120,12 @@ def get_trending_v1(
 def get_sources_v1():
     """Sistemdeki aktif haber kaynaklarının listesi."""
     return list(SCRAPER_REGISTRY.keys())
+
+
+@router.get("/news/topics")
+def get_topics_v1():
+    """Geçerli konu kimlikleri + TR/EN etiketleri (`topic=` filtresinin alabileceği değerler)."""
+    return [{"id": t.id, "labels": dict(t.labels)} for t in TOPICS]
 
 
 @router.get("/news/export")
