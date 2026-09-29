@@ -87,3 +87,27 @@ Hüküm: hiçbiri şu an acil kesilmeyi gerektirmiyor; Hetzner'e geçilirse RAM 
 1. **Sonraki oturum:** R2 yedek + 28 Eyl izleme sonuçları + Dependabot toplu güncelleme.
 2. **Ekim ilk yarısı:** Hetzner taşıma planı + provası (geri yükleme testi bunun içinde).
 3. **Taşıma sonrası:** kalite (#14, #13) → yeni kaynaklar → launch.
+
+
+---
+
+## 30 Eylül 2026 güncellemesi (21. oturum sonu) — eski tablo SİLİNMEDİ, durumlar burada
+
+| İş | Durum (30 Eyl) |
+|---|---|
+| 🔴 Sunucu + bütçe kararı | **AÇIK, Kasım ortası!** (Hetzner CX33 planı+provası Ekim başında başlamalı) |
+| 🔴 R2 offsite yedek | **AÇIK** — kullanıcı CF bucket `nexstream-backups` + Object R/W token verecek |
+| 🔴 Yedekten geri yükleme testi | **AÇIK** — Hetzner taşımasıyla birleştirilebilir |
+| 🟠 28 Eyl değişikliklerinin izlenmesi | ✅ temiz (17 kaynak çalışıyor, boş özet %0,5, restart/OOM 0, günlük haber ~480→1045). `chroma-migration-backup` (83 MB) **silinmedi**, kullanıcı onayı bekliyor |
+| 🟠 #28 build'i GHCR'a taşıma | **Şimdilik gereksiz** (18 Eyl'den beri host sağlıklı: yük 0,16, OOM yok); sunucu kararıyla yeniden değerlendir |
+| 🟠 Dependabot toplu | ✅ 16 PR tek dalda deploy edildi (#23 Tailwind 4 / #18 TS 7 kapsam dışı, hâlâ açık) |
+| 🟠 #30 güvenlik günlüğü denetimi | ✅ 6 yeni olay tipi, admin sayfası UX, Stripe tier değişimi |
+| 🟡 #14 özet yankısı | ✅ UI'da gizleme (kök neden: kaynak RSS'inde açıklama yok) |
+| 🟡 #13 RAG kanıt alakası | ✅ özel isim doğrulaması (fail-open) |
+| 🟡 `api.ts` yolu, `_stem_tr` | ✅ |
+| 🟡 #26 `/contact` maili spam | **Teyit bekliyor** — hoş geldin maili spam'e düşmedi (Resend yolu); `/contact` formunu bir kez deneyip gelen kutusuna bakmak gerekir |
+| 🟡 Yeni kaynaklar | ✅ 11 kaynak + tavanlar (S2); ilk gerçek ingest izlenecek |
+| 🟢 AdSense ön hazırlığı, Product Hunt | ✅ çerez kategorileri, `docs/launch/product-hunt.md` |
+| 🟢 #18 tam metin, #3 özel kaynak, #2 Stripe | Ertelemeyi koru (kullanıcı kararı) |
+| **YENİ** İçerik/tazelik/çok dillilik (B+D) | S1 ✅ S2 ✅ · **sıradaki S3 → S4 → S5** · S6 iptal · sonra C (UI yenileme) |
+| **YENİ** Mobil kullanılabilirlik | ✅ tarama + 120 testlik CI paketi; **gerçek telefonda elle deneme** kullanıcıda |
