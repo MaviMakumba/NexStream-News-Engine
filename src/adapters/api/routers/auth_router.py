@@ -312,19 +312,24 @@ def reset_password(request: Request, req: ResetPasswordRequest, db: Session = De
     """Token'ı doğrulayıp yeni şifreyi kaydeder; tüm oturumları düşürür."""
     repo = UserRepository(db)
     reset_token = repo.get_reset_token(req.token)
-    if not reset_token or reset_token.used:
+    def _reject():
+        record_security_event(db, request, EventCategory.ABUSE, EventType.PASSWORD_RESET_FAILED,
+                              detail="invalid_or_expired_token")
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    if not reset_token or reset_token.used:
+        _reject()
 
     expires = reset_token.expires_at
     if expires.tzinfo is None:
         expires = expires.replace(tzinfo=timezone.utc)
     if expires < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+        _reject()
 
     # Token ÖNCE atomik olarak tüketilir, şifre SONRA değiştirilir — eşzamanlı iki
     # istekten yalnızca biri True alır (güvenlik denetimi: TOCTOU yarışı).
     if not repo.mark_reset_token_used(req.token):
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+        _reject()
 
     repo.update_password(reset_token.user_id, _hash_password(req.password))
     repo.delete_sessions_for_user(reset_token.user_id)
@@ -366,18 +371,23 @@ def verify_email(request: Request, req: VerifyEmailRequest, db: Session = Depend
     """
     repo = UserRepository(db)
     verification_token = repo.get_verification_token(req.token)
-    if not verification_token or verification_token.used:
+    def _reject():
+        record_security_event(db, request, EventCategory.ABUSE, EventType.EMAIL_VERIFY_FAILED,
+                              detail="invalid_or_expired_token")
         raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+
+    if not verification_token or verification_token.used:
+        _reject()
 
     expires = verification_token.expires_at
     if expires.tzinfo is None:
         expires = expires.replace(tzinfo=timezone.utc)
     if expires < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+        _reject()
 
     # Token ÖNCE atomik tüketilir (bkz. reset_password'daki aynı TOCTOU gerekçesi).
     if not repo.mark_verification_token_used(req.token):
-        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+        _reject()
 
     repo.mark_email_verified(verification_token.user_id)
     record_security_event(db, request, EventCategory.AUTH, EventType.EMAIL_VERIFIED, user_id=verification_token.user_id)

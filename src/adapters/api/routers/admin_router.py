@@ -303,8 +303,18 @@ def _deactivate_all_active_sponsors(db: Session) -> None:
     db.query(SponsorORM).filter(SponsorORM.is_active.is_(True)).update({"is_active": False})
 
 
+def _audit_sponsor(db: Session, request: Request, actor: Optional[User], verb: str, sponsor_id) -> None:
+    """Sponsor değişikliği = sitede herkese görünen içerik + kalıcı silme geri alınamaz → iz bırak.
+    Aktör X-API-Key ile geldiyse kullanıcı yok, detail'de 'api_key' yazar."""
+    who = actor.email if actor else "api_key"
+    record_security_event(db, request, EventCategory.ADMIN, EventType.ADMIN_DATA_CHANGED,
+                          user_id=actor.id if actor else None,
+                          detail=f"sponsor:{verb} id={sponsor_id} by={who}")
+
+
 @router.post("/sponsors", status_code=201, dependencies=[Depends(require_admin)])
-def create_sponsor(req: SponsorRequest, db: Session = Depends(get_db)):
+def create_sponsor(request: Request, req: SponsorRequest, db: Session = Depends(get_db),
+                   actor: Optional[User] = Depends(get_optional_user)):
     _deactivate_all_active_sponsors(db)
     orm = SponsorORM(
         name=req.name,
@@ -318,6 +328,7 @@ def create_sponsor(req: SponsorRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(orm)
     logger.info("Yeni sponsor: %s", req.name)
+    _audit_sponsor(db, request, actor, "create", getattr(orm, "id", None))
     # Yanıt req'ten kurulur: testlerdeki mock session'larda ORM lazy-load tetiklenmesin
     return {
         "id": getattr(orm, "id", None),
@@ -331,7 +342,8 @@ def create_sponsor(req: SponsorRequest, db: Session = Depends(get_db)):
 
 
 @router.patch("/sponsors/{sponsor_id}", dependencies=[Depends(require_admin)])
-def update_sponsor(sponsor_id: int, req: SponsorRequest, db: Session = Depends(get_db)):
+def update_sponsor(request: Request, sponsor_id: int, req: SponsorRequest, db: Session = Depends(get_db),
+                   actor: Optional[User] = Depends(get_optional_user)):
     orm = db.get(SponsorORM, sponsor_id)
     if not orm:
         raise HTTPException(status_code=404, detail="Sponsor not found")
@@ -341,22 +353,26 @@ def update_sponsor(sponsor_id: int, req: SponsorRequest, db: Session = Depends(g
     orm.active_from = req.active_from
     orm.active_until = req.active_until
     db.commit()
+    _audit_sponsor(db, request, actor, "update", sponsor_id)
     return _to_dict(orm)
 
 
 @router.delete("/sponsors/{sponsor_id}", dependencies=[Depends(require_admin)])
-def deactivate_sponsor(sponsor_id: int, db: Session = Depends(get_db)):
+def deactivate_sponsor(request: Request, sponsor_id: int, db: Session = Depends(get_db),
+                       actor: Optional[User] = Depends(get_optional_user)):
     """Soft-delete: kayıt silinmez, sadece pasife alınır."""
     orm = db.get(SponsorORM, sponsor_id)
     if not orm:
         raise HTTPException(status_code=404, detail="Sponsor not found")
     orm.is_active = False
     db.commit()
+    _audit_sponsor(db, request, actor, "deactivate", sponsor_id)
     return {"id": sponsor_id, "is_active": False}
 
 
 @router.delete("/sponsors/{sponsor_id}/permanent", dependencies=[Depends(require_admin)])
-def delete_sponsor_permanently(sponsor_id: int, db: Session = Depends(get_db)):
+def delete_sponsor_permanently(request: Request, sponsor_id: int, db: Session = Depends(get_db),
+                               actor: Optional[User] = Depends(get_optional_user)):
     """Kaydı kalıcı olarak siler — geri alınamaz. Süresi dolmuş/pasif eski
     kayıtları listeden tamamen temizlemek için (soft-delete'in aksine)."""
     orm = db.get(SponsorORM, sponsor_id)
@@ -364,11 +380,13 @@ def delete_sponsor_permanently(sponsor_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Sponsor not found")
     db.delete(orm)
     db.commit()
+    _audit_sponsor(db, request, actor, "delete", sponsor_id)
     return {"id": sponsor_id, "deleted": True}
 
 
 @router.post("/sponsors/{sponsor_id}/activate", dependencies=[Depends(require_admin)])
-def activate_sponsor(sponsor_id: int, db: Session = Depends(get_db)):
+def activate_sponsor(request: Request, sponsor_id: int, db: Session = Depends(get_db),
+                     actor: Optional[User] = Depends(get_optional_user)):
     """Süresi geçmemiş pasif bir sponsoru yeniden aktifleştirir — diğer
     aktif sponsor(lar) otomatik pasife alınır (tek güncel sponsor kuralı)."""
     orm = db.get(SponsorORM, sponsor_id)
@@ -377,6 +395,7 @@ def activate_sponsor(sponsor_id: int, db: Session = Depends(get_db)):
     _deactivate_all_active_sponsors(db)
     orm.is_active = True
     db.commit()
+    _audit_sponsor(db, request, actor, "activate", sponsor_id)
     return _to_dict(orm)
 
 

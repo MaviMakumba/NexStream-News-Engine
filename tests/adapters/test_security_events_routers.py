@@ -215,3 +215,108 @@ def test_security_events_endpoint_filters_and_serializes(app_client):
     assert (datetime.now(timezone.utc) - kw["since"]).total_seconds() < 24 * 3600 + 60
     item = r.json()[0]
     assert item["event_type"] == "login_failure" and item["ip"] == "1.2.3.4" and item["request_id"] == "rid"
+
+
+# ── #30 denetim boşlukları (29 Eylül 2026) ─────────────────────────────────────
+
+def test_verify_email_bad_token_recorded_as_abuse(app_client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
+         patch("src.adapters.api.routers.auth_router.record_security_event") as rec:
+        MockRepo.return_value.get_verification_token.return_value = None
+        r = app_client.post("/auth/verify-email", json={"token": "guess"})
+    assert r.status_code == 400
+    assert rec.call_args.args[2:] == (EventCategory.ABUSE, EventType.EMAIL_VERIFY_FAILED)
+    assert "guess" not in str(rec.call_args)   # token değeri ASLA günlüğe girmez
+
+
+def test_reset_password_bad_token_recorded_as_abuse(app_client):
+    with patch("src.adapters.api.routers.auth_router.UserRepository") as MockRepo, \
+         patch("src.adapters.api.routers.auth_router.record_security_event") as rec:
+        MockRepo.return_value.get_reset_token.return_value = None
+        r = app_client.post("/auth/reset-password", json={"token": "guess", "password": "newpass123"})
+    assert r.status_code == 400
+    assert rec.call_args.args[2:] == (EventCategory.ABUSE, EventType.PASSWORD_RESET_FAILED)
+    assert "guess" not in str(rec.call_args)
+
+
+def test_unsubscribe_link_with_invalid_token_recorded_valid_is_not(app_client):
+    from src.adapters.api.subscription_tokens import make_unsubscribe_token
+    from src.adapters.api.routers.subscription_router import _get_repo
+    repo = MagicMock(); repo.deactivate.return_value = True
+    app_client.app.dependency_overrides[_get_repo] = lambda: repo
+    app_client.app.dependency_overrides[get_db] = lambda: MagicMock()
+    try:
+        with patch("src.adapters.api.routers.subscription_router.record_security_event") as rec:
+            app_client.get("/subscriptions/unsubscribe?email=a@example.com&token=forged")
+            assert rec.call_args.args[2:] == (EventCategory.ABUSE, EventType.UNSUBSCRIBE_TOKEN_INVALID)
+            assert _kwargs(rec)["email"] == "a@example.com"
+            rec.reset_mock()
+            good = make_unsubscribe_token("a@example.com")
+            app_client.get(f"/subscriptions/unsubscribe?email=a@example.com&token={good}")
+            rec.assert_not_called()      # başarılı iptal gürültü — kaydedilmez
+    finally:
+        _clear(app_client)
+
+
+def test_enterprise_export_recorded_with_format_and_rows(app_client):
+    from src.adapters.api.auth_utils import check_tier_limit
+    from src.dependencies import get_news_service
+    ent = _user(id=9, email="ent@example.com"); ent.tier = UserTier.ENTERPRISE
+    svc = MagicMock(); svc.export_articles.return_value = []
+    app_client.app.dependency_overrides[check_tier_limit] = lambda: ent
+    app_client.app.dependency_overrides[get_news_service] = lambda: svc
+    app_client.app.dependency_overrides[get_db] = lambda: MagicMock()
+    try:
+        with patch("src.adapters.api.routers.v1.news_router_v1.record_security_event") as rec:
+            r = app_client.get("/api/v1/news/export?format=json")
+    finally:
+        _clear(app_client)
+    assert r.status_code == 200
+    assert rec.call_args.args[2:] == (EventCategory.ACCESS, EventType.DATA_EXPORT)
+    kw = _kwargs(rec)
+    assert kw["user_id"] == 9 and "json" in kw["detail"] and "rows=0" in kw["detail"]
+
+
+def test_webhook_bad_signature_recorded(app_client):
+    import stripe as _stripe
+    mock_stripe = MagicMock()
+    mock_stripe.error.SignatureVerificationError = _stripe.error.SignatureVerificationError
+    mock_stripe.Webhook.construct_event.side_effect = _stripe.error.SignatureVerificationError("bad", "sig", "body")
+    with patch("src.adapters.api.routers.billing_router.settings") as ms, \
+         patch("src.adapters.api.routers.billing_router._require_stripe", return_value=mock_stripe), \
+         patch("src.infrastructure.config.database.SessionLocal") as SL, \
+         patch("src.adapters.api.routers.billing_router.record_security_event") as rec:
+        ms.stripe_secret_key = "sk"; ms.stripe_webhook_secret = "wh"
+        r = app_client.post("/billing/webhook", content=b"{}", headers={"stripe-signature": "bad"})
+    assert r.status_code == 400
+    assert rec.call_args.args[2:] == (EventCategory.ABUSE, EventType.WEBHOOK_SIGNATURE_INVALID)
+
+
+def test_webhook_tier_change_recorded(app_client):
+    event = {"type": "customer.subscription.created",
+             "data": {"object": {"customer": "cus_1", "metadata": {"user_id": "4", "tier": "pro"}}}}
+    mock_stripe = MagicMock(); mock_stripe.Webhook.construct_event.return_value = event
+    with patch("src.adapters.api.routers.billing_router.settings") as ms, \
+         patch("src.adapters.api.routers.billing_router._require_stripe", return_value=mock_stripe), \
+         patch("src.infrastructure.config.database.SessionLocal") as SL, \
+         patch("src.adapters.api.routers.billing_router.UserRepository"), \
+         patch("src.adapters.api.routers.billing_router.record_security_event") as rec:
+        ms.stripe_secret_key = "sk"; ms.stripe_webhook_secret = "wh"
+        r = app_client.post("/billing/webhook", content=b"{}", headers={"stripe-signature": "ok"})
+    assert r.status_code == 200
+    assert rec.call_args.args[2:] == (EventCategory.ADMIN, EventType.TIER_CHANGED)
+    kw = _kwargs(rec)
+    assert kw["user_id"] == 4 and "stripe" in kw["detail"] and "pro" in kw["detail"]
+
+
+def test_sponsor_mutations_recorded_as_admin_data_changed(app_client):
+    db = MagicMock(); orm = MagicMock(); db.get.return_value = orm
+    app_client.app.dependency_overrides[get_db] = lambda: db
+    try:
+        with patch("src.adapters.api.routers.admin_router.record_security_event") as rec:
+            r = app_client.delete("/admin/sponsors/3/permanent", headers=API_KEY)
+    finally:
+        _clear(app_client)
+    assert r.status_code == 200
+    assert rec.call_args.args[2:] == (EventCategory.ADMIN, EventType.ADMIN_DATA_CHANGED)
+    assert "sponsor" in _kwargs(rec)["detail"] and "3" in _kwargs(rec)["detail"] and "delete" in _kwargs(rec)["detail"]

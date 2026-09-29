@@ -40,7 +40,16 @@ class EventType:
     API_KEY_REVOKED = "api_key_revoked"
     # abuse
     RATE_LIMITED = "rate_limited"
+    # abuse (29 Eyl 2026, #30 denetimi): başarısız TOKEN denemeleri — brute-force/probe sinyali.
+    # Token DEĞERİ asla günlüğe girmez.
+    EMAIL_VERIFY_FAILED = "email_verify_failed"
+    PASSWORD_RESET_FAILED = "password_reset_failed"
+    UNSUBSCRIBE_TOKEN_INVALID = "unsubscribe_token_invalid"
+    WEBHOOK_SIGNATURE_INVALID = "webhook_signature_invalid"
+    # access
+    DATA_EXPORT = "data_export"                 # Enterprise toplu veri indirme (tek toplu sızdırma yolu)
     # admin
+    ADMIN_DATA_CHANGED = "admin_data_changed"   # sponsor oluştur/güncelle/pasifleştir/kalıcı sil
     ROLE_CHANGED = "role_changed"
     USER_BANNED = "user_banned"
     USER_UNBANNED = "user_unbanned"

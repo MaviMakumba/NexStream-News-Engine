@@ -23,6 +23,10 @@ from src.domain.schemas.news_schema import (
     NewsPage, NewsResponse, SearchRequest, SearchResult, TrendingResponse,
     RelatedResponse, StoryClusterResponse, AskRequest, RagAnswerResponse,
 )
+from sqlalchemy.orm import Session
+from src.infrastructure.config.database import get_db
+from src.adapters.api.security_audit import record_security_event
+from src.domain.models.security_event import EventCategory, EventType
 from src.domain.models.user import User, UserTier, TIER_SEARCH_RESULT_CAP, tier_at_least
 from src.domain.ports.question_answering_port import QuestionAnsweringError
 from src.application.services.news_service import NewsService
@@ -134,6 +138,7 @@ def export_news_v1(
     date_to: Optional[date] = Query(None, description="YYYY-MM-DD, dahil"),
     user: Optional[User] = Depends(check_tier_limit),
     service: NewsService = Depends(get_news_service),
+    db: Session = Depends(get_db),
 ):
     """Ham veri export — Enterprise özelliği. CSV veya JSON, filtre + tarih aralığı destekler.
 
@@ -150,6 +155,8 @@ def export_news_v1(
     df = datetime.combine(date_from, dtime.min, tzinfo=timezone.utc) if date_from else None
     dt = datetime.combine(date_to, dtime.max, tzinfo=timezone.utc) if date_to else None
     articles = service.export_articles(settings.export_max_rows, source, sentiment, topic, min_quality, df, dt)
+    record_security_event(db, request, EventCategory.ACCESS, EventType.DATA_EXPORT,
+                          user_id=user.id, email=user.email, detail=f"format={format} rows={len(articles)}")
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     if format == "json":

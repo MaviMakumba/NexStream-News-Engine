@@ -24,7 +24,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
-from src.infrastructure.config.database import SessionLocal
+from sqlalchemy.orm import Session
+from src.infrastructure.config.database import SessionLocal, get_db
+from src.adapters.api.security_audit import record_security_event
+from src.domain.models.security_event import EventCategory, EventType
 from src.adapters.repositories.subscriber_repository import SubscriberRepository
 from src.adapters.repositories.user_repository import UserRepository
 from src.adapters.notifications.email_adapter import get_email_adapter
@@ -167,6 +170,7 @@ def unsubscribe_via_link(
     token: Optional[str] = None,
     lang: str = "TR",
     repo: SubscriberRepository = Depends(_get_repo),
+    db: Session = Depends(get_db),
 ):
     """E-postadaki tıklanabilir 'aboneliği iptal et' linkinin hedefi — tarayıcıda
     açılan basit bir onay sayfası döner (JSON değil, çünkü doğrudan e-posta
@@ -176,7 +180,11 @@ def unsubscribe_via_link(
 
     `token` e-postaya bağlı HMAC imzası — yoksa/yanlışsa DB'ye hiç dokunulmaz ve
     "bulunamadı" sayfası gösterilir (adresin abone olup olmadığı da sızmaz)."""
-    ok = verify_unsubscribe_token(email, token) and repo.deactivate(email)
+    valid = verify_unsubscribe_token(email, token)
+    if not valid:
+        # Sahte/eksik imzalı link = probe sinyali. Başarılı iptal gürültü, kaydedilmez.
+        record_security_event(db, request, EventCategory.ABUSE, EventType.UNSUBSCRIBE_TOKEN_INVALID, email=email)
+    ok = valid and repo.deactivate(email)
     title, body = (_UNSUBSCRIBE_CONFIRM_HTML if ok else _UNSUBSCRIBE_NOTFOUND_HTML).get(
         lang, _UNSUBSCRIBE_CONFIRM_HTML["TR"] if ok else _UNSUBSCRIBE_NOTFOUND_HTML["TR"]
     )
