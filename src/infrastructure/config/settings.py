@@ -70,6 +70,13 @@ class Settings(BaseSettings):
     # 0 = sınırsız (eski davranış).
     worker_max_new_articles_per_run: int = 5
 
+    # Tazelik-öncelikli alım (S2, 29 Eyl 2026): bu yaştan (saat) eski haber HİÇ analiz
+    # edilmez — Groq kotası darken bütçe dünün haberine değil bugünküne gitsin.
+    max_article_age_hours: int = 48
+    # Kaynak başına günlük tavan geçersiz kılma, JSON: {"CNN Türk": 80}. Boş = sınıf
+    # varsayılanları (rss_scrapers.py `daily_cap`). Bkz. adapters/scrapers/source_policy.py.
+    source_daily_caps: str = ""
+
     # Bu yaştan (saniye) eski scrape emirleri worker tarafından atlanır — emir
     # "bu kaynağı ŞİMDİ tara" demek, aynı kaynak sonraki scheduler turunda
     # zaten yeniden istenir. Bu olmadan worker'ın işleme hızı (Groq beklemeleri
