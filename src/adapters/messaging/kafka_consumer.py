@@ -12,6 +12,7 @@ import logging
 import time
 from typing import Optional
 from aiokafka import AIOKafkaConsumer
+from src.adapters.scrapers.source_policy import effective_daily_cap, parse_cap_overrides
 from src.infrastructure.config.database import SessionLocal
 from src.infrastructure.config.settings import settings
 from src.infrastructure.logging.logger import setup_logging
@@ -49,6 +50,12 @@ def _get_email_adapter() -> EmailPort:
     return _email_adapter
 
 
+def _daily_cap_for(scraper) -> Optional[int]:
+    """Kaynağın günlük tavanı: SOURCE_DAILY_CAPS override > scraper.daily_cap > None (sınırsız)."""
+    overrides = parse_cap_overrides(settings.source_daily_caps)
+    return effective_daily_cap(scraper.source_name, getattr(scraper, "daily_cap", None), overrides)
+
+
 async def _process(scraper):
     db = SessionLocal()
     try:
@@ -69,7 +76,7 @@ async def _process(scraper):
         # limit'e takılınca TÜM yeni haberlerini bitirmeden sıradaki kaynağa
         # geçilemiyordu, diğer 16 kaynak saatlerce aç kalıyordu (bkz. settings.py).
         cap = settings.worker_max_new_articles_per_run or None
-        await service.update_news_from_source(scraper, max_new_articles=cap)
+        await service.update_news_from_source(scraper, max_new_articles=cap, daily_cap=_daily_cap_for(scraper))
         # 1 Eyl 2026: update_news_from_source ile reanalyze_missed arasında hiç
         # bekleme yoktu — Groq'un TPM kovasını (leaky bucket) anlık boşaltan
         # burst kaynaklarından biriydi (bkz. settings.py::groq_request_interval_seconds).

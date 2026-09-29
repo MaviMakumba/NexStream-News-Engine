@@ -59,7 +59,8 @@ class Settings(BaseSettings):
     scrape_sources: str = (
         "TRT Haber,BBC Türkçe,Hürriyet,Hürriyet Spor,Sabah,"
         "CNN Türk,Sözcü,Habertürk,HT Spor,Anadolu Ajansı,AA Ekonomi,"
-        "BBC Technology,BBC Sport,Guardian Tech,TechCrunch,Hacker News,The Verge"
+        "BBC Technology,BBC Sport,Guardian Tech,TechCrunch,Hacker News,The Verge,"
+        "Dünya,CoinDesk,Cointelegraph,ScienceDaily,AA Bilim-Teknoloji,AA Kültür,Al Jazeera,DW,BBC Health,BBC Entertainment,BBC Science & Environment"
     )
     # Worker kaynakları SIRAYLA işler (bkz. kafka_consumer.py) — Groq rate limit
     # ağırlaşınca tek bir yoğun kaynak (ör. TRT Haber) TÜM yeni haberlerini
@@ -69,6 +70,13 @@ class Settings(BaseSettings):
     # edileceğini sınırlar; kalanlar bir sonraki taramada (10dk'da bir) işlenir.
     # 0 = sınırsız (eski davranış).
     worker_max_new_articles_per_run: int = 5
+
+    # Tazelik-öncelikli alım (S2, 29 Eyl 2026): bu yaştan (saat) eski haber HİÇ analiz
+    # edilmez — Groq kotası darken bütçe dünün haberine değil bugünküne gitsin.
+    max_article_age_hours: int = 48
+    # Kaynak başına günlük tavan geçersiz kılma, JSON: {"CNN Türk": 80}. Boş = sınıf
+    # varsayılanları (rss_scrapers.py `daily_cap`). Bkz. adapters/scrapers/source_policy.py.
+    source_daily_caps: str = ""
 
     # Bu yaştan (saniye) eski scrape emirleri worker tarafından atlanır — emir
     # "bu kaynağı ŞİMDİ tara" demek, aynı kaynak sonraki scheduler turunda

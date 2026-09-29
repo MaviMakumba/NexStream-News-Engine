@@ -436,3 +436,18 @@ def test_get_news_paginated_cursor_walks_pages_without_gaps_or_dupes():
         before = (last.published_at, last.id)
 
     assert seen == ["https://x/b", "https://x/d", "https://x/c", "https://x/a"]
+def test_count_articles_since_counts_only_that_source_and_window():
+    """Günlük tavan hesabının temeli: son 24 saatte BU kaynaktan kaydedilen haber sayısı."""
+    db = make_session()
+    repo = NewsRepository(db)
+    now = datetime.now(timezone.utc)
+    for url, source in [("https://x/1", "A"), ("https://x/2", "A"), ("https://x/3", "A"), ("https://x/4", "B")]:
+        article = make_article(url)
+        article.source = source
+        repo.save_article(article)
+    db.query(NewsORM).filter(NewsORM.url == "https://x/3").update({"created_at": now - timedelta(hours=30)})
+    db.commit()
+
+    assert repo.count_articles_since("A", now - timedelta(hours=24)) == 2
+    assert repo.count_articles_since("B", now - timedelta(hours=24)) == 1
+    assert repo.count_articles_since("C", now - timedelta(hours=24)) == 0

@@ -69,6 +69,13 @@ class NewsRepository(NewsRepositoryPort):
     def article_exists(self, url: str) -> bool:
         return self.db.query(NewsORM).filter(NewsORM.url == url).first() is not None
 
+    def count_articles_since(self, source: str, since: datetime) -> int:
+        return (
+            self.db.query(func.count(NewsORM.id))
+            .filter(NewsORM.source == source, NewsORM.created_at >= since)
+            .scalar()
+        ) or 0
+
     def bulk_exists(self, urls: list[str]) -> set[str]:
         if not urls:
             return set()

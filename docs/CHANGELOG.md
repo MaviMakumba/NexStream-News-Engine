@@ -1461,6 +1461,9 @@ job'una bağlandı (kırılırsa deploy da başlamaz). **Araç gotcha'ları:** @
 kurulu Chrome'u göster (indirme güvenilmez). Bu makinede Docker kapalıyken bile çalışır.
 `next start` + `output: standalone` uyarı verir ama çalışır. Kapsam DIŞI (gerçek cihaz
 gerektirir): iOS Safari'ye özgü adres çubuğu/klavye davranışı, gerçek dokunma hissi.
+### 29 Eylül 2026 — S1: konu kayıt defteri (spec: `docs/superpowers/specs/2026-09-29-icerik-genisletme-cok-dillilik-tazelik-design.md`)
+
+Konu listesi 5+ yerde elle kopyalıydı (analiz prompt'u, e-posta etiketleri, dashboard filtresi, bülten seçimi, i18n sözlüğü). Artık `src/domain/topics.py::TOPICS` tek kaynak: 12 konu (mevcut 8 + **Science, Crypto, Environment, Entertainment**), TR/EN etiket sözlüğü, yalnız karışan konular için kısa prompt ipucu. `common.py` prompt ve geçerlilik kümesini, `email_adapter` etiketleri oradan alır; model geçersiz/uydurma konu üretirse `normalize_topic` → `Other`. Dış tüketiciler için `GET /api/v1/news/topics`. Frontend `lib/topics.ts` üretilen dosya (`scripts/gen_frontend_topics.py`) + senkron testi: spec §4.1 çalışma zamanı API çağrısı öngörüyordu, ama `/api/v1/*` her çağrı Free kullanıcının 100/gün kotasından yer ve ilk boyama ağa bağımlı olurdu — statik üretim bu ikisini de kaldırır. Prompt şablonu 767 → 968 karakter (test tavanı 850 → 1000). Migration yok, eski haberler eski konusuyla kalır. **Gerçek Groq duman testi yapılamadı:** o akşam hem `gpt-oss-20b` (199.373/200.000) hem `qwen` günlük TPD kotası tükenmişti (prod tüketiyor); deploy sonrası yeni haberlerin konu dağılımı sorgusuyla doğrulanacak (`Other` payı %22 → <%10 hedefi).
 
 ## PRODUCTION DEPLOYMENT NOTLARI — ilk deployment tarihçesi (v1.6+)
 

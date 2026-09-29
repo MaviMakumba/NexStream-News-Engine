@@ -12,6 +12,22 @@ articles_processed_total = Counter(
     ["source", "status"],
 )
 
+# Konu dengesi izleme (S2): hangi kaynak hangi konuda kaç haber getiriyor. Mevcut
+# sayacın etiket kümesi değiştirilmedi (Grafana panelleri/testler bozulmasın).
+articles_by_topic_total = Counter(
+    "nexstream_articles_by_topic_total",
+    "Saved articles by source and analysed topic",
+    ["source", "topic"],
+)
+
+# Günlük kaynak tavanı dolduğu için o tur atlanan kaynaklar (S2) — tavanları
+# ayarlamak için ölçüm: hangi kaynak sürekli tavana çarpıyor?
+source_capped_total = Counter(
+    "nexstream_source_capped_total",
+    "Scrape runs skipped because the source hit its daily cap",
+    ["source"],
+)
+
 groq_latency_seconds = Histogram(
     "nexstream_groq_latency_seconds",
     "Groq API call latency in seconds",

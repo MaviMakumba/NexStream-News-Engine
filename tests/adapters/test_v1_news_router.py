@@ -150,3 +150,13 @@ def test_v1_sources(app_client):
     assert isinstance(sources, list)
     assert len(sources) > 0
     assert "TRT Haber" in sources
+
+
+def test_v1_topics_lists_registry_in_order(app_client):
+    r = app_client.get("/api/v1/news/topics")
+    assert r.status_code == 200
+    data = r.json()
+    assert [t["id"] for t in data][:2] == ["Technology", "Sports"]
+    assert data[-1]["id"] == "Other"
+    assert {"id": "Crypto", "labels": {"TR": "Kripto", "EN": "Crypto"}} in data
+    assert len(data) == 12
