@@ -1,5 +1,6 @@
 "use client";
 
+import { isSummaryEcho } from "@/lib/summary-echo";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -225,7 +226,7 @@ export function NewsCard({ article }: { article: Article }) {
       </a>
 
       {/* Summary */}
-      {article.summary && (
+      {article.summary && !isSummaryEcho(article.title, article.summary) && (
         <p style={{
           marginTop: 8, fontSize: "0.84rem", color: "var(--text2)", lineHeight: 1.6,
           overflow: "hidden", display: "-webkit-box" as any,
