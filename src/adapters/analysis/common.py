@@ -32,6 +32,17 @@ Article:
 JSON only, no markdown, no explanation."""
 
 
+def sentiment_label_for(score: float) -> str:
+    """Etiket skorun saf fonksiyonu (prompt sözleşmesiyle aynı eşikler). Modelin
+    yazdığı etiket metnine güvenilmez: qwen 'Strongly Negative' üretebiliyor,
+    UI/filtre/API deseni yalnızca Positive|Negative|Neutral biliyor."""
+    if score > 0.2:
+        return "Positive"
+    if score < -0.2:
+        return "Negative"
+    return "Neutral"
+
+
 def parse_analysis_json(content: str, text: str) -> dict:
     """Model çıktısını standart analiz sözleşmesine çevirir. Geçersiz JSON'da JSONDecodeError fırlatır."""
     content = re.sub(r"```json|```", "", content).strip()
@@ -48,9 +59,10 @@ def parse_analysis_json(content: str, text: str) -> dict:
     if topic not in VALID_TOPICS:
         topic = "Other"
 
+    score = float(result.get("sentiment_score", 0.0))
     return {
-        "sentiment_score": float(result.get("sentiment_score", 0.0)),
-        "sentiment_label": result.get("sentiment_label", "Neutral"),
+        "sentiment_score": score,
+        "sentiment_label": sentiment_label_for(score),
         "summary": result.get("summary", text[:100]),
         "entities": entities,
         "topic": topic,
