@@ -1369,3 +1369,60 @@ def test_no_evidence_response_invalid_ui_language_falls_back_to_heuristic():
     with patch.object(service, "hybrid_search", return_value=[]):
         result = service.answer_question("Who will be the new coach?", ui_language="fr-FR")
     assert result["answer"] == NewsService._NO_EVIDENCE_TEXT["EN"]
+
+# ── RAG kanıt paketi: özel isim literal doğrulaması (#13) ──────────────────────
+
+def _named_article(article_id, title, content="içerik", source="BBC"):
+    a = Article(title=title, source=source, url=f"http://x/{article_id}", content=content)
+    a.id = article_id
+    return a
+
+
+def test_answer_question_drops_evidence_that_lacks_the_named_entity():
+    """'maç' gibi genel bir kelimeyi paylaşan ama sorudaki özel ismi (Fenerbahçe) hiç
+    geçirmeyen haberler kanıt paketine GİRMEMELİ — biri bile ismi içeriyorsa."""
+    service, mock_repo, mock_qa = make_service_with_qa()
+    candidates = [{"id": "1", "score": 0.9, "source": "BBC"}, {"id": "2", "score": 0.8, "source": "Sözcü"}]
+    mock_repo.get_articles_by_ids.return_value = [
+        _named_article(1, "Fenerbahçe Bayern Münih maçı saat kaçta?"),
+        _named_article(2, "Galatasaray maçı hangi kanalda", source="Sözcü"),
+    ]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Cevap.", "used_sources": [1]}
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        result = service.answer_question("Fenerbahçe maçı saat kaçta")
+    sources = mock_qa.answer.call_args.kwargs["sources"]
+    assert [s["title"] for s in sources] == ["Fenerbahçe Bayern Münih maçı saat kaçta?"]
+    assert result["corroboration_level"] == "single_source"   # elenen makalenin kaynağı sayılmaz
+
+
+def test_answer_question_keeps_all_evidence_when_no_article_names_the_entity():
+    """Fail-open: özel isim aday olarak yanlış-pozitifse (ya da hiçbir haberde yoksa)
+    paket boşalmaz — eski davranış korunur."""
+    service, mock_repo, mock_qa = make_service_with_qa()
+    candidates = [{"id": "1", "score": 0.9, "source": "BBC"}, {"id": "2", "score": 0.8, "source": "Sözcü"}]
+    mock_repo.get_articles_by_ids.return_value = [
+        _named_article(1, "Borsa güne yükselişle başladı"),
+        _named_article(2, "Dolar kuru sabit", source="Sözcü"),
+    ]
+    mock_qa.answer.return_value = {"coverage": "partial", "answer": "Cevap.", "used_sources": [1]}
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        service.answer_question("Zorlu Holding hakkında ne var")
+    assert len(mock_qa.answer.call_args.kwargs["sources"]) == 2
+
+
+def test_question_and_time_words_are_not_treated_as_named_entities():
+    """'Dün'/'Bugün'/'Neden' cümle başı büyük harf yanlış-pozitifi: 'dün' geçen ama
+    Fenerbahçe geçmeyen haber, isim doğrulamasını geçmemeli."""
+    assert NewsService._distinguishing_query_terms("Dün Fenerbahçe ne yaptı") == ["Fenerbahçe"]
+    assert NewsService._distinguishing_query_terms("Neden Galatasaray kaybetti") == ["Galatasaray"]
+    assert NewsService._distinguishing_query_terms("Bugün ne oldu") == []
+    service, mock_repo, mock_qa = make_service_with_qa()
+    candidates = [{"id": "1", "score": 0.9, "source": "BBC"}, {"id": "2", "score": 0.8, "source": "Sözcü"}]
+    mock_repo.get_articles_by_ids.return_value = [
+        _named_article(1, "Dün akşam yağmur bastırdı"),
+        _named_article(2, "Fenerbahçe deplasmanda kazandı", source="Sözcü"),
+    ]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Cevap.", "used_sources": [1]}
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        service.answer_question("Dün Fenerbahçe ne yaptı")
+    assert [s["title"] for s in mock_qa.answer.call_args.kwargs["sources"]] == ["Fenerbahçe deplasmanda kazandı"]
