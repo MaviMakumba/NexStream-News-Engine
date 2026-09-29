@@ -4,9 +4,9 @@ ResendEmailAdapter gerçek gönderim yapar (RESEND_API_KEY gerekli);
 ConsoleEmailAdapter sadece loglar (lokal geliştirme). get_email_adapter()
 ortama göre doğru olanı seçer — çağıran kod farkı bilmez.
 
-i18n: tüm çeviriler `_STRINGS`/`_TOPIC_LABELS` sözlüklerinde toplanır —
+i18n: tüm çeviriler `_STRINGS` sözlüğünde (konu etiketleri: `src/domain/topics.py`) toplanır —
 frontend/lib/i18n.ts::UI ile aynı desen. Yeni bir dil eklemek (örn. Fransızca)
-sadece bu iki sözlüğe bir `"FR": {...}` bloğu eklemek demektir; hiçbir
+`_STRINGS`'e bir `"FR": {...}` bloğu + `src/domain/topics.py` etiketlerine `"FR"` anahtarı eklemek demektir; hiçbir
 `if language == "TR" else ...` dallanmasına dokunulmaz.
 """
 
@@ -19,6 +19,7 @@ from email.mime.text import MIMEText
 from typing import List, Optional
 from urllib.parse import quote
 import requests
+from src.domain.topics import topic_label
 from src.domain.models.article import Article
 from src.domain.ports.email_port import EmailPort
 from src.infrastructure.config.settings import settings
@@ -93,23 +94,6 @@ _STRINGS: dict = {
     },
 }
 
-# Frontend'in lib/i18n.ts::TOPIC_LABELS'iyle birebir aynı yapı — haber konuları
-# backend'de İngilizce sabit değer olarak saklanır (Sports, Technology, ...),
-# e-postada abonenin dil tercihine göre çevrilir.
-_TOPIC_LABELS: dict = {
-    "TR": {
-        "Technology": "Teknoloji", "Sports": "Spor", "Economy": "Ekonomi",
-        "Politics": "Siyaset", "Health": "Sağlık", "Culture": "Kültür",
-        "World": "Dünya", "Other": "Diğer",
-    },
-    "EN": {
-        "Technology": "Technology", "Sports": "Sports", "Economy": "Economy",
-        "Politics": "Politics", "Health": "Health", "Culture": "Culture",
-        "World": "World", "Other": "Other",
-    },
-}
-
-
 _TAG_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"[ \t]+")
 _BLANK_LINES_RE = re.compile(r"\n{3,}")
@@ -141,8 +125,7 @@ def _t(language: str, key: str) -> str:
 def _topic_label(topic: str, language: str) -> str:
     if not topic:
         return ""
-    labels = _TOPIC_LABELS.get(language, _TOPIC_LABELS[_DEFAULT_LANG])
-    return labels.get(topic, topic)
+    return topic_label(topic, language, fallback_language=_DEFAULT_LANG)
 
 
 def _unsubscribe_url(email: str, language: str) -> str:
