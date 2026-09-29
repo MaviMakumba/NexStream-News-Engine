@@ -35,3 +35,13 @@ def test_new_topic_works_in_subscriber_matching():
     art.topic = "Crypto"
     assert article_matches_subscriber(art, Subscriber(email="a@b.c", preferred_topics=["Crypto"])) is True
     assert article_matches_subscriber(art, Subscriber(email="a@b.c", preferred_topics=["Sports"])) is False
+
+
+def test_topic_is_hashable_and_registry_is_immutable():
+    """Kayıt defteri tek doğruluk kaynağı: hiçbir çağıran etiketleri sessizce değiştirememeli,
+    ve `frozen` bir kayıt küme/sözlük anahtarı olarak kullanılabilmeli (inceleme bulgusu)."""
+    import pytest
+    assert len({t for t in TOPICS}) == len(TOPICS)          # hash(Topic) çökmemeli
+    with pytest.raises(TypeError):
+        TOPICS[0].labels["TR"] = "değiştirildi"
+    assert topic_label("Technology", "TR") == "Teknoloji"

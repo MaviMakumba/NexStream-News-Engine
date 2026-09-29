@@ -16,7 +16,7 @@ OUT = ROOT / "frontend" / "lib" / "topics.ts"
 
 def render() -> str:
     rows = ",\n".join(
-        f"  {{ id: {json.dumps(t.id)}, labels: {json.dumps(t.labels, ensure_ascii=False)} }}" for t in TOPICS
+        f"  {{ id: {json.dumps(t.id)}, labels: {json.dumps(dict(t.labels), ensure_ascii=False)} }}" for t in TOPICS
     )
     return (
         "// ÜRETİLDİ — ELLE DÜZENLEME. Kaynak: src/domain/topics.py\n"

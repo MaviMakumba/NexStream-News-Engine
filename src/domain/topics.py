@@ -11,14 +11,20 @@ ASLA yeniden adlandırma. Etiketler dil sözlüğüdür (yeni dil = anahtar ekle
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, FrozenSet, Tuple
+from types import MappingProxyType
+from typing import Dict, FrozenSet, Mapping, Tuple
 
 
 @dataclass(frozen=True)
 class Topic:
+    """Değiştirilemez kayıt: `labels` salt-okunur görünüme sarılır (tek doğruluk kaynağı kodun
+    başka bir yerinden sessizce bozulamaz) ve hash'e katılmaz (Mapping hash'lenemez)."""
     id: str
-    labels: Dict[str, str] = field(default_factory=dict)
+    labels: Mapping[str, str] = field(default_factory=dict, hash=False)
     hint: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "labels", MappingProxyType(dict(self.labels)))
 
 
 TOPICS: Tuple[Topic, ...] = (

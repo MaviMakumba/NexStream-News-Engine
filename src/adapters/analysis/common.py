@@ -15,10 +15,7 @@ aşabilir, bu yüzden bilinçli olarak dengeli bir noktada durduruldu.
 import json
 import re
 
-from src.domain.topics import TOPICS, VALID_TOPIC_IDS, normalize_topic
-
-VALID_TOPICS = VALID_TOPIC_IDS   # geriye uyumlu ad
-
+from src.domain.topics import TOPICS, normalize_topic
 
 def _topic_prompt_line() -> str:
     """'Technology, Economy (markets, business, not crypto), ...' — ipucu yalnız karışan konularda."""
