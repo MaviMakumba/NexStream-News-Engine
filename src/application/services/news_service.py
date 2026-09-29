@@ -24,6 +24,7 @@ from src.domain.models.article import Article
 from src.domain.news_cursor import effective_date
 from src.domain.scoring.quality import compute_quality_score
 from src.domain.scoring.credibility import base_credibility, compute_credibility
+from src.domain.services.turkish_morphology import TR_NOMINAL_SUFFIXES
 from src.domain.services.subscriber_matching import matched_keyword, term_occurs_in, FALSE_FRIEND_ROOTS
 from src.domain.ports.question_answering_port import QuestionAnsweringError
 from src.domain.scoring.trust import compute_trust_score
@@ -50,29 +51,7 @@ _GENERIC_ENTITY_SOURCE_FLOOR = 4
 
 # Turkish nominal suffixes ordered longest-first so we always strip the longest match.
 # Enables queries like "beşiktaşın hocası" to match articles containing "beşiktaş hocası".
-_TR_SUFFIXES = (
-    "larından", "lerinden",
-    "lardan", "lerden", "larla", "lerle",
-    "larda", "lerde", "lara", "lere", "ların", "lerin",
-    "ından", "inden", "undan", "ünden",
-    "ları", "leri",
-    "ndan", "nden", "ında", "inde", "unda", "ünde",
-    "lar", "ler",
-    "nda", "nde", "nın", "nin", "nun", "nün",
-    "ına", "ine", "una", "üne",
-    "ını", "ini", "unu", "ünü",
-    "dan", "den", "tan", "ten",
-    "yla", "yle",
-    "nı", "ni", "nu", "nü",
-    "na", "ne",
-    "ya", "ye", "yı", "yi", "yu", "yü",
-    "da", "de", "ta", "te",
-    "la", "le",
-    "li", "lı", "lu", "lü",
-    "sı", "si", "su", "sü",
-    "ın", "in", "un", "ün",
-    "ı", "i", "u", "ü",
-)
+_TR_SUFFIXES = TR_NOMINAL_SUFFIXES   # tek doğruluk kaynağı: domain/services/turkish_morphology.py
 # Doğal dilli sorularda (RAG) hiçbir konu bilgisi taşımayan Türkçe soru
 # parçacıkları — 27 Ağu 2026'da canlı QA'da bulundu: "israil türkiye savaşı
 # çıkar mı" gibi bir soruda "mı" tek başına coverage bölenini şişirip
