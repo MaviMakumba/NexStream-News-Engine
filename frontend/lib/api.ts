@@ -12,6 +12,14 @@ import type {
 
 export const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+/**
+ * Public API v1 tabanı. Backend router'ı `/api/v1/...` prefix'iyle tanımlı. Prod'da
+ * BASE zaten "/api" (nginx prefix'i) olduğundan `${BASE}/api/v1` = `/api/api/v1` olurdu:
+ * genel `/api/` bloğunun prefix'i silmesi sayesinde TESADÜFEN çalışıyor, nginx'in özel
+ * `/api/v1/` bloğu hiç kullanılmıyordu. Dev'de BASE bir host (http://localhost:8000).
+ */
+export const V1 = BASE.endsWith("/api") ? `${BASE}/v1` : `${BASE}/api/v1`;
+
 /** Admin çağrıları için kimlik: admin kullanıcı oturumu (cookie, otomatik) VEYA paylaşımlı anahtar. */
 export interface AdminCreds {
   apiKey?: string | null;
@@ -149,11 +157,11 @@ export async function fetchNews(params: {
   if (params.sentiment) p.set("sentiment", params.sentiment);
   if (params.topic) p.set("topic", params.topic);
   if (params.min_quality != null) p.set("min_quality", String(params.min_quality));
-  return req<NewsPage>(`${BASE}/api/v1/news?${p}`);
+  return req<NewsPage>(`${V1}/news?${p}`);
 }
 
 export async function searchNews(query: string, n_results = 10): Promise<SearchResult[]> {
-  return req<SearchResult[]>(`${BASE}/api/v1/news/search`, {
+  return req<SearchResult[]>(`${V1}/news/search`, {
     method: "POST",
     body: JSON.stringify({ query, n_results }),
   });
@@ -168,16 +176,16 @@ export async function searchNewsPublic(query: string, n_results = 5): Promise<Se
 }
 
 export async function fetchTrending(hours = 6, limit = 10): Promise<TrendingResponse> {
-  return req<TrendingResponse>(`${BASE}/api/v1/news/trending?hours=${hours}&limit=${limit}`);
+  return req<TrendingResponse>(`${V1}/news/trending?hours=${hours}&limit=${limit}`);
 }
 
 export async function fetchRelated(id: number): Promise<RelatedResponse> {
-  return req<RelatedResponse>(`${BASE}/api/v1/news/${id}/related`);
+  return req<RelatedResponse>(`${V1}/news/${id}/related`);
 }
 
 /** "Bu haberi kim nasıl anlatıyor" — aynı olayı kapsayan diğer kaynaklar (v2.2, herkese açık). */
 export async function fetchStoryCluster(id: number): Promise<StoryClusterResponse> {
-  return req<StoryClusterResponse>(`${BASE}/api/v1/news/${id}/sources`);
+  return req<StoryClusterResponse>(`${V1}/news/${id}/sources`);
 }
 
 // v2.6 — RAG soru-cevap (roadmap #13). article_id null ise genel mod.
@@ -190,19 +198,19 @@ export async function askQuestion(body: {
   history: AskMessage[];
   language?: "TR" | "EN";
 }): Promise<RagAnswerResponse> {
-  return req<RagAnswerResponse>(`${BASE}/api/v1/news/ask`, {
+  return req<RagAnswerResponse>(`${V1}/news/ask`, {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
 export async function fetchSources(): Promise<string[]> {
-  return req<string[]>(`${BASE}/api/v1/news/sources`);
+  return req<string[]>(`${V1}/news/sources`);
 }
 
 /** Ham veri export (v1.16, Enterprise) — dosyayı indirir, tarayıcı hata sayfası yerine ApiError fırlatır. */
 export async function downloadExport(format: "csv" | "json"): Promise<void> {
-  const res = await fetch(`${BASE}/api/v1/news/export?format=${format}`, { credentials: "include" });
+  const res = await fetch(`${V1}/news/export?format=${format}`, { credentials: "include" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new ApiError(extractErrorMessage(err, `HTTP ${res.status}`), res.status);

@@ -125,3 +125,23 @@ def test_prompt_contains_entity_instruction():
     assert "organizations" in prompt
     assert "locations" in prompt
     assert "topic" in prompt
+
+
+def test_sentiment_label_derived_from_score_not_model_text():
+    """28-29 Eyl 2026: qwen bir haber için 'Strongly Negative' üretti (UI/filtre yalnızca
+    Positive|Negative|Neutral biliyor). Etiket skorun saf fonksiyonu: >0.2 / <-0.2 / arası."""
+    import json
+    from src.adapters.analysis.common import parse_analysis_json
+
+    def label(score, model_label):
+        raw = json.dumps({"sentiment_score": score, "sentiment_label": model_label,
+                          "summary": "s", "entities": {}, "topic": "World"})
+        return parse_analysis_json(raw, "text")["sentiment_label"]
+
+    assert label(-0.9, "Strongly Negative") == "Negative"
+    assert label(0.85, "Very Positive") == "Positive"
+    assert label(0.0, "Mixed") == "Neutral"
+    assert label(0.2, "Positive") == "Neutral"      # sınır: >0.2 değil
+    assert label(-0.2, "Negative") == "Neutral"     # sınır: <-0.2 değil
+    assert label(0.21, "Neutral") == "Positive"
+    assert label(-0.21, "Neutral") == "Negative"
