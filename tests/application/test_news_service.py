@@ -1369,3 +1369,59 @@ def test_no_evidence_response_invalid_ui_language_falls_back_to_heuristic():
     with patch.object(service, "hybrid_search", return_value=[]):
         result = service.answer_question("Who will be the new coach?", ui_language="fr-FR")
     assert result["answer"] == NewsService._NO_EVIDENCE_TEXT["EN"]
+
+# ── S2: tazelik öncelikli alım + günlük tavan ─────────────────────────────────
+
+def _dated(url, hours_ago):
+    a = make_article(url)
+    a.published_at = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+    return a
+
+
+def _run_update(service, articles, **kwargs):
+    scraper = MagicMock()
+    scraper.fetch_news = AsyncMock(return_value=articles)
+    with patch("src.application.services.news_service.asyncio.sleep", new=AsyncMock()):
+        asyncio.run(service.update_news_from_source(scraper, **kwargs))
+
+
+def test_update_analyzes_freshest_articles_first():
+    service, mock_repo, mock_analyzer = make_service()
+    mock_repo.save_article.return_value = True
+    _run_update(service, [_dated("https://x/old", 30), _dated("https://x/new", 1), _dated("https://x/mid", 10)])
+    saved_urls = [c.args[0].url for c in mock_repo.save_article.call_args_list]
+    assert saved_urls == ["https://x/new", "https://x/mid", "https://x/old"]
+
+
+def test_update_skips_articles_older_than_max_age():
+    service, mock_repo, mock_analyzer = make_service()
+    mock_repo.save_article.return_value = True
+    _run_update(service, [_dated("https://x/fresh", 5), _dated("https://x/stale", 60)])
+    assert mock_analyzer.analyze_text.call_count == 1
+    assert mock_repo.save_article.call_args.args[0].url == "https://x/fresh"
+
+
+def test_update_daily_cap_limits_to_remaining_budget():
+    service, mock_repo, mock_analyzer = make_service()
+    mock_repo.save_article.return_value = True
+    mock_repo.count_articles_since.return_value = 8          # bugün zaten 8 kaydedilmiş
+    _run_update(service, [_dated(f"https://x/{i}", i) for i in range(1, 6)], daily_cap=10)
+    assert mock_analyzer.analyze_text.call_count == 2       # 10 - 8
+
+
+def test_update_exhausted_daily_cap_makes_no_groq_call_and_counts_capping():
+    from src.adapters.api.metrics import source_capped_total
+    service, mock_repo, mock_analyzer = make_service()
+    mock_repo.count_articles_since.return_value = 10
+    before = source_capped_total.labels(source="BBC")._value.get()
+    _run_update(service, [_dated("https://x/1", 1)], daily_cap=10)
+    mock_analyzer.analyze_text.assert_not_called()
+    mock_repo.save_article.assert_not_called()
+    assert source_capped_total.labels(source="BBC")._value.get() == before + 1
+
+
+def test_update_without_daily_cap_never_queries_the_budget():
+    service, mock_repo, _ = make_service()
+    mock_repo.save_article.return_value = True
+    _run_update(service, [_dated("https://x/1", 1)])
+    mock_repo.count_articles_since.assert_not_called()

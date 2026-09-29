@@ -16,17 +16,18 @@ import logging
 import re
 import time
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from src.domain.ports.news_repository_port import NewsRepositoryPort
 from src.domain.ports.analysis_port import AnalysisPort
 from src.domain.ports.scraper_port import NewsScraperPort
 from src.domain.models.article import Article
+from src.domain.policies.ingest_policy import select_for_analysis
 from src.domain.scoring.quality import compute_quality_score
 from src.domain.scoring.credibility import base_credibility, compute_credibility
 from src.domain.services.subscriber_matching import matched_keyword
 from src.domain.ports.question_answering_port import QuestionAnsweringError
 from src.domain.scoring.trust import compute_trust_score
-from src.adapters.api.metrics import articles_processed_total
+from src.adapters.api.metrics import articles_by_topic_total, articles_processed_total, source_capped_total
 from src.infrastructure.config.settings import settings
 from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -175,7 +176,8 @@ class NewsService:
         article.topic = neighbor.topic
         return True
 
-    async def update_news_from_source(self, scraper: NewsScraperPort, max_new_articles: Optional[int] = None):
+    async def update_news_from_source(self, scraper: NewsScraperPort, max_new_articles: Optional[int] = None,
+                                      daily_cap: Optional[int] = None):
         """Tek kaynağı uçtan uca işler: çek → analiz et → skorla → kaydet → indexle.
 
         Groq rate limit'ini korumak için analizler sıralı ve 2sn aralıklı çalışır;
@@ -188,6 +190,11 @@ class NewsService:
         Limit dolarsa kalan haberler bu turda kaydedilmez, bulk_exists onları
         hâlâ "yeni" göreceği için bir sonraki taramada (scheduler 10dk'da bir
         tetikler) işlenmeye devam eder.
+
+        Tazelik önceliği (S2): analiz sırası EN YENİ yayın tarihinden başlar,
+        `max_article_age_hours`'tan eski haber hiç analiz edilmez (bkz.
+        `domain/policies/ingest_policy.py`). `daily_cap`: bu kaynağın son 24 saatte
+        kaydedebileceği toplam haber; dolunca tur atlanır (Groq kotası korunur).
         """
         logger.info("Güncelleme başladı: %s", scraper.__class__.__name__)
         articles: List[Article] = await scraper.fetch_news()
@@ -195,8 +202,14 @@ class NewsService:
         # Bulk duplicate check — tek SQL sorgusu, N+1 elimine edildi
         existing_urls = self.repository.bulk_exists([a.url for a in articles])
         new_articles = [a for a in articles if a.url not in existing_urls]
-        if max_new_articles is not None:
-            new_articles = new_articles[:max_new_articles]
+        now = datetime.now(timezone.utc)
+        budget_left = self._daily_budget_left(articles, daily_cap, now)
+        if budget_left is not None and budget_left <= 0:
+            source_capped_total.labels(source=articles[0].source).inc()
+        new_articles = select_for_analysis(
+            new_articles, now=now, max_age_hours=settings.max_article_age_hours,
+            daily_budget_left=budget_left, per_run_limit=max_new_articles,
+        )
         logger.info("%s: %d/%d yeni haber analiz edilecek", scraper.__class__.__name__, len(new_articles), len(articles))
 
         saved_count = 0
@@ -229,6 +242,7 @@ class NewsService:
             if saved:
                 saved_count += 1
                 articles_processed_total.labels(source=article.source, status="saved").inc()
+                articles_by_topic_total.labels(source=article.source, topic=article.topic or "Other").inc()
                 if self.search_repository and article.id:
                     try:
                         self.search_repository.index_article(article)
@@ -243,6 +257,13 @@ class NewsService:
                 articles_processed_total.labels(source=article.source, status="duplicate").inc()
 
         logger.info("Güncelleme bitti: %d/%d haber kaydedildi", saved_count, len(new_articles))
+
+    def _daily_budget_left(self, articles: List[Article], daily_cap: Optional[int], now: datetime) -> Optional[int]:
+        """Kaynağın bugünkü kalan analiz bütçesi; tavan yoksa (ya da feed boşsa) None = sınırsız."""
+        if daily_cap is None or not articles:
+            return None
+        used = self.repository.count_articles_since(articles[0].source, now - timedelta(hours=24))
+        return daily_cap - used
 
     def list_news(self, limit: int = 10, sentiment: Optional[str] = None) -> List[Article]:
         return self.repository.get_latest_news(limit, sentiment)
