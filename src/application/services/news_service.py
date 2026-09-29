@@ -72,6 +72,15 @@ _TR_QUESTION_STOPWORDS = frozenset({
     "nerede", "nerededir",
     "kaç", "kaçtır",
 })
+# Cümle başında büyük harfle yazılıp özel isim OLMAYAN soru/zaman sözcükleri —
+# `_distinguishing_query_terms` bunları özel isim sanıp "dün" geçen alakasız bir
+# haberi kanıt paketinde tutuyordu (RAG #13, 29 Eyl 2026). Küçük, elle bakımı yapılan liste.
+_NON_ENTITY_CAPS = frozenset({
+    "dün", "bugün", "yarın", "şimdi", "geçen", "son", "neden", "nasıl", "niçin", "ne", "nerede",
+    "kim", "kimin", "hangi", "kaç", "peki", "acaba", "bu", "şu", "o", "bir", "var", "yok",
+    "what", "who", "when", "where", "why", "how", "which", "is", "are", "did", "does", "do",
+    "was", "were", "the", "yesterday", "today", "tomorrow", "any", "latest",
+})
 # Hem semantik hem keyword aramada çıkan sonuç daha güvenilirdir → küçük bonus.
 _DOUBLE_HIT_BONUS = 0.10
 # Sorgudaki özel isim (grounding terimi) hiçbir adayda literal geçmiyorsa
@@ -459,7 +468,7 @@ class NewsService:
         terms = []
         for w in query.split():
             stripped = w.strip(".,!?;:\"'()")
-            if stripped and stripped[0].isupper():
+            if stripped and stripped[0].isupper() and NewsService._lower_tr_safe(stripped) not in _NON_ENTITY_CAPS:
                 terms.append(stripped)
         return terms
 
@@ -981,9 +990,6 @@ class NewsService:
         if not passing:
             return self._no_evidence_response(question, general_mode=target is None, ui_language=ui_language)
 
-        distinct_sources = {c["source"] for c in passing if c["source"]}
-        corroboration_level = "multi_source" if len(distinct_sources) >= 2 else "single_source"
-
         articles_by_id = {a.id: a for a in self.repository.get_articles_by_ids([c["id"] for c in passing])}
         if target is not None:
             articles_by_id[target.id] = target  # her ihtimale karşı en taze halini kullan
@@ -991,6 +997,21 @@ class NewsService:
         evidence_bundle = [articles_by_id[c["id"]] for c in passing if c["id"] in articles_by_id]
         if not evidence_bundle:
             return self._no_evidence_response(question, general_mode=target is None, ui_language=ui_language)
+
+        # Sorudaki özel isim(ler)i kanıt paketinde LİTERAL doğrula: "maç" gibi genel bir
+        # kelimeyi paylaşan ama ismi hiç geçirmeyen haberler LLM'i yanlış yönlendiriyordu
+        # (RAG #13). Arama skorundaki `_grounding_factor` cezası sert filtre değildi.
+        # Fail-open: hiçbir makale ismi içermiyorsa (ya da "isim" yanlış-pozitifse) paket
+        # aynen kalır. Habere özel modda hedef makale her zaman korunur.
+        terms = self._distinguishing_query_terms(question)
+        if terms:
+            grounded = [a for a in evidence_bundle
+                        if (target is not None and a.id == target.id) or self._grounding_factor(terms, a) == 1.0]
+            if grounded:
+                evidence_bundle = grounded
+
+        distinct_sources = {a.source for a in evidence_bundle if a.source}
+        corroboration_level = "multi_source" if len(distinct_sources) >= 2 else "single_source"
 
         evidence_dicts = [
             {
