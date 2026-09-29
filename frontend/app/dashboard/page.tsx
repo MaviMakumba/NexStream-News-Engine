@@ -9,6 +9,7 @@ import type { LiveArticle } from "@/lib/useLiveFeed";
 import type { Article, TrendingEntity } from "@/lib/types";
 import { NewsCard } from "@/components/NewsCard";
 import { TrendingPills } from "@/components/TrendingPills";
+import { TOPICS } from "@/lib/topics";
 import { TOPIC_LABELS, SENTIMENT_LABELS, UI } from "@/lib/i18n";
 
 function liveToArticle(a: LiveArticle): Article {
@@ -19,7 +20,7 @@ function liveToArticle(a: LiveArticle): Article {
   };
 }
 
-const TOPIC_VALUES    = ["", "Technology", "Sports", "Economy", "Politics", "Health", "Culture", "World", "Other"];
+const TOPIC_VALUES    = ["", ...TOPICS.map((t) => t.id)];
 const SENTIMENT_VALUES = ["", "Positive", "Negative", "Neutral"];
 
 export default function DashboardPage() {

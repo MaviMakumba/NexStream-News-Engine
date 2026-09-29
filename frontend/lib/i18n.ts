@@ -1,19 +1,16 @@
 import type { Lang } from "./settings-context";
+import { TOPICS } from "./topics";
 
-export const TOPIC_LABELS: Record<string, Record<string, string>> = {
-  TR: {
-    "": "Tüm Konular",
-    Technology: "Teknoloji", Sports: "Spor", Economy: "Ekonomi",
-    Politics: "Siyaset", Health: "Sağlık", Culture: "Kültür",
-    World: "Dünya", Other: "Diğer",
-  },
-  EN: {
-    "": "All Topics",
-    Technology: "Technology", Sports: "Sports", Economy: "Economy",
-    Politics: "Politics", Health: "Health", Culture: "Culture",
-    World: "World", Other: "Other",
-  },
-};
+const ALL_TOPICS_LABEL: Record<string, string> = { TR: "Tüm Konular", EN: "All Topics" };
+
+// Etiketler backend kayıt defterinden üretilir (lib/topics.ts, bkz. src/domain/topics.py) —
+// burada elle konu listesi TUTULMAZ.
+export const TOPIC_LABELS: Record<string, Record<string, string>> = Object.fromEntries(
+  Object.keys(ALL_TOPICS_LABEL).map((lang) => [
+    lang,
+    { "": ALL_TOPICS_LABEL[lang], ...Object.fromEntries(TOPICS.map((t) => [t.id, t.labels[lang as "TR" | "EN"]])) },
+  ]),
+);
 
 export const SENTIMENT_LABELS: Record<string, Record<string, string>> = {
   TR: { "": "Tüm Duygular", Positive: "Pozitif", Negative: "Negatif", Neutral: "Nötr" },
