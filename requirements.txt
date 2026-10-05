@@ -6,7 +6,7 @@ uvicorn==0.52.4
 # hiç pinlenmemişti, o yüzden canlı WebSocket hep sessizce 404 veriyordu — local
 # venv'de google-genai (Gemini döneminden kalma, requirements.txt'te YOK) onu
 # transitive getirdiği için sorun hiç fark edilmemişti.
-websockets==16.0
+websockets==17.1
 sqlalchemy==2.0.52
 psycopg2-binary==2.9.13
 pydantic==2.13.4
