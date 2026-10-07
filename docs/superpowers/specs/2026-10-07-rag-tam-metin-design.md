@@ -87,8 +87,10 @@ Gerekçe: 120b'de RAG payı ~50K token/gün (worker taşma bütçesi 150K), ham 
 metin günde ~10 soruya mal olurdu.
 
 Metrikler (`nexstream_` önekli): `article_fetch_total{result=hit|fetched|failed|blocked|too_short}`,
-`article_fetch_seconds` histogramı. Hangi kaynağın bloklandığı Grafana'dan
-görülür.
+`article_fetch_seconds` histogramı. `blocked` = SSRF koruması reddi ya da kaynağın
+401/403/429 ile reddetmesi. Sonuç dağılımı Grafana'dan, hangi host'un engellendiği/başarısız
+olduğu `Makale metni engellendi/çekilemedi (<host>)` log satırlarından (Loki) görülür; host
+Prometheus etiketi DEĞİL (Hacker News keyfi sitelere link verir, kardinalite sınırsız).
 
 ## Test (TDD, hepsi mock'lu — ağ sınırı conftest'te kapalı)
 
@@ -106,8 +108,8 @@ görülür.
 ## Dağıtım ve doğrulama
 
 Deploy akışı değişmez (CI imajları, `deploy_images.sh`). Deploy sonrası:
-`nexstream_article_fetch_total` sonuç dağılımı, kaynak bazlı `blocked`/`failed`
-oranı, 120b token/saat (RAG payı), `RestartCount`/OOM kontrolü. Bloklanan
+`nexstream_article_fetch_total` sonuç dağılımı, Loki'de host bazlı `blocked`/`failed`
+log sayısı, 120b token/saat (RAG payı), `RestartCount`/OOM kontrolü. Bloklanan
 kaynaklar için ayrı iş (kaynak bazlı kural) metriğe bakılarak açılır; ilk
 sürümde eklenmez.
 

@@ -1465,6 +1465,29 @@ gerektirir): iOS Safari'ye özgü adres çubuğu/klavye davranışı, gerçek do
 
 Konu listesi 5+ yerde elle kopyalıydı (analiz prompt'u, e-posta etiketleri, dashboard filtresi, bülten seçimi, i18n sözlüğü). Artık `src/domain/topics.py::TOPICS` tek kaynak: 12 konu (mevcut 8 + **Science, Crypto, Environment, Entertainment**), TR/EN etiket sözlüğü, yalnız karışan konular için kısa prompt ipucu. `common.py` prompt ve geçerlilik kümesini, `email_adapter` etiketleri oradan alır; model geçersiz/uydurma konu üretirse `normalize_topic` → `Other`. Dış tüketiciler için `GET /api/v1/news/topics`. Frontend `lib/topics.ts` üretilen dosya (`scripts/gen_frontend_topics.py`) + senkron testi: spec §4.1 çalışma zamanı API çağrısı öngörüyordu, ama `/api/v1/*` her çağrı Free kullanıcının 100/gün kotasından yer ve ilk boyama ağa bağımlı olurdu — statik üretim bu ikisini de kaldırır. Prompt şablonu 767 → 968 karakter (test tavanı 850 → 1000). Migration yok, eski haberler eski konusuyla kalır. **Gerçek Groq duman testi yapılamadı:** o akşam hem `gpt-oss-20b` (199.373/200.000) hem `qwen` günlük TPD kotası tükenmişti (prod tüketiyor); deploy sonrası yeni haberlerin konu dağılımı sorgusuyla doğrulanacak (`Other` payı %22 → <%10 hedefi).
 
+### 7 Ekim 2026 — RAG: soru anında makale tam metni (spec: `docs/superpowers/specs/2026-10-07-rag-tam-metin-design.md`)
+
+Tetikleyici: kullanıcı son dakika bir sakatlık haberinde (açıklama kulüp doktorundan) Soru
+Sor'a "ne zaman sahaya döner?" yazdı, cevap "bilmiyorum" oldu — bilgi makale gövdesindeydi,
+başlıkta ve RSS teaser'ında (`content[:500]`) yoktu. Çözüm: kanıt paketi oluştuktan SONRA
+(retrieval/özel isim doğrulaması değişmedi) en iyi `rag_fetch_top_n=2` haberin gövdesi
+çekilir, `embedder` ile soruya en benzer paragraflar haber başına ~450 token bütçesiyle
+seçilir ve teaser yerine LLM'e verilir. Haberi bulmak için yeni algoritma gerekmedi (mevcut
+`hybrid_search`; habere özel modda hedef haber hep paketin başında).
+
+- Birimler: `ArticleTextPort` (domain) · `passage_selection.py` (saf) · `article_extractor.py`
+  (bs4+lxml, paragraf yoğunluğu) · `url_safety.py` (SSRF: yalnız http/https, port 80/443,
+  her atlamada `is_global`) · `HttpArticleTextFetcher` · `CachingArticleTextFetcher`
+  (başarı 1 saat, başarısızlık 5 dk) · `EvidenceEnricher` (paralel, toplam 6 sn) ·
+  `article_text_factory.py`. `NewsService.answer_question`'a tek fail-open çağrı.
+- Telif: tam metin DB'ye YAZILMAZ, yalnız Redis'te kısa TTL.
+- Metrikler: `nexstream_article_fetch_total{result}`, `nexstream_article_fetch_seconds`.
+  Host etiketi bilinçli yok (HN keyfi sitelere link verir); host bazlı bakış Loki'den.
+- Prompt güvenliği: pasajlar tek satıra düzleştirilir, `"` → `'` (RAG prompt'u kanıtı
+  tırnaklı gömüyor; makale metni saldırgan kontrollü olabilir).
+- Kapatma: `RAG_FETCH_ENABLED=false`. Bilinen sınır: DNS rebinding TOCTOU penceresi (HTTPS'te
+  IP sabitleme ilk sürümde yapılmadı, etkisi sınırlı — bkz. `url_safety.py` docstring).
+
 ### 7 Ekim 2026 — Build'in EC2'den CI'a taşınması (PR #199, roadmap #28)
 
 Kök neden doğrulandı: EC2'de `up --build` + embedder'ın `COPY src/` yapması yüzünden her backend değişikliği ağır embedder'ı da rebuild/recreate ediyordu (aynı gün deploy ~30 dk takıldı, load 10-12, site iki kısa pencerede erişilemedi). Çözüm: CI'da deterministik build → GHCR → EC2'de pull + `up --no-build`. PR-zamanı kanıtı: 5 imajın tamamı build oldu, iki ayrı (ikincisi `--no-cache`) build aynı digest üretti. Embedder import kapanışına daraltıldı. İlk canlı geçiş tüm imaj adlarını değiştirdiği için tek seferlik recreate yapar (izlenerek yapılmalı).
