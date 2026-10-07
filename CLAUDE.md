@@ -14,6 +14,11 @@ hangi PR) CHANGELOG'a, sadece "bundan sonra böyle yap" kuralı burada kalır.
 Session başında okunması gerekmez, sadece "bu neden böyle yapılmış" sorusuna
 cevap ararken aç.
 
+**Üçüncü ayrıştırma (7 Ekim 2026, 706→~380 satır):** "YOL HARİTASI" bölümünün tam metni
+(tamamlanmış maddeler + forensic detay, numaralar korunmuş) `docs/YOL-HARITASI.md`'ye
+taşındı; burada yalnız AÇIK işler kaldı. Madde numarasına (örn. "roadmap #28") atıf
+görürsen detayı orada ara. Bu dosya ~450 satırı aşarsa aynı kuralla tekrar ayrıştır.
+
 ---
 
 ## MİMARİ
@@ -107,9 +112,9 @@ container-crash testleri bunu yakalamaz, sadece gerçek reboot ortaya çıkarır
 ## MEVCUT DURUM
 
 - **Versiyon:** v2.9 🚀 **CANLIDA: https://nexstreamnews.com** (2 Eylül 2026'da gerçek domain'e taşındı — eski `nexstreamnewsengine.duckdns.org` 13 Eyl 2026'dan beri SERTİFİKADA YOK — origin IP'yi ifşa ettiği için SAN'dan çıkarıldı, DNS kaydını duckdns.org'dan kullanıcı silecek; certbot lineage ADI hâlâ `nexstreamnewsengine.duckdns.org` (dosya yolu değişmesin diye, `certbot certificates` bunu gösterir, şaşırma). İlk canlıya çıkış: 29 Temmuz 2026. E-posta artık Resend üzerinden gidiyor (`bildirim@nexstreamnews.com`, DKIM+SPF+DMARC doğrulandı) — kişisel Gmail/SMTP artık birincil kanal DEĞİL. 2-4 Eylül'de iki ayrı deploy-kesintisi yaşandı (SSM timeout'unun host'ta zombi build süreci bırakması + nginx'in stale upstream IP'si), ikisi de kalıcı düzeltildi (detay: CHANGELOG "2 Eylül"/"3-4 Eylül"). **12 Eylül 2026 güvenlik turu (PR #126-128):** bir "güvenlik araştırmacısı" izinsiz test yapıp ücret karşılığı rapor teklif etti — A'dan Z'ye denetim yapıldı, sızıntı/zarar YOK, 6 bulgu (1 orta, 5 düşük/bilgi) aynı gün düzeltilip deploy edildi, `/security` + `security.txt` eklendi (detay: CHANGELOG "12 Eylül"). 13 Eyl: `security_events` güvenlik günlüğü + `/admin/security` + uçtan uca `request_id` (PR #135-136).
-- **Test sayısı:** 1090+ backend (`pytest tests`), 120+ mobil Playwright (`cd frontend; npm run test:mobile`, bkz. KODLAMA KURALLARI), 5 frontend unit (`npm run test:unit`), hepsi yeşil; frontend `next build` temiz (React 19 + Next 16 ile, PR #93).
-- **Son oturum (29-30 Eylül 2026, 21. oturum) — TEK release deploy'u, PR #182 (30 Eyl):** haber sıralaması yayın tarihine çevrildi (`id.desc()` idi; imleç artık `"<epoch µs>_<id>"`, eski sayısal imleç uyumlu); mobil kullanılabilirlik turu + CI'da Playwright paketi; güvenlik günlüğü boşlukları (#30) + admin sayfası UX; RAG kanıt paketinde özel isim doğrulaması (#13); anahtar kelime eşleşmesi artık SADECE gerçek çekim eklerini kabul ediyor (`tren` ≠ `Trendyol`, kelime bazlı liste YOK — `domain/services/turkish_morphology.py`); Dependabot 16 PR tek dalda; **S1** konu kayıt defteri (12 konu, `domain/topics.py`); **S2** tazelik-öncelikli alım + 11 yeni kaynak + günlük tavanlar (toplam ≤ 950/gün). Tasarım: `docs/superpowers/specs/2026-09-29-icerik-genisletme-cok-dillilik-tazelik-design.md`. Detay: CHANGELOG "29-30 Eylül".
-- **Son oturum (7 Ekim 2026, 22. oturum):** Groq taşma katmanı (`gpt-oss-120b`, RAG payı ayrılmış) + canonical/sitemap CANLIDA (PR #197); disk temizliği; AWS kredi takvimi netleşti ($73,84, **Free Plan 28 Ocak 2027'de biter ve hesap kapanır**); test geçerliliği denetimi (mutasyon aracı, PR #198 — merge bekliyor); **build'i EC2'den CI'a taşıma (PR #199, roadmap #28) — HAZIR ve CI yeşil, merge edilmedi** (merge prod deploy tetikler; ilk geçiş tüm imaj adlarını değiştirir, izlenerek yapılmalı; sonra #198). Detay: CHANGELOG "7 Ekim".
+- **Test sayısı:** 1217+ backend (`pytest tests`), 120+ mobil Playwright (`cd frontend; npm run test:mobile`, bkz. KODLAMA KURALLARI), 5 frontend unit (`npm run test:unit`), hepsi yeşil; frontend `next build` temiz (React 19 + Next 16 ile, PR #93).
+- **Önceki oturum (29-30 Eyl, 21.):** tek release PR #182 — yayın-tarihi sıralaması, mobil tur + CI Playwright, S1 konu kayıt defteri, S2 tazelik + 11 kaynak. Detay: CHANGELOG "29-30 Eylül".
+- **Son oturum (7 Ekim 2026, 22. oturum) — hepsi CANLIDA:** Groq taşma katmanı (`gpt-oss-120b`, PR #197; sonrası ölçüm: 429/saat 43-52→≤13, nötr-fallback 3-6/saat→0); **build EC2'den CI'a taşındı (PR #199, roadmap #28 ✅, deploy ~3,5 dk)**; **RAG tam metin (PR #200)**: soru anında kanıttaki ilk 2 haberin gövdesi çekilir, soruyla en alakalı pasajlar teaser yerine LLM'e gider; **PR #201**: `used_sources` boşsa cevap metnindeki `[n]`'den kaynak listesi + `nexstream_rag_tokens_total`; **PR #202**: cevaptaki 1-2 harflik özel isim hatası (Osimhen→"Osimren") kanıttaki yazıma düzeltilir. Alt-panel modundan yol haritası kaldırıldı. **Hâlâ açık:** PR #198 (mutasyon denetimi, merge bekliyor) + Dependabot PR'ları (#188-#196); disk hijyeni (roadmap #31); CI `frontend` job'u Playwright indirmesinde takılabilir. AWS Free Plan 28 Ocak 2027'de biter (kredi $73,84). Detay: CHANGELOG "7 Ekim".
 - **Frontend:** Next.js 16 + React 19. 10 sinematik tema (varsayılan `day`), tam TR/EN i18n, PWA (manifest + service worker). Port **3000**.
 - **Mesaj kuyruğu:** Redpanda (Kafka wire-protokolü konuşan tek binary, `aiokafka` client kodu değişmedi).
 - **Haber kaynağı:** 17 (TR: TRT Haber, BBC Türkçe, Hürriyet, Hürriyet Spor, Sabah, CNN Türk, Sözcü, Habertürk, HT Spor, Anadolu Ajansı, AA Ekonomi; EN: BBC Technology, BBC Sport, Guardian Tech, TechCrunch, Hacker News, The Verge).
@@ -120,339 +125,25 @@ container-crash testleri bunu yakalamaz, sadece gerçek reboot ortaya çıkarır
 
 ---
 
-## YOL HARİTASI (kalan işler)
+## YOL HARİTASI (yalnız AÇIK işler)
 
-Tamamlanan işlerin tam kronolojik dökümü `docs/CHANGELOG.md`'de. Burada sadece
-GERÇEKTEN bekleyen işler var:
+**Madde numaraları, tamamlananların tam kronolojik metni ve tüm forensic detay `docs/YOL-HARITASI.md`'de**
+(18 Eki 2026'ya kadar bu bölüm ~350 satıra şişmişti, 7 Eki 2026'da oraya taşındı). Burada sadece bekleyen
+iş + tek satır neden/sonraki adım var; bir madde bitince buradan sil, arşivde ✅ işaretle.
 
-0. **📋 HER OTURUM BAŞINDA: `docs/DURUM-DEGERLENDIRMESI.md`'deki öncelik
-   tablosunu kullanıcıyla gözden geçir** (28 Eyl 2026 SWOT + ölçümler + elimizde
-   olan/olmayan + fazlalar + aciliyet sıralı iş listesi — kullanıcı isteği:
-   "sonraki oturumlarda mutlaka değinelim, kaybolmasınlar"). Tamamlanan satırı
-   orada işaretle, silme. Özet (28 Eyl):
-   - 🔴 **Sunucu/bütçe kararı** — AWS kredisi ~Kasım 2026 ortası biter;
-     Hetzner CX33 taşıma planı+provası **Ekim başında** başlamalı.
-   - 🔴 **R2 offsite yedek** — kullanıcı CF'de bucket `nexstream-backups` +
-     bucket-scope'lu Object R/W token açıp anahtarları verecek.
-   - 🔴 **Yedekten geri yükleme testi** — hiç yapılmadı (taşımayla birleştir).
-   - 🟠 28 Eyl değişikliklerini izle (qwen kalite/kota, 03:00 yedeği, Chroma
-     rollback kopyasını sil), Dependabot toplu (16 PR), #28 GHCR, #30.
-   - 🟡 #14, #13, yeni kaynaklar, `api.ts` yolu, `_stem_tr`, #26.
-   - 🟢 Launch/AdSense/Reddit, #18, #3, #2.
-   - **30 Eyl 2026 güncellemesi:** 🟠 izleme ✅, Dependabot ✅ (#174→release), #30 ✅, #28 GHCR **şimdilik gereksiz** (18 Eyl'den beri host sağlıklı); 🟡 #14 ✅ (özet yankısı UI'da gizlendi — kök neden kaynağın RSS'inde açıklama olmaması), #13 ✅ (özel isim doğrulaması), `api.ts` yolu ✅, `_stem_tr` ✅, #26 (`/contact` maili) **teyit bekliyor**; 🟢 AdSense ön hazırlığı (çerez kategorileri) + Product Hunt taslağı ✅ (`docs/launch/`). **HÂLÂ AÇIK 🔴:** sunucu/bütçe kararı (Kasım ortası!), R2 offsite yedek (kullanıcı token verecek), yedekten geri yükleme testi.
-   - **İçerik/tazelik/çok dillilik yol haritası (B+D, kullanıcı onaylı spec):** S1 ✅ S2 ✅ (30 Eyl deploy); **sıradaki S3** (raf ömrü `shelf_life`→`expires_at`, feed filtresi, aciliyet-farkındalıklı arama/RAG: "altın fiyatı" → bugünün haberi, 3 gün önceki maç yayın haberi timeline'da görünmesin), **S4** (iki dilli başlık/özet — analiz çağrısında çeviri, `lang` API, "çevrildi" rozeti), **S5** (çapraz dilli arama/RAG: "iklim değişikliği" ↔ "climate change"). **S6 (eski haber çevirisi) İPTAL** — kullanıcı kararı, yalnız yeni haberler. Planlar: `docs/superpowers/plans/`. Sonra **C** (filtre/liste UI yenilemesi, mobil-önce).
-
-1. ~~Anasayfa tasarım yenilemesi~~ — ✅ 18 Eylül 2026 (PR #155). `frontend-design`
-   skill'iyle brainstorm edildi: Day teması (varsayılan) kırmızı vurgu +
-   Newsreader serif kimliğine yenilendi — **tema seçici hâlâ anasayfayı da
-   kapsıyor** (kullanıcı bilinçli kararı: "temalar değiştikçe sayfanın
-   değişmesi güzel bir özellik, kalsın" — bu yüzden yeni palet ayrı bir
-   sayfa-scope class'a değil doğrudan `[data-theme="day"]`'e yazıldı, diğer
-   9 tema ve dashboard/admin etkilenmedi). Hero'ya gerçek `/feed.xml`'i
-   çeken bir canlı akış paneli (`LiveWireStrip.tsx`, Pro-özel WebSocket
-   yerine public RSS poll — anonim ziyaretçide paywall göstermesin diye)
-   ve yeni "Bir haber kartında neler var?" bölümü (`CardSpotlight.tsx`,
-   Kaydet/Güvenilirlik skoru/Sor/Dinle/İlgili haberler/Habere git numaralı
-   pin'lerle işaretli — kullanıcı geri bildirimi: ziyaretçiler bu
-   özellikleri fark etmiyordu) eklendi. Aynı oturumda bulunan iki bug da
-   düzeltildi: Navbar aktif-sekme prefix-match çakışması (Haberler/Arama/
-   Soru Sor aynı anda aktif görünüyordu) ve `/dashboard/ask`'ın mount'ta
-   gereksiz `scrollIntoView` ile sayfayı kaydırması. **Deploy sonrası
-   kullanıcı bulgusu (PR #157):** anasayfadaki Bülten/Ham Veri Export
-   kartları `/account`'a düz gidiyordu, sayfanın tepesinde açılıyordu —
-   ilgili `.card`'lara `id="newsletter"`/`id="export"` +
-   `scrollMarginTop` eklendi, link'ler `#newsletter`/`#export`'a
-   güncellendi (Export sadece Enterprise'da render edildiği için diğer
-   tier'larda hedef yok, tarayıcı tepede kalır — regresyon değil). **Footer
-   artık paylaşılan bir bileşen** (`components/Footer.tsx`) — sadece
-   anasayfada değil, /privacy /terms /security /contact'ta da var (kullanıcı
-   bulgusu: arama motorundan bu sayfalara doğrudan gelen ziyaretçinin siteyi
-   keşfetme yolu yoktu). Bilinçli olarak dashboard/hesabım/admin ve auth
-   (giriş/kayıt) ekranlarına EKLENMEDİ — ilki uygulama-içi yoğun ekran,
-   ikincisi odaklanma gerektiren minimal ekran (Stripe/Linear deseni).
-   **E-posta şablonları da yenilendi** (`email_adapter.py::_brand_shell`,
-   kullanıcı bulgusu: "bülten/şifre/anlık maillerin içeriği eski ve sade
-   kaldı, siteye git gibi linkler yok") — tüm kullanıcı-görünür mailler
-   (digest/alert/reset/verify/welcome) artık aynı NexStream başlığı + footer'da
-   her zaman "Siteye git", digest/alert'te ayrıca "Aboneliği iptal et"
-   paylaşıyor. Renkler CSS `var()` DEĞİL düz hex (e-posta istemcileri custom
-   property okumaz) — Day temasının paletiyle (`#c31e2a` vb.) elle senkron,
-   yeni bir marka rengi değişikliğinde `_brand_shell`'i de güncellemeyi
-   unutma.
-2. **Gerçek Stripe entegrasyonu — 24 Ağu 2026'da kullanıcı kararıyla ERTELENDİ**
-   (şirket kurma/vergi levhası gibi ek hukuki-mali yük istemiyor). Kod tarafı
-   hazır kalıyor ama öncelik değil. **Bunun yerine gelir yolu olarak Google
-   Ads (AdSense, SADECE Free tier'da gösterilecek) değerlendiriliyor** —
-   resmi kaynaklardan araştırıldı, sonuç:
-   - **Şirketsiz/şahıs olarak mümkün** (Individual hesap türü yeterli).
-   - **Vergi tarafında en elverişli yol GVK mükerrer 20/B istisnası**
-     (325 seri no'lu Tebliğ) — vergi dairesinden/`digital.gib.gov.tr`'den
-     "istisna belgesi" alıp faaliyete özel banka hesabı açmak yeterli, banka
-     %15 stopaj keser, 2026 için 4. dilim tavanı (5.300.000 TL) aşılmadıkça
-     bu NİHAİ vergidir — beyanname/fatura/şirket YOK. **Fiilen başvurmadan
-     önce bir mali müşavirle teyit edilmeli** (araştırma resmi tebliğ
-     metnine değil YMM kaynaklarının alıntılarına dayandı).
-   - **Asıl darboğaz vergi değil, AdSense ONAYI:** ret nedenleri arasında
-     "scraped content"/"yeterli özgün içerik yok" var, RSS-agregatör yapısı
-     + neredeyse sıfır trafik riski yüksek yapıyor. **Sonuç: başvuru gerçek
-     trafik gelene kadar ERTELENMELİ.** `/privacy`'yi çerez-kategorileri +
-     "Ads Settings" linkiyle şimdiden hazırlamak maliyetsiz bir ön hazırlık.
-     Telif riski zaten düşük (bkz. CHANGELOG "24 Ağu telif değerlendirmesi").
-   - Iyzico/PayTR gibi bir alternatif hâlâ gündemde DEĞİL.
-3. **Özel kaynak ekleme (custom source ingestion)** — kullanıcı kararıyla
-   ŞİMDİLİK ertelendi, pricing metni "bize ulaşın" şeklinde yumuşatıldı.
-   Tam private/per-user versiyonu gerçek bir mimari iş (kullanıcı bazlı veri
-   izolasyonu şu an sistemde YOK).
-4. **Launch içeriği** — LinkedIn metni + OG görseli hazır. Kalan: Product
-   Hunt materyali, ek sosyal medya içeriği — düşük öncelik.
-5. ~~Resend domain doğrulaması~~ — ✅ 2 Eylül 2026.
-6. ~~Cloudflare proxy~~ — ✅ 8 Eylül 2026. Nameserver'lar Cloudflare'e taşındı
-   (Full Strict SSL, Bot Fight Mode açık), `destek@nexstreamnews.com`
-   Cloudflare Email Routing ile kişisel Gmail'e yönleniyor (`/contact`
-   formu artık buraya gönderiyor), Google Search Console + Bing doğrulandı
-   ve sitemap gönderildi. **Kritik takip düzeltmesi aynı gün yapıldı:**
-   Cloudflare proxy'si nginx'in TÜM isteği kendi edge IP'sinden görmesine
-   yol açıyordu (`limit_req_zone`'lar `$binary_remote_addr`'a dayanıyor —
-   rate limiting "ziyaretçi başına" değil "Cloudflare node başına" işlemeye
-   başlıyordu) — `set_real_ip_from`+`real_ip_header CF-Connecting-IP` ile
-   düzeltildi (bkz. BİLİNEN NOTLAR).
-7. **Dependabot PR'ları** — düzenli triyaj gerekiyor (`gh pr list` ile
-   kontrol et). **8 Eylül 2026 durumu:** React 19 +
-   Next 16 zaten merge (PR #93). Tailwind 3→4 ve TypeScript 5→7 hâlâ build
-   kırık halde bekliyor (v4/v7 migration adımları gerekiyor), ~14 npm/pip
-   patch-minor PR hiç triyaj edilmedi. Review/merge kararı kullanıcıda.
-8. ~~Hesap silme endpoint'i~~ — ✅ 19 Ağu 2026.
-9. ~~Analytics/hata takibi~~ — ✅ 25 Ağu 2026 (Sentry + PostHog).
-   ~~İletişim/telif kanalı~~ — ✅ 8 Eylül 2026, `POST /contact` +
-   `/contact` sayfası (Resend ile `CONTACT_RECIPIENT_EMAIL`'e iletiliyor,
-   kişisel e-posta public'te sergilenmiyor).
-10. ~~Rakip taraması sonrası quick-win paketi~~ — ✅ 19 Ağu 2026.
-11. ~~Story cluster görünümü~~ — ✅ 19 Ağu 2026.
-12. ~~Web Push bildirimleri~~ — ✅ 25 Ağu 2026.
-13. ~~RAG tabanlı "bu konuda soru sor" mini sohbet~~ — ✅ 26 Ağu 2026 canlıya
-    çıktı. **Bilinçli olarak henüz çözülmeyen bir bulgu:** retrieval bazen
-    doğru haberi buluyor ama kanıt paketi "maç" gibi genel bir kelimeyi
-    paylaşan ama tamamen alakasız haberlerle doluyor — sorguda geçen özel
-    ismin (ör. takım adı) kanıt paketindeki HER makalede literal doğrulanmasını
-    gerektiren ayrı bir tasarım turu ister (bounded bir yama değil). Detay:
-    CHANGELOG "LLM modülü bölme spike'ı" ve RAG bug turu notları. Ayrıca
-    spec'in tam 5 senaryolu QA turu VE tarayıcıda oturum ayrımı/free-tier
-    kilit ekranı kontrolü hâlâ tam yapılmadı.
-14. **Özet (summary) clickbait başlığı papağan gibi tekrarlamamalı** (19 Ağu
-    2026, kullanıcı örnek verdi). Groq prompt'u (`adapters/analysis/
-    common.py`) özetin başlıktaki belirsizliği ÇÖZMESİNİ, içerikten somut
-    isim/varlık çıkarmasını isteyecek şekilde güçlendirilmeli. Bounded bir
-    prompt-engineering işi, kendi test turu ister.
-15. ~~Admin panelinde /admin/users tablosu sıralanabilir~~ — ✅ 26 Ağu 2026.
-16. ~~Test paketi sağlık denetimi~~ — ✅ 25 Ağu 2026 (sonuç: sağlıklı).
-17. ~~Kullanıcı banlama (moderatör/admin)~~ — ✅ 19 Ağu 2026.
-18. **Gerçek makale metni scraping (okuma süresi için)** — okuma süresi
-    rozeti 20 Ağu 2026'da kaldırıldı (DB'deki `content` sadece RSS teaser'ı,
-    ~30-80 kelime, gerçek makale hiç çekilmiyor). 17 kaynağın makale
-    sayfasından tam metin çekmek (Readability/BeautifulSoup tarzı,
-    HTML yapısı kaynak başına farklı → kırılgan) ayrı bir roadmap maddesi;
-    ingest-anında mı on-demand mı çekileceği de ayrı bir karar.
-19. ~~Arama ilişkisel sorgu genişletme~~ — ✅ 20 Ağu 2026.
-20. ~~Deploy pipeline'ı main merge'ine bağla~~ — ✅ 24-25 Ağu 2026.
-21. ~~"Kaynaklar" (story cluster) UI'ının kullanışlılığı~~ — ✅ 24 Ağu 2026.
-22. ~~Entity chip → arama~~ — ✅ 24 Ağu 2026 (PR #51).
-23. ~~Stratejik "buzdağı" değerlendirmesi~~ — ✅ 24 Ağu 2026 (bkz. MEVCUT
-    DURUM "Hedef" satırı).
-24. ~~LLM modüllerini bölme fizibilitesi~~ — ✅ 27 Ağu 2026 (Groq TPD kotası
-    MODEL BAŞINA ayrı havuz; `GroqQuestionAnswerer` + `GroqQueryExpander`
-    ikisi de `gpt-oss-120b`'ye taşındı, worker'ın haber analiz hattı 20b
-    havuzunun TEK tüketicisi).
-25. **Groq günlük token/hacim maliyetini düşürme — 1. dilim (prompt
-    sıkıştırma) ✅ + 2. dilim (burst-pacing kök neden düzeltmesi, PR #85,
-    1 Eyl) ✅.** Kök neden canlı header probe'larıyla bulundu: Groq'un
-    limiti günlük kota değil sürekli dolan bir "leaky bucket" — toplam
-    tüketim rahat olsa bile BURST halinde istek atmak kovayı anlık boşaltıp
-    dakikalarca 429'a yol açıyor. `groq_request_interval_seconds` (4.0s)
-    üç noktada (makale-arası, `reanalyze_missed`, kaynaklar-arası) tek
-    doğruluk kaynağı yapıldı. **3. dilim ✅ 28 Eyl 2026 (PR #169):**
-    pacing YETMEDİ — bağlayıcı limit TPD çıktı (Prometheus: 24 saatte ~250K
-    token, 702×429; RPD/TPM rahattı) ve model havuzu 429'da diğer modele
-    geçmeyip aynı modelde ~200 sn uyuyordu (qwen fiilen boştu). Artık 429
-    alan model soğumaya alınıp istek hemen havuzdaki diğerine gidiyor.
-    Near-duplicate kontrolü zaten analizden ÖNCE çalışıyor (eski not
-    yanlıştı). **Sonraki iş:** birkaç gün `nexstream_groq_tokens_total`'ı
-    model bazında + 429 sayısını + worker tur süresini izle; qwen analiz
-    kalitesini (sentiment dağılımı, boş özet oranı) 20b ile karşılaştır.
-    Kapasite yine yetmezse sıradaki kaldıraç: çağrı başına token (~517).
-26. **`/contact` formundan gönderilen mailler spam'e düşüyor (8 Eylül 2026,
-    kullanıcı bulgusu, henüz çözülmedi)** — SPF şüphelendirdi ama ÇIKMAZ
-    sonucu: Resend zaten `send.nexstreamnews.com` alt-domain'i üzerinden
-    kendi doğrulamasını yapıyor (2 Eylül'den beri kurulu `rsend`/`send`
-    CNAME'leri), root SPF'e Resend'i eklemeye GEREK YOK. **Sonraki
-    oturumun ilk işi:** kullanıcı spam'e düşen bir maili Gmail'de "Orijinali
-    göster" ile açıp `Authentication-Results` satırını (SPF/DKIM/DMARC
-    pass/fail) paylaşacak — kesin teşhis oradan. En muhtemel açıklama
-    domain'in gönderim geçmişinin çok yeni olması (6 gün) + o anki test
-    mesajlarının bot gibi okunan içeriği, ikisi de zamanla/gerçek kullanıcı
-    trafiğiyle kendiliğinden düzelebilir. **Spam teşhisi hâlâ AÇIK** —
-    yukarıdaki "Sonraki oturumun ilk işi" hâlâ geçerli.
-    ~~Bağımsız iyileştirme~~ — ✅ 11 Eylül 2026: mesajlar artık mail ile
-    birlikte admin panelden de görülebiliyor (`POST /contact` `contact_
-    messages` tablosuna da yazıyor, `/admin/contact-messages` sayfası
-    `/admin/sponsors` deseniyle listeliyor+okundu işaretliyor) — TDD ile
-    yazıldı, e-posta başarısız/yapılandırılmamış olsa bile mesaj kaybolmuyor.
-
-27. **Kaynak sağlığı taraması — 10 Eylül 2026, kullanıcı isteğiyle başlatıldı.**
-    Prod API'den (`GET /api/v1/news?source=...`) 17 kaynağın hepsinin en son
-    haber tarihi tek tek kontrol edildi:
-    - ~~**Anadolu Ajansı + AA Ekonomi 9 gündür (1 Eylül'den beri) hayalete
-      düşmüştü**~~ — ✅ **10 Eylül 2026'da düzeltildi (PR #110).** Kök neden:
-      `BaseRssScraper` tüm kaynaklara sabit `User-Agent: Mozilla/5.0`
-      gönderiyordu — gerçek tarayıcıların asla tek başına göndermediği
-      klasik bot imzası. AA'nın WAF'ı bunu TLS seviyesinde reddediyordu
-      (canlı curl testiyle doğrulandı: bare UA 3/3 red, gerçekçi tam Chrome
-      UA'sı 3/3 başarı — hem local'den hem prod EC2 IP'sinden). Fix tüm 17
-      kaynağın paylaştığı tek noktadan (`BaseRssScraper._USER_AGENT`) yapıldı,
-      TDD ile (`test_fetch_content_sends_realistic_browser_user_agent`),
-      deploy sonrası prod'dan canlı doğrulandı.
-    - **🟡 Guardian Tech, TechCrunch, Hacker News, The Verge — muhtemel kök
-      neden bulundu (henüz TAM doğrulanmadı, bkz. yukarıdaki madde 25).**
-      8 Eylül
-      ~14:30-15:15 UTC civarında (registry'de art arda son 4 kaynak)
-      neredeyse aynı anda durdular. Worker container'ı o tarihten beri
-      sağlıklı (RestartCount=0 — çökmüş/takılı kalmış DEĞİL) ve 4 feed de
-      hem local'den hem prod EC2 IP'sinden gerçekçi UA ile 200 dönüp GÜNCEL
-      içerik veriyor — kaynak tarafında kırılma yok. **10 Eylül'deki deploy
-      sonrası worker log'u canlı izlenirken yakalandı:** startup-scrape
-      SADECE registry'nin 1. kaynağını (TRT Haber, 3 yeni haber) bitirmek
-      için **7.5 dakika** sürdü — Groq rate limit'e art arda takılıp tek bir
-      beklemede 184 saniye harcadı (`groq_analyzer: "Groq rate limit, 184s
-      bekleniyor..."`). Roadmap #25'teki burst-pacing düzeltmesi (1 Eylül)
-      GÖRÜNÜŞE GÖRE yetersiz kalmış — sıralı işleyen worker bu hızda
-      registry'nin 14-17. sıralarındaki (Guardian Tech→Verge) kaynaklara
-      makul bir sürede hiç ulaşamayabilir, 10dk'lık scheduler aralığı da bu
-      arada yeni run'lar tetikleyip kuyruğu büyütüyor olabilir. **Sonraki
-      oturumun işi:** birkaç saatlik worker log gözlemiyle (`docker logs
-      nexstream_worker | grep "Güncelleme başladı"`) worker'ın bu 4
-      kaynağa GERÇEKTEN ulaşıp ulaşmadığını doğrulamak; ulaşıyorsa kök
-      neden başka yerde, ulaşamıyorsa bu roadmap #25'in daha ciddi bir
-      versiyonu ve `worker_max_new_articles_per_run`/kaynak başına zaman
-      bütçesi gibi bir çözüm gerektiriyor (ürün kararı, bounded değil).
-    - ~~**Guardian Tech/TechCrunch/HN/Verge + AA/AA Ekonomi asıl kök nedeni
-      bulundu ve düzeltildi (PR #114, 10 Eylül 2026).**~~ Yukarıdaki Groq-
-      throttling teorisi YANLIŞ/ikincildi — asıl neden `docker-compose.
-      prod.yml`'deki `SCRAPE_SOURCES`'ın bu 6 kaynağı hiç içermemesiydi,
-      scheduler onları hiç tetiklemiyordu. Fix + regresyon testi
-      (`tests/infrastructure/test_deployment_config.py`, prod/dev compose
-      `settings.py` varsayılanıyla senkron kalmasını garanti eder) deploy
-      edildi, scheduler log'unda 17/17 kaynağın gönderildiği SSM ile
-      doğrulandı. Bu tür bir servis eklenip sadece dev compose'a/
-      settings.py'a yazılıp prod compose'un unutulması riskini genelleştir.
-    - **Yeni konu için araştırılan kaynak adayları (henüz registry'ye
-      EKLENMEDİ, kullanıcı onayı bekliyor):** hepsi canlı curl ile doğrulandı
-      (200 + güncel `pubDate`).
-      - *Ekonomi/finans/kripto:* Dünya Gazetesi (`dunya.com/rss`, TR),
-        Cointelegraph (`cointelegraph.com/rss`), CoinDesk
-        (`coindesk.com/arc/outboundfeeds/rss/`, 308 redirect var ama
-        `follow_redirects=True` zaten hallediyor). **Bloomberg HT
-        (`bloomberght.com/rss`) ELENDİ** — feed 200 dönüyor ama kendi
-        `lastBuildDate`'i 16 gündür güncellenmemiş, kaynağın kendisi zaten
-        hayalete düşmüş.
-      - *Bilim/sağlık:* ScienceDaily (`sciencedaily.com/rss/all.xml`, EN),
-        NASA News Release — **URL değişti**, eski
-        `nasa.gov/rss/dyn/breaking_news.rss` 301 ile
-        `nasa.gov/news-release/feed/`'e yönleniyor, yeni URL doğrudan
-        kullanılmalı.
-      - *Dünya/uluslararası:* Al Jazeera English
-        (`aljazeera.com/xml/rss/all.xml`), DW English
-        (`rss.dw.com/xml/rss-en-all`). NPR World
-        (`feeds.npr.org/1004/rss.xml`) canlı ama içerik bazen "evergreen"
-        (güncel olmayan) makaleler karıştırıyor, dikkatli seçilmeli. Reuters
-        World resmi RSS'i kapatılmış (404) — ELENDİ.
-      - Hepsi mevcut `BaseRssScraper`'a (RSS+Atom otomatik, redirect otomatik)
-        sıfır ek kod ile uyuyor — iş sadece alt sınıf + registry satırı.
-    - **Reddit — beklenenden daha fazla fizibıl çıktı.** `reddit.com/r/<sub>/
-      .rss` endpoint'i hem local'den hem **prod EC2 IP'sinden** (SSM ile
-      doğrulandı) gerçekçi UA ile 200 dönüyor (bare UA ile 403 — aynı UA
-      sınıfı sorunu). Datacenter-IP engeli TEYİT EDİLMEDİ (aksine, prod IP'si
-      sorunsuz erişebiliyor) — daha önce "muhtemelen engellenir" varsayımı
-      YANLIŞ çıktı, gerçek IP testi yapmadan varsayma. Mimari zaten uyumlu
-      (Atom formatı destekleniyor). Kullanıcı onayı olursa bir sonraki adım:
-      deneme amaçlı 1-2 subreddit ekleyip deploy sonrası gerçek ingest'i
-      worker log'undan doğrulamak.
-    - **Twitter/X:** kasıtlı kapsam dışı kararı DEĞİŞMEDİ (bkz. aşağıdaki
-      liste) — bu tur kararı yeniden değerlendirmedi.
-28. **Deploy build'ini EC2 dışına (GitHub Actions runner'ına) taşımak —
-    11 Eylül 2026'da t3.small'ı üç kez tamamen tıkayan (SSM Agent bile
-    yanıt veremedi, 3 reboot gerekti) prod kesintisinin GERÇEK kalıcı
-    çözümü.** Kök neden `docker compose up --build -d`'nin EC2 üzerinde
-    hem build hem 16 container'ın recreate'ini aynı anda yapması — anlık
-    RAM/CPU darboğazı yaratıyor (embedder gibi RAM-ağır bir servisin ESKİ
-    ve YENİ kopyası kısa süre aynı anda bellekte kalabiliyor). Image'ı
-    GitHub Actions runner'ında build edip ücretsiz bir registry'ye (GHCR)
-    push etmek, EC2'nin sadece `docker pull`+`up -d` yapmasını sağlar —
-    build hiç EC2'de olmaz. **Ara-önlem (PR #124, 11 Eylül) TEK BAŞINA
-    YETERSİZ olduğu 18 Eylül 2026'da KANITLANDI:** izleme yığını
-    (Prometheus/Grafana/Loki/Promtail) build sırasında zaten durdurulmuş
-    haldeyken bile (mitigation aktifti, doğrulandı) tek bir frontend+backend
-    değişikliği içeren normal bir deploy'da load average 24'e, swap
-    kullanımı 2.0Gi'nin tamamına çıktı; `nexstream_engine`/`embedder`/
-    `redpanda` sırayla unhealthy/OOM oldu, site ~20 dakika 10+ saniyelik
-    yanıt süreleriyle fiilen kullanılamaz durumdaydı (SSM Agent bu sefer
-    "Online" kaldı, komutlar sadece çok yavaştı — 11 Eylül'deki gibi tam
-    kopma olmadı ama aynı kök neden). Sistem ~20 dakika sonra KENDİ
-    KENDİNE toparlandı (reboot'a GEREK KALMADI — reboot denemesi zaten
-    Claude Code'un otomatik izin sınıflandırıcısı tarafından iki kez
-    reddedildi, "Production Deploy"/"dangerous" gerekçesiyle; kullanıcı
-    onayı bunu AŞAMADI, gerçek reboot ancak kullanıcının kendi AWS
-    Console/CLI erişimiyle mümkün). **Kullanıcı CPU Credit "Unlimited"
-    moduna geçmeyi bilinçli REDDETTİ** (küçük de olsa bir maliyet riski
-    istemedi) — bu yüzden registry'ye taşıma tek gerçek "$0 garantili"
-    kalıcı çözüm, artık ERTELENEMEZ. Bounded değil, ayrı bir tasarım/plan
-    turu gerektirir (registry auth, image tagging/versioning, workflow
-    yeniden yazımı). **Bu maddeye kadar geçici disiplin: küçük/acil
-    olmayan değişiklikleri tek tek deploy etmek yerine biriktirip TEK
-    seferde göndermek** (kullanıcı kararı, 18 Eylül) — her `main` push'u
-    EC2'de tam bir `--build` tetikliyor, sık push = sık RAM/CPU spike'ı.
-    Detay: CHANGELOG "11 Eylül prod kesintisi", "18 Eylül deploy yavaşlaması".
-
-29. ~~**Security Group sıkılaştırma + duckdns kapatma**~~ — ✅ **13 Eyl 2026.**
-    Kullanıcı `nexstream-deploy` IAM kullanıcısına inline policy
-    `NexStreamSecurityGroupEdit` (DescribeSecurityGroups/Rules `*`,
-    Authorize/RevokeSecurityGroupIngress sadece `sg-061424eb4ff9eb775`) verdi;
-    Claude SG'yi düzenledi: **22 kapalı** (SSM ile bağlanıyoruz), **80/443 sadece
-    Cloudflare IPv4 (15) + IPv6 (7) aralıklarına açık** (`cloudflare.com/ips-v4`
-    + `ips-v6`, nginx `set_real_ip_from` listesiyle aynı). Sıra: önce CF
-    aralıkları eklendi → site doğrulandı → `0.0.0.0/0` kuralları kaldırıldı
-    (kesintisiz). Doğrulama: CF üzerinden 200, origin IP'ye doğrudan 80/443
-    timeout, 22 filtered, SSM çalışıyor. duckdns subdomain'i kullanıcı sildi
-    (NXDOMAIN), sertifika zaten duckdns SAN'sız. **Cloudflare IP listesi
-    değişirse** hem `nginx.conf` hem SG güncellenmeli — ikisi de aynı listeyi
-    taşıyor; `aws ec2 describe-security-groups --group-ids sg-061424eb4ff9eb775`
-    ile karşılaştır. Let's Encrypt yenilemesi CF proxy üzerinden 80'e gelir
-    (CF aralıkları açık), 443 bloğunda da ACME webroot var.
-    - Kalan (kullanıcıda): GitHub → Settings → Emails gizlilik kutuları; 3.
-      parti hesaplarda MFA (AWS root+IAM, Cloudflare, GitHub, domain kayıt,
-      Resend, Groq, Gmail).
-    - **Sunucu büyütme (t3.medium) BİLİNÇLİ YAPILMADI** (13 Eyl): build cache
-      temizliği sonrası host rahatladı, kullanıcı krediyi korumak istiyor;
-      RAM/CPU-credit sorunu tekrar yaşanırsa `ec2:ModifyInstanceAttribute`
-      izniyle stop→tip değiştir→start (5 dk kesinti) ya da Hetzner kararı.
-
-30. **Güvenlik günlüğü (security_events) sekmesinin tam denetimi — 18 Eylül
-    2026'da kullanıcı isteğiyle açıldı, HENÜZ YAPILMADI.** Tetikleyici:
-    kullanıcı hesap silmenin (`DELETE /account`) günlükte hiç görünmediğini
-    fark etti — bu TEK eksik aynı gün bounded bir düzeltmeyle kapatıldı
-    (`EventType.ACCOUNT_DELETED`, TDD, `account_router.py::delete_account` +
-    `admin/security/page.tsx::EVENT_TYPES`). Ama kullanıcının asıl isteği
-    daha genişti ("sekmeyi iyice bir elden geçirmek lazım") — bu, o anda
-    oturum zaten çok uzadığı (aynı gün: anasayfa yenileme + mobil responsive
-    turu + footer + e-posta şablonları + bir prod yavaşlaması) için AYRI/TAZE
-    bir oturuma ertelendi, ama kullanıcı "erteleme dediğin iş kayboluyor"
-    diye haklı bir kaygı belirtti — bu yüzden burada AÇIK bir madde olarak
-    duruyor, sözle geçmedi. **Sonraki oturumun işi:** mevcut 15 `EventType`'ın
-    (artık ACCOUNT_DELETED dahil) kullanıcı yaşam döngüsünün geri kalanını
-    (bülten aboneliği/iptali, kaydedilen haber, push bildirim aboneliği gibi
-    güvenlik-ilişkisiz olanlar HARİÇ tutulmalı — hepsini eklemek gürültü
-    yaratır) gerçekten kapsayıp kapsamadığını sistematik gözden geçir; ayrıca
-    `/admin/security` sayfasının kendisinin (filtre UX'i, sayfalama var mı,
-    IP/e-posta çapraz sorgulama akışı) kullanıcı gözünden hâlâ yeterli olup
-    olmadığını sor.
+0. **📋 HER OTURUM BAŞINDA `docs/DURUM-DEGERLENDIRMESI.md`'nin EN ALTTAKİ güncel tablosunu kullanıcıyla gözden geçir**
+   (eski tablolar silinmez, her oturum sonu altına yeni güncelleme eklenir; tamamlananı orada işaretle).
+   Özet (7 Eki 2026):
+   - 🔴 **Sunucu/bütçe kararı** — AWS kredisi ($73,84) ~Kasım ortası biter, **Free Plan 28 Ocak 2027'de biter ve hesap kapanır**. Hetzner CX33 (~$9-10/ay) en iyi aday; taşıma planı+provası Ekim'de başlamalı. Swap %73 dolu (t3.small sıkışık).
+   - 🔴 **R2 offsite yedek** — kullanıcı CF'de bucket `nexstream-backups` + bucket-scope Object R/W token açıp verecek.
+   - 🔴 **Yedekten geri yükleme testi** — hiç yapılmadı (Hetzner taşımasıyla birleştir).
+   - 🟠 **PR #198** (test geçerliliği/mutasyon denetimi) merge bekliyor; **Dependabot #188-#196** triyaj (Tailwind 4 / TS 7 hâlâ kapsam dışı).
+   - 🟡 **#31 Disk/log hijyeni (onay bekliyor):** build cache 16,8 GB sil; `nexstream_loki` container logu 908 MB, rotasyon yok → yalnız Loki'ye `max-size`/`log_level: warn` PR'ı (tüm servislere birden rotasyon KOYMA: 16 container recreate, t3.small riski); nginx logu (62 MB) sonra.
+   - 🟡 **CI `frontend` job'u** "Install Playwright Chromium"da asılabiliyor (7 Eki: 44 dk) → `gh run cancel` + `gh run rerun`; kalıcı: adıma `timeout-minutes` / Chromium önbelleği (ayrı PR).
+   - 🟡 **#202 isim düzeltmesinin canlı doğrulaması** yapılmadı (aynı soruyu 5-6 kez sor, `nexstream_rag_name_corrections_total`a bak). Sorgu genişletici 120b token'ı hâlâ ÖLÇÜLMÜYOR; RAG ≈2K token/soru ≈ 24 soru/gün.
+   - 🟡 **#26 `/contact` maili spam'e düşüyor** — teşhis için kullanıcı Gmail "Orijinali göster" `Authentication-Results` satırını paylaşacak.
+   - 🟢 Launch/AdSense/Product Hunt (`docs/launch/`), #18 ingest-anı tam metin (RAG'ın soru-anı çekmesi #200 ile ayrı ve CANLI), #3 özel kaynak, #2 Stripe, #14 clickbait özet — ertelendi/düşük öncelik.
+   - **İçerik/tazelik/çok dillilik (B+D, kullanıcı onaylı spec):** S1 ✅ S2 ✅ · **sıradaki S3** (raf ömrü `shelf_life`→`expires_at`, feed filtresi, aciliyet-farkındalıklı arama/RAG) → **S4** (iki dilli başlık/özet, `lang` API) → **S5** (çapraz dilli arama/RAG) · S6 İPTAL · sonra **C** (filtre/liste UI yenilemesi, mobil-önce). Planlar: `docs/superpowers/plans/`.
 
 ### Kasıtlı Kapsam Dışı (fayda/maliyet uygun değil)
 K8s/Helm, Qdrant migration, CQRS, NTV Playwright scraper, Twitter/X entegrasyonu,
@@ -668,6 +359,8 @@ Her madde tek bir kalıcı kural — "ne zaman/nasıl bulundu" forensic detayı
 - **Yeni haber kaynağı kontrol listesi (29 Eyl 2026, S2):** scraper sınıfı (`rss_scrapers.py`; `language`, `focus_topic` ∈ `topics.py` veya `None`, `daily_cap`) + `registry.py` + `credibility.py` + `settings.scrape_sources` + İKİ compose dosyası. `tests/adapters/test_source_portfolio.py` toplam tavanı **≤ 950/gün** ve her odaklı konunun ≥1 kaynağını zorlar — kırılırsa BAŞKA kaynağın tavanı düşürülür, testin tavanı gevşetilmez. URL'yi eklemeden önce canlı doğrula (Windows'ta `cointelegraph.com` TLS hatası verir, prod IP'den 200). Alım sırası EN YENİ önce, 48 saatten eski haber analiz edilmez; tavan `SOURCE_DAILY_CAPS` env JSON'uyla ayarlanır, `nexstream_source_capped_total`'a bak.
 - **Anahtar kelime eşleşmesi kelime-başı önek DEĞİL, çekim eki dizisidir (29 Eyl 2026):** `tren` → `Trendyol`'u yakalıyordu. `is_inflection_of` kökten sonra kalan parçanın geçerli TR/EN ek zinciri olmasını ister; yeni kelime için HİÇBİR liste güncellenmez. İstisna listesi (`_FALSE_FRIEND_WORDS`) yalnız gerçek eş-yazımlı çakışmalar (`altın`/`altında`) içindir. Yeni ek/bileşik kuralı gerekirse `turkish_morphology.py`'ye dilbilgisi sınıfı olarak ekle (örn. `-spor`), kelime değil.
 - **RAG kanıtı soru anında makale gövdesiyle zenginleşir (7 Eki 2026):** `EvidenceEnricher` kanıt paketinin ilk `rag_fetch_top_n` haberinin metnini çeker, `select_passages` ile haber başına ~450 token pasaj seçer; tam metin DB'ye YAZILMAZ (yalnız Redis'te 1 saat, başarısızlık 5 dk). Her adım fail-open — çıkmayan kaynak teaser'a düşer. Dış siteye giden yeni bir HTTP istemcisi eklersen `assert_public_http_url` + `BROWSER_USER_AGENT` kullan (SSRF; HN keyfi sitelere link verir). Metrik: `nexstream_article_fetch_total{result}`; host etiketi KOYMA (host bazlı bakış Loki'den). Kapatma: `RAG_FETCH_ENABLED=false`. Tasarım: `docs/superpowers/specs/2026-10-07-rag-tam-metin-design.md`.
+- **RAG cevabı iki yerde DOĞRULANIR/TAMAMLANIR (7 Eki 2026):** (1) `parse_rag_json` — model `used_sources`'u boş bırakıp numaraları yalnız metne gömerse (`...[1,3,4]`) kaynak listesi metindeki `[n]`'den çıkarılır (JSON doluysa ona dokunulmaz; `"2"` gibi string'ler bilerek hâlâ elenir). (2) `domain/services/name_verification.py::correct_names` — kanıtta/soruda AYNEN geçmeyen büyük harfli kelime, kanıttaki bir ismin 1-2 harf farklısıysa kanıttaki yazıma çevrilir (5+ harf; eşit uzaklıkta birden çok aday, kanıtta küçük harfle geçen sıradan kelime ve soruda geçen yazımda DOKUNMAZ). Yalnız yazım hatasını yakalar, uydurma isimleri (Icardi yerine Mertens) yakalamaz. Metrik `nexstream_rag_name_corrections_total` — beklenmedik yükselme yanlış-pozitif işaretidir. Prompt'a eklenen "isimleri AYNEN kopyala" kuralı tek başına YETMEDİ (aynı soruda bir deneme doğru, biri yanlış; kaynak metinde hata yoktu).
+- **Canlıda RAG'ı Pro hesapla elle denemek (7 Eki deseni):** `POST /api/auth/register` ile Resend'in test adresi `delivered+<etiket>@resend.dev` (gerçek adrese doğrulama maili gitmez, domain itibarı zarar görmez); kullanıcı admin panelinden Pro yapar; ben giriş yapıp `/api/v1/news/ask` çağırırım (JSON'u Türkçe karakterli `--data-binary @dosya.json` ile gönder — bash `-d` Windows'ta bozar); işim bitince `DELETE /account` ile hesabı silerim.
 - **Groq günlük kotası akşamları iki modelde de tükeniyor** (28 Eyl, 29 Eyl: `gpt-oss-20b` 199.373/200.000 ve `qwen`) — yerel duman testi 429 alır; bu prod'un ortak anahtarıdır. Yerelde uzun Groq testi yapma; gerçek doğrulamayı deploy sonrası DB sorgusuyla (konu dağılımı, boş özet, nötr-yedek) yap.
 - **Konu listesi TEK yerde: `src/domain/topics.py::TOPICS`** (S1). Yeni konu = satır + `python scripts/gen_frontend_topics.py` (`frontend/lib/topics.ts` ÜRETİLİR, senkron testi CI'da). Konu KİMLİKLERİ DB'de olduğu için asla yeniden adlandırılmaz. Prompt şablonu bütçesi 1000 karakter.
 - **Deploy sonrası doğrulamada `docker inspect --format '{{.State.Health.Status}}'` Health'i olmayan container'da şablon hatası verir ve `grep`'i yanıltır** — restart/OOM için `{{.RestartCount}} {{.State.OOMKilled}} {{.State.Status}}` kullan. Sunucunun kendi kendine `https://nexstreamnews.com`'a curl'ü Cloudflare'den 403 alır (bilinen, sorun değil); dış erişimi kendi makinenden doğrula.
