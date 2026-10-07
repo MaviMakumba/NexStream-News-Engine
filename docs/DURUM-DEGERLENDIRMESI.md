@@ -6,6 +6,8 @@ gözden geçirilir. Bir madde tamamlanınca burada ~~üstü çizilir~~ + tarih/P
 tablo bayatlarsa (ör. sunucu kararı verildiyse) yeni tarihli bir bölüm eklenir,
 eskisi SİLİNMEZ — kullanıcı isteği: "kaybolmasınlar".
 
+> **7 Eki 2026 güncellemesi:** 🔴 sunucu/bütçe kararı **gevşedi** — kredi $73,84, gerçek yakım ~$0,37/gün; asıl son tarih **28 Ocak 2027** (Free Plan bitince hesap kapanır; Paid'e geçilirse kalan kredi sonraki faturalara uygulanır, ~12 ay). Ek $100 aktivite kredisi muhtemelen alınmamış (konsolu kontrol et). Karar: Paid + Budgets uyarısı mı, Hetzner mı → Ocak başında. 🟠 Groq kotası: taşma katmanı canlı, 120b payı (150K/24sa) izlenecek; qwen `reasoning_effort: none` denemesi bekliyor. 🟠 Build'i CI'a taşıma (#28) hazır, merge bekliyor (PR #199). 🟡 Test geçerliliği ✅ (PR #198, merge bekliyor). 🟡 Search Console kopya uyarısı ✅ (canonical). 🔴 R2 offsite yedek + geri yükleme testi HÂLÂ açık. Yeni fikir (karar bekliyor): haber formatından daha "tutan" konsept — Haberle İngilizce / tahmin oyunu / izleme ajanı / alan radarı.
+
 ## Tek cümlede
 
 Teknik olarak olgun, güvenli ve belgeli bir ürün — ama **kullanıcısı, geliri ve
