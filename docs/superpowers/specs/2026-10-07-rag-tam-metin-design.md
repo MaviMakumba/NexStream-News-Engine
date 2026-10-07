@@ -86,7 +86,7 @@ başına), `rag_fetch_timeout_seconds=4`, `rag_fetch_total_timeout_seconds=6`,
 Gerekçe: 120b'de RAG payı ~50K token/gün (worker taşma bütçesi 150K), ham tam
 metin günde ~10 soruya mal olurdu.
 
-Metrikler (`nexstream_` önekli): `article_fetch_total{result=hit|fetched|failed|blocked|too_short}`,
+Metrikler (`nexstream_` önekli): `article_fetch_total{result=hit|hit_failed|fetched|failed|blocked|too_short}`,
 `article_fetch_seconds` histogramı. `blocked` = SSRF koruması reddi ya da kaynağın
 401/403/429 ile reddetmesi. Sonuç dağılımı Grafana'dan, hangi host'un engellendiği/başarısız
 olduğu `Makale metni engellendi/çekilemedi (<host>)` log satırlarından (Loki) görülür; host

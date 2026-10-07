@@ -15,7 +15,7 @@ def test_rag_fetch_defaults_match_spec():
 
 def test_article_fetch_metrics_are_registered_with_fixed_labels():
     from src.adapters.api.metrics import article_fetch_total, article_fetch_seconds
-    for result in ("hit", "fetched", "failed", "blocked", "too_short"):
+    for result in ("hit", "hit_failed", "fetched", "failed", "blocked", "too_short"):
         article_fetch_total.labels(result=result).inc(0)
     assert article_fetch_seconds is not None
 

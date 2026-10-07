@@ -186,3 +186,22 @@ def test_compressed_responses_are_refused_and_identity_is_requested():
     assert _fetcher(handler).fetch("https://site.example/bomb") is None
     assert seen["ae"] == "identity"
     assert _count("failed") == before + 1
+
+
+def test_relative_and_scheme_relative_locations_are_resolved_before_the_guard():
+    guarded = []
+
+    def handler(request):
+        path = request.url.path
+        if path == "/start":
+            return httpx.Response(302, headers={"location": "/relative"})
+        if path == "/relative":
+            return httpx.Response(302, headers={"location": "//other.example/final"})
+        return httpx.Response(200, headers=HTML, content=PAGE.encode("utf-8"))
+
+    assert _fetcher(handler, guard=guarded.append).fetch("https://site.example/start") is not None
+    assert guarded == [
+        "https://site.example/start",
+        "https://site.example/relative",
+        "https://other.example/final",
+    ]

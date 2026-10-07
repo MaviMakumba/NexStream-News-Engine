@@ -12,8 +12,11 @@ from typing import Optional
 from src.adapters.api.metrics import article_fetch_total
 from src.domain.ports.article_text_port import ArticleTextPort
 from src.domain.ports.cache_port import CachePort
+from src.domain.services.passage_selection import MAX_PARAGRAPHS, MAX_PARAGRAPH_CHARS
 
 _FAILURE_SENTINEL = ""
+# split_paragraphs en fazla bu kadarını kullanır; fazlası Redis (AOF ile diske de yazılır) şişirmesin.
+_MAX_CACHED_CHARS = MAX_PARAGRAPHS * MAX_PARAGRAPH_CHARS
 
 
 class CachingArticleTextFetcher(ArticleTextPort):
@@ -27,11 +30,12 @@ class CachingArticleTextFetcher(ArticleTextPort):
         key = "arttext:" + hashlib.sha1(url.encode("utf-8")).hexdigest()
         cached = self._cache.get(key)
         if cached is not None:
-            article_fetch_total.labels(result="hit").inc()
+            # Olumsuz cache isabeti ayrı sayılır: engelleyen bir kaynağın sinyali "hit" içinde kaybolmasın.
+            article_fetch_total.labels(result="hit" if cached else "hit_failed").inc()
             return cached or None
         text = self._inner.fetch(url)
         if text:
-            self._cache.set(key, text, ttl_seconds=self._ttl)
+            self._cache.set(key, text[:_MAX_CACHED_CHARS], ttl_seconds=self._ttl)
         else:
             self._cache.set(key, _FAILURE_SENTINEL, ttl_seconds=self._failure_ttl)
         return text

@@ -81,7 +81,7 @@ groq_tokens_total = Counter(
 )
 
 # 7 Eki 2026 — RAG tam metin çekme (spec 2026-10-07-rag-tam-metin-design.md). `result`:
-# hit (cache) / fetched / failed (ağ, HTTP, ayrıştırma) / blocked (SSRF koruması ya da kaynak
+# hit (cache) / hit_failed (olumsuz cache isabeti) / fetched / failed (ağ, HTTP, ayrıştırma) / blocked (SSRF koruması ya da kaynak
 # 401/403/429 ile reddetti) / too_short (çıkarılan metin kullanılamayacak kadar kısa).
 # Host etiketi KASITLI yok: Hacker News gibi kaynaklar keyfi sitelere link verir (sınırsız
 # kardinalite). Kaynak bazlı bakış için `failed`/`blocked` loglarındaki host'a (Loki) bak.

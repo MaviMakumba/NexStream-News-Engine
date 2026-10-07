@@ -59,3 +59,23 @@ def test_different_urls_use_different_keys():
     f.fetch("https://a.example/2")
     assert inner.calls == 2 and len(cache.store) == 2
     assert all(k.startswith("arttext:") and "a.example" not in k for k in cache.store)
+
+
+def test_negative_cache_hit_is_counted_separately_from_a_real_hit():
+    cache, inner = FakeCache(), CountingFetcher(None)
+    f = CachingArticleTextFetcher(inner, cache, ttl_seconds=3600, failure_ttl_seconds=300)
+    f.fetch("https://a.example/1")
+    hits = article_fetch_total.labels(result="hit")._value.get()
+    failed_hits = article_fetch_total.labels(result="hit_failed")._value.get()
+    f.fetch("https://a.example/1")
+    assert article_fetch_total.labels(result="hit_failed")._value.get() == failed_hits + 1
+    assert article_fetch_total.labels(result="hit")._value.get() == hits
+
+
+def test_only_the_usable_prefix_of_a_long_text_is_cached():
+    from src.domain.services.passage_selection import MAX_PARAGRAPHS, MAX_PARAGRAPH_CHARS
+    cache, inner = FakeCache(), CountingFetcher("x" * 200_000)
+    f = CachingArticleTextFetcher(inner, cache, ttl_seconds=10, failure_ttl_seconds=5)
+    assert len(f.fetch("https://a.example/1")) == 200_000  # cagirana tam metin doner
+    (stored,) = cache.store.values()
+    assert len(stored) == MAX_PARAGRAPHS * MAX_PARAGRAPH_CHARS

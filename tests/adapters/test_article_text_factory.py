@@ -18,3 +18,10 @@ def test_enabled_builds_enricher_with_caching_fetcher_from_settings():
     assert isinstance(enricher._fetcher, CachingArticleTextFetcher)
     assert enricher._embedder is embedder
     assert enricher._top_n == 2 and enricher._budget == 450 and enricher._total_timeout == 6.0
+
+
+def test_factory_keeps_the_real_ssrf_guard_on_the_fetcher():
+    """Gelecekte bir refactor guard'i sessizce dusurup SSRF korumasini kaldirmasin."""
+    from src.adapters.scrapers.url_safety import assert_public_http_url
+    enricher = build_evidence_enricher(MagicMock(), MagicMock())
+    assert enricher._fetcher._inner._guard is assert_public_http_url

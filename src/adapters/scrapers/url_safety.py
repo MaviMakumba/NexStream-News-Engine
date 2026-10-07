@@ -18,6 +18,21 @@ class UnsafeUrlError(ValueError):
     """URL fetch edilmemeli (şema, port ya da çözülen adres güvensiz)."""
 
 
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+
+
+def _embedded_ipv4(ip):
+    """IPv6 içine gömülmüş IPv4'ü (mapped ::ffff:a.b.c.d, uyumlu ::a.b.c.d, NAT64 64:ff9b::/96)
+    açar: bu biçimler yanlış `is_global=True` dönebilir, asıl hedef gömülü IPv4'tür."""
+    if ip.version != 6:
+        return ip
+    if ip.ipv4_mapped is not None:
+        return ip.ipv4_mapped
+    if int(ip) >> 32 == 0 or ip in _NAT64:
+        return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    return ip
+
+
 def assert_public_http_url(url: str, resolver=socket.getaddrinfo) -> None:
     parts = urlsplit(url)
     if parts.scheme not in ("http", "https"):
@@ -39,7 +54,6 @@ def assert_public_http_url(url: str, resolver=socket.getaddrinfo) -> None:
         raise UnsafeUrlError(f"adres bulunamadı: {host}")
     for info in infos:
         ip = ipaddress.ip_address(info[4][0].split("%")[0])
-        if ip.version == 6 and ip.ipv4_mapped is not None:
-            ip = ip.ipv4_mapped
+        ip = _embedded_ipv4(ip)
         if not ip.is_global:
             raise UnsafeUrlError(f"global olmayan adres: {ip}")

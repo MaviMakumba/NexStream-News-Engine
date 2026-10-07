@@ -60,3 +60,9 @@ def test_non_web_ports_rejected(url):
 def test_explicit_standard_ports_allowed():
     assert_public_http_url("http://example.com:80/x", resolver=_resolver("93.184.216.34"))
     assert_public_http_url("https://example.com:443/x", resolver=_resolver("93.184.216.34"))
+
+
+@pytest.mark.parametrize("ip", ["::127.0.0.1", "::10.0.0.1", "64:ff9b::7f00:1", "64:ff9b::a00:1"])
+def test_ipv4_compatible_and_nat64_embeddings_of_private_addresses_rejected(ip):
+    with pytest.raises(UnsafeUrlError):
+        assert_public_http_url("https://evil.example/x", resolver=_resolver(ip))
