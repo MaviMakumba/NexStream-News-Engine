@@ -228,6 +228,18 @@ QA rather than only unit tests: a synchronous HTTP request that copied a
 background worker's "wait out the rate limit" retry pattern, leaving users
 staring at a spinner for minutes until it was changed to fail fast instead.
 
+**Answers can see the whole article, not just the RSS teaser.** RSS items carry
+only ~30-80 words, so a detail that lives in the article body (a club doctor's
+return estimate) was invisible to the assistant. At question time the top two
+evidence articles are fetched, split into paragraphs, and the passages most
+similar to the question (embedding similarity, ~450 tokens per article) replace
+the teaser in the prompt. The fetch path is SSRF-guarded (public http/https
+only, every redirect hop re-checked), size/time-capped, never persisted to the
+database, and fail-open back to the teaser. Because the model occasionally
+misspells a name the evidence spells correctly, a deterministic check restores
+the evidence spelling for near-miss proper names, and source citations are
+recovered from inline `[n]` markers when the model leaves its list empty.
+
 **Measured, not claimed** (pulled from the live Prometheus instance, not
 estimated): Groq analysis latency averages **~0.5s**, p95 **~2.1s** per article.
 17 sources scraped every 10 minutes, ~25 articles/source/run. Moving the

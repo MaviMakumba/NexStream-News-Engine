@@ -113,3 +113,19 @@ Hüküm: hiçbiri şu an acil kesilmeyi gerektirmiyor; Hetzner'e geçilirse RAM 
 | 🟢 #18 tam metin, #3 özel kaynak, #2 Stripe | Ertelemeyi koru (kullanıcı kararı) |
 | **YENİ** İçerik/tazelik/çok dillilik (B+D) | S1 ✅ S2 ✅ · **sıradaki S3 → S4 → S5** · S6 iptal · sonra C (UI yenileme) |
 | **YENİ** Mobil kullanılabilirlik | ✅ tarama + 120 testlik CI paketi; **gerçek telefonda elle deneme** kullanıcıda |
+
+## 7 Ekim 2026 güncellemesi (22. oturum sonu) — eski tablolar SİLİNMEDİ
+
+| İş | Durum (7 Eki) |
+|---|---|
+| 🔴 Sunucu + bütçe kararı | **AÇIK, Kasım ortası!** AWS kredisi $73,84; **Free Plan 28 Ocak 2027'de biter, hesap kapanır**. Swap %73 dolu (t3.small sıkışık) |
+| 🔴 R2 offsite yedek | **AÇIK** (kullanıcı CF bucket + token verecek) |
+| 🔴 Yedekten geri yükleme testi | **AÇIK** |
+| 🟠 #28 build'i GHCR/CI'a taşıma | ✅ canlıda (PR #199), deploy ~3,5 dk, 16/16 container temiz |
+| 🟠 Groq taşma katmanı (120b) | ✅ canlıda; 429/saat 43-52→≤13, nötr-fallback 0. RAG payı artık ölçülüyor (`nexstream_rag_tokens_total`, soru başı ≈2K token ≈ 24 soru/gün) |
+| 🟠 PR #198 (test denetimi) + Dependabot #188-#196 | **Merge/triyaj bekliyor** |
+| 🟡 RAG tam metin (#200), kaynak yedeği+token sayacı (#201), isim doğrulaması (#202) | ✅ canlıda. **İsim düzeltmesinin canlı doğrulaması yapılmadı** (aynı soruyu 5-6 kez sorup `nexstream_rag_name_corrections_total`a bak) |
+| 🟡 Disk/log hijyeni (roadmap #31) | **Onay bekliyor:** build cache 16,8 GB sil, Loki logu 908 MB (rotasyon yok) sıfırla + Loki'ye rotasyon PR'ı |
+| 🟡 CI Playwright takılması | `frontend` job'u 44 dk asıldı; kalıcı çözüm `timeout-minutes`/Chromium önbelleği (ayrı PR) |
+| 🟡 #26 `/contact` spam teşhisi | Teyit bekliyor (değişmedi) |
+| 🟢 Erteli: sorgu genişletici token sayacı, embedder timeout (RAG yolu), HTTP charset, S3→S4→S5 | Değişmedi / sırada |
