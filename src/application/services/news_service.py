@@ -25,11 +25,12 @@ from src.domain.news_cursor import effective_date
 from src.domain.policies.ingest_policy import select_for_analysis
 from src.domain.scoring.quality import compute_quality_score
 from src.domain.scoring.credibility import base_credibility, compute_credibility
+from src.domain.services.name_verification import correct_names
 from src.domain.services.turkish_morphology import TR_NOMINAL_SUFFIXES
 from src.domain.services.subscriber_matching import matched_keyword, term_occurs_in, FALSE_FRIEND_ROOTS
 from src.domain.ports.question_answering_port import QuestionAnsweringError
 from src.domain.scoring.trust import compute_trust_score
-from src.adapters.api.metrics import articles_by_topic_total, articles_processed_total, source_capped_total
+from src.adapters.api.metrics import articles_by_topic_total, articles_processed_total, rag_name_corrections_total, source_capped_total
 from src.infrastructure.config.settings import settings
 from typing import List, Optional, Tuple, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -1083,8 +1084,15 @@ class NewsService:
              "source": evidence_bundle[i - 1].source, "url": evidence_bundle[i - 1].url}
             for i in used
         ]
+        # Model kanıttaki bir ismi 1-2 harfle bozabiliyor (Osimhen -> "Osimren"): kanıttaki yazıma çevir.
+        answer, name_fixes = correct_names(
+            result["answer"], [f'{e["title"]} {e["content"]}' for e in evidence_dicts], question
+        )
+        for wrong, right in name_fixes:
+            rag_name_corrections_total.inc()
+            logger.info("RAG isim düzeltmesi: %r -> %r", wrong, right)
         return {
-            "answer": result["answer"],
+            "answer": answer,
             "coverage": result["coverage"],
             "corroboration_level": corroboration_level,
             "sources": sources,

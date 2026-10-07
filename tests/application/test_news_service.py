@@ -1569,3 +1569,21 @@ def test_injury_return_date_in_article_body_reaches_the_llm_evidence():
     content = mock_qa.answer.call_args.kwargs["sources"][0]["content"]
     assert "üç hafta" in content
     assert "otopark" not in content
+
+
+# ── RAG isim doğrulaması (7 Eki 2026) ────────────────────────────────────────
+
+def test_answer_question_corrects_one_letter_name_typo_from_the_model():
+    """Canlı bulgu: model kanıttaki 'Osimhen'i 'Osimren' diye yazdı."""
+    from src.adapters.api.metrics import rag_name_corrections_total
+    service, mock_repo, mock_qa = make_service_with_qa()
+    article = _evidence_article(1)
+    article.title = "Osimhen sakatlığı hakkında doktor konuştu"
+    article.content = "Doktor Osimhen için kesin tarih vermedi."
+    mock_repo.get_articles_by_ids.return_value = [article]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Osimren'in dönüşü belirsiz.", "used_sources": [1]}
+    before = rag_name_corrections_total._value.get()
+    with patch.object(service, "hybrid_search", return_value=[{"id": "1", "score": 0.9, "source": "BBC"}]):
+        result = service.answer_question("Osimhen ne zaman döner?")
+    assert result["answer"] == "Osimhen'in dönüşü belirsiz."
+    assert rag_name_corrections_total._value.get() == before + 1
