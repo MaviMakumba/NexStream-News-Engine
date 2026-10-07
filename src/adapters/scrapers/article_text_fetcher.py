@@ -67,14 +67,23 @@ class HttpArticleTextFetcher(ArticleTextPort):
 
     def _download(self, url: str) -> bytes:
         deadline = self._clock() + self._timeout
-        headers = {"User-Agent": BROWSER_USER_AGENT, "Accept": "text/html,application/xhtml+xml"}
+        # identity: sıkıştırılmış gövde max_bytes'ı atlatır (gzip bombası: 64 KB girdi -> ~67 MB çıktı).
+        headers = {
+            "User-Agent": BROWSER_USER_AGENT,
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Encoding": "identity",
+        }
         current = url
         with httpx.Client(
             transport=self._transport, timeout=self._timeout, headers=headers, follow_redirects=False
         ) as client:
             for _ in range(self._MAX_REDIRECTS + 1):
+                # httpx zaman aşımları işlem başınadır, toplam değil: her atlamaya KALAN süre verilir.
+                remaining = deadline - self._clock()
+                if remaining <= 0:
+                    raise TimeoutError("toplam süre doldu")
                 self._guard(current)
-                with client.stream("GET", current) as response:
+                with client.stream("GET", current, timeout=remaining) as response:
                     if response.is_redirect:
                         location = response.headers.get("location")
                         if not location:
@@ -87,6 +96,9 @@ class HttpArticleTextFetcher(ArticleTextPort):
                     content_type = response.headers.get("content-type", "").lower()
                     if "html" not in content_type:
                         raise ValueError(f"beklenmeyen içerik türü: {content_type!r}")
+                    encoding = response.headers.get("content-encoding", "identity").strip().lower()
+                    if encoding not in ("", "identity"):
+                        raise ValueError(f"sıkıştırılmış gövde reddedildi: {encoding!r}")
                     return self._read_capped(response, deadline)
         raise ValueError("çok fazla yönlendirme")
 

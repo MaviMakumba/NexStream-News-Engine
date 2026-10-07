@@ -126,10 +126,63 @@ def test_slow_body_is_cut_at_deadline():
     ticks = {"t": 0.0}
 
     def clock():
-        ticks["t"] += 5.0
+        ticks["t"] += 3.0
         return ticks["t"]
 
     f = _fetcher(lambda r: httpx.Response(200, headers=HTML, stream=_Chunks([first, second])),
                  timeout_seconds=4.0, clock=clock)
     text = f.fetch("https://slow.example/x")
     assert text is not None and P1 in text and "IKINCI_PARCA" not in text
+
+
+def test_deadline_is_checked_before_every_hop():
+    requests = []
+
+    def handler(request):
+        requests.append(str(request.url))
+        return httpx.Response(302, headers={"location": "https://site.example/second"})
+
+    ticks = {"t": 0.0}
+
+    def clock():
+        ticks["t"] += 3.0
+        return ticks["t"]
+
+    f = _fetcher(handler, timeout_seconds=4.0, clock=clock)
+    assert f.fetch("https://site.example/first") is None
+    assert requests == ["https://site.example/first"]  # süre dolunca ikinci atlama HİÇ denenmez
+
+
+def test_per_hop_timeout_is_the_remaining_time_not_the_full_budget():
+    seen = []
+
+    def handler(request):
+        seen.append(request.extensions["timeout"]["read"])
+        return httpx.Response(200, headers=HTML, content=PAGE.encode("utf-8"))
+
+    ticks = {"t": 0.0}
+
+    def clock():
+        ticks["t"] += 1.0
+        return ticks["t"]
+
+    _fetcher(handler, timeout_seconds=4.0, clock=clock).fetch("https://site.example/x")
+    assert 0 < seen[0] < 4.0
+
+
+def test_compressed_responses_are_refused_and_identity_is_requested():
+    import gzip
+    seen = {}
+
+    def handler(request):
+        seen["ae"] = request.headers.get("accept-encoding")
+        return httpx.Response(
+            200,
+            headers={**HTML, "content-encoding": "gzip"},
+            content=gzip.compress(PAGE.encode("utf-8")),
+        )
+
+    before = _count("failed")
+    assert _fetcher(handler).fetch("https://site.example/bomb") is None
+    assert seen["ae"] == "identity"
+    assert _count("failed") == before + 1

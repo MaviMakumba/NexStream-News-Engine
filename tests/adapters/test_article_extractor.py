@@ -24,6 +24,25 @@ def test_without_article_tag_picks_densest_paragraph_group():
     assert "ilgili haber" not in text
 
 
+def test_article_body_split_across_sibling_containers_is_kept_whole():
+    """Birçok şablon gövdeyi reklam alanları etrafında birkaç <div>'e böler; doktor açıklaması
+    ikinci div'deyse yalnızca en büyük div'i almak tam bu özelliğin hedef durumunu kaçırırdı."""
+    html = f"""<html><body><article>
+    <div class="blk"><p>{BODY_1}</p></div>
+    <div class="ad"><p>Reklam alanı: şimdi indirin, kaçırmayın, özel fırsatlar sizi bekliyor bugün.</p></div>
+    <div class="blk"><p>{BODY_2}</p></div>
+    </article></body></html>"""
+    text = extract_article_text(html)
+    assert BODY_1 in text and BODY_2 in text
+
+
+def test_picks_the_article_with_the_most_text_not_the_first_one():
+    card = "<article><p>Kısa ilgili haber kartı metni, kırk karakterden uzun ama makale değil.</p></article>"
+    html = f"<html><body>{card}<article><p>{BODY_1}</p><p>{BODY_2}</p></article></body></html>"
+    text = extract_article_text(html)
+    assert BODY_1 in text and BODY_2 in text and "ilgili haber kartı" not in text
+
+
 def test_short_paragraphs_are_ignored():
     html = f"<html><body><article><p>Paylaş</p><p>{BODY_1}</p><p>Yorum yap</p></article></body></html>"
     assert extract_article_text(html) == BODY_1

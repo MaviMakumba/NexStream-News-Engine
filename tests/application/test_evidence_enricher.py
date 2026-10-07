@@ -114,3 +114,27 @@ def test_total_timeout_returns_what_is_ready_without_waiting_for_slow_fetch():
     release.set()
     assert list(out) == [1]
     assert elapsed < 2.0
+
+
+def test_abandoned_fetches_do_not_grow_unbounded_threads_on_a_shared_executor():
+    """Yavaş bir kaynak thread'i tutarken yeni sorular yeni thread AÇMAZ: aynı sınırlı havuzda
+    kuyruğa girer, toplam süre dolunca iptal edilir (fail-open, kaynak sızıntısı yok)."""
+    from concurrent.futures import ThreadPoolExecutor
+    release = threading.Event()
+    started = []
+
+    class StuckFetcher(ArticleTextPort):
+        def fetch(self, url):
+            started.append(url)
+            if url.endswith("/1"):
+                release.wait(timeout=5.0)
+            return INJURY
+
+    pool = ThreadPoolExecutor(max_workers=1)
+    enricher = _enricher(StuckFetcher(), total_timeout_seconds=0.2, executor=pool)
+    assert enricher.enrich("sakatlık?", [_article(1)]) == {}   # thread /1 takılı kaldı
+    assert enricher.enrich("sakatlık?", [_article(2)]) == {}   # /2 kuyrukta, süre doldu, iptal
+    release.set()
+    time.sleep(0.3)
+    pool.shutdown(wait=True)
+    assert started == ["https://s.example/1"]  # iptal edilen /2 hiç başlamadı

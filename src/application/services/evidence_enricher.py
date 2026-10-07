@@ -7,6 +7,7 @@ değiştirmek için bir sözlük döner. Her adım fail-open'dır: başarısız 
 """
 
 import logging
+import threading
 from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Optional, Sequence
 
@@ -16,6 +17,20 @@ from src.domain.ports.embedding_port import EmbeddingPort
 from src.domain.services.passage_selection import select_passages, split_paragraphs
 
 logger = logging.getLogger(__name__)
+
+_SHARED_MAX_WORKERS = 8
+_shared_executor: Optional[ThreadPoolExecutor] = None
+_shared_executor_lock = threading.Lock()
+
+
+def _get_shared_executor() -> ThreadPoolExecutor:
+    """Tüm sorular için TEK sınırlı havuz: takılan bir kaynak thread'i tutarken yeni sorular
+    sınırsız thread açmaz, kuyruğa girer ve toplam süre dolunca iptal edilir (fail-open)."""
+    global _shared_executor
+    with _shared_executor_lock:
+        if _shared_executor is None:
+            _shared_executor = ThreadPoolExecutor(max_workers=_SHARED_MAX_WORKERS, thread_name_prefix="rag-fetch")
+        return _shared_executor
 
 
 class EvidenceEnricher:
@@ -28,6 +43,7 @@ class EvidenceEnricher:
         passage_token_budget: int,
         total_timeout_seconds: float,
         enabled: bool = True,
+        executor: Optional[ThreadPoolExecutor] = None,
     ):
         self._fetcher = fetcher
         self._embedder = embedder
@@ -35,6 +51,7 @@ class EvidenceEnricher:
         self._budget = passage_token_budget
         self._total_timeout = total_timeout_seconds
         self._enabled = enabled
+        self._executor = executor
 
     def enrich(self, question: str, articles: Sequence[Article]) -> dict[int, str]:
         if not self._enabled:
@@ -42,12 +59,13 @@ class EvidenceEnricher:
         targets = [a for a in articles[: self._top_n] if getattr(a, "url", None) and getattr(a, "id", None) is not None]
         if not targets:
             return {}
-        pool = ThreadPoolExecutor(max_workers=len(targets))
+        pool = self._executor or _get_shared_executor()
         futures = {pool.submit(self._passages_for, question, a): a for a in targets}
-        done, _ = wait(futures, timeout=self._total_timeout)
-        # Bitmeyen thread'ler öldürülemez ama çekicinin kendi zaman aşımı onları sınırlar;
-        # istek beklemeden döner.
-        pool.shutdown(wait=False, cancel_futures=True)
+        done, pending = wait(futures, timeout=self._total_timeout)
+        # Henüz BAŞLAMAMIŞ işler iptal edilir; çalışanlar öldürülemez ama havuz sınırlı olduğu için
+        # birikemezler. İstek beklemeden döner.
+        for future in pending:
+            future.cancel()
         enriched: dict[int, str] = {}
         for future in done:
             try:

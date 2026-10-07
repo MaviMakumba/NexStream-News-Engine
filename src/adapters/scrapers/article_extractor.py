@@ -20,10 +20,15 @@ def extract_article_text(html) -> str:
     for tag in soup(_NOISE_TAGS):
         tag.decompose()
 
-    scope = soup.find("article")
-    paragraphs = scope.find_all("p") if scope else []
-    if sum(len(_clean(p)) for p in paragraphs) < _MIN_ARTICLE_SCOPE_CHARS:
-        paragraphs = soup.find_all("p")
+    # Birden çok <article> olabilir (ilgili haber kartları): en çok paragraf metni taşıyanı seç.
+    scopes = [[t for t in (_clean(p) for p in a.find_all("p")) if len(t) >= _MIN_PARAGRAPH_CHARS] for a in soup.find_all("article")]
+    best_scope = max(scopes, key=lambda texts: sum(len(t) for t in texts), default=[])
+    if sum(len(t) for t in best_scope) >= _MIN_ARTICLE_SCOPE_CHARS:
+        # Şablonlar gövdeyi reklam alanları etrafında birkaç <div>'e böler: article içinde
+        # ebeveyne göre gruplama doktor açıklaması gibi parçaları kaçırırdı, hepsini al.
+        return "\n\n".join(best_scope)
+
+    paragraphs = soup.find_all("p")
 
     groups: dict[int, list[str]] = {}
     for p in paragraphs:
