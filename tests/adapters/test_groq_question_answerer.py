@@ -97,3 +97,24 @@ def test_answer_passes_corroboration_level_into_prompt():
 def test_build_question_answerer_returns_groq_adapter():
     from src.adapters.analysis.factory import build_question_answerer
     assert isinstance(build_question_answerer(), GroqQuestionAnswerer)
+
+
+def test_answer_records_token_usage_in_rag_counter():
+    from src.adapters.api.metrics import rag_tokens_total
+    qa = GroqQuestionAnswerer()
+    response = make_mock_response('{"coverage": "full", "answer": "Cevap.", "used_sources": [1]}')
+    response.json.return_value["usage"] = {"prompt_tokens": 1200, "completion_tokens": 300}
+    prompt_before = rag_tokens_total.labels(kind="prompt")._value.get()
+    completion_before = rag_tokens_total.labels(kind="completion")._value.get()
+    with patch("requests.post", return_value=response):
+        qa.answer("Ne oldu?", _sources(), [], "single_source")
+    assert rag_tokens_total.labels(kind="prompt")._value.get() == prompt_before + 1200
+    assert rag_tokens_total.labels(kind="completion")._value.get() == completion_before + 300
+
+
+def test_answer_tolerates_missing_or_malformed_usage():
+    qa = GroqQuestionAnswerer()
+    response = make_mock_response('{"coverage": "full", "answer": "Cevap.", "used_sources": [1]}')
+    response.json.return_value["usage"] = "garip"
+    with patch("requests.post", return_value=response):
+        assert qa.answer("Ne oldu?", _sources(), [], "single_source")["answer"] == "Cevap."

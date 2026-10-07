@@ -1487,6 +1487,7 @@ seçilir ve teaser yerine LLM'e verilir. Haberi bulmak için yeni algoritma gere
   tırnaklı gömüyor; makale metni saldırgan kontrollü olabilir).
 - Kapatma: `RAG_FETCH_ENABLED=false`. Bilinen sınır: DNS rebinding TOCTOU penceresi (HTTPS'te
   IP sabitleme ilk sürümde yapılmadı, etkisi sınırlı — bkz. `url_safety.py` docstring).
+- **Aynı gün canlı test bulguları (PR sonrası):** (1) model `used_sources`'u boş bırakıp numaraları yalnız cevap metnine gömünce (`...[1,3,4]`) kaynak listesi boş dönüyordu — `parse_rag_json` artık JSON listesi boşsa metindeki `[n]` referanslarından çıkarır (JSON doluysa ona güvenilir; `"2"` gibi string'ler bilerek hâlâ elenir). (2) Model bir ismi bozdu (Osimhen→"Osimiren", kanıtta doğruydu) — prompt'a "isim/sayı/yazımı kanıttaki gibi AYNEN kopyala" kuralı eklendi (mock'la kanıtlanamaz, canlıda izlenir). (3) RAG token tüketimi hiç ölçülmüyordu (`groq_tokens_total` yalnız worker) — `nexstream_rag_tokens_total{kind}` eklendi (sorgu genişletici de 120b kullanır, o ayrı iş).
 
 ### 7 Ekim 2026 — Build'in EC2'den CI'a taşınması (PR #199, roadmap #28)
 

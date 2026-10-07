@@ -90,6 +90,13 @@ article_fetch_total = Counter(
     "Article full-text fetch attempts by result",
     ["result"],
 )
+# 7 Eki 2026 — RAG soru-cevap çağrılarının GERÇEK token tüketimi. `groq_tokens_total` yalnız worker
+# analizini sayar; 120b TPD havuzundaki RAG payı (~50K/gün) hiç ölçülmüyordu. `kind`: prompt | completion.
+rag_tokens_total = Counter(
+    "nexstream_rag_tokens_total",
+    "Groq tokens consumed by RAG question answering, from the API's own usage field",
+    ["kind"],
+)
 article_fetch_seconds = Histogram(
     "nexstream_article_fetch_seconds",
     "Article full-text fetch duration in seconds",
