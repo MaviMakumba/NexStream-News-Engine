@@ -160,3 +160,131 @@ def test_gives_up_after_bounded_attempts_when_limits_never_clear():
     with pytest.raises(AnalysisError):
         pooled.analyze_or_raise("x")
     assert len(clock.slept) < 10
+
+
+# ── taşma katmanı (7 Eki 2026) ────────────────────────────────────────────────
+# Prod: iki birincil model akşamları günlük kotada (TPD) tükeniyor, haberlerin
+# ~%13'ü nötr-fallback'e düşüyordu. gpt-oss-120b AYRI bir TPD havuzu ama RAG ile
+# paylaşılıyor — bu yüzden yalnız birincillerin HEPSİ soğumadayken kullanılır.
+
+OVERFLOW = "model-overflow"
+
+
+def _tiered_pool(clock):
+    pooled = PooledGroqAnalyzer([A, B], overflow_models=[OVERFLOW], clock=clock, sleep=clock.sleep)
+    for analyzer in pooled._analyzers.values():
+        analyzer.analyze_or_raise = MagicMock(return_value=OK)
+    return pooled
+
+
+def test_overflow_model_is_not_used_while_a_primary_is_available():
+    clock = FakeClock()
+    pooled = _tiered_pool(clock)
+    record_remaining(OVERFLOW, 8000)  # bütçesi en rahat olsa bile
+    record_remaining(A, 100)
+    record_remaining(B, 100)
+
+    pooled.analyze_or_raise("x")
+
+    pooled._analyzers[OVERFLOW].analyze_or_raise.assert_not_called()
+
+
+def test_overflow_model_takes_over_when_all_primaries_are_cooling():
+    clock = FakeClock()
+    pooled = _tiered_pool(clock)
+    pooled._analyzers[A].analyze_or_raise.side_effect = GroqRateLimited(300)
+    pooled._analyzers[B].analyze_or_raise.side_effect = GroqRateLimited(300)
+
+    assert pooled.analyze_or_raise("x") == OK
+    pooled._analyzers[OVERFLOW].analyze_or_raise.assert_called_once_with("x")
+    assert clock.slept == []
+
+
+def test_primaries_are_preferred_again_once_cooldown_ends():
+    clock = FakeClock()
+    pooled = _tiered_pool(clock)
+    pooled._analyzers[A].analyze_or_raise.side_effect = [GroqRateLimited(100), OK]
+    pooled._analyzers[B].analyze_or_raise.side_effect = [GroqRateLimited(100), OK]
+    pooled.analyze_or_raise("x")  # overflow devrede
+
+    clock.now += 101
+    pooled.analyze_or_raise("y")
+
+    assert pooled._analyzers[OVERFLOW].analyze_or_raise.call_count == 1
+
+
+def test_waits_only_when_every_model_including_overflow_is_cooling():
+    clock = FakeClock()
+    pooled = _tiered_pool(clock)
+    pooled._analyzers[A].analyze_or_raise.side_effect = [GroqRateLimited(300), OK]
+    pooled._analyzers[B].analyze_or_raise.side_effect = [GroqRateLimited(300), OK]
+    pooled._analyzers[OVERFLOW].analyze_or_raise.side_effect = [GroqRateLimited(90), OK]
+
+    assert pooled.analyze_or_raise("x") == OK
+    assert clock.slept == [pytest.approx(90)]
+
+
+# ── taşma bütçesi: RAG için ayrılan pay (7 Eki 2026) ──────────────────────────
+# 120b'nin TPD'si RAG ile paylaşılıyor. Worker kendi payını bitirince taşma
+# modeli devre dışı kalır; kalan kota RAG'a bırakılır (RAG'ın hata vermemesi
+# için), haber analizi nötr-fallback'e düşer.
+
+from src.adapters.analysis.token_budget import RollingTokenBudget
+
+
+def _budgeted_pool(clock, budget):
+    pooled = PooledGroqAnalyzer(
+        [A, B], overflow_models=[OVERFLOW], overflow_budget=budget,
+        clock=clock, sleep=clock.sleep,
+    )
+    for analyzer in pooled._analyzers.values():
+        analyzer.analyze_or_raise = MagicMock(return_value=OK)
+    pooled._analyzers[A].analyze_or_raise.side_effect = GroqRateLimited(10_000)
+    pooled._analyzers[B].analyze_or_raise.side_effect = GroqRateLimited(10_000)
+    return pooled
+
+
+def test_overflow_model_is_skipped_once_its_budget_is_spent():
+    clock = FakeClock()
+    budget = RollingTokenBudget(limit=1000, clock=clock)
+    budget.record(1000)
+    pooled = _budgeted_pool(clock, budget)
+
+    # A/B soğumada, overflow bütçesi dolu -> hiçbir model kalmadı, bekle
+    with pytest.raises(AnalysisError):
+        pooled.analyze_or_raise("x")
+    pooled._analyzers[OVERFLOW].analyze_or_raise.assert_not_called()
+
+
+def test_overflow_model_is_used_while_budget_has_room():
+    clock = FakeClock()
+    budget = RollingTokenBudget(limit=1000, clock=clock)
+    pooled = _budgeted_pool(clock, budget)
+
+    assert pooled.analyze_or_raise("x") == OK
+    pooled._analyzers[OVERFLOW].analyze_or_raise.assert_called_once_with("x")
+
+
+def test_overflow_usage_feeds_the_budget_but_primary_usage_does_not():
+    pooled = PooledGroqAnalyzer(
+        [A], overflow_models=[OVERFLOW], overflow_budget=RollingTokenBudget(limit=1000)
+    )
+    pooled._analyzers[OVERFLOW]._on_usage(300)
+
+    assert pooled._analyzers[A]._on_usage is None
+    assert pooled._overflow_budget.used() == 300
+
+
+def test_waits_for_primary_cooldown_when_overflow_budget_is_spent():
+    """Bütçesi dolan taşma modeli 'hemen kullanılabilir' sayılıp beklemeyi
+    atlatmamalı — aksi halde haberler soğuma bitmeden nötr-fallback'e düşer."""
+    clock = FakeClock()
+    budget = RollingTokenBudget(limit=1000, clock=clock)
+    budget.record(1000)
+    pooled = _budgeted_pool(clock, budget)
+    pooled._analyzers[A].analyze_or_raise.side_effect = [GroqRateLimited(300), OK]
+    pooled._analyzers[B].analyze_or_raise.side_effect = [GroqRateLimited(120), OK]
+
+    assert pooled.analyze_or_raise("x") == OK
+    assert clock.slept == [pytest.approx(120)]
+    pooled._analyzers[OVERFLOW].analyze_or_raise.assert_not_called()

@@ -367,3 +367,19 @@ def test_default_mode_still_waits_and_retries_on_rate_limit():
             result = analyzer.analyze_text("Some news.")
     assert result["sentiment_label"] == "Positive"
     sleep.assert_any_call(3)
+
+
+def test_on_usage_callback_receives_total_tokens():
+    """Havuzun taşma bütçesi gerçek tüketimden beslenir (prompt + completion)."""
+    seen = []
+    analyzer = GroqAnalyzer(on_usage=seen.append)
+    response = make_mock_response('{"sentiment_score": 0.0, "sentiment_label": "Neutral", "summary": "x"}')
+    response.json.return_value = {
+        "choices": [{"message": {"content": '{"sentiment_score": 0.0, "sentiment_label": "Neutral", "summary": "x"}'}}],
+        "usage": {"prompt_tokens": 400, "completion_tokens": 190},
+    }
+
+    with patch("requests.post", return_value=response):
+        analyzer.analyze_text("x")
+
+    assert seen == [590]
