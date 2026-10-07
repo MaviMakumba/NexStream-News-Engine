@@ -97,6 +97,12 @@ rag_tokens_total = Counter(
     "Groq tokens consumed by RAG question answering, from the API's own usage field",
     ["kind"],
 )
+# 7 Eki 2026 — RAG cevabındaki özel isim kanıttaki yazıma düzeltildiğinde artar (model Osimhen'i
+# "Osimren" yazmıştı). Beklenmedik yükselme = yanlış-pozitif ya da model sorunu işareti.
+rag_name_corrections_total = Counter(
+    "nexstream_rag_name_corrections_total",
+    "RAG answers whose proper-name spelling was corrected to the evidence spelling",
+)
 article_fetch_seconds = Histogram(
     "nexstream_article_fetch_seconds",
     "Article full-text fetch duration in seconds",
