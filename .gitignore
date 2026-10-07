@@ -39,4 +39,4 @@ htmlcov/
 docs/staj-defteri.md
 
 # Claude Code local/kişisel ayarlar (eklenti aç/kapa vb.) — makineye özel, commit edilmez
-.claude/settings.local.json
+.claude/settings.local.json.deployed_image_tags

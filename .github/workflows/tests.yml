@@ -135,6 +135,80 @@ jobs:
         working-directory: frontend
         run: npm audit --audit-level=high
 
+  # 7 Ekim 2026 (roadmap #28): imajlar EC2'de DEĞİL burada build edilir. EC2'de
+  # `docker compose up --build` t3.small'ı 11 Eyl / 18 Eyl / 7 Eki'de defalarca
+  # kilitledi (SSM ~30 dk InProgress, load 10-12, site erişilemez). Artık EC2 sadece
+  # `docker compose pull` + `up -d --no-build` yapar (bkz. infra/scripts/deploy_images.sh).
+  #
+  # Deterministik build: SOURCE_DATE_EPOCH + rewrite-timestamp → içeriği değişmeyen
+  # servis AYNI digest'e sahip olur, deploy'da compose onu yeniden yaratmaz (özellikle
+  # RAM-ağır embedder). Etiketler: `main` (kayan) + `<sha>` (değişmez, geri alma için).
+  build-images:
+    name: Build & push images (GHCR)
+    runs-on: ubuntu-latest
+    needs: [test, frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: backend
+            context: .
+            file: ./Dockerfile
+          - name: scheduler
+            context: .
+            file: ./Dockerfile.light
+          - name: embedder
+            context: .
+            file: ./Dockerfile.embedder
+          - name: backup
+            context: ./infra/backup
+            file: ./infra/backup/Dockerfile
+          - name: frontend
+            context: ./frontend
+            file: ./frontend/Dockerfile
+            build_args: |
+              NEXT_PUBLIC_API_URL=/api
+              NEXT_PUBLIC_SITE_URL=https://nexstreamnews.com
+              NEXT_PUBLIC_POSTHOG_KEY=${{ vars.NEXT_PUBLIC_POSTHOG_KEY }}
+              NEXT_PUBLIC_POSTHOG_HOST=${{ vars.NEXT_PUBLIC_POSTHOG_HOST }}
+              NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ vars.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: |
+            ghcr.io/mavimakumba/nexstream-${{ matrix.name }}:main
+            ghcr.io/mavimakumba/nexstream-${{ matrix.name }}:${{ github.sha }}
+          build-args: |
+            SOURCE_DATE_EPOCH=1735689600
+            ${{ matrix.build_args }}
+          # Sabit zaman damgası → aynı içerik = aynı digest (bkz. üstteki not).
+          outputs: type=image,push=true,rewrite-timestamp=true
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
   # 25 Ağu 2026: roadmap madde 19'un kalan kısmı — main'e her merge artık
   # otomatik olarak prod'u redeploy ediyor. Öncesinde bu adım hep ELLE SSM
   # ile tetikleniyordu (kırık bir şey main'e merge edilip unutulursa fark
@@ -144,7 +218,7 @@ jobs:
   deploy:
     name: Deploy to production (SSM)
     runs-on: ubuntu-latest
-    needs: [test, frontend]
+    needs: [test, frontend, build-images]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
     # 11 Eylül 2026: art arda birden fazla main merge'i (kısa aralıklarla,
@@ -172,47 +246,33 @@ jobs:
       - name: Deploy to EC2 via SSM
         env:
           INSTANCE_ID: i-0608c897a3d8ca3f3
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           set -euo pipefail
 
-          # `up --build -d` app/frontend gibi degisen servisleri yeniden
-          # yaratir ve YENI bir container IP'si alirlar; nginx'in kodu/imaji
-          # degismediyse compose onu yeniden yaratmaz, ama nginx upstream
-          # bloklarini SADECE ACILISTA DNS ile cozuyor (bkz. CLAUDE.md nginx
-          # notu) -- bu yuzden eski IP'lere baglanmaya devam edip 502 verir
-          # (3 Eyl 2026 canli kesinti, kok neden budur). `restart nginx`
-          # ucuz (sadece nginx ~1sn kesilir, app/frontend zaten ayakta) ve
-          # DNS'i her deploy'da tazeler.
-          # 11 Eylül 2026: health-check artık BU komutun içinde, sunucunun
-          # kendi localhost'undan yapılıyor (bkz. infra/scripts/wait_for_health.sh
-          # başındaki not) — CI'ın nexstreamnews.com'a (Cloudflare arkasından)
-          # dışarıdan attığı ayrı bir "Health check" adımı buradan KALDIRILDI,
-          # çünkü GitHub Actions runner'ının IP'si Cloudflare'in Managed
-          # Challenge'ını (cf-mitigated: challenge, IP-reputation bazlı,
-          # User-Agent'tan bağımsız) her seferinde tetikleyip düz 403
-          # döndürüyordu — deploy GERÇEKTEN başarılı olsa bile. `--timeout-seconds`
-          # bu yüzden 900'den 1200'e çıkarıldı (build + 7.5dk health payı).
-          #
-          # 11 Eylül 2026 (aynı gün, ikinci ders): art arda 3 deploy denemesi
-          # t3.small'ı üç kez tamamen tıkadı (SSM Agent bile "Undeliverable"
-          # oldu, iki reboot gerekti) — reboot CPU credit'i DOLDURMAZ, ve
-          # concurrency lock'a (aşağıdaki job-level `concurrency` bloğu)
-          # rağmen TEK BAŞINA bir deploy bile üçüncü kez tıkandı. En olası
-          # açıklama CPU credit'ten çok ANLIK RAM darboğazı: `up --build -d`
-          # değişen servisleri (özellikle embedder — SentenceTransformer
-          # modelini RAM'de tutan servis) recreate ederken ESKİ ve YENİ
-          # kopya kısa süre AYNI ANDA bellekte olabiliyor, zaten sıkışık olan
-          # 1.9GB'ı taşırıyor. Kalıcı çözüm (build'i EC2 dışına, CI'a taşımak)
-          # ayrı bir tasarım işi — bu ucuz ara-önlem RAM-ağır izleme
-          # container'larını (Prometheus/Grafana/Loki/Promtail — CLAUDE.md'nin
-          # "RAM darsa ilk kapatılacaklar" listesi) build+health-check
-          # penceresinde GEÇİCİ durdurup sonra geri başlatıyor. Health-check
-          # başarısız olsa bile (`;` ile, `&&` değil) izleme geri gelir —
-          # gözlemlenebilirlik uzun süre kapalı kalmasın diye.
+          # 7 Eki 2026: EC2'de BUILD YOK. Komut: son main'i al (compose + betikler),
+          # sonra infra/scripts/deploy_images.sh imajları GHCR'dan çekip yalnız
+          # değişen servisleri yeniden yaratır, nginx'i tazeler (upstream DNS, 3-4 Eyl
+          # dersi) ve localhost'tan health-check yapar (Cloudflare'e takılmamak için,
+          # 11 Eyl dersi). GITHUB_TOKEN kısa ömürlüdür (iş bitince geçersiz) ve
+          # betik çıkışta `docker logout` yapar; yine de SSM komut geçmişinde görünür.
+          # Eski build-tabanlı akıştaki Prometheus/Grafana/Loki durdurma ara-önlemi
+          # artık gereksiz: RAM'i yiyen build adımı yok.
+          PARAMS=$(jq -n --arg tok "$GHCR_TOKEN" --arg tag "$IMAGE_TAG" '{commands: [
+            "export HOME=/home/ubuntu",
+            "cd ~/NexStream-News-Engine",
+            "git config --global --add safe.directory $(pwd)",
+            "git checkout main",
+            "git fetch origin",
+            "git reset --hard origin/main",
+            ("IMAGE_TAG=" + $tag + " GHCR_TOKEN=" + $tok + " bash infra/scripts/deploy_images.sh")
+          ]}')
+
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["export HOME=/home/ubuntu","cd ~/NexStream-News-Engine","git config --global --add safe.directory $(pwd)","git checkout main","git fetch origin","git reset --hard origin/main","docker compose -f docker-compose.prod.yml stop prometheus grafana loki promtail","docker compose -f docker-compose.prod.yml up --build -d","docker compose -f docker-compose.prod.yml restart nginx","bash infra/scripts/wait_for_health.sh; HEALTH_EXIT=$?; docker compose -f docker-compose.prod.yml up -d prometheus grafana loki promtail; exit $HEALTH_EXIT"]}' \
+            --parameters "$PARAMS" \
             --timeout-seconds 1200 \
             --query "Command.CommandId" --output text)
           echo "SSM command: $COMMAND_ID"
