@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 from typing import List, Optional
+from src.adapters.scrapers.http_identity import BROWSER_USER_AGENT
 from src.domain.ports.scraper_port import NewsScraperPort
 from src.domain.models.article import Article
 from src.domain.policies.ingest_policy import sort_newest_first
@@ -48,10 +49,7 @@ class BaseRssScraper(NewsScraperPort):
     # tek başına göndermez. AA'nın WAF'ı bunu tanıyıp bağlantıyı TLS seviyesinde
     # reddediyor (9 Eylül 2026'da AA/AA Ekonomi'nin 9 gündür sessiz kaldığı
     # bulunduğunda doğrulandı). Gerçekçi tam bir Chrome UA'sı kullan.
-    _USER_AGENT = (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-    )
+    _USER_AGENT = BROWSER_USER_AGENT
 
     async def _fetch_content(self, url: str) -> bytes:
         async with httpx.AsyncClient(follow_redirects=True) as client:
