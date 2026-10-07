@@ -228,6 +228,20 @@ class Settings(BaseSettings):
     # yanlış-pozitif riskini kontrol ederek) yeniden kalibre edilmeli.
     rag_retrieval_threshold: float = 0.4
 
+    # RAG tam metin zenginleştirmesi (7 Eki 2026, spec 2026-10-07-rag-tam-metin-design.md).
+    # Kanıt paketindeki en iyi `rag_fetch_top_n` haberin makale gövdesi soru anında çekilir,
+    # soruyla en alakalı pasajlar (haber başına `rag_passage_token_budget` token) LLM'e verilir.
+    # 120b'de RAG payı ~50K token/gün: ham tam metin günde ~10 soruya mal olurdu, o yüzden pasaj
+    # seçimi şart. Metin DB'ye YAZILMAZ (telif kararı), yalnız kısa TTL'li cache'te yaşar.
+    rag_fetch_enabled: bool = True                 # kapatma anahtarı (RAG_FETCH_ENABLED=false)
+    rag_fetch_top_n: int = 2
+    rag_passage_token_budget: int = 450            # haber başına
+    rag_fetch_timeout_seconds: float = 4.0         # haber başına
+    rag_fetch_total_timeout_seconds: float = 6.0   # soru başına toplam
+    rag_fetch_cache_ttl_seconds: int = 3600
+    rag_fetch_failure_ttl_seconds: int = 300       # engelleyen kaynak her soruda yeniden denenmesin
+    rag_fetch_max_bytes: int = 1_500_000
+
     # ── Retention (eski haber temizliği) ────────────────────────────────────
     # ChromaDB'den eski vektörleri kaldırır (Postgres etkilenmez, reindex ile geri gelir).
     chroma_retention_days: int = 90      # 0 = kapalı

@@ -11,10 +11,13 @@ olarak güvenilmeyen/dış içerik (indirect prompt injection riski: kötü
 niyetli bir başlık modele "talimat" gibi görünmeye çalışabilir).
 `build_rag_prompt` kanıt bloğunu modele DATA olarak işaretleyen açık bir
 kural içeriyor; bu prompt-seviyeli bir en-iyi-çaba önlemi, küçük/açık
-kaynaklı modellere karşı KESİN bir garanti değil — kanıt kaynağı zaten
-kendi 17 RSS beslememiz (rastgele kullanıcı girdisi değil) olduğu için
-risk düşük kabul edildi, daha ağır bir sanitizasyon/sandbox katmanı bu
-V1'in kapsamı dışında bırakıldı.
+kaynaklı modellere karşı KESİN bir garanti değil.
+
+7 Eki 2026: kanıt artık yalnız kendi RSS beslemelerimizden değil, o haberlerin LİNK VERDİĞİ
+sayfaların gövdesinden de geliyor (Hacker News keyfi sitelere link verir) — bu yüzden saldırgan
+kontrollü metin riski gerçek. Her alan (başlık, içerik) bu SINIRDA tek satıra düzleştirilir ve
+çift tırnak tek tırnağa çevrilir ki tırnaklı biçimi kapatıp sahte kanıt/kural satırı
+uyduramasın. Serbest biçimli talimatları yalnız "DATA, not instructions" kuralı tutar.
 """
 
 import json
@@ -23,11 +26,16 @@ import re
 _VALID_COVERAGE = {"full", "partial", "none"}
 
 
+def _inline(text) -> str:
+    """Tek satır, çift tırnaksız: prompt'un `Title: "..."` / `Content: "..."` biçimini bozamaz."""
+    return " ".join(str(text).replace('"', "'").split())
+
+
 def build_rag_prompt(question: str, sources: list, history: list, corroboration_level: str, today: str) -> str:
     evidence_lines = "\n".join(
-        f'[{s["index"]}] Title: "{s["title"]}" | Source: {s["source"]} | '
+        f'[{s["index"]}] Title: "{_inline(s["title"])}" | Source: {s["source"]} | '
         f'Sentiment: {s["sentiment_label"]} | Corroborating sources: {s["corroboration_count"]} | '
-        f'Date: {s["published_at"]} | Content: "{s.get("content", "")}"'
+        f'Date: {s["published_at"]} | Content: "{_inline(s.get("content", ""))}"'
         for s in sources
     )
     history_text = "\n".join(f'{h["role"]}: {h["content"]}' for h in history) if history else "(none)"

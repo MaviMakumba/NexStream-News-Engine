@@ -1499,3 +1499,73 @@ def test_update_without_daily_cap_never_queries_the_budget():
     mock_repo.save_article.return_value = True
     _run_update(service, [_dated("https://x/1", 1)])
     mock_repo.count_articles_since.assert_not_called()
+
+
+# ── RAG tam metin zenginleştirme (7 Eki 2026) ────────────────────────────────
+
+def test_answer_question_uses_enriched_passages_instead_of_teaser():
+    service, mock_repo, mock_qa = make_service_with_qa()
+    service.evidence_enricher = MagicMock()
+    service.evidence_enricher.enrich.return_value = {1: "Doktor üç hafta dedi."}
+    a1, a2 = _evidence_article(1), _evidence_article(2)
+    a1.content, a2.content = "teaser bir", "teaser iki"
+    mock_repo.get_articles_by_ids.return_value = [a1, a2]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Cevap.", "used_sources": [1]}
+    candidates = [{"id": "1", "score": 0.9, "source": "BBC"}, {"id": "2", "score": 0.8, "source": "CNN"}]
+    with patch.object(service, "hybrid_search", return_value=candidates):
+        service.answer_question("Ne zaman döner?")
+    sources = mock_qa.answer.call_args.kwargs["sources"]
+    assert sources[0]["content"] == "Doktor üç hafta dedi."
+    assert sources[1]["content"] == "teaser iki"  # zenginleşmeyen haber teaser'ını korur
+
+
+def test_answer_question_survives_enricher_exception():
+    service, mock_repo, mock_qa = make_service_with_qa()
+    service.evidence_enricher = MagicMock()
+    service.evidence_enricher.enrich.side_effect = RuntimeError("boom")
+    article = _evidence_article(1)
+    article.content = "teaser"
+    mock_repo.get_articles_by_ids.return_value = [article]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Cevap.", "used_sources": [1]}
+    with patch.object(service, "hybrid_search", return_value=[{"id": "1", "score": 0.9, "source": "BBC"}]):
+        result = service.answer_question("Ne oldu?")
+    assert result["answer"] == "Cevap."
+    assert mock_qa.answer.call_args.kwargs["sources"][0]["content"] == "teaser"
+
+
+def test_injury_return_date_in_article_body_reaches_the_llm_evidence():
+    """7 Eki 2026 canlı bulgusu: teaser'da olmayan, makale gövdesinde geçen 'ne zaman döner'
+    bilgisi LLM'e hiç ulaşmıyordu ve cevap 'bilmiyorum' idi."""
+    from src.application.services.evidence_enricher import EvidenceEnricher
+    from src.domain.ports.article_text_port import ArticleTextPort
+    from src.domain.ports.embedding_port import EmbeddingPort
+
+    body = (
+        "Kulüp doktoru oyuncunun sakatlığının ciddi olduğunu ve üç hafta sahalardan uzak kalacağını açıkladı.\n\n"
+        "Stadyum çevresindeki otopark düzenlemeleri hakkında kulüp genel bilgilendirme yaptı bugün."
+    )
+
+    class Fetcher(ArticleTextPort):
+        def fetch(self, url):
+            return body
+
+    class Embedder(EmbeddingPort):
+        def embed_text(self, text):
+            return [1.0, 0.0] if "sakat" in text.lower() else [0.0, 1.0]
+
+        def embed_batch(self, texts):
+            return [self.embed_text(t) for t in texts]
+
+    service, mock_repo, mock_qa = make_service_with_qa()
+    service.evidence_enricher = EvidenceEnricher(
+        Fetcher(), Embedder(), top_n=2, passage_token_budget=40, total_timeout_seconds=5.0
+    )
+    article = _evidence_article(1)
+    article.content = "Son dakika: yıldız oyuncu sakatlandı."
+    mock_repo.get_articles_by_ids.return_value = [article]
+    mock_qa.answer.return_value = {"coverage": "full", "answer": "Üç hafta.", "used_sources": [1]}
+    with patch.object(service, "hybrid_search", return_value=[{"id": "1", "score": 0.9, "source": "BBC"}]):
+        service.answer_question("Oyuncu sakatlıktan ne zaman sahaya döner?")
+    content = mock_qa.answer.call_args.kwargs["sources"][0]["content"]
+    assert "üç hafta" in content
+    assert "otopark" not in content

@@ -79,3 +79,19 @@ groq_tokens_total = Counter(
     "Total Groq tokens consumed, from the API's own usage field",
     ["model", "kind"],
 )
+
+# 7 Eki 2026 — RAG tam metin çekme (spec 2026-10-07-rag-tam-metin-design.md). `result`:
+# hit (cache) / hit_failed (olumsuz cache isabeti) / fetched / failed (ağ, HTTP, ayrıştırma) / blocked (SSRF koruması ya da kaynak
+# 401/403/429 ile reddetti) / too_short (çıkarılan metin kullanılamayacak kadar kısa).
+# Host etiketi KASITLI yok: Hacker News gibi kaynaklar keyfi sitelere link verir (sınırsız
+# kardinalite). Kaynak bazlı bakış için `failed`/`blocked` loglarındaki host'a (Loki) bak.
+article_fetch_total = Counter(
+    "nexstream_article_fetch_total",
+    "Article full-text fetch attempts by result",
+    ["result"],
+)
+article_fetch_seconds = Histogram(
+    "nexstream_article_fetch_seconds",
+    "Article full-text fetch duration in seconds",
+    buckets=[0.25, 0.5, 1.0, 2.0, 3.0, 4.0, 6.0],
+)

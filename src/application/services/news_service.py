@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from src.domain.ports.query_expansion_port import QueryExpansionPort
     from src.domain.ports.push_subscription_port import PushSubscriptionRepositoryPort
     from src.domain.ports.web_push_port import WebPushPort
+    from src.application.services.evidence_enricher import EvidenceEnricher
     from src.domain.ports.question_answering_port import QuestionAnsweringPort
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,7 @@ class NewsService:
         push_repository: Optional["PushSubscriptionRepositoryPort"] = None,
         web_push: Optional["WebPushPort"] = None,
         qa_port: Optional["QuestionAnsweringPort"] = None,
+        evidence_enricher: Optional["EvidenceEnricher"] = None,
     ):
         self.repository = repository
         self.analyzer = analyzer
@@ -131,6 +133,7 @@ class NewsService:
         self.push_repository = push_repository
         self.web_push = web_push
         self.qa_port = qa_port
+        self.evidence_enricher = evidence_enricher
 
     @staticmethod
     def _apply_analysis(article: Article, result: dict) -> None:
@@ -956,6 +959,17 @@ class NewsService:
             "suggest_alert": general_mode,
         }
 
+    def _enrich_evidence(self, question: str, evidence_bundle: list) -> dict:
+        """En iyi haberlerin tam metin pasajlarını (id -> metin) döner. Fail-open: enricher
+        yok/bozuksa boş sözlük, çağıran teaser (`content[:500]`) ile devam eder."""
+        if self.evidence_enricher is None:
+            return {}
+        try:
+            return self.evidence_enricher.enrich(question, evidence_bundle)
+        except Exception as e:
+            logger.warning("RAG kanıt zenginleştirme atlandı: %s", e)
+            return {}
+
     def _retrieval_candidates(self, question: str, target: Optional[Article]) -> list:
         """Genel modda hybrid_search, habere özel modda get_story_cluster
         sonuçlarını ortak bir şekle (id/score/source, id daima int) normalize
@@ -1034,6 +1048,7 @@ class NewsService:
         distinct_sources = {a.source for a in evidence_bundle if a.source}
         corroboration_level = "multi_source" if len(distinct_sources) >= 2 else "single_source"
 
+        enriched = self._enrich_evidence(question, evidence_bundle)
         evidence_dicts = [
             {
                 "index": i + 1,
@@ -1048,7 +1063,8 @@ class NewsService:
                 # "başlıkta olmayan basit bir detay" bile cevaplanamıyordu
                 # (27 Ağu 2026 canlı bulgusu). `matched_keyword`'ün kullandığı
                 # content[:500] kırpma konvansiyonuyla tutarlı.
-                "content": (a.content or "")[:500],
+                # Tam metin pasajı varsa o, yoksa RSS teaser'ı (content[:500] konvansiyonu).
+                "content": enriched.get(a.id) or (a.content or "")[:500],
             }
             for i, a in enumerate(evidence_bundle)
         ]

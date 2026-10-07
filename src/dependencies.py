@@ -13,6 +13,8 @@ from src.adapters.repositories.user_repository import UserRepository
 from src.adapters.analysis.factory import build_analyzer, build_query_expander, build_question_answerer
 from src.adapters.search.chroma_search_repository import ChromaSearchRepository
 from src.adapters.cache.factory import build_cache
+from src.adapters.scrapers.article_text_factory import build_evidence_enricher
+from src.adapters.search.embedder_factory import build_embedder
 from src.adapters.market.yahoo_finance_adapter import YahooFinanceMarketAdapter
 from src.application.services.news_service import NewsService
 from src.domain.ports.messaging_port import MessagePublisherPort
@@ -22,6 +24,8 @@ from src.domain.ports.market_data_port import MarketDataPort
 _message_publisher: MessagePublisherPort = None
 _search_repository: ChromaSearchRepository = None
 _cache: CachePort = None
+_evidence_enricher = None
+_evidence_enricher_built = False
 _market_data_adapter: MarketDataPort = None
 _notifier = None
 
@@ -42,6 +46,17 @@ def get_search_repository() -> ChromaSearchRepository:
     if _search_repository is None:
         _search_repository = ChromaSearchRepository()
     return _search_repository
+
+
+def get_evidence_enricher():
+    """RAG tam metin zenginleştirici (singleton). Embedder, arama deposununkini yeniden
+    kullanır (yerel 'local' modda modeli ikinci kez RAM'e yüklememek için)."""
+    global _evidence_enricher, _evidence_enricher_built
+    if not _evidence_enricher_built:
+        embedder = getattr(get_search_repository(), "embedder", None) or build_embedder()
+        _evidence_enricher = build_evidence_enricher(get_cache(), embedder)
+        _evidence_enricher_built = True
+    return _evidence_enricher
 
 
 def set_notifier(notifier) -> None:
@@ -83,5 +98,5 @@ def get_news_service(db: Session = Depends(get_db)) -> NewsService:
     return NewsService(
         repository=repo, analyzer=analyzer,
         search_repository=search_repo, query_expander=query_expander,
-        qa_port=qa_port,
+        qa_port=qa_port, evidence_enricher=get_evidence_enricher(),
     )
