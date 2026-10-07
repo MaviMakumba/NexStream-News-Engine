@@ -40,7 +40,13 @@ RUN useradd --create-home --shell /bin/bash appuser \
     && chown -R appuser:appuser /app /opt/hf-cache
 USER appuser
 
-COPY --chown=appuser:appuser src/ ./src/
+# SADECE embedder'ın import kapanışı kopyalanır (tüm src/ DEĞİL): backend'in geri kalanı
+# değişince bu ağır image (model gömülü, RAM'de ~600MB) yeniden build/recreate OLMASIN —
+# 7 Eki 2026'da takılan deploy'un muhtemel tetikleyicisi buydu. Yeni bir import eklenirse
+# tests/infrastructure/test_embedder_image_closure.py kırılır, buraya dosya eklenir.
+COPY --chown=appuser:appuser src/domain/ports/embedding_port.py ./src/domain/ports/embedding_port.py
+COPY --chown=appuser:appuser src/infrastructure/config/settings.py ./src/infrastructure/config/settings.py
+COPY --chown=appuser:appuser src/adapters/search/__init__.py src/adapters/search/embedder_service.py src/adapters/search/sentence_transformer_embedder.py ./src/adapters/search/
 
 # ─── MODELİ BUILD ANINDA GÖM ─────────────────────────────────────────────────
 # Bu ZORUNLU, bir optimizasyon değil: embedder prod'da YALNIZCA `backend` ağında

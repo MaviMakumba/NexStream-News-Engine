@@ -1,0 +1,86 @@
+name: Images check
+
+# Dockerfile / bağımlılık / compose / workflow değişen PR'larda imajların build
+# edilebildiğini ve build'in DETERMİNİSTİK olduğunu doğrular (push YOK). main'e merge
+# sonrası gerçek build+push tests.yml'deki `build-images` işinde yapılır.
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'Dockerfile*'
+      - 'requirements*.txt'
+      - 'src/**'
+      - 'frontend/**'
+      - 'infra/backup/**'
+      - 'docker-compose.prod.yml'
+      - '.github/workflows/tests.yml'
+      - '.github/workflows/images-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }} (no push)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: .
+            file: ./Dockerfile
+          - name: scheduler
+            context: .
+            file: ./Dockerfile.light
+          - name: embedder
+            context: .
+            file: ./Dockerfile.embedder
+          - name: backup
+            context: ./infra/backup
+            file: ./infra/backup/Dockerfile
+          - name: frontend
+            context: ./frontend
+            file: ./frontend/Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build (no push)
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: false
+          build-args: |
+            SOURCE_DATE_EPOCH=1735689600
+          outputs: type=cacheonly
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  # Tüm tasarım "aynı içerik = aynı digest" varsayımına dayanıyor (aksi halde her
+  # deploy tüm servisleri recreate eder). İki build'i karşılaştırır; ikincisi
+  # ÖNBELLEKSİZ, yani determinizm önbelleğe bağlı bir tesadüf değil.
+  determinism:
+    name: Deterministic digest (backup image)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build twice and compare
+        run: |
+          set -euo pipefail
+          build() {
+            docker buildx build ./infra/backup \
+              --build-arg SOURCE_DATE_EPOCH=1735689600 \
+              --provenance=false --sbom=false "${@:2}" \
+              --output "type=oci,dest=$1.tar,rewrite-timestamp=true"
+            tar -xOf "$1.tar" index.json | python3 -c "import json,sys; print(json.load(sys.stdin)['manifests'][0]['digest'])"
+          }
+          A=$(build a)
+          sleep 2
+          B=$(build b --no-cache)
+          echo "build A: $A"
+          echo "build B (no-cache): $B"
+          test "$A" = "$B" || { echo "::error::Build deterministik DEĞİL — aynı içerik farklı digest üretiyor"; exit 1; }

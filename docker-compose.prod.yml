@@ -1,3 +1,11 @@
+# ─── İMAJLAR: CI'DA BUILD EDİLİP GHCR'A PUSH EDİLİR (EC2'DE BUILD YOK) ───────────
+# Her `build:` servisinin yanındaki `image:` GHCR'daki hazır imajı gösterir; deploy
+# `docker compose pull` + `up -d --no-build` yapar. `build:` bloğu BİLİNÇLİ olarak
+# duruyor: GHCR/CI erişilemezse `docker compose up --build -d` ile yerelde derlemek
+# (acil yedek) mümkün kalır. Etiket: IMAGE_TAG (varsayılan `main`; geri alma için
+# commit SHA'sı verilir). Neden: 7 Eki 2026'da EC2'de build t3.small'ı ~30 dk
+# kilitledi (bkz. docs/CHANGELOG.md, roadmap #28). app+worker AYNI imajı paylaşır.
+
 services:
   # ─── REVERSE PROXY ─────────────────────────────────────────────
   nginx:
@@ -44,6 +52,7 @@ services:
 
   # ─── FASTAPI APP ───────────────────────────────────────────────
   app:
+    image: ghcr.io/mavimakumba/nexstream-backend:${IMAGE_TAG:-main}
     build: .
     container_name: nexstream_engine
     restart: always
@@ -209,6 +218,7 @@ services:
 
   # ─── WORKER ────────────────────────────────────────────────────
   worker:
+    image: ghcr.io/mavimakumba/nexstream-backend:${IMAGE_TAG:-main}
     build: .
     container_name: nexstream_worker
     restart: always
@@ -284,6 +294,7 @@ services:
   # kendi RAM'lerine ayrı ayrı yüklüyordu (~600MB israf) — artık ikisi de
   # embedding'i buraya HTTP ile soruyor. Sadece backend ağında, dışarı kapalı.
   embedder:
+    image: ghcr.io/mavimakumba/nexstream-embedder:${IMAGE_TAG:-main}
     build:
       context: .
       dockerfile: Dockerfile.embedder
@@ -311,6 +322,7 @@ services:
 
   # ─── SCHEDULER ────────────────────────────────────���────────────
   scheduler:
+    image: ghcr.io/mavimakumba/nexstream-scheduler:${IMAGE_TAG:-main}
     build:
       context: .
       dockerfile: Dockerfile.light
@@ -342,6 +354,7 @@ services:
 
   # ─── FRONTEND (Next.js) ────────────────────────────────────────
   frontend:
+    image: ghcr.io/mavimakumba/nexstream-frontend:${IMAGE_TAG:-main}
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -535,6 +548,7 @@ services:
 
   # ─── BACKUP ────────────────────────────────────────────────────
   backup:
+    image: ghcr.io/mavimakumba/nexstream-backup:${IMAGE_TAG:-main}
     build: ./infra/backup
     container_name: nexstream_backup
     restart: always
