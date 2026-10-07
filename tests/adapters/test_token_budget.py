@@ -38,3 +38,25 @@ def test_only_expired_part_of_usage_is_released():
     clock.now = 101  # ilk 600 düştü, geriye 500
     assert budget.has_room()
     assert budget.used() == 500
+
+
+def test_default_window_is_24_hours():
+    """Groq TPD'si kayan 24 saat — varsayılan pencere bu olmalı."""
+    clock = Clock()
+    budget = RollingTokenBudget(limit=100, clock=clock)
+    budget.record(100)
+
+    clock.now = 86399
+    assert not budget.has_room()
+    clock.now = 86400
+    assert budget.has_room()
+
+
+def test_usage_exactly_at_window_edge_is_expired():
+    """Tam pencere sınırındaki kayıt artık sayılmaz (sınır dışı)."""
+    for now, expected in [(99.9, 100), (100, 0)]:
+        clock = Clock()
+        budget = RollingTokenBudget(limit=100, window_seconds=100, clock=clock)
+        budget.record(100)
+        clock.now = now
+        assert budget.used() == expected

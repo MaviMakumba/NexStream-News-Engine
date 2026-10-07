@@ -196,3 +196,23 @@ def test_matches_when_any_one_criterion_matches():
 def test_no_match_when_nothing_matches():
     sub = _subscriber(preferred_topics=["Politics"], preferred_sources=["Habertürk"], keywords=["nato"])
     assert article_matches_subscriber(_article(topic="Sports", source="TRT"), sub) is False
+
+
+# ── Eşleşme metni kapsamı (7 Eki 2026 mutasyon denetimi) ─────────────────────
+
+def test_matched_keyword_looks_into_summary():
+    a = Article(title="Gündem", source="TRT", url="u", content="içerik")
+    a.summary = "Borsada rekor beklentisi"
+    assert matched_keyword(a, ["borsa"]) == "borsa"
+
+
+def test_matched_keyword_only_reads_first_500_content_characters():
+    # "x" tam sınırda: indeks 499 içeride, 500 dışarıda
+    inside = Article(title="t", source="TRT", url="u", content="a" * 498 + " x")
+    outside = Article(title="t", source="TRT", url="u", content="a" * 499 + " x")
+    assert matched_keyword(inside, ["x"]) == "x"
+    assert matched_keyword(outside, ["x"]) is None
+
+
+def test_matched_keyword_returns_none_not_false_when_nothing_matches():
+    assert matched_keyword(_tren_article("Trendyol Süper Lig"), ["tren"]) is None
