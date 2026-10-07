@@ -14,6 +14,10 @@ import re
 import yaml
 from src.infrastructure.config.settings import Settings
 
+import pytest as _pytest_drift
+
+pytestmark = _pytest_drift.mark.drift
+
 
 def _scrape_sources_from_compose(path: str) -> set[str]:
     with open(path, "r", encoding="utf-8") as f:

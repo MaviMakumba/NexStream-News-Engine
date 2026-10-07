@@ -2,6 +2,10 @@
 import importlib.util
 from pathlib import Path
 
+import pytest as _pytest_drift
+
+pytestmark = _pytest_drift.mark.drift
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
