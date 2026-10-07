@@ -14,6 +14,10 @@ const SITE_DESCRIPTION = "Türkiye ve dünyadan yapay zeka destekli haber analiz
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  // Her sayfa kendi (sorgu parametresiz) URL'ini canonical ilan eder — Search Console
+  // "standart sayfa olmadan kopya" uyarısı (7 Eki 2026, anasayfa). "./" metadataBase
+  // ile sayfanın kendi yoluna çözülür.
+  alternates: { canonical: "./" },
   title: { template: "%s — NexStream", default: SITE_TITLE },
   description: SITE_DESCRIPTION,
   openGraph: {

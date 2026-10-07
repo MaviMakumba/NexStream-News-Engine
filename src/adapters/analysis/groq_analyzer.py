@@ -41,6 +41,7 @@ import json
 import logging
 import re
 import time
+from typing import Callable
 from src.domain.ports.analysis_port import AnalysisPort, AnalysisError
 from src.adapters.analysis.common import build_analysis_prompt, parse_analysis_json, neutral_result
 from src.infrastructure.config.settings import settings
@@ -69,9 +70,17 @@ class GroqAnalyzer(AnalysisPort):
     # taşıdığı anlamına gelir — güvenlik payı olarak biraz yüksek tutuldu.
     _TOKEN_SAFETY_MARGIN = 1000
 
-    def __init__(self, model: str = "openai/gpt-oss-20b", wait_on_rate_limit: bool = True):
+    def __init__(
+        self,
+        model: str = "openai/gpt-oss-20b",
+        wait_on_rate_limit: bool = True,
+        on_usage: Callable[[int], None] | None = None,
+    ):
         self.api_key = settings.groq_api_key
         self.model = model
+        # Başarılı her yanıtın gerçek token tüketimini (prompt+completion)
+        # dinleyene bildirir — havuzun taşma bütçesi buradan beslenir.
+        self._on_usage = on_usage
         # False: 429'da uyumak yerine GroqRateLimited fırlat (havuz kendisi
         # başka modele geçer / bekler). True: tek-model eski davranış.
         self.wait_on_rate_limit = wait_on_rate_limit
@@ -142,6 +151,8 @@ class GroqAnalyzer(AnalysisPort):
             groq_tokens_total.labels(model=self.model, kind="prompt").inc(prompt_tokens)
         if isinstance(completion_tokens, int):
             groq_tokens_total.labels(model=self.model, kind="completion").inc(completion_tokens)
+        if self._on_usage and isinstance(prompt_tokens, int) and isinstance(completion_tokens, int):
+            self._on_usage(prompt_tokens + completion_tokens)
 
     def analyze_text(self, text: str) -> dict:
         try:

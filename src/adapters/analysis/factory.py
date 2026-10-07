@@ -2,6 +2,7 @@
 import logging
 from typing import Optional
 from src.adapters.analysis.groq_pool import PooledGroqAnalyzer
+from src.adapters.analysis.token_budget import RollingTokenBudget
 from src.adapters.analysis.huggingface_analyzer import HuggingFaceAnalyzer
 from src.adapters.analysis.fallback_analyzer import FallbackAnalyzer
 from src.adapters.analysis.groq_query_expander import GroqQueryExpander
@@ -20,9 +21,18 @@ logger = logging.getLogger(__name__)
 _no_cache_warning_logged = False
 
 
+def _split_models(csv: str) -> list[str]:
+    return [m.strip() for m in csv.split(",") if m.strip()]
+
+
 def build_analyzer() -> AnalysisPort:
-    models = [m.strip() for m in settings.groq_model_pool.split(",") if m.strip()]
-    analyzers = [PooledGroqAnalyzer(models)]
+    analyzers = [
+        PooledGroqAnalyzer(
+            _split_models(settings.groq_model_pool),
+            overflow_models=_split_models(settings.groq_overflow_model_pool),
+            overflow_budget=RollingTokenBudget(settings.groq_overflow_daily_token_budget),
+        )
+    ]
     if settings.huggingface_api_key:
         analyzers.append(HuggingFaceAnalyzer())
     return FallbackAnalyzer(analyzers)

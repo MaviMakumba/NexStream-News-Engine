@@ -112,6 +112,17 @@ class Settings(BaseSettings):
     # mevcut JSON parser'ı kırar (eski llama-3.1-8b-instant felaketiyle aynı
     # sınıf hata). Tek eleman verilirse eski tek-model davranışı korunur.
     groq_model_pool: str = "openai/gpt-oss-20b,qwen/qwen3.8-27b"
+    # Taşma katmanı (7 Eki 2026): iki birincil model günlük kotada (TPD) tükenince
+    # devreye girer. Birincillerin TPD'si ~200K/model, günlük talep ~440K+ idi ->
+    # haberlerin ~%13'ü nötr-fallback'e düşüyordu. gpt-oss-120b AYRI bir TPD
+    # havuzu (RAG/sorgu genişletmeyle paylaşılır, o yüzden yalnız taşmada
+    # kullanılır). Boş bırakılırsa taşma kapanır.
+    groq_overflow_model_pool: str = "openai/gpt-oss-120b"
+    # Worker'ın taşma modelinde kayan 24 saatte harcayabileceği token üst sınırı.
+    # 120b TPD ~200K ve RAG ile paylaşılıyor; kalan ~50K RAG'a bırakılır ki
+    # üç model de dolsa bile soru-cevap hata vermesin (bu aşılırsa haberler
+    # nötr-fallback'e düşer, RAG değil).
+    groq_overflow_daily_token_budget: int = 150_000
 
     # ── API güvenliği ──────────────────────────────────────────────────────
     # Paylaşımlı makine-makine anahtarı (X-API-Key). İnsan kullanıcılar için
