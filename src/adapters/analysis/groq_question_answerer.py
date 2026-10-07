@@ -46,7 +46,7 @@ import requests
 from src.domain.ports.question_answering_port import QuestionAnsweringPort, QuestionAnsweringError
 from src.adapters.analysis.rag_common import build_rag_prompt, parse_rag_json
 from src.infrastructure.config.settings import settings
-from src.adapters.api.metrics import groq_latency_seconds, groq_rate_limit_total
+from src.adapters.api.metrics import groq_latency_seconds, groq_rate_limit_total, rag_tokens_total
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,16 @@ class GroqQuestionAnswerer(QuestionAnsweringPort):
         # paylaştırıp aç bırakıyordu, bkz. modül docstring'i "27 Ağu 2026".
         self.model = "openai/gpt-oss-120b"
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
+
+    @staticmethod
+    def _record_token_usage(usage) -> None:
+        """Groq `usage` alanını RAG sayacına yazar; eksik/bozuksa sessizce atlar (metrik cevabı bozmaz)."""
+        if not isinstance(usage, dict):
+            return
+        for kind, field in (("prompt", "prompt_tokens"), ("completion", "completion_tokens")):
+            value = usage.get(field)
+            if isinstance(value, (int, float)) and value > 0:
+                rag_tokens_total.labels(kind=kind).inc(value)
 
     def answer(self, question: str, sources: list, history: list, corroboration_level: str) -> dict:
         # "Bugün" burada (adapter sınırında) hesaplanır — build_rag_prompt saf/
@@ -91,7 +101,9 @@ class GroqQuestionAnswerer(QuestionAnsweringPort):
                     raise QuestionAnsweringError("Groq şu an kotasını doldurmuş, birazdan tekrar dene")
 
                 r.raise_for_status()
-                content = r.json()["choices"][0]["message"]["content"]
+                body = r.json()
+                self._record_token_usage(body.get("usage"))
+                content = body["choices"][0]["message"]["content"]
                 return parse_rag_json(content)
 
             except json.JSONDecodeError:

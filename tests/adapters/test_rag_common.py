@@ -121,3 +121,32 @@ def test_parse_rag_json_non_string_answer_becomes_empty():
 def test_parse_rag_json_raises_on_completely_invalid_json():
     with pytest.raises(json.JSONDecodeError):
         parse_rag_json("Bu JSON değil, düz metin.")
+
+
+# -- used_sources bos kalirsa cevap metnindeki [n] referanslari (7 Eki 2026 canli bulgu) ---------
+
+def _parsed(answer, used):
+    return parse_rag_json(json.dumps({"coverage": "partial", "answer": answer, "used_sources": used}))
+
+
+def test_parse_rag_json_falls_back_to_inline_references_when_used_sources_empty():
+    assert _parsed("Doktor aciklama yapti.[1,3,4]", [])["used_sources"] == [1, 3, 4]
+    assert _parsed("Birinci [1] ve ikinci [2] haber.", [])["used_sources"] == [1, 2]
+    assert _parsed("Iki kaynak [1, 3] soyluyor.", [])["used_sources"] == [1, 3]
+
+
+def test_parse_rag_json_inline_references_are_deduped_in_order_and_skip_zero():
+    assert _parsed("[3] sonra [1] sonra [3] ve [0]", [])["used_sources"] == [3, 1]
+
+
+def test_parse_rag_json_does_not_consult_text_when_used_sources_present():
+    assert _parsed("Metinde [2] var ama model [1] dedi.", [1])["used_sources"] == [1]
+
+
+def test_parse_rag_json_no_references_anywhere_stays_empty():
+    assert _parsed("Referanssiz cevap.", [])["used_sources"] == []
+
+
+def test_rag_prompt_demands_names_be_copied_exactly():
+    prompt = build_rag_prompt("Soru?", [_source()], [], "single_source", "2026-10-07")
+    assert "EXACTLY as written in the evidence" in prompt
