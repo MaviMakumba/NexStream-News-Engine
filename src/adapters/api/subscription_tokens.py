@@ -20,6 +20,7 @@ import hashlib
 import hmac
 from typing import Optional
 
+from src.adapters.api.auth import constant_time_equals
 from src.infrastructure.config.settings import settings
 
 
@@ -34,4 +35,4 @@ def make_unsubscribe_token(email: str) -> str:
 def verify_unsubscribe_token(email: str, token: Optional[str]) -> bool:
     if not token:
         return False
-    return hmac.compare_digest(make_unsubscribe_token(email), token)
+    return constant_time_equals(make_unsubscribe_token(email), token)

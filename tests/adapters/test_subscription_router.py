@@ -298,3 +298,14 @@ def test_update_preferences_requires_api_key(app_client):
 def test_get_subscription_requires_api_key(app_client):
     r = app_client.get("/subscriptions/test@example.com")
     assert r.status_code == 401
+
+
+def test_unsubscribe_link_with_non_ascii_token_is_not_a_500(app_client):
+    mock_repo = _mock_repo()
+    _override(app_client, mock_repo, user=None)
+    try:
+        r = app_client.get("/subscriptions/unsubscribe?email=test@example.com&token=%C3%A7ok%E2%80%AE")
+    finally:
+        _clear(app_client)
+    assert r.status_code == 200
+    mock_repo.deactivate.assert_not_called()
