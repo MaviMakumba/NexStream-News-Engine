@@ -42,7 +42,7 @@ async def trigger_scrape(
 @limiter.limit("120/minute")
 def get_news(
     request: Request,
-    limit: int = Query(10),
+    limit: int = Query(10, ge=1, le=100),
     sentiment: Optional[str] = Query(None),
     service: NewsService = Depends(get_news_service),
 ):

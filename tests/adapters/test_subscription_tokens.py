@@ -38,3 +38,10 @@ def test_token_is_case_insensitive_on_email():
     kayıtları karışık büyük/küçük harfli olabilir — link her iki yazımla da geçmeli."""
     token = make_unsubscribe_token("Ali@Example.com")
     assert verify_unsubscribe_token("ali@example.com", token) is True
+
+
+def test_token_with_non_ascii_characters_is_rejected_not_crashed():
+    """15 Ekim 2026 (Sentry PYTHON-FASTAPI-19): `hmac.compare_digest` iki `str`
+    karşılaştırırken ASCII dışı karakterde TypeError atıyordu → /unsubscribe 500."""
+    assert verify_unsubscribe_token("ali@example.com", "çğüş-geçersiz-imza") is False
+    assert verify_unsubscribe_token("ali@example.com", "‮" * 64) is False
