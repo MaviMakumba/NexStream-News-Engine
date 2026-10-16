@@ -1525,6 +1525,13 @@ Kalan sınır: Groq `gpt-oss-120b` TPM limiti 8000 — soru ≈2K token + sorgu 
 - **Test geçerliliği denetimi:** coverage %89 (en zayıf: repository/Kafka/scheduler adaptörleri — dış sistem gerektirir). `mutmut` Windows'ta çalışmadığı için `scripts/mutation_check.py` yazıldı (AST tabanlı, tek-mutant). Önce→sonra: `news_cursor` %70→%100, `quality` %67→%100, `turkish_morphology` %47→%85 (doğrudan testi YOKTU), `token_budget` %77→%100, `subscriber_matching` %87→%95, `trust` %85→%92, `groq_pool` %75 (kalanlar eşdeğer mutant), `credibility` %97. Eklenen testler sınır değerlerini, ek-zinciri üst sınırını, mikrosaniye hesabını, 24 saatlik pencereyi sabitliyor. `pytest.ini`'de `drift` marker'ı (config/doküman/frontend senkron testleri, `pytest -m drift` ~8 sn).
 - **Karar bekleyen (kullanıcı):** Paid plan mı Hetzner mı (Ocak); haber formatından daha "tutan" bir konsepte geçiş fikri (Haberle İngilizce / tahmin oyunu / izleme ajanı / alan radarı) — hedef (portfolyo/kullanıcı/gelir) netleşince.
 
+### 16 Ekim 2026 — Dependabot toplu bump + #198 (mutasyon denetimi) tek deploy'da
+
+- **Alınanlar (14):** fastapi 0.142.2, uvicorn 0.54.0, pydantic 2.13.5 (3 requirements dosyasında hizalandı), python-dotenv 1.2.4, sentence-transformers 6.1.0, websockets 17.1, prometheus-fastapi-instrumentator 8.1.0, stripe>=16, sentry-sdk>=2.71; next 16.4.0, posthog-js 1.438.7, @playwright/test 1.64.0, postcss 8.5.29, @types/node 26.6.5. Pinli paketler (sentence-transformers, websockets, uvicorn) mock'lu testlere güvenilmeden GERÇEK ortamda doğrulandı: gerçek embedding modeli (384 boyut, aynı anlam 0,86 / farklı konu 0,07) ve uvicorn 0.54 + websockets 17.1 ile gerçek WebSocket el sıkışması (close kodu 4001 korunuyor).
+- **Alınmayanlar:** SQLAlchemy 2.1 (#193) — 2.1 varsayılan sürücüyü `psycopg` (v3) yaptı, CI `ModuleNotFoundError: psycopg`; gerçek bir sürücü geçişi işi. TypeScript 7 (#18) ve Tailwind 4 (#23) — CI kırık, kasıtlı kapsam dışı.
+- fastapi 0.142 artık `opentelemetry-api` çekiyor; yerel venv'de eski `opentelemetry-sdk` ile çakıştı (`pip install -U opentelemetry-sdk ...` ile hizalandı). Temiz kurulumda (CI/Docker) sorun yok.
+- #198: `scripts/mutation_check.py` + sınır testleri + `drift` marker'ı main'e alındı (yalnız test/araç/doküman, runtime değişmez).
+
 ## PRODUCTION DEPLOYMENT NOTLARI — ilk deployment tarihçesi (v1.6+)
 
 Güncel/canlı deployment komutları için `CLAUDE.md`'nin "PRODUCTION DEPLOYMENT

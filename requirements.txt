@@ -1,17 +1,17 @@
-fastapi==0.141.1
-uvicorn==0.52.4
+fastapi==0.142.2
+uvicorn==0.54.0
 # uvicorn[standard] DEĞİL — bilinçli minimal seçim (o extras httptools/uvloop/
 # watchfiles de getirir). /ws/feed'in ASGI seviyesinde çalışması için gereken
 # TEK şey websockets (veya wsproto); 18 Ağu 2026'da prod'da bulundu: bu paket
 # hiç pinlenmemişti, o yüzden canlı WebSocket hep sessizce 404 veriyordu — local
 # venv'de google-genai (Gemini döneminden kalma, requirements.txt'te YOK) onu
 # transitive getirdiği için sorun hiç fark edilmemişti.
-websockets==16.0
+websockets==17.1
 sqlalchemy==2.0.52
 psycopg2-binary==2.9.13
-pydantic==2.13.4
+pydantic==2.13.5
 pydantic-settings==2.15.0
-python-dotenv==1.2.3
+python-dotenv==1.2.4
 requests==2.34.2
 httpx==0.28.1
 beautifulsoup4==4.15.0
@@ -25,11 +25,11 @@ chromadb-client==1.5.9
 # kullanıyor.
 slowapi==0.1.10
 prometheus-client==0.26.0
-prometheus-fastapi-instrumentator==8.0.2
+prometheus-fastapi-instrumentator==8.1.0
 feedgen==1.0.0
 email-validator>=2.3.0
 bcrypt>=5.0.0
-stripe>=15.6.1
+stripe>=16.0.0
 redis>=8.1.0
-sentry-sdk[fastapi]>=2.69.1
+sentry-sdk[fastapi]>=2.71.0
 pywebpush>=2.5.0
