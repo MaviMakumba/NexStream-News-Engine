@@ -71,6 +71,27 @@ def _is_suffix_chain(rest: str, depth: int = _MAX_CHAIN) -> bool:
     return False
 
 
+# Soru çerçevesi kökleri: konu bilgisi taşımayan, cümleyi soruya çeviren kapalı sınıf.
+# "kim"/"ne" BİLİNÇLİ yok: ek zincirleriyle "kimya"/"nete" gibi gerçek kelimeleri yutarlardı
+# (bu ikisi news_service'te literal soru parçacığı olarak ayrıca elenir).
+_QUESTION_ROOTS: Tuple[str, ...] = ("kaç", "hangi", "nere", "nasıl", "neden", "niçin", "niye")
+# Sıra sayısı eki: "kaç" + "ıncı" = "kaçıncı" (ek zincirinde olmayan, soruya özgü bir yapı).
+_ORDINAL_SUFFIXES: Tuple[str, ...] = ("ıncı", "inci", "uncu", "üncü")
+
+
+def is_question_word(word: str) -> bool:
+    """`word` ("kaçıncı", "kaçta", "hangisi", "nerede") bir soru çerçevesi sözcüğü mü?
+
+    Kelime listesi değil dilbilgisi sınıfı: soru kökü + geçerli çekim eki dizisi (ya da
+    sıra eki). "kaçak"/"kaçırıldı" gibi içerik kelimelerinde kalan parça çekim eki
+    olmadığı için False döner. Ön koşul: Türkçe-uyumlu küçük harf.
+    """
+    for root in _QUESTION_ROOTS:
+        if is_inflection_of(root, word):
+            return True
+    return any(word == "kaç" + suffix for suffix in _ORDINAL_SUFFIXES)
+
+
 def is_inflection_of(term: str, word: str) -> bool:
     """`word`, `term` kökünün olası bir çekimi (ya da kendisi) mi?
 

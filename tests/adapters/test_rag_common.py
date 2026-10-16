@@ -150,3 +150,13 @@ def test_parse_rag_json_no_references_anywhere_stays_empty():
 def test_rag_prompt_demands_names_be_copied_exactly():
     prompt = build_rag_prompt("Soru?", [_source()], [], "single_source", "2026-10-07")
     assert "EXACTLY as written in the evidence" in prompt
+
+
+def test_prompt_defines_partial_as_same_subject_missing_detail():
+    """16 Eki 2026: kanitta konunun son maci vardi ama siralama yoktu - model 'none' secip
+    bildigini hic soylemedi. 'partial' = ayni konu + eksik ayrinti; 'none' = konu hic yok."""
+    prompt = build_rag_prompt("Soru?", [_source()], [], "single_source", today=_TODAY)
+    assert "SAME subject" in prompt
+    assert "does NOT count" in prompt
+    assert 'never use "none" while an item covers the subject' in prompt
+    assert "which part could not be found" in prompt

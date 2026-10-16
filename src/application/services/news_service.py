@@ -26,7 +26,7 @@ from src.domain.policies.ingest_policy import select_for_analysis
 from src.domain.scoring.quality import compute_quality_score
 from src.domain.scoring.credibility import base_credibility, compute_credibility
 from src.domain.services.name_verification import correct_names
-from src.domain.services.turkish_morphology import TR_NOMINAL_SUFFIXES
+from src.domain.services.turkish_morphology import TR_NOMINAL_SUFFIXES, is_question_word
 from src.domain.services.subscriber_matching import matched_keyword, term_occurs_in, FALSE_FRIEND_ROOTS
 from src.domain.ports.question_answering_port import QuestionAnsweringError
 from src.domain.scoring.trust import compute_trust_score
@@ -103,6 +103,16 @@ _MAX_CANDIDATES = 50
 # `hybrid_search`). Bölen mevcut havuz sabitlerinden türetilir: birincil
 # bütçenin yarısı, taban `_MIN_CANDIDATES`'ın yarısı (=10).
 _SECONDARY_CANDIDATE_DIVISOR = 2
+# Sorgudaki "konu terimi" (anchor: bilinen bir varlığı adlandıran ya da büyük harfle yazılmış
+# sözcük) kapsama skorunda sıradan bir terimin bu kadar katı sayılır. "beşiktaş avrupa liginde
+# kaç gol attı" gibi doğal dilli sorularda konu terimi "gol/lig" gibi genel kelimelerin
+# arasında seyreliyor, yalnız onlarla eşleşen haberler öne geçiyordu (16 Eki 2026).
+_ANCHOR_WEIGHT = 3.0
+# Bilinen varlık adları sözlüğü: son N saatin haberlerindeki TEK sözcüklü varlıklar. Sık
+# değişmez, her istekte DB'ye gitmesin diye TTL'li (modül düzeyi — servis istek başına kurulur).
+_ENTITY_VOCAB_HOURS = 72
+_ENTITY_VOCAB_TTL_SECONDS = 600
+_entity_vocab_cache: dict = {"at": 0.0, "words": frozenset()}
 
 
 class NewsService:
@@ -284,7 +294,8 @@ class NewsService:
         candidate_size = min(max(n_results * _CANDIDATE_MULTIPLIER, _MIN_CANDIDATES), _MAX_CANDIDATES)
         query_terms = self._tokenize(query)  # includes Turkish stems for better recall (SQL adayı)
         relevance_terms = self._canonical_terms(query)  # coverage skoru için — bkz. docstring
-        distinguishing_terms = self._distinguishing_query_terms(query)
+        anchors = self._query_anchor_terms(query)
+        distinguishing_terms = anchors
 
         expanded_terms: List[str] = []
         if self.query_expander:
@@ -350,13 +361,29 @@ class NewsService:
                 logger.error(f"Genişletilmiş keyword arama hatası: {e}")
                 secondary_articles = []
 
+        # Konu terimleri için AYRI sorgu: birincil OR sorgusu "gol/lig" gibi genel kelimelerle
+        # en yeni N satırı doldurup konuyu hiç içermeyen haberleri havuza sokabiliyordu
+        # (16 Eki 2026: Beşiktaş haberleri havuza girmiyordu). Sorgunun TAMAMI konu terimiyse
+        # birincil sorgu zaten bunu kapsar.
+        anchor_articles: List[Article] = []
+        if anchors and len(relevance_terms) > len(anchors):
+            try:
+                anchor_articles = self.repository.keyword_search(
+                    query, max(candidate_size // _SECONDARY_CANDIDATE_DIVISOR,
+                               _MIN_CANDIDATES // _SECONDARY_CANDIDATE_DIVISOR),
+                    source, sentiment, terms=anchors,
+                )
+            except Exception as e:
+                logger.error(f"Konu terimi keyword araması hatası: {e}")
+                anchor_articles = []
+
         # Birleştirme — id çakışmasında BİRİNCİL liste kazanır (pratikte iki
         # sorgu farklı terim kümeleri kullandığı için çakışma nadir).
         # Repository'nin döndürdüğü liste MUTASYONA UĞRATILMAZ (yeni liste
         # kurulur) — çağıranın nesnesine yan etki bırakmamak için.
         seen_ids: set = {str(a.id) for a in keyword_articles}
         merged_articles = list(keyword_articles)
-        for article in secondary_articles:
+        for article in anchor_articles + secondary_articles:
             if str(article.id) not in seen_ids:
                 seen_ids.add(str(article.id))
                 merged_articles.append(article)
@@ -364,7 +391,8 @@ class NewsService:
 
         keyword_by_id: dict = {}
         for article in keyword_articles:
-            relevance = self._keyword_relevance(article, relevance_terms, secondary_terms=expanded_terms_lower)
+            relevance = self._keyword_relevance(article, relevance_terms, secondary_terms=expanded_terms_lower,
+                                                anchors=frozenset(anchors))
             if relevance > 0:
                 keyword_by_id[str(article.id)] = (relevance, article)
 
@@ -497,6 +525,53 @@ class NewsService:
                 terms.append(stripped)
         return terms
 
+    @classmethod
+    def reset_entity_vocabulary_cache(cls) -> None:
+        _entity_vocab_cache.update(at=0.0, words=frozenset())
+
+    def _entity_vocabulary(self) -> frozenset:
+        """Son günlerin haberlerinde geçen TEK sözcüklü varlık adlarının (kişi/kurum/yer)
+        küçük harfli kökleri. Çok sözcüklü varlıklar ("Şampiyonlar Ligi") alınmaz: parçaları
+        ("lig") tek başına konu terimi değildir. Fail-open: hata/boş durumda boş küme."""
+        now = time.monotonic()
+        if _entity_vocab_cache["words"] and now - _entity_vocab_cache["at"] < _ENTITY_VOCAB_TTL_SECONDS:
+            return _entity_vocab_cache["words"]
+        words: set = set()
+        try:
+            for article in self.repository.get_recent_articles_with_entities(_ENTITY_VOCAB_HOURS):
+                for names in (article.entities or {}).values():
+                    if not isinstance(names, list):
+                        continue
+                    for name in names:
+                        if not isinstance(name, str) or len(name.split()) != 1:
+                            continue
+                        word = self._stem_tr(self._lower_tr_safe(name.strip(".,;:!?\"'()")))
+                        if len(word) >= 3 and word.isalnum() and not is_question_word(word):
+                            words.add(word)
+        except Exception as e:
+            logger.warning("Varlık sözlüğü kurulamadı, konu terimi ağırlığı atlanıyor: %s", e)
+            return frozenset()
+        vocabulary = frozenset(words)
+        _entity_vocab_cache.update(at=now, words=vocabulary)
+        return vocabulary
+
+    def _query_anchor_terms(self, query: str) -> List[str]:
+        """Sorgunun KONU terimleri (küçük harfli kök, sorgu sırasıyla): büyük harfle yazılan
+        sözcükler VE bilinen bir varlık adı olan sözcükler. Kullanıcı çoğu zaman her şeyi
+        küçük harfle yazar ("beşiktaş avrupa liginde ..."); büyük harf sezgisi tek başına
+        konuyu kaçırırdı."""
+        capitalized = set()
+        for term in self._distinguishing_query_terms(query):
+            parts = re.findall(r"\w+", self._lower_tr_safe(term))
+            if parts:
+                capitalized.add(self._stem_tr(parts[0]))
+        vocabulary = self._entity_vocabulary()
+        anchors: List[str] = []
+        for term in self._canonical_terms(query):
+            if (term in capitalized or term in vocabulary) and term not in anchors:
+                anchors.append(term)
+        return anchors
+
     @staticmethod
     def _grounding_factor(distinguishing_terms: List[str], article: Article) -> float:
         """Sorgudaki özel isim(ler) bu makalede LİTERAL olarak geçiyor mu.
@@ -538,7 +613,7 @@ class NewsService:
         kümesini büyütür. Coverage/relevans skoru için BUNU KULLANMA, bkz.
         `_canonical_terms` (18 Ağu 2026'da bulunan skor seyreltme bug'ı).
         """
-        tokens = [w for w in re.findall(r"\w+", query.lower()) if len(w) >= 2]
+        tokens = [w for w in re.findall(r"\w+", query.lower()) if len(w) >= 2 and not is_question_word(w)]
         seen: set = set(tokens)
         expanded = list(tokens)
         for t in tokens:
@@ -570,26 +645,31 @@ class NewsService:
         hiçbir konu bilgisi taşımadan böleni şişirip skoru yapay düşürüyordu
         (27 Ağu 2026'da canlı QA'da bulundu).
         """
-        tokens = [w for w in re.findall(r"\w+", NewsService._lower_tr_safe(query)) if len(w) >= 2]
+        tokens = [w for w in re.findall(r"\w+", NewsService._lower_tr_safe(query))
+                  if len(w) >= 2 and not is_question_word(w)]   # "kaçıncı" stem'lenmeden ELENİR
         stems = [NewsService._stem_tr(t) for t in tokens]
         return [s for s in stems if s not in _TR_QUESTION_STOPWORDS]
 
     @staticmethod
-    def _coverage_score(title: str, summary: str, content: str, terms: List[str]) -> float:
-        """Verilen terim listesinin başlık/özet/içerikte kapsama oranı — en
-        iyi alan skoru döner (_FIELD_WEIGHTS). `_keyword_relevance` hem
-        birincil hem ikincil (genişletme) terimler için bunu paylaşır (DRY)."""
+    def _coverage_score(title: str, summary: str, content: str, terms: List[str],
+                        anchors: frozenset = frozenset()) -> float:
+        """Verilen terim listesinin başlık/özet/içerikte AĞIRLIKLI kapsama oranı — en
+        iyi alan skoru döner (_FIELD_WEIGHTS). `anchors` içindeki (konu) terimler
+        `_ANCHOR_WEIGHT` kat sayılır; anchor yoksa her terim 1'dir (eski davranış).
+        `_keyword_relevance` hem birincil hem ikincil (genişletme) terimler için bunu
+        paylaşır (DRY)."""
         if not terms:
             return 0.0
-        n = len(terms)
+        weights = [_ANCHOR_WEIGHT if t in anchors else 1.0 for t in terms]
+        total = sum(weights)
         # term_occurs_in: kelime-başı (word-boundary) öneki + bilinen yanlış-dost istisnaları
         # ("altın" araması "altında/altındaki"yi eşleştirmez — abone eşleşmesiyle ortak mantık).
-        title_hits = sum(1 for t in terms if term_occurs_in(t, title))
-        summary_hits = sum(1 for t in terms if term_occurs_in(t, summary))
-        content_hits = sum(1 for t in terms if term_occurs_in(t, content))
-        title_score = (title_hits / n) * _FIELD_WEIGHTS["title"]
-        summary_score = (summary_hits / n) * _FIELD_WEIGHTS["summary"]
-        content_score = (content_hits / n) * _FIELD_WEIGHTS["content"]
+        title_hits = sum(w for t, w in zip(terms, weights) if term_occurs_in(t, title))
+        summary_hits = sum(w for t, w in zip(terms, weights) if term_occurs_in(t, summary))
+        content_hits = sum(w for t, w in zip(terms, weights) if term_occurs_in(t, content))
+        title_score = (title_hits / total) * _FIELD_WEIGHTS["title"]
+        summary_score = (summary_hits / total) * _FIELD_WEIGHTS["summary"]
+        content_score = (content_hits / total) * _FIELD_WEIGHTS["content"]
         return max(title_score, summary_score, content_score)
 
     @staticmethod
@@ -597,6 +677,7 @@ class NewsService:
         article: Article,
         query_terms: List[str],
         secondary_terms: Optional[List[str]] = None,
+        anchors: frozenset = frozenset(),
     ) -> float:
         """Coverage tabanlı keyword skoru: terimlerin yüzde kaçı hangi alanda geçiyor.
 
@@ -633,7 +714,7 @@ class NewsService:
         summary = NewsService._lower_tr_safe(article.summary) if article.summary else ""
         content = NewsService._lower_tr_safe(article.content) if article.content else ""
 
-        base = NewsService._coverage_score(title, summary, content, query_terms)
+        base = NewsService._coverage_score(title, summary, content, query_terms, anchors)
         secondary = NewsService._coverage_score(title, summary, content, secondary_terms or [])
 
         total = base + secondary * _EXPANSION_WEIGHT
@@ -1039,7 +1120,7 @@ class NewsService:
         # (RAG #13). Arama skorundaki `_grounding_factor` cezası sert filtre değildi.
         # Fail-open: hiçbir makale ismi içermiyorsa (ya da "isim" yanlış-pozitifse) paket
         # aynen kalır. Habere özel modda hedef makale her zaman korunur.
-        terms = self._distinguishing_query_terms(question)
+        terms = self._query_anchor_terms(question)
         if terms:
             grounded = [a for a in evidence_bundle
                         if (target is not None and a.id == target.id) or self._grounding_factor(terms, a) == 1.0]

@@ -1502,6 +1502,20 @@ Kök neden doğrulandı: EC2'de `up --build` + embedder'ın `COPY src/` yapması
 
 **Kullanıcı bulguları bu turda:** `tren` anahtar kelimesi Trendyol haberlerini yakalıyordu (kök neden önek eşleşmesi → çekim eki zinciri, PR #180; mevcut aboneliklere dokunulmadı), "iklim değişikliği" ↔ "climate change" çapraz dil eksikliği (canlı arama testiyle kanıtlandı; S4/S5), güvenlik günlüğünde şüpheli görünen hesap #18 (bkz. CLAUDE.md BİLİNEN NOTLAR — risk düşük). **Süreç:** alt ajanlar 3 yerde kullanıldı (güvenlik günlüğü denetimi, aday feed doğrulaması, S1 final incelemesi); inline (Native) yürütme + TDD; S2 için bağımsız final incelemesi TOKEN bütçesi nedeniyle yapılmadı (yerine entegrasyon testi + deploy sonrası doğrulama).
 
+### 16 Ekim 2026 — "Soru Sor" doğal dilli sorularda cevap vermiyordu (üç bağımsız kök neden)
+
+Kullanıcı bulgusu: "beşiktaş avrupa liginde kaçıncı sırada kaç gol attı" ve "yarın sakaryada hava nasıl" → ikisi de "doğrulanabilir bir gelişme yok". İlk şüphe Groq tıkanmasıydı; **değildi** (429=0, RAG çağrısı yapılmıştı). Prod'da `_retrieval_candidates` ve ham LLM kararı ölçülerek bulundu:
+
+1. **Aday havuzu çöptü.** `keyword_search` 12 token'ı OR'layıp `%att%`/`%kac%`/`%sira%` alt dizileriyle EN YENİ 24 satırı çekiyordu (Tesla, NASA...); Beşiktaş haberleri havuza hiç girmiyordu. Fix: soru çerçevesi sözcükleri (`kaçıncı`, `kaçta`, `hangisi`... — `turkish_morphology.is_question_word`, kelime listesi değil kök+ek sınıfı; `kaçak`/`kimya` etkilenmez) token'lardan elenir; konu terimleri için AYRI bir keyword sorgusu (`_SECONDARY_CANDIDATE_DIVISOR` desenindeki gibi).
+2. **Konu terimi seyreliyordu.** Kullanıcı küçük harfle yazınca "beşiktaş" özel isim sayılmıyor, "gol/lig/avrupa" ile eşit ağırlıkta kalıyor, anlamsal taraf "bol gollü hafta" haberlerini öne alıyordu. Fix: **anchor terimleri** = büyük harfli sözcükler ∪ son 72 saatin haberlerinde TEK sözcüklü varlık adı olanlar (`_entity_vocabulary`, 10 dk TTL, fail-open). Anchor `_ANCHOR_WEIGHT`=3× ağırlıkla kapsama skoruna girer, grounding (RAG dahil) ve havuz sorgusu anchor üzerinden çalışır.
+3. **`coverage` tanımı belirsizdi.** Kanıt doğruydu (Hoffenheim 3-2, "2'de 2") ama model "sıralama/toplam gol yok" diye `none` seçip bildiğini söylemedi; kod da `none`'ı genel şablonla değiştiriyor. Fix: prompt'ta `partial` = AYNI konu + eksik ayrıntı, `none` = konu hiç yok; `partial`'da bilineni (numaralı) söyle, eksiği açıkça belirt.
+
+Sonuç (prod verisiyle, geçici overlay): Beşiktaş sorusu `partial` ("3-2 galip, toplam 3 gol; sıralama ve sezon toplamı bilgisi yok"), Sakarya hava `none` (doğru: Sakarya tahmini yok). Testler: `tests/application/test_question_retrieval.py`, `test_rag_common.py`.
+
+Kalan sınır: Groq `gpt-oss-120b` TPM limiti 8000 — soru ≈2K token + sorgu genişletme; dakikada ~3-4 soru. Ayrıca kanıtta bayat tarihli (4 gün önceki) hava durumu "cevap" olarak gelebiliyor; prompt tarih kuralı bunu belirtir ama filtrelemez (S3 raf ömrü/aciliyet işi).
+
+---
+
 ## PRODUCTION DEPLOYMENT NOTLARI — ilk deployment tarihçesi (v1.6+)
 
 Güncel/canlı deployment komutları için `CLAUDE.md`'nin "PRODUCTION DEPLOYMENT
