@@ -9,6 +9,10 @@ dışarıya kapatmak hiçbir şeyi bozmaz.
 
 import re
 
+import pytest as _pytest_drift
+
+pytestmark = _pytest_drift.mark.drift
+
 _NGINX_CONF = "infra/nginx/nginx.conf"
 
 

@@ -9,6 +9,10 @@ bu test tarihin sessizce dolmasını yakalar.
 
 from datetime import datetime, timezone
 
+import pytest as _pytest_drift
+
+pytestmark = _pytest_drift.mark.drift
+
 _PATH = "frontend/public/.well-known/security.txt"
 
 

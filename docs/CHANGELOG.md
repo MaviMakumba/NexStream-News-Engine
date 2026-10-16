@@ -1515,6 +1515,22 @@ Sonuç (prod verisiyle, geçici overlay): Beşiktaş sorusu `partial` ("3-2 gali
 Kalan sınır: Groq `gpt-oss-120b` TPM limiti 8000 — soru ≈2K token + sorgu genişletme; dakikada ~3-4 soru. Ayrıca kanıtta bayat tarihli (4 gün önceki) hava durumu "cevap" olarak gelebiliyor; prompt tarih kuralı bunu belirtir ama filtrelemez (S3 raf ömrü/aciliyet işi).
 
 ---
+### 7 Ekim 2026 — Groq taşma katmanı, test geçerliliği denetimi, AWS kredi takvimi (PR #197 + test PR)
+
+- **Groq kota darboğazı (24 sa ölçüm):** iki birincil model ~437K token harcadı, TPD kapasitesi ~400K → haberlerin ~%13'ü nötr-fallback'e düştü. Token'ların %64'ü prompt, %36'sı completion; qwen'in completion'ı 20b'nin ~3 katı. Prompt cache bu boyutta (`cached_tokens` boş) devreye girmiyor. **Çözüm:** `gpt-oss-120b` havuza **taşma katmanı** olarak eklendi (`PooledGroqAnalyzer(overflow_models=...)`), yalnız birincillerin HEPSİ soğumadayken kullanılır; worker'ın payı kayan 24 saatte `groq_overflow_daily_token_budget` (150K) ile sınırlı (`RollingTokenBudget`) — 120b RAG ile paylaşıldığı için ~50K RAG'a kalır. Canlıda doğrulandı (15 dk'da ~13.7K token, 0 nötr-fallback). Kendi hatam: bütçesi dolan taşma modeli "hemen kullanılabilir" sayılıp beklemeyi atlıyordu — mevcut 1100 test YEŞİLDİ, kodu tekrar okuyarak bulundu (bu, aşağıdaki mutasyon denetiminin tetikleyicisi).
+- **Search Console "kopya" uyarısı (anasayfa):** kök layout'a `alternates.canonical: "./"`, sitemap'ten `/auth/*` çıkarıldı (`frontend/lib/seo.test.ts`).
+- **Sunucu temizliği:** `docker builder prune --filter until=48h` → disk %47→%35 (11GB).
+- **Deploy kesintisi (aynı gün):** frontend değişikliği içeren deploy SSM'de ~30 dk `InProgress` kaldı, load 10-12, site iki kısa pencerede erişilemedi, kendi toparlandı (reboot yok). 11/18 Eylül sorununun tekrarı → roadmap #28 (build'i runner'a taşı) hâlâ açık.
+- **AWS kredisi (konsol, 7 Eki):** $73,84 kaldı, 28 Ocak 2027'de Free Plan BİTER ve hesap KAPANIR (90 gün içinde Paid'e geçilirse kalan kredi sonraki faturalara uygulanır). Gerçek yakım ~$0,37/gün — eski "Kasım ortası" tahmini yanlıştı. Ek $100 aktivite kredisi muhtemelen alınmamış. Kullanıcı Ocak'ta hatırlatılmasını istedi (bellekte kayıtlı).
+- **Test geçerliliği denetimi:** coverage %89 (en zayıf: repository/Kafka/scheduler adaptörleri — dış sistem gerektirir). `mutmut` Windows'ta çalışmadığı için `scripts/mutation_check.py` yazıldı (AST tabanlı, tek-mutant). Önce→sonra: `news_cursor` %70→%100, `quality` %67→%100, `turkish_morphology` %47→%85 (doğrudan testi YOKTU), `token_budget` %77→%100, `subscriber_matching` %87→%95, `trust` %85→%92, `groq_pool` %75 (kalanlar eşdeğer mutant), `credibility` %97. Eklenen testler sınır değerlerini, ek-zinciri üst sınırını, mikrosaniye hesabını, 24 saatlik pencereyi sabitliyor. `pytest.ini`'de `drift` marker'ı (config/doküman/frontend senkron testleri, `pytest -m drift` ~8 sn).
+- **Karar bekleyen (kullanıcı):** Paid plan mı Hetzner mı (Ocak); haber formatından daha "tutan" bir konsepte geçiş fikri (Haberle İngilizce / tahmin oyunu / izleme ajanı / alan radarı) — hedef (portfolyo/kullanıcı/gelir) netleşince.
+
+### 16 Ekim 2026 — Dependabot toplu bump + #198 (mutasyon denetimi) tek deploy'da
+
+- **Alınanlar (14):** fastapi 0.142.2, uvicorn 0.54.0, pydantic 2.13.5 (3 requirements dosyasında hizalandı), python-dotenv 1.2.4, sentence-transformers 6.1.0, websockets 17.1, prometheus-fastapi-instrumentator 8.1.0, stripe>=16, sentry-sdk>=2.71; next 16.4.0, posthog-js 1.438.7, @playwright/test 1.64.0, postcss 8.5.29, @types/node 26.6.5. Pinli paketler (sentence-transformers, websockets, uvicorn) mock'lu testlere güvenilmeden GERÇEK ortamda doğrulandı: gerçek embedding modeli (384 boyut, aynı anlam 0,86 / farklı konu 0,07) ve uvicorn 0.54 + websockets 17.1 ile gerçek WebSocket el sıkışması (close kodu 4001 korunuyor).
+- **Alınmayanlar:** SQLAlchemy 2.1 (#193) — 2.1 varsayılan sürücüyü `psycopg` (v3) yaptı, CI `ModuleNotFoundError: psycopg`; gerçek bir sürücü geçişi işi. TypeScript 7 (#18) ve Tailwind 4 (#23) — CI kırık, kasıtlı kapsam dışı.
+- fastapi 0.142 artık `opentelemetry-api` çekiyor; yerel venv'de eski `opentelemetry-sdk` ile çakıştı (`pip install -U opentelemetry-sdk ...` ile hizalandı). Temiz kurulumda (CI/Docker) sorun yok.
+- #198: `scripts/mutation_check.py` + sınır testleri + `drift` marker'ı main'e alındı (yalnız test/araç/doküman, runtime değişmez).
 
 ## PRODUCTION DEPLOYMENT NOTLARI — ilk deployment tarihçesi (v1.6+)
 
