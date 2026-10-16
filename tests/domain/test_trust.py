@@ -60,3 +60,8 @@ def test_breakdown_zero_scores_all_zero():
 def test_breakdown_none_uses_neutral_default():
     breakdown = trust_score_breakdown(None, None, 0)
     assert breakdown == {"quality": 18, "credibility": 22, "corroboration": 0}
+
+
+def test_breakdown_exact_values_for_fractional_inputs():
+    """Tam sayı bileşenler: 100*ağırlık*skor, yuvarlanmış (mutasyon denetimi)."""
+    assert trust_score_breakdown(0.7, 0.6, 2) == {"quality": 24, "credibility": 27, "corroboration": 13}

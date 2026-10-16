@@ -7,6 +7,10 @@ from pathlib import Path
 
 from src.domain.models.security_event import EventType
 
+import pytest as _pytest_drift
+
+pytestmark = _pytest_drift.mark.drift
+
 PAGE = Path(__file__).resolve().parents[2] / "frontend" / "app" / "admin" / "security" / "page.tsx"
 
 
