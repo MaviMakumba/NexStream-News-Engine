@@ -7,7 +7,7 @@ uvicorn==0.54.0
 # venv'de google-genai (Gemini döneminden kalma, requirements.txt'te YOK) onu
 # transitive getirdiği için sorun hiç fark edilmemişti.
 websockets==17.1
-sqlalchemy==2.0.52
+sqlalchemy==2.1.4
 psycopg2-binary==2.9.13
 pydantic==2.13.5
 pydantic-settings==2.15.0
