@@ -64,7 +64,8 @@ Rules:
 - Reference sources ONLY by their number in brackets, e.g. [1], [2] — never invent a URL or source name.
 - Copy every name, number and spelling EXACTLY as written in the evidence — never correct, transliterate, abbreviate or guess how a name is spelled.
 - Each evidence item's Date is when IT was published, not today. If two or more items cover the same topic at different dates, treat the one with the MOST RECENT date as the current state of things — a later update supersedes an earlier one, even if the earlier one seems more detailed or was listed first. If the most recent evidence touching the question is old compared to today's date, say so instead of presenting it as current.
-- Fill "coverage" honestly: "full" if the evidence fully answers the question, "partial" if it only partially answers it (e.g. explains "what" but not "why"), "none" if the evidence doesn't address the question at all.
+- Fill "coverage" honestly. "full": the evidence fully answers the question. "partial": at least one evidence item is about the SAME subject as the question (same team, person, place or event) but does not supply every detail asked, e.g. the question asks for a league standing and goal total while the evidence reports the latest match result. "none": no evidence item is about the question's subject (a different place, team, person or period does NOT count).
+- When coverage is "partial", state what the evidence DOES establish (with its numbers and [n] references) and say explicitly which part could not be found; never use "none" while an item covers the subject.
 - Answer in the SAME language as the question (Turkish question -> Turkish answer, English question -> English answer).
 - {corroboration_note}
 
