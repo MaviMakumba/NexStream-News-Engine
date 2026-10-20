@@ -1,0 +1,6 @@
+node_modules/
+out/
+# Lisansı yeniden dağıtıma izin vermiyor — scripts/fetch-music.mjs indirir.
+public/music/
+# capture/capture.mjs ile her zaman yeniden üretilebilir (büyük).
+public/captures/

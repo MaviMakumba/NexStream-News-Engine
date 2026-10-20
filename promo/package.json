@@ -1,0 +1,26 @@
+{
+  "name": "nexstream-promo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NexStream tanitim videosu (Remotion). Bkz. promo/README.md",
+  "scripts": {
+    "studio": "remotion studio",
+    "capture": "node capture/capture.mjs",
+    "render:all": "node scripts/render-all.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.534",
+    "@remotion/google-fonts": "4.0.534",
+    "@remotion/media-utils": "4.0.534",
+    "@remotion/transitions": "4.0.534",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.534"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "playwright": "1.64.0",
+    "typescript": "5.9.3"
+  }
+}
