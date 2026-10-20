@@ -9,6 +9,7 @@ import { BASE } from "@/lib/api";
 import { LandingSearchDemo } from "@/components/LandingSearchDemo";
 import { LiveWireStrip } from "@/components/LiveWireStrip";
 import { CardSpotlight } from "@/components/CardSpotlight";
+import { PromoVideo } from "@/components/PromoVideo";
 import { Footer } from "@/components/Footer";
 import { UI, FEATURES, PRICING } from "@/lib/i18n";
 
@@ -116,6 +117,8 @@ export default function LandingPage() {
           <LiveWireStrip />
         </div>
       </section>
+
+      <PromoVideo />
 
       {/* "Bir haber kartında neler var" — kullanıcıların Kaydet/güvenilirlik
           skoru/Sor'u fark etmediği geri bildirimi üzerine eklendi (18 Eylül

@@ -133,6 +133,8 @@ export const UI: Record<Lang, Record<string, string>> = {
     landingSearchSignupCta: "Tam deneyim için ücretsiz kaydolun →",
     landingSearchMatchRate: "eşleşme",
     landingSearchConnector: "Arama nasıl çalışıyor? Kaydırmadan hemen aşağıda dene.",
+    promoLabel: "TANITIM", promoTitle: "NexStream'i bir dakikada tanı", promoPlay: "Videoyu izle",
+    promoNote: "57 saniye · sesi açmayı unutma",
 
     // ── Landing: canlı akış şeridi + "bir kartta neler var" (18 Eylül 2026) ──
     liveWireLabel: "Canlı akış",
@@ -417,6 +419,8 @@ export const UI: Record<Lang, Record<string, string>> = {
     landingSearchSignupCta: "Sign up free for the full experience →",
     landingSearchMatchRate: "match",
     landingSearchConnector: "Curious how search works? Try it right below.",
+    promoLabel: "TOUR", promoTitle: "Meet NexStream in one minute", promoPlay: "Watch the video",
+    promoNote: "57 seconds · turn the sound on",
 
     // ── Landing: live wire strip + "what's on a card" (Sep 18, 2026) ──
     liveWireLabel: "Live wire",
