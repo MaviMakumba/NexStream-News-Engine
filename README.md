@@ -71,7 +71,11 @@ What started as a course project on enterprise architecture has grown into a pro
 ### 🎬 Promo video
 
 <!-- PROMO_VIDEO_EN: for an inline player, delete this line in GitHub's web editor and drag promo/out/readme-en-720p.mp4 here -->
-[![NexStream promo video (57 s) — click to watch on nexstreamnews.com](frontend/public/promo/promo-en-desktop-v1.jpg)](https://nexstreamnews.com/#tanitim)
+[![NexStream promo video (57 s) — click to watch on nexstreamnews.com]
+
+https://github.com/user-attachments/assets/74ce4ee6-1a78-40c0-8266-310e2377ca1c
+
+
 
 <sub>57 seconds, no voice-over — generated with Remotion from the real UI (source and pipeline: <code>promo/</code>).</sub>
 
@@ -604,7 +608,11 @@ Kurumsal mimari dersi için başlayan proje; e-posta doğrulamalı kullanıcı h
 ### 🎬 Tanıtım videosu
 
 <!-- PROMO_VIDEO_TR: GitHub'da oynatıcı için web editöründe bu satırı silip promo/out/readme-tr-720p.mp4 dosyasını buraya sürükle -->
-[![NexStream tanıtım videosu (57 sn) — izlemek için tıkla](frontend/public/promo/promo-tr-desktop-v1.jpg)](https://nexstreamnews.com/#tanitim)
+[![NexStream tanıtım videosu (57 sn) — izlemek için tıkla]
+
+https://github.com/user-attachments/assets/a1fc5739-5060-4cec-b8d2-26f0b9fb5e50
+
+
 
 <sub>57 saniye, seslendirmesiz — sitenin gerçek arayüzünden Remotion ile üretildi (kaynak ve üretim hattı: <code>promo/</code>).</sub>
 
