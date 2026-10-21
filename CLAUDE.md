@@ -238,6 +238,8 @@ docker logs nexstream_chromadb --tail 20
 
 ## BİLİNEN NOTLAR
 
+- **Tanıtım videosu `promo/` (Remotion, 21 Eki 2026):** ana sayfa `#tanitim` (`components/PromoVideo.tsx`) + README; videolar `frontend/public/promo/*-v1.*`. Arayüz belirgin değişince video eskir → yeniden üretim `promo/README.md` (capture → render ~25 dk), sonra dosya adındaki sürümü artır (`PromoVideo.tsx::VERSION`, Cloudflare önbelleği). Playwright'ta `fullPage: true` dokunmatik emülasyonu düşürür (mobilde ~110 px kayma) — uzun sayfayı görünümü büyüterek çek.
+
 Her madde tek bir kalıcı kural — "ne zaman/nasıl bulundu" forensic detayı
 `docs/CHANGELOG.md`'de (tarihe göre aranabilir).
 
