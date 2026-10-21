@@ -1532,6 +1532,15 @@ Kalan sınır: Groq `gpt-oss-120b` TPM limiti 8000 — soru ≈2K token + sorgu 
 - fastapi 0.142 artık `opentelemetry-api` çekiyor; yerel venv'de eski `opentelemetry-sdk` ile çakıştı (`pip install -U opentelemetry-sdk ...` ile hizalandı). Temiz kurulumda (CI/Docker) sorun yok.
 - #198: `scripts/mutation_check.py` + sınır testleri + `drift` marker'ı main'e alındı (yalnız test/araç/doküman, runtime değişmez).
 
+### 20-21 Ekim 2026 — Tanıtım videosu (`promo/`, Remotion) + ana sayfa `#tanitim` + README
+
+- **İstek:** 1 dakikanın altında, tüm özelliklere değinen, merak uyandıran tanıtım videosu; onaydan sonra ana sayfa + README. Storyboard tarayıcıda iki tur gözden geçirildi (v1 hayali çizimdi → kullanıcı "birebir gerçek tasarım" istedi → v2 gerçek arayüz görüntüleriyle). Tasarım: `docs/superpowers/specs/2026-10-21-tanitim-videosu-design.md`.
+- **Çıktı:** 57 sn, TR/EN × yatay 1920×1080 / dikey 1080×1920; README için ≤10 MB 720p sürümler. Site için crf 25 + faststart ile yeniden kodlandı (4 dosya 47 MB, `frontend/public/promo/*-v1.*`).
+- **Kullanıcı kararları:** kaynak adları "Kaynak A/B…", başlıklar uydurma/nötr (telif + gerçek kişi riski), Gmail'i andıran markasız posta istemcisi, seslendirme yok, yeşil N ikonu açılış+kapanışta. **Benim kararlarım:** slogan "Gürültüyü kes. Haberin özünü yakala.", tema rozetlerinde film adları yerine sitenin alt başlıkları, müzik Mixkit "Digital Clouds" (repoya girmez — lisans yeniden dağıtımı yasaklıyor), ses efektleri sentez.
+- **Teknik:** görüntüler `next start` + taklit API + taklit `/ws/feed` ile gerçek arayüzden; tema canvas efektleri Playwright `clock` ile kare kare (deterministik); eleman konumları manifest'e yazılıp Remotion etiket/imleç yerlerini oradan hesaplıyor. Sahne sınırları müziğin 129 BPM ızgarasına oturur, parça kendi son cümlesine bağlanır.
+- **Bulunan tuzak:** Playwright `fullPage: true` ekran görüntüsü dokunmatik emülasyonu geçici düşürüyor → mobilde `pointer: coarse` boşlukları kaybolup içerik ölçülen konumdan ~110 px kayıyordu (önce `isMobile` sanıldı, ölçülen kutuları sayfaya çizerek kanıtlandı). Çözüm: görünümü büyütüp normal görüntü (`tallViewport`).
+- CI: yalnız `promo/**` değişen main push'ları test/deploy tetiklemez (`paths-ignore`).
+
 ## PRODUCTION DEPLOYMENT NOTLARI — ilk deployment tarihçesi (v1.6+)
 
 Güncel/canlı deployment komutları için `CLAUDE.md`'nin "PRODUCTION DEPLOYMENT

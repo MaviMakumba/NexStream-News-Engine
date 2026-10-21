@@ -68,6 +68,15 @@ What started as a course project on enterprise architecture has grown into a pro
 
 ---
 
+### 🎬 Promo video
+
+<!-- PROMO_VIDEO_EN: for an inline player, delete this line in GitHub's web editor and drag promo/out/readme-en-720p.mp4 here -->
+[![NexStream promo video (57 s) — click to watch on nexstreamnews.com](frontend/public/promo/promo-en-desktop-v1.jpg)](https://nexstreamnews.com/#tanitim)
+
+<sub>57 seconds, no voice-over — generated with Remotion from the real UI (source and pipeline: <code>promo/</code>).</sub>
+
+---
+
 ### Screenshots
 
 | Landing — Day theme (default, light) | Landing — Night theme (default, dark) |
@@ -589,6 +598,15 @@ Kurumsal mimari dersi için başlayan proje; e-posta doğrulamalı kullanıcı h
 | API katmanı | 3 (Free / Pro / Enterprise) — sunucu tarafında zorunlu |
 | Docker servisi | 10 (dev) / 16 (prod, gözlemlenebilirlik yığını dahil) |
 | Mimari | Hexagonal (Ports & Adapters), 3 katman |
+
+---
+
+### 🎬 Tanıtım videosu
+
+<!-- PROMO_VIDEO_TR: GitHub'da oynatıcı için web editöründe bu satırı silip promo/out/readme-tr-720p.mp4 dosyasını buraya sürükle -->
+[![NexStream tanıtım videosu (57 sn) — izlemek için tıkla](frontend/public/promo/promo-tr-desktop-v1.jpg)](https://nexstreamnews.com/#tanitim)
+
+<sub>57 saniye, seslendirmesiz — sitenin gerçek arayüzünden Remotion ile üretildi (kaynak ve üretim hattı: <code>promo/</code>).</sub>
 
 ---
 
