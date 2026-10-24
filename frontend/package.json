@@ -10,7 +10,7 @@
     "test:unit": "node --test lib/*.test.ts"
   },
   "dependencies": {
-    "next": "^16.4.0",
+    "next": "^16.4.2",
     "posthog-js": "^1.438.7",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
