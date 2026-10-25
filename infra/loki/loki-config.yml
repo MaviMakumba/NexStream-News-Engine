@@ -2,6 +2,10 @@ auth_enabled: false
 
 server:
   http_listen_port: 3100
+  # Varsayılan `info` compactor'un her turunu satır satır yazıyor (~70 satır/dk);
+  # container log dosyası rotasyonsuz 1 GB'ı aştı ve promtail onu tekrar Loki'ye
+  # besliyor. Sadece uyarı/hata değerli.
+  log_level: warn
 
 common:
   path_prefix: /loki

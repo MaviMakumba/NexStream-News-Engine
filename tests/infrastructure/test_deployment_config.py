@@ -139,3 +139,13 @@ def test_redpanda_runs_with_init_to_reap_healthcheck_zombies():
     """redpanda PID 1 olarak healthcheck'in (rpk | grep) çocuklarını reap etmiyordu."""
     for path in ("docker-compose.prod.yml", "docker-compose.yml"):
         assert _compose(path)["services"]["redpanda"].get("init") is True, path
+
+
+def test_loki_log_hygiene():
+    """Loki container logu rotasyonsuz 1.1 GB'a çıkmıştı (25 Eki 2026)."""
+    with open("docker-compose.prod.yml", "r", encoding="utf-8") as f:
+        loki = yaml.safe_load(f)["services"]["loki"]
+    opts = loki["logging"]["options"]
+    assert opts["max-size"] and opts["max-file"]
+    with open("infra/loki/loki-config.yml", "r", encoding="utf-8") as f:
+        assert yaml.safe_load(f)["server"]["log_level"] == "warn"

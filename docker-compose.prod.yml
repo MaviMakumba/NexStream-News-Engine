@@ -520,6 +520,13 @@ services:
       - ./infra/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
+    # Docker json-file logu rotasyonsuzdu (27 günde 1,1 GB). Sadece Loki'ye
+    # konuldu: tüm servislere birden koymak 16 container'ı recreate eder (t3.small riski).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     deploy:
       resources:
         limits:
