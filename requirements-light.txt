@@ -1,5 +1,5 @@
 pydantic==2.13.5
-pydantic-settings==2.15.0
+pydantic-settings==2.16.1
 python-dotenv==1.2.4
 requests==2.34.2
 aiokafka==0.14.0
