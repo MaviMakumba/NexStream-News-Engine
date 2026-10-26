@@ -31,5 +31,5 @@ email-validator>=2.3.0
 bcrypt>=5.0.0
 stripe>=16.0.0
 redis>=8.1.0
-sentry-sdk[fastapi]>=2.71.0
+sentry-sdk[fastapi]>=2.73.0
 pywebpush>=2.5.0
