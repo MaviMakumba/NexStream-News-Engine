@@ -1,7 +1,7 @@
 # Geliştirme + CI bağımlılıkları. Prod image'ları bunu KURMAZ.
 -r requirements.txt
 pytest==9.1.1
-pytest-asyncio==1.4.0
+pytest-asyncio==1.4.1
 # requirements.txt'te chromadb/huggingface_hub üzerinden transitive geliyordu
 # (test_deployment_config.py'nin docker-compose.*.yml parse etmesi için)
 # — açık pin, o paketler değişirse sessizce kaybolmasın diye.
